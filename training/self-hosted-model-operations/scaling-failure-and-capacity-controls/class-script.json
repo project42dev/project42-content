@@ -1,0 +1,251 @@
+{
+  "schemaVersion": "2.0",
+  "id": "scaling-failure-and-capacity-controls-class",
+  "version": "1.0.0",
+  "moduleId": "scaling-failure-and-capacity-controls",
+  "locale": "en-US",
+  "title": "Scale the Bottleneck without Scaling the Failure",
+  "audience": "Practitioners and operators scaling self-hosted inference while preserving admission controls, quality, isolation, availability, attributable cost, recovery, and rollback.",
+  "learningObjectives": [
+    "Choose vertical, replica, sharded, queued, cached, and routed scaling patterns from measured bottlenecks and failure domains.",
+    "Design admission, backpressure, load shedding, retry, timeout, circuit, and degraded-mode behavior before adding capacity.",
+    "Validate placement, warm-up, draining, autoscaling, shared-resource contention, and failure isolation.",
+    "Issue a scale decision with service, quality, cost, recovery, and rollback gates."
+  ],
+  "plannedDurationSeconds": 1066,
+  "spokenWordCount": 1250,
+  "segments": [
+    {
+      "id": "welcome-and-outcomes",
+      "kind": "welcome",
+      "delivery": "spoken",
+      "spokenText": "Welcome. Scaling is not the act of adding replicas until a graph looks better. It is a controlled response to measured demand and failure risk. In this class, you will identify the real bottleneck, bound admission and retries, place and warm useful capacity, test blast radius, and approve only a scale policy whose quality, cost, recovery, and rollback evidence holds under representative traffic.",
+      "stageDirection": "Display the four outcomes beside a static demand-to-capacity decision path. Keep transcript and source controls visible.",
+      "estimatedSeconds": 38,
+      "sourceUrls": []
+    },
+    {
+      "id": "scale-bottleneck-narration",
+      "kind": "narration",
+      "sectionId": "scale-the-bottleneck",
+      "delivery": "spoken",
+      "spokenText": "Scale the measured bottleneck, not the architecture diagram. Use latency distributions, queue time, concurrency, rejection, accelerator and host utilization, memory headroom, bandwidth, storage delay, cache behavior, request sizes, and attributable cost. Then compare options. A larger device or host can increase vertical capacity but may enlarge one failure domain. More replicas can improve parallel work and replacement but also multiply startup, memory, and shared-dependency load. Model or tensor parallelism can fit or accelerate a larger build while adding communication and placement constraints. Batching can improve throughput while increasing queue and tail latency. A bounded queue can absorb a short burst but cannot create compute. Caching can avoid repeated work only when keys, freshness, authorization, and data isolation are correct. Workload routing can match requests to specialized evaluated capacity. A smaller evaluated model can reduce latency and cost but changes quality and safety evidence. Scaling compute cannot repair an unbounded queue, unavailable identity service, slow artifact store, bad prompt template, incompatible runtime, or quality regression.",
+      "stageDirection": "Show a static bottleneck-to-pattern table with latency, quality, utilization, failure domain, startup, cost, and complexity impacts.",
+      "estimatedSeconds": 105,
+      "sourceUrls": [
+        "https://mlcommons.org/benchmarks/inference-datacenter/",
+        "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+        "https://docs.docker.com/engine/containers/resource_constraints/"
+      ],
+      "visual": {
+        "description": "Measured bottlenecks map to vertical, replica, parallel, batched, queued, cached, routed, or smaller-model responses and their new risks.",
+        "altText": "Each scaling pattern lists the constraint it can address and tradeoffs in quality, latency, isolation, startup, cost, and complexity.",
+        "reducedMotionDescription": "Display the entire comparison as a static table and emphasize the current row with text and a border."
+      }
+    },
+    {
+      "id": "scaling-choice-demonstration",
+      "kind": "demonstration",
+      "sectionId": "scale-the-bottleneck",
+      "delivery": "spoken",
+      "spokenText": "Consider a synthetic service with acceptable processing time at one request, but rising queue delay during a ten-request burst. Accelerator utilization is high, memory has safe headroom, artifact storage is healthy, and quality is unchanged. The first experiment compares two warmed replicas against one larger-batch replica under the same requests, limits, hardware class, and load. Two replicas reduce queue delay and preserve time to first output, but both are placed on one host and share one gateway. That does not satisfy a host-failure availability claim. The batched option improves throughput but violates the interactive latency objective. The decision selects two replicas spread across verified failure domains, retains bounded batching, and records the shared gateway as a remaining dependency. It also preserves the baseline policy and cost ceiling. The answer came from queue, placement, latency, quality, and cost evidence, not from replica count alone.",
+      "stageDirection": "Populate the comparison with baseline, batched, and spread-replica results, including the rejected single-host placement.",
+      "estimatedSeconds": 78,
+      "sourceUrls": [
+        "https://mlcommons.org/benchmarks/inference-datacenter/",
+        "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
+      ],
+      "visual": {
+        "description": "A burst-load comparison rejects high-latency batching and same-host replicas, then selects warmed replicas across failure domains.",
+        "altText": "Queue delay, first-output latency, placement, quality, shared dependency, and cost jointly determine the scale choice.",
+        "reducedMotionDescription": "Present baseline and candidates side by side in a static decision table."
+      }
+    },
+    {
+      "id": "admission-backpressure-narration",
+      "kind": "narration",
+      "sectionId": "control-admission-and-backpressure",
+      "delivery": "spoken",
+      "spokenText": "Control admission before saturation. Set body, context, output, concurrency, rate, queue, deadline, and compute limits by workload and priority. Reject early with a stable error and bounded retry guidance when work cannot finish inside its deadline or budget. Propagate cancellation and deadlines through gateway, queue, inference server, runtime, and dependent tools so abandoned work does not keep consuming capacity. Backpressure tells upstream callers that downstream capacity is constrained; an unbounded queue only hides overload until latency and memory fail. Retry only classified transient failures, use a bounded attempt count and jitter, honor a retry budget, and confirm the operation is safe to repeat. Circuit breakers stop repeated calls to a failing dependency. Load shedding protects critical work by rejecting lower-priority demand before all work fails. Define safe degraded modes in advance: smaller limits, lower-priority rejection, a read-only path, or a separately evaluated fallback. A degraded mode is not permission to bypass identity, authorization, privacy, safety, or evidence controls.",
+      "stageDirection": "Show an admission and backpressure contract from request limits through queue, deadline, retry, circuit, shedding, and degraded mode.",
+      "estimatedSeconds": 102,
+      "sourceUrls": [
+        "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+        "https://docs.docker.com/engine/containers/resource_constraints/"
+      ],
+      "visual": {
+        "description": "A request enters bounded admission, queue, deadline, cancellation, retry, circuit, shedding, and degraded-mode controls.",
+        "altText": "Work that cannot finish safely is rejected early; retries and fallback remain bounded and do not bypass security or quality gates.",
+        "reducedMotionDescription": "Show the controls as a numbered static policy table."
+      }
+    },
+    {
+      "id": "retry-checkpoint",
+      "kind": "checkpoint",
+      "sectionId": "control-admission-and-backpressure",
+      "delivery": "spoken",
+      "spokenText": "Checkpoint. One dependency begins timing out. Each client retries immediately without a limit, the gateway retries twice, and the queue accepts every attempt. Explain how a small partial failure becomes a cascade and name the controls that stop it.",
+      "stageDirection": "Show fields for amplification path, deadline, cancellation, retry budget, jitter, circuit, queue bound, shedding, and recovery. Delay feedback until continuation.",
+      "estimatedSeconds": 27,
+      "sourceUrls": [
+        "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+        "https://docs.docker.com/engine/containers/resource_constraints/"
+      ],
+      "expectedLearnerAction": "Identify multiplicative retry and queue amplification, then require end-to-end deadlines and cancellation, classified bounded retries with jitter and a retry budget, circuit breaking, bounded queues, load shedding, and safe recovery."
+    },
+    {
+      "id": "retry-response-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Hold the checkpoint for up to seventy-five seconds with pause, extend, and continue controls.",
+      "estimatedSeconds": 75,
+      "sourceUrls": []
+    },
+    {
+      "id": "retry-feedback",
+      "kind": "feedback",
+      "sectionId": "control-admission-and-backpressure",
+      "delivery": "spoken",
+      "spokenText": "Every original request creates multiple client attempts, and each gateway attempt multiplies them again. The unbounded queue preserves work after its useful deadline, so capacity is consumed by requests that should already have failed. Stop the cascade with one end-to-end deadline, propagated cancellation, one owned retry layer, classified transient failures, a small attempt and retry budget with jitter, a circuit breaker, bounded admission and queueing, and prioritized shedding. Recover the dependency, drain or discard expired work safely, and verify normal load before closing the event. If your answer only added replicas, the amplification would consume those replicas too.",
+      "stageDirection": "Show the multiplicative path, then replace it with the bounded control sequence. Provide Retry and Continue controls.",
+      "estimatedSeconds": 56,
+      "sourceUrls": [
+        "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+        "https://docs.docker.com/engine/containers/resource_constraints/"
+      ],
+      "feedback": {
+        "correct": "You bounded retries, deadlines, cancellation, queueing, and circuits before adding capacity.",
+        "retry": "Adding capacity does not correct multiplicative retries and expired work in an unbounded queue."
+      }
+    },
+    {
+      "id": "placement-warmup-narration",
+      "kind": "narration",
+      "sectionId": "place-and-warm-capacity",
+      "delivery": "spoken",
+      "spokenText": "Place capacity against real device, memory, topology, storage, network, driver, and runtime requirements. Kubernetes resource requests influence scheduling, limits bound some resource use, and extended devices have different allocation behavior from fractional CPU. Docker likewise warns that containers have no resource constraints by default. Verify actual scheduler, device-plugin, topology, and runtime behavior in the target environment. A scheduled process is not useful capacity. Account for artifact download, integrity and policy verification, model load, compilation, cache warm-up, adapter initialization, and exact-model readiness before routing traffic. During removal or update, stop new admission to the replica, drain bounded in-flight work until a declared deadline, cancel or reconcile remaining operations, preserve telemetry, revoke the route, and only then reclaim resources. Test cold start, replacement, host pressure, and simultaneous rollout so autoscaling does not count replicas that cannot become ready before the demand passes.",
+      "stageDirection": "Show placement requirements and a replica lifecycle from scheduled through verified, warmed, ready, draining, unrouted, and removed.",
+      "estimatedSeconds": 100,
+      "sourceUrls": [
+        "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+        "https://docs.docker.com/engine/containers/resource_constraints/"
+      ],
+      "visual": {
+        "description": "Verified placement requirements feed a lifecycle that counts capacity only after artifact verification, loading, warm-up, and exact-model readiness.",
+        "altText": "Removal stops new work, drains bounded in-flight requests, preserves evidence, revokes routing, and then reclaims the resource.",
+        "reducedMotionDescription": "Present placement as a static checklist and lifecycle states as numbered text."
+      }
+    },
+    {
+      "id": "failure-isolation-narration",
+      "kind": "narration",
+      "sectionId": "test-failure-isolation",
+      "delivery": "spoken",
+      "spokenText": "Inject failures and measure the actual blast radius. Include process crash, out-of-memory termination, device loss, host loss, storage delay, network partition, identity failure, telemetry failure, registry outage, queue pressure, malformed work, and a bad model release. Observe affected requests, replicas, nodes, sites, shared services, and management functions. Confirm liveness and readiness remove unsafe capacity, queues stay bounded, retries do not amplify demand, one workload cannot starve another, exact model identity remains visible, and recovery rejects stale or unverified artifacts. Multiple replicas improve availability only when placement and shared dependencies support the claim. Two replicas on one host do not survive host loss. Replicas across hosts still share a gateway, identity provider, artifact store, network, power domain, or operator error unless those dependencies are addressed. Record the expected and observed blast radius, containment, data and state reconciliation, recovery time, evidence gaps, and owner.",
+      "stageDirection": "Display a failure matrix with injection, expected blast radius, observed effect, amplification, containment, recovery, and residual dependency.",
+      "estimatedSeconds": 98,
+      "sourceUrls": [
+        "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+        "https://docs.docker.com/engine/containers/resource_constraints/"
+      ],
+      "visual": {
+        "description": "A failure matrix tests processes, devices, hosts, dependencies, queues, telemetry, and bad releases against isolation and recovery claims.",
+        "altText": "Each failure records affected requests and infrastructure, unsafe capacity removal, retry behavior, state reconciliation, exact identity, recovery, and residual shared dependencies.",
+        "reducedMotionDescription": "Show the complete failure matrix as a static table."
+      }
+    },
+    {
+      "id": "autoscaling-change-narration",
+      "kind": "narration",
+      "sectionId": "gate-autoscaling-and-change",
+      "delivery": "spoken",
+      "spokenText": "Choose scale signals that lead useful demand without chasing noise. Queue delay, admitted concurrency, work units, saturation, or a tested combination may react earlier than CPU or accelerator utilization alone. Kubernetes Horizontal Pod Autoscaling periodically adjusts desired replicas from observed metrics, subject to its algorithm and configured behavior; model-serving warm-up means your useful-capacity policy must account for the delay between a scale decision and readiness. Set a minimum safe floor, maximum cost and quota, stabilization windows, scale-up rate, warm-up allowance, scale-down drain, telemetry-loss behavior, and alerts. Compare baseline and candidate policies under steady, burst, ramp, skewed, and failure traffic. Approve only when service objectives, quality, isolation, cost, startup, recovery, and rollback gates pass. Preserve the prior policy, exact configuration, and safe capacity floor. If telemetry is missing or the candidate thrashes, fail to the declared safe state rather than treating absent measurements as zero demand.",
+      "stageDirection": "Show baseline and candidate policies under five traffic patterns with floors, ceilings, warm-up, stabilization, cost, quality, failure, and rollback gates.",
+      "estimatedSeconds": 104,
+      "sourceUrls": [
+        "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+        "https://mlcommons.org/benchmarks/inference-datacenter/"
+      ],
+      "visual": {
+        "description": "A reversible autoscaling decision compares leading signals and policy behavior under steady, burst, ramp, skewed, and failure traffic.",
+        "altText": "The candidate must preserve objectives, quality, isolation, cost, startup, recovery, and rollback while respecting safe floors and ceilings.",
+        "reducedMotionDescription": "Provide traffic and decision results as labeled static tables rather than animated graphs."
+      }
+    },
+    {
+      "id": "activity-transition",
+      "kind": "learner-prompt",
+      "delivery": "spoken",
+      "spokenText": "Now design and challenge the scaling policy. Use synthetic load evidence to identify one bottleneck and compare vertical, replica, sharded, batched, queued, cached, routed, and smaller-model options. Define per-workload admission, queue, deadline, cancellation, retry, circuit, shedding, and degraded behavior. Write placement, artifact verification, warm-up, readiness, drain, replacement, minimum capacity, maximum cost, and stabilization rules. Create ten process, device, host, dependency, pressure, telemetry, and bad-release failures with expected blast radius and recovery. Compare baseline and candidate under steady, burst, ramp, skewed, and failure traffic, then issue a reversible decision.",
+      "stageDirection": "Open the bottleneck comparison, control policy, lifecycle, failure matrix, traffic results, and scale-decision workspace.",
+      "estimatedSeconds": 58,
+      "sourceUrls": [
+        "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+        "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+        "https://docs.docker.com/engine/containers/resource_constraints/",
+        "https://mlcommons.org/benchmarks/inference-datacenter/"
+      ],
+      "expectedLearnerAction": "Complete the bottleneck-to-pattern comparison, bounded admission and backpressure policy, placement and lifecycle rules, ten failure cases, representative traffic comparison, and evidence-linked reversible scale decision.",
+      "learningHandoff": {
+        "command": "open-activity",
+        "activityId": "activity-scaling-failure-plan"
+      }
+    },
+    {
+      "id": "activity-work-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Provide one hundred eighty seconds of optional work time with pause, extend, save, and continue controls.",
+      "estimatedSeconds": 180,
+      "sourceUrls": []
+    },
+    {
+      "id": "assessment-handoff",
+      "kind": "assessment-handoff",
+      "delivery": "spoken",
+      "spokenText": "Begin the check when you can select a pattern from a measured bottleneck, explain backpressure, define useful replica readiness, stop retry amplification, measure failure isolation, and preserve a reversible autoscaling policy. The check starts only when you choose Begin knowledge check.",
+      "stageDirection": "Display Review class, Return to activity, and Begin knowledge check. Do not begin or submit automatically.",
+      "estimatedSeconds": 26,
+      "sourceUrls": [],
+      "learningHandoff": {
+        "command": "open-knowledge-check",
+        "questionIds": [
+          "q-scaling-controls-1",
+          "q-scaling-controls-2",
+          "q-scaling-controls-3",
+          "q-scaling-controls-4",
+          "q-scaling-controls-5",
+          "q-scaling-controls-6"
+        ]
+      }
+    },
+    {
+      "id": "class-closing",
+      "kind": "closing",
+      "delivery": "spoken",
+      "spokenText": "Remember: scale the measured constraint, bound demand before saturation, count only verified ready capacity, test shared failures, and preserve the policy and floor that let you reverse the change.",
+      "stageDirection": "Display the closing rule and leave focus on the learner's next action.",
+      "estimatedSeconds": 19,
+      "sourceUrls": []
+    }
+  ],
+  "accessibility": {
+    "transcriptRequired": true,
+    "captionsRequired": true,
+    "textOnlyEquivalentRequired": true,
+    "reducedMotionRequired": true
+  },
+  "provenance": {
+    "canonicalContentVersion": "0.41.0",
+    "evidenceReviewedAt": "2026-07-27",
+    "contributions": [
+      {"role": "evidence-research", "roleProfileRef": "pending-qualification-research", "providerFamily": "pending-research-family", "status": "planned"},
+      {"role": "curriculum-writing", "roleProfileRef": "pending-qualification-writing", "providerFamily": "pending-writing-family", "status": "planned"},
+      {"role": "factual-verification", "roleProfileRef": "pending-qualification-verification", "providerFamily": "pending-verification-family", "status": "planned"},
+      {"role": "learning-design-review", "roleProfileRef": "pending-qualification-learning-design", "providerFamily": "pending-learning-design-family", "status": "planned"},
+      {"role": "accessibility-review", "roleProfileRef": "pending-qualification-accessibility", "providerFamily": "pending-accessibility-family", "status": "planned"}
+    ],
+    "approvals": []
+  },
+  "releaseStatus": "draft"
+}

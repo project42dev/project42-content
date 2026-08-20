@@ -1,0 +1,66 @@
+{
+  "id": "openai-tools-structured-output",
+  "slug": "openai-tools-structured-output",
+  "title": "OpenAI Strict Functions and Structured Output",
+  "summary": "Choose between Responses structured text and strict function calls, define constrained schemas, validate semantics, and keep execution under application control.",
+  "category": "Provider workflows",
+  "format": "reference",
+  "audience": ["developer", "operator"],
+  "level": "intermediate",
+  "providers": ["openai"],
+  "prerequisites": ["A working Responses API request", "An OpenAI model that supports the selected feature", "A JSON Schema for the intended data"],
+  "owner": "project42-editorial",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "tags": ["openai", "structured-output", "function-calling", "json-schema"],
+  "sections": [
+    {
+      "id": "choose-control",
+      "title": "Choose the correct control",
+      "paragraphs": [
+        "Use text.format with type json_schema when the model should return schema-constrained content to the user or application. Use a function tool when the model should request data or an application capability. Set strict: true and close the object schema with additionalProperties: false. Structure is not authorization, factual verification, or permission to execute.",
+        "The application—not the model—maps a function name to code. Authenticate and authorize with trusted runtime context, validate arguments again, obtain approval for consequential actions, use idempotency for mutations, and return a typed function_call_output tied to the original call ID."
+      ]
+    },
+    {
+      "id": "define-contract",
+      "title": "Define an explicit Responses contract",
+      "paragraphs": [
+        "The following request-body fragments show the current Responses API shapes. Insert one into a reviewed request and replace bracketed values with non-secret domain fields."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "OpenAI structured-output contracts",
+        "code": "const structuredText = {\n  text: {\n    format: {\n      type: \"json_schema\",\n      name: \"review_decision\",\n      strict: true,\n      schema: {\n        type: \"object\",\n        properties: { decision: { type: \"string\", enum: [\"approve\", \"review\", \"reject\"] }, reason: { type: \"string\" } },\n        required: [\"decision\", \"reason\"],\n        additionalProperties: false,\n      },\n    },\n  },\n};\n\nconst strictFunction = {\n  tools: [{\n    type: \"function\",\n    name: \"record_review_decision\",\n    description: \"Record an already authorized review decision for [SYSTEM_OF_RECORD]\",\n    strict: true,\n    parameters: {\n      type: \"object\",\n      properties: { item_id: { type: \"string\" }, decision: { type: \"string\", enum: [\"approve\", \"reject\"] } },\n      required: [\"item_id\", \"decision\"],\n      additionalProperties: false,\n    },\n  }],\n};"
+      }
+    },
+    {
+      "id": "verify-and-recover",
+      "title": "Expected evidence and verification",
+      "paragraphs": [
+        "For structured text, expect output_text content that conforms to the named schema. For function calling, expect a function_call output item with a known name, call_id, and JSON arguments. Verify response status, refusal or incomplete outcomes, schema, enum values, length limits, authorization, and domain rules. Test valid, missing, extra, malformed, unauthorized, duplicate, refusal, and truncation cases.",
+        "Do not execute when parsing, validation, approval, or authorization fails. Record a redacted failure and request correction or human review within a retry budget. Rollback means discarding untrusted output; for an executed function, use its idempotency key and tested compensation or reconciliation path. Schema compliance never guarantees truth or safety."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Function calling",
+      "url": "https://developers.openai.com/api/docs/guides/function-calling",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Structured model outputs",
+      "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "OpenAI API developer quickstart",
+      "url": "https://developers.openai.com/api/docs/quickstart",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

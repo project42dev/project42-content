@@ -1,0 +1,66 @@
+{
+  "id": "openai-responses-api-request",
+  "slug": "openai-responses-api-request",
+  "title": "OpenAI Responses API Request Workflow",
+  "summary": "Send a bounded OpenAI Responses API request with environment-based credentials, explicit configuration, output inspection, and recoverable failure handling.",
+  "category": "Provider workflows",
+  "format": "playbook",
+  "audience": ["developer", "operator"],
+  "level": "beginner",
+  "providers": ["openai"],
+  "prerequisites": ["Node.js 20 or later", "An OpenAI API key stored outside source control", "An approved OpenAI model ID"],
+  "owner": "project42-editorial",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "tags": ["openai", "responses-api", "api", "javascript"],
+  "sections": [
+    {
+      "id": "prepare-request",
+      "title": "Prepare the request boundary",
+      "paragraphs": [
+        "Set OPENAI_API_KEY in the process environment or an approved secret manager and set PROJECT42_OPENAI_MODEL to a reviewed model ID. Do not print, commit, paste into source, or send the key as model input. Define the purpose, approved input, token budget, timeout, storage policy, and expected response before sending.",
+        "Keep application state and authorization outside the model. When continuing a conversation, decide explicitly what prior content may be sent and retained. Treat generated output and tool arguments as untrusted until application validation and policy checks pass."
+      ]
+    },
+    {
+      "id": "send-request",
+      "title": "Send a minimal Responses request",
+      "paragraphs": [
+        "This dependency-free Node.js example reads only environment configuration. Replace the bracketed input at runtime with approved, non-secret content."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "responses-request.mjs",
+        "code": "const apiKey = process.env.OPENAI_API_KEY;\nconst model = process.env.PROJECT42_OPENAI_MODEL;\nif (!apiKey || !model) throw new Error(\"Missing OPENAI_API_KEY or PROJECT42_OPENAI_MODEL\");\n\nconst response = await fetch(\"https://api.openai.com/v1/responses\", {\n  method: \"POST\",\n  headers: {\n    \"content-type\": \"application/json\",\n    authorization: `Bearer ${apiKey}`,\n  },\n  body: JSON.stringify({ model, input: \"[INPUT_TEXT]\", max_output_tokens: 300 }),\n  signal: AbortSignal.timeout(30_000),\n});\nconst requestId = response.headers.get(\"x-request-id\");\nconst body = await response.json();\nif (!response.ok) throw new Error(`OpenAI request failed (${response.status}, request ${requestId ?? \"unknown\"})`);\nconst text = body.output\n  ?.flatMap((item) => item.type === \"message\" ? item.content ?? [] : [])\n  .find((part) => part.type === \"output_text\")?.text;\nif (body.status !== \"completed\" || typeof text !== \"string\") throw new Error(\"Unexpected completion shape\");\nconsole.log({ requestId, responseId: body.id, text });"
+      }
+    },
+    {
+      "id": "verify-and-recover",
+      "title": "Expected evidence and verification",
+      "paragraphs": [
+        "Expected output is an HTTP success with a response ID, completed status, typed output items, usage, and an x-request-id header. Verify status, output item and content types, incomplete details, length, safety policy, and domain rules before display or storage. Record request and response IDs, model, latency, usage, and a redacted outcome—not credentials or sensitive input.",
+        "Correct authentication and invalid-request failures instead of retrying. Retry only classified transient failures with bounded exponential backoff and jitter, and preserve operation identity. This read-only example has no external side effect, so rollback means discard the unaccepted response and restore the last verified application state. Add idempotency and tested compensation before connecting output to mutations."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "OpenAI API developer quickstart",
+      "url": "https://developers.openai.com/api/docs/quickstart",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Text generation",
+      "url": "https://developers.openai.com/api/docs/guides/text",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "OpenAI API error codes",
+      "url": "https://developers.openai.com/api/docs/guides/error-codes",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

@@ -1,0 +1,552 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:05.000
+Welcome. This class turns a running model
+process into a
+
+2
+00:00:05.000 --> 00:00:10.000
+service contract an application can depend
+on and an operator
+
+3
+00:00:10.000 --> 00:00:15.000
+can replace safely. You will separate
+serving layers, distinguish process
+
+4
+00:00:15.000 --> 00:00:20.000
+health from exact-model readiness, define
+inference and failure behavior before
+
+5
+00:00:20.000 --> 00:00:25.000
+traffic arrives, test compatibility as a
+bounded subset, and preserve
+
+6
+00:00:25.000 --> 00:00:30.000
+a portable adapter with a reversible
+cutover. One successful chat
+
+7
+00:00:30.000 --> 00:00:35.000
+request is a demonstration, not a
+compatibility proof.
+
+8
+00:00:35.000 --> 00:00:40.714
+Separate the layers and give each one a
+visible responsibility.
+
+9
+00:00:40.714 --> 00:00:46.429
+The model runtime loads and executes the
+artifact. The inference
+
+10
+00:00:46.429 --> 00:00:52.143
+server exposes runtime operations through
+a network protocol. A gateway
+
+11
+00:00:52.143 --> 00:00:57.857
+authenticates callers, authorizes
+operations, applies body, rate,
+
+12
+00:00:57.857 --> 00:01:03.571
+concurrency, and cost limits, routes
+requests, records policy decisions, and
+
+13
+00:01:03.571 --> 00:01:09.286
+provides a stable external name. The
+application adapter maps product-owned
+
+14
+00:01:09.286 --> 00:01:15.000
+requests, outcomes, errors, and telemetry
+to a selected serving protocol.
+
+15
+00:01:15.000 --> 00:01:20.714
+The public contract is what approved
+clients may rely on.
+
+16
+00:01:20.714 --> 00:01:26.429
+Keep identity, authorization, and policy
+outside model prompts. Do not
+
+17
+00:01:26.429 --> 00:01:32.143
+let replacing a runtime silently change
+learner-facing behavior or weaken
+
+18
+00:01:32.143 --> 00:01:37.857
+access controls. Bind every friendly
+served-model name to the exact
+
+19
+00:01:37.857 --> 00:01:43.571
+immutable model and runtime bundle.
+Responses, traces, evaluations, incidents,
+
+20
+00:01:43.571 --> 00:01:49.286
+and rollback records preserve that
+underlying identity even when clients
+
+21
+00:01:49.286 --> 00:01:55.000
+use an alias.
+
+22
+00:01:55.000 --> 00:02:00.455
+Consider an application that submits a
+document question and expects
+
+23
+00:02:00.455 --> 00:02:05.909
+a structured answer, cited evidence, one
+stable error taxonomy, and
+
+24
+00:02:05.909 --> 00:02:11.364
+an audit identifier. Runtime A uses one
+chat field and
+
+25
+00:02:11.364 --> 00:02:16.818
+one streaming event shape. Runtime B uses
+different field names
+
+26
+00:02:16.818 --> 00:02:22.273
+and emits usage only at the end. The
+application should
+
+27
+00:02:22.273 --> 00:02:27.727
+not learn both protocols. Two adapters map
+the same product
+
+28
+00:02:27.727 --> 00:02:33.182
+request and outcome contract while the
+gateway enforces the same
+
+29
+00:02:33.182 --> 00:02:38.636
+identity and limits. If Runtime B cannot
+preserve a required
+
+30
+00:02:38.636 --> 00:02:44.091
+citation, cancellation, or error behavior,
+the adapter reports the capability
+
+31
+00:02:44.091 --> 00:02:49.545
+unavailable. It must not fabricate
+equivalence or silently drop the
+
+32
+00:02:49.545 --> 00:02:55.000
+field.
+
+33
+00:02:55.000 --> 00:03:00.667
+Define health states separately. Liveness
+asks whether the server process
+
+34
+00:03:00.667 --> 00:03:06.333
+is functioning enough that the supervisor
+should leave it running.
+
+35
+00:03:06.333 --> 00:03:12.000
+It should not fail merely because every
+downstream dependency is
+
+36
+00:03:12.000 --> 00:03:17.667
+unavailable. Instance readiness asks
+whether this instance should receive
+
+37
+00:03:17.667 --> 00:03:23.333
+inference traffic. Model readiness
+confirms that the intended model and
+
+38
+00:03:23.333 --> 00:03:29.000
+exact version are loaded and can serve the
+required contract.
+
+39
+00:03:29.000 --> 00:03:34.667
+Model metadata exposes the served identity
+and supported contract without
+
+40
+00:03:34.667 --> 00:03:40.333
+revealing credentials, internal paths, or
+unnecessary infrastructure. KServe's Open
+
+41
+00:03:40.333 --> 00:03:46.000
+Inference Protocol version two separates
+server live, server ready, model
+
+42
+00:03:46.000 --> 00:03:51.667
+ready, model metadata, and inference
+endpoints. Whatever protocol you choose,
+
+43
+00:03:51.667 --> 00:03:57.333
+test startup, artifact loading, warm-up,
+pressure, dependency failure, unload,
+
+44
+00:03:57.333 --> 00:04:03.000
+update, rollback, and shutdown
+transitions. A process can return HTTP
+
+45
+00:04:03.000 --> 00:04:08.667
+two hundred while the wrong model, wrong
+adapter, or incomplete
+
+46
+00:04:08.667 --> 00:04:14.333
+warm-up is present. That process may be
+live and still
+
+47
+00:04:14.333 --> 00:04:20.000
+must not be ready.
+
+48
+00:04:20.000 --> 00:04:26.000
+Checkpoint. The server process responds to
+its health endpoint, but
+
+49
+00:04:26.000 --> 00:04:32.000
+telemetry shows it loaded the previous
+model revision after an
+
+50
+00:04:32.000 --> 00:04:38.000
+update. Should it be live, ready, both, or
+neither, and
+
+51
+00:04:38.000 --> 00:04:44.000
+what must happen next?
+
+52
+00:05:59.000 --> 00:06:04.625
+A strong answer says the process may be
+live because
+
+53
+00:06:04.625 --> 00:06:10.250
+it responds, but it is not model-ready for
+the approved
+
+54
+00:06:10.250 --> 00:06:15.875
+contract. Remove it from inference
+routing, preserve exact identity evidence,
+
+55
+00:06:15.875 --> 00:06:21.500
+reconcile why the prior revision loaded,
+then load or restore
+
+56
+00:06:21.500 --> 00:06:27.125
+a verified bundle and repeat readiness and
+conformance checks. Restarting
+
+57
+00:06:27.125 --> 00:06:32.750
+without identifying the bundle can repeat
+the same failure. If
+
+58
+00:06:32.750 --> 00:06:38.375
+your answer marked it ready because the
+port opened, revise
+
+59
+00:06:38.375 --> 00:06:44.000
+the rule: readiness includes the intended
+model identity and contract.
+
+60
+00:06:44.000 --> 00:06:50.923
+Own the inference and failure contract.
+Version allowed fields, roles
+
+61
+00:06:50.923 --> 00:06:57.846
+or input parts, modalities, encodings,
+context and output limits, sampling
+
+62
+00:06:57.846 --> 00:07:04.769
+controls, stop rules, optional tools,
+response schema, exact model identity,
+
+63
+00:07:04.769 --> 00:07:11.692
+usage accounting, finish reasons, policy
+outcomes, and extension fields. Reject
+
+64
+00:07:11.692 --> 00:07:18.615
+unsupported or ambiguous inputs instead of
+ignoring them. Define authentication
+
+65
+00:07:18.615 --> 00:07:25.538
+and object authorization outside the
+prompt. Specify request and correlation
+
+66
+00:07:25.538 --> 00:07:32.462
+identifiers, body limits, deadlines,
+cancellation, streaming event order,
+
+67
+00:07:32.462 --> 00:07:39.385
+disconnect behavior, queue and rate
+limits, overload status, retryability,
+
+68
+00:07:39.385 --> 00:07:46.308
+stable error codes, telemetry identifiers,
+redaction, and postconditions. A timeout
+
+69
+00:07:46.308 --> 00:07:53.231
+does not automatically prove that no work
+occurred. A retry
+
+70
+00:07:53.231 --> 00:08:00.154
+policy must classify the failure,
+reconcile any external effect, and
+
+71
+00:08:00.154 --> 00:08:07.077
+remain bounded. One overloaded client must
+not multiply load through
+
+72
+00:08:07.077 --> 00:08:14.000
+unbounded retries.
+
+73
+00:08:14.000 --> 00:08:20.923
+Treat compatibility as a tested subset. A
+server described as
+
+74
+00:08:20.923 --> 00:08:27.846
+OpenAI-compatible may implement selected
+paths and fields while differing in
+
+75
+00:08:27.846 --> 00:08:34.769
+model discovery, roles, tools, structured
+output, streaming chunks, token
+
+76
+00:08:34.769 --> 00:08:41.692
+accounting, errors, limits, extensions, or
+parameter handling. vLLM documents an
+
+77
+00:08:41.692 --> 00:08:48.615
+OpenAI-compatible server, but application
+compatibility still depends on the exact
+
+78
+00:08:48.615 --> 00:08:55.538
+vLLM version, endpoint, model,
+configuration, and features the
+
+79
+00:08:55.538 --> 00:09:02.462
+application uses. Build a conformance
+matrix for the product-owned subset.
+
+80
+00:09:02.462 --> 00:09:09.385
+Label every behavior required,
+transformed, ignored, emulated, rejected,
+
+81
+00:09:09.385 --> 00:09:16.308
+or unavailable. Test normal, boundary,
+invalid, unauthorized, rate-limited,
+
+82
+00:09:16.308 --> 00:09:23.231
+overloaded, timeout, cancellation,
+streaming, restart, and recovery cases.
+
+83
+00:09:23.231 --> 00:09:30.154
+Verify status, body, event sequence,
+identity, usage, error category, and
+
+84
+00:09:30.154 --> 00:09:37.077
+telemetry. Never infer full equivalence
+from matching URL paths or
+
+85
+00:09:37.077 --> 00:09:44.000
+one successful response.
+
+86
+00:09:44.000 --> 00:09:50.833
+Keep user outcomes, application schemas,
+authorization policy, evaluation cases,
+
+87
+00:09:50.833 --> 00:09:57.667
+trace fields, postconditions, error
+categories, and recovery rules above
+
+88
+00:09:57.667 --> 00:10:04.500
+runtime adapters. Put server-specific
+field names, streaming events, tool
+
+89
+00:10:04.500 --> 00:10:11.333
+formats, and extensions inside adapters.
+Portability does not mean hiding
+
+90
+00:10:11.333 --> 00:10:18.167
+important differences behind the lowest
+common denominator. Expose capabilities
+
+91
+00:10:18.167 --> 00:10:25.000
+and safety differences explicitly. For a
+runtime change, run identical
+
+92
+00:10:25.000 --> 00:10:31.833
+conformance and evaluation suites against
+baseline and candidate. Compare quality,
+
+93
+00:10:31.833 --> 00:10:38.667
+security, latency, capacity, streaming,
+cancellation, failures, and observability.
+
+94
+00:10:38.667 --> 00:10:45.500
+Canary a bounded route, preserve exact
+identities in telemetry, and
+
+95
+00:10:45.500 --> 00:10:52.333
+retain the last verified adapter and
+serving bundle. Roll back
+
+96
+00:10:52.333 --> 00:10:59.167
+on any critical contract, quality,
+security, performance, capacity, or
+
+97
+00:10:59.167 --> 00:11:06.000
+evidence regression.
+
+98
+00:11:06.000 --> 00:11:12.429
+Now design the portable serving
+conformance suite. Define separate health,
+
+99
+00:11:12.429 --> 00:11:18.857
+readiness, identity, inference, stream,
+cancellation, timeout, invalid-input,
+
+100
+00:11:18.857 --> 00:11:25.286
+unauthorized, rate-limit, and overload
+contracts. Map one application schema to
+
+101
+00:11:25.286 --> 00:11:31.714
+two hypothetical adapters. Label each
+behavior required, transformed, ignored,
+
+102
+00:11:31.714 --> 00:11:38.143
+emulated, rejected, or unavailable. Write
+deterministic normal, boundary, failure,
+
+103
+00:11:38.143 --> 00:11:44.571
+restart, and recovery cases, then define
+cutover thresholds, canary scope,
+
+104
+00:11:44.571 --> 00:11:51.000
+stop conditions, and rollback evidence.
+
+105
+00:14:51.000 --> 00:14:56.000
+Begin the check when you can place
+protocol translation in
+
+106
+00:14:56.000 --> 00:15:01.000
+the adapter, distinguish liveness from
+readiness, bound compatibility claims,
+
+107
+00:15:01.000 --> 00:15:06.000
+reject unsupported fields, design
+representative conformance cases, and plan
+
+108
+00:15:06.000 --> 00:15:11.000
+a tested cutover and rollback. The check
+starts only when
+
+109
+00:15:11.000 --> 00:15:16.000
+you choose Begin knowledge check.
+
+110
+00:15:16.000 --> 00:15:21.000
+Remember: a stable service owns its
+behavior above the runtime,
+
+111
+00:15:21.000 --> 00:15:26.000
+proves exact readiness, calls
+compatibility only what it tests, and
+
+112
+00:15:26.000 --> 00:15:31.000
+keeps every serving change observable and
+reversible.

@@ -1,0 +1,313 @@
+{
+  "id": "execute-cross-provider-cutover",
+  "title": "Execute, Roll Back, and Close a Provider Migration",
+  "summary": "Move from offline evidence through shadow and canary stages, reconcile state and side effects during rollback, and hand off residual risk only after production observation.",
+  "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "providers": ["provider-neutral", "anthropic", "openai", "google"],
+  "estimatedMinutes": 61,
+  "objectives": [
+    "Implement versioned adapters, configurable routing, compatible records, and isolated telemetry before shifting traffic.",
+    "Progress through offline, shadow, canary, and promotion gates with explicit stop authority.",
+    "Roll back safely by reconciling conversation state, tool side effects, queued work, learner records, and duplicate actions.",
+    "Close a migration with observed production evidence, current runbooks, lifecycle cleanup, and accepted residual risk."
+  ],
+  "prerequisites": ["plan-cross-provider-migration"],
+  "sections": [
+    {
+      "id": "prepare-versioned-routes-and-records",
+      "title": "Prepare versioned routes and records",
+      "paragraphs": [
+        "Put source and candidate behind explicit versioned adapters and configurable routing. Keep domain records, learner progress, assessment attempts, transcripts, evidence references, and stable identifiers compatible across the change; add version fields rather than silently reinterpreting old data.",
+        "Separate telemetry by provider, surface, model, adapter, prompt, policy, evaluation set, and route. Validate credentials from environment or a secret manager, least-privilege access, timeouts, retries, budget controls, data handling, and incident ownership before enabling candidate execution."
+      ],
+      "code": {
+        "language": "typescript",
+        "label": "Configurable route without embedded credentials",
+        "code": "const route = process.env.MIGRATION_ROUTE ?? \"source\";\nconst allowedRoutes = new Set([\"source\", \"shadow\", \"candidate-canary\"]);\nif (!allowedRoutes.has(route)) throw new Error(\"Unsupported migration route\");\n\nconst credentialsPresent = [\n  process.env.ANTHROPIC_API_KEY,\n  process.env.OPENAI_API_KEY,\n  process.env.GEMINI_API_KEY,\n].filter(Boolean).length;\nif (credentialsPresent === 0) throw new Error(\"No provider credential is configured\");"
+      }
+    },
+    {
+      "id": "advance-through-controlled-stages",
+      "title": "Advance through controlled stages",
+      "paragraphs": [
+        "Start with deterministic contract tests and offline replay. Use shadow execution only when duplicate processing complies with privacy, contractual, cost, and side-effect policy; block or simulate tools so a shadow cannot repeat real actions.",
+        "Move to a small cohort or use-case canary only when offline and shadow gates pass. Cap traffic, duration, cost, retries, tool permissions, and blast radius. Expand one stage at a time after the named approver reviews critical-slice evidence."
+      ]
+    },
+    {
+      "id": "enforce-gates-and-stop-authority",
+      "title": "Enforce gates and stop authority",
+      "paragraphs": [
+        "Evaluate output quality, factuality, safety and refusal behavior, structured data, tool trajectories, state continuity, accessibility, latency, errors, usage, cost, data controls, operator load, and incident signals by critical slice. Aggregate averages must not hide a failed safety, language, accessibility, or high-value workflow.",
+        "Automate bounded stops for clear thresholds and give an on-call human authority to pause or roll back on ambiguous high-consequence signals. Preserve the evidence, route version, decision, approver, and timestamp for every hold, expansion, or rollback."
+      ],
+      "callout": "A canary is a risk-control mechanism only when exposure is bounded and rollback remains faster than harm."
+    },
+    {
+      "id": "rollback-and-reconcile",
+      "title": "Roll back and reconcile state and side effects",
+      "paragraphs": [
+        "Route new work back to the proven source, stop or drain candidate workers, and preserve failure evidence. Identify in-flight conversations, tool calls, file or database writes, messages, purchases, queued jobs, caches, retries, learner attempts, and records that may be incomplete or duplicated.",
+        "Use idempotency keys, operation journals, versioned state, compensating actions, and manual review queues to reconcile each side effect. Verify source health, data integrity, duplicate suppression, access cleanup, and user communication before declaring rollback complete."
+      ]
+    },
+    {
+      "id": "observe-close-and-hand-off-risk",
+      "title": "Observe, close, and hand off residual risk",
+      "paragraphs": [
+        "After promotion, keep source routing or another tested fallback until the defined observation window passes. Confirm service, quality, safety, accessibility, cost, capacity, data, support, and incident indicators; rehearse rollback again if configuration or dependencies changed.",
+        "Close only when deprecated use is removed or accepted with an owner, records and migrations are verified, dashboards and alerts are current, runbooks and training match production, credentials and permissions are right-sized, unresolved risk is accepted by the accountable owner, and the next lifecycle review is scheduled."
+      ]
+    }
+  ],
+  "activity": {
+    "id": "activity-provider-cutover-rehearsal",
+    "title": "Run a failed-canary and rollback rehearsal",
+    "instructions": [
+      "Create synthetic no-paid-call source and candidate traces with stable request, learner, attempt, tool-call, side-effect, and route identifiers; include one hidden critical-slice regression and one ambiguous operational signal.",
+      "Move the fixture set through contract, offline, shadow, and canary gates, recording evidence, approver, exposure, cost assumption, decision, and timestamp at each stage.",
+      "Trigger the failed canary, route new work to the source, stop or drain the candidate, and inventory every in-flight state item, tool side effect, queued action, retry, and learner record.",
+      "Reconcile the synthetic operation journal with idempotency and compensating actions, verify source health and data integrity, and measure detection, decision, rollback, and reconciliation time.",
+      "Write a closeout and residual-risk handoff that identifies production observation, lifecycle cleanup, documentation, access, owners, acceptance authority, and the next review date."
+    ],
+    "evidence": [
+      "A staged gate log and isolated trace set showing exact route versions, critical-slice results, approvals, exposure limits, and the rollback trigger.",
+      "A reconciled operation journal, recovery verification, measured rollback report, and signed closeout and residual-risk handoff."
+    ],
+    "reflectionPrompt": "Which state or side effect would have remained inconsistent if rollback had only changed the traffic route?"
+  },
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 1830,
+    "cues": [
+      {
+        "id": "cue-cutover-prepare",
+        "kind": "narration",
+        "sectionId": "prepare-versioned-routes-and-records",
+        "text": "Prepare versioned adapters, configurable routes, compatible stable records, environment-managed credentials, scoped permissions, and isolated telemetry before candidate execution."
+      },
+      {
+        "id": "cue-cutover-stages",
+        "kind": "narration",
+        "sectionId": "advance-through-controlled-stages",
+        "text": "Advance from contract tests to offline replay, policy-safe shadow, and bounded canary stages only after each evidence gate passes."
+      },
+      {
+        "id": "cue-cutover-gates",
+        "kind": "narration",
+        "sectionId": "enforce-gates-and-stop-authority",
+        "text": "Enforce critical-slice quality, safety, state, tool, accessibility, latency, cost, data, and operational gates with automated stops and named human authority."
+      },
+      {
+        "id": "cue-cutover-rollback",
+        "kind": "narration",
+        "sectionId": "rollback-and-reconcile",
+        "text": "Rollback routes, then reconcile every in-flight conversation, tool call, side effect, queue, retry, cache, learner attempt, and record before declaring recovery."
+      },
+      {
+        "id": "cue-cutover-close",
+        "kind": "narration",
+        "sectionId": "observe-close-and-hand-off-risk",
+        "text": "Close after production observation, proven fallback, verified data, current controls and runbooks, lifecycle cleanup, and accountable residual-risk acceptance."
+      },
+      {
+        "id": "cue-cutover-visual",
+        "kind": "visual",
+        "sectionId": "advance-through-controlled-stages",
+        "text": "Move a route through contract, offline, shadow, canary, promote or rollback, reconcile, observe, and close.",
+        "accessibilityAlternative": "A static stage table lists entry evidence, maximum exposure, approver, pass and stop thresholds, rollback objective, and reconciliation proof."
+      },
+      {
+        "id": "cue-cutover-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "rollback-and-reconcile",
+        "text": "Ask learners to name one duplicated side effect and the idempotency, journal, compensation, or manual-review evidence needed to reconcile it."
+      },
+      {
+        "id": "cue-cutover-pause",
+        "kind": "pause",
+        "sectionId": "enforce-gates-and-stop-authority",
+        "text": "Allow three minutes to define a critical-slice rollback threshold and the person authorized to act."
+      },
+      {
+        "id": "cue-cutover-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "observe-close-and-hand-off-risk",
+        "text": "Check that observation, fallback, data verification, runbooks, lifecycle cleanup, access, residual risk, and next review each have evidence and an owner."
+      },
+      {
+        "id": "cue-cutover-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the failed-canary, rollback, state and side-effect reconciliation, recovery verification, and risk handoff rehearsal."
+      },
+      {
+        "id": "cue-cutover-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the knowledge check after learners can cut over and recover without losing stable records, state, evidence, or accountability."
+      }
+    ],
+    "transcript": "Prepare versioned adapters, configurable routes, compatible stable records, environment-managed credentials, scoped permissions, and isolated telemetry before candidate execution. Advance from contract tests to offline replay, policy-safe shadow, and bounded canary stages only after each evidence gate passes. Enforce critical-slice quality, safety, state, tool, accessibility, latency, cost, data, and operational gates with automated stops and named human authority. Rollback routes, then reconcile every in-flight conversation, tool call, side effect, queue, retry, cache, learner attempt, and record before declaring recovery. Close after production observation, proven fallback, verified data, current controls and runbooks, lifecycle cleanup, and accountable residual-risk acceptance.",
+    "captions": [
+      {
+        "cueId": "cue-cutover-prepare",
+        "startSeconds": 0,
+        "endSeconds": 340,
+        "text": "Prepare versioned adapters, configurable routes, compatible stable records, environment-managed credentials, scoped permissions, and isolated telemetry before candidate execution."
+      },
+      {
+        "cueId": "cue-cutover-stages",
+        "startSeconds": 370,
+        "endSeconds": 700,
+        "text": "Advance from contract tests to offline replay, policy-safe shadow, and bounded canary stages only after each evidence gate passes."
+      },
+      {
+        "cueId": "cue-cutover-gates",
+        "startSeconds": 730,
+        "endSeconds": 1060,
+        "text": "Enforce critical-slice quality, safety, state, tool, accessibility, latency, cost, data, and operational gates with automated stops and named human authority."
+      },
+      {
+        "cueId": "cue-cutover-rollback",
+        "startSeconds": 1090,
+        "endSeconds": 1420,
+        "text": "Rollback routes, then reconcile every in-flight conversation, tool call, side effect, queue, retry, cache, learner attempt, and record before declaring recovery."
+      },
+      {
+        "cueId": "cue-cutover-close",
+        "startSeconds": 1450,
+        "endSeconds": 1790,
+        "text": "Close after production observation, proven fallback, verified data, current controls and runbooks, lifecycle cleanup, and accountable residual-risk acceptance."
+      }
+    ],
+    "reducedMotionAlternative": "Use a static staged-cutover gate table, operation journal, rollback checklist, recovery report, and residual-risk handoff."
+  },
+  "knowledgeCheck": {
+    "passPercent": 80,
+    "questions": [
+      {
+        "id": "q-provider-cutover-1",
+        "prompt": "What must remain compatible during provider migration?",
+        "choices": [
+          "Only display labels",
+          "Domain and learner records, stable identifiers, evidence references, and application contracts",
+          "Only the target SDK version",
+          "Only model nicknames"
+        ],
+        "answerIndex": 1,
+        "explanation": "Versioned adapters should protect durable records and contracts from provider-specific reinterpretation."
+      },
+      {
+        "id": "q-provider-cutover-2",
+        "prompt": "When is shadow execution appropriate?",
+        "choices": [
+          "Whenever duplicate side effects are convenient",
+          "Before contract tests",
+          "Only when data, policy, cost, and side effects permit it and real actions are blocked or simulated",
+          "Only after removing telemetry"
+        ],
+        "answerIndex": 2,
+        "explanation": "Shadow runs can duplicate processing and must respect data and side-effect boundaries."
+      },
+      {
+        "id": "q-provider-cutover-3",
+        "prompt": "Why evaluate critical slices separately?",
+        "choices": [
+          "An aggregate average can hide a serious safety, accessibility, language, or high-value regression",
+          "To avoid defining thresholds",
+          "To guarantee a candidate wins",
+          "To remove human authority"
+        ],
+        "answerIndex": 0,
+        "explanation": "Averages can conceal unacceptable harm in a small but important cohort or workflow."
+      },
+      {
+        "id": "q-provider-cutover-4",
+        "prompt": "What completes rollback?",
+        "choices": [
+          "Changing the route flag",
+          "Stopping dashboards",
+          "Deleting failure evidence",
+          "Restored routing plus reconciled state and side effects, verified source health, data integrity, and communication"
+        ],
+        "answerIndex": 3,
+        "explanation": "Traffic recovery alone does not resolve duplicated, incomplete, or inconsistent work and records."
+      },
+      {
+        "id": "q-provider-cutover-5",
+        "prompt": "When can migration close?",
+        "choices": [
+          "Immediately after the first successful response",
+          "After observation, verified data and controls, current runbooks, lifecycle cleanup, and accepted owned residual risk",
+          "When rollback is removed",
+          "When only aggregate quality passes"
+        ],
+        "answerIndex": 1,
+        "explanation": "Closeout requires production and operational proof, lifecycle hygiene, and accountable risk ownership."
+      }
+    ]
+  },
+  "sources": [
+    {
+      "title": "Incident Response Recommendations and Considerations",
+      "url": "https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf",
+      "publisher": "NIST",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Claude API errors",
+      "url": "https://platform.claude.com/docs/en/api/errors",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Define success criteria and build evaluations",
+      "url": "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Claude model deprecations",
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "OpenAI production best practices",
+      "url": "https://developers.openai.com/api/docs/guides/production-best-practices",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Working with OpenAI evals",
+      "url": "https://developers.openai.com/api/docs/guides/evals",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "OpenAI deprecations",
+      "url": "https://developers.openai.com/api/docs/deprecations",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Gemini troubleshooting",
+      "url": "https://ai.google.dev/gemini-api/docs/troubleshooting",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "ADK evaluation",
+      "url": "https://google.github.io/adk-docs/evaluate/",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Gemini deprecations",
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

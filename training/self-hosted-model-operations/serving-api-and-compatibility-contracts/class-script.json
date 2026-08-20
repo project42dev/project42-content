@@ -1,0 +1,247 @@
+{
+  "schemaVersion": "2.0",
+  "id": "serving-api-and-compatibility-contracts-class",
+  "version": "1.0.0",
+  "moduleId": "serving-api-and-compatibility-contracts",
+  "locale": "en-US",
+  "title": "Expose a Model Service without Hiding Its Contract",
+  "audience": "Practitioners and operators exposing self-hosted inference through stable, secured, observable, testable, and replaceable application interfaces.",
+  "learningObjectives": [
+    "Separate the model runtime, inference server, gateway, application adapter, and public endpoint trust boundaries.",
+    "Define liveness, readiness, model identity, inference, streaming, cancellation, timeout, error, and overload contracts.",
+    "Treat OpenAI-compatible and other compatibility claims as tested subsets rather than universal equivalence.",
+    "Publish a versioned conformance suite and migration boundary that preserves application behavior across runtimes."
+  ],
+  "plannedDurationSeconds": 931,
+  "spokenWordCount": 1021,
+  "segments": [
+    {
+      "id": "welcome-and-outcomes",
+      "kind": "welcome",
+      "delivery": "spoken",
+      "spokenText": "Welcome. This class turns a running model process into a service contract an application can depend on and an operator can replace safely. You will separate serving layers, distinguish process health from exact-model readiness, define inference and failure behavior before traffic arrives, test compatibility as a bounded subset, and preserve a portable adapter with a reversible cutover. One successful chat request is a demonstration, not a compatibility proof.",
+      "stageDirection": "Display the five serving layers and four learning outcomes. Keep transcript and source controls visible.",
+      "estimatedSeconds": 35,
+      "sourceUrls": []
+    },
+    {
+      "id": "serving-layers-narration",
+      "kind": "narration",
+      "sectionId": "separate-serving-layers",
+      "delivery": "spoken",
+      "spokenText": "Separate the layers and give each one a visible responsibility. The model runtime loads and executes the artifact. The inference server exposes runtime operations through a network protocol. A gateway authenticates callers, authorizes operations, applies body, rate, concurrency, and cost limits, routes requests, records policy decisions, and provides a stable external name. The application adapter maps product-owned requests, outcomes, errors, and telemetry to a selected serving protocol. The public contract is what approved clients may rely on. Keep identity, authorization, and policy outside model prompts. Do not let replacing a runtime silently change learner-facing behavior or weaken access controls. Bind every friendly served-model name to the exact immutable model and runtime bundle. Responses, traces, evaluations, incidents, and rollback records preserve that underlying identity even when clients use an alias.",
+      "stageDirection": "Show a static five-row responsibility table for public contract, application adapter, gateway, inference server, and runtime.",
+      "estimatedSeconds": 80,
+      "sourceUrls": [
+        "https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol",
+        "https://docs.vllm.ai/en/latest/serving/openai_compatible_server/"
+      ],
+      "visual": {
+        "description": "Five bounded serving layers map public behavior, protocol translation, identity and policy, network serving, and model execution.",
+        "altText": "The public contract sits above an application adapter, gateway, inference server, and runtime. Each row lists owned and forbidden responsibilities.",
+        "reducedMotionDescription": "Display all layers simultaneously as a static table and highlight the current row with text and a border."
+      }
+    },
+    {
+      "id": "layer-demonstration",
+      "kind": "demonstration",
+      "sectionId": "separate-serving-layers",
+      "delivery": "spoken",
+      "spokenText": "Consider an application that submits a document question and expects a structured answer, cited evidence, one stable error taxonomy, and an audit identifier. Runtime A uses one chat field and one streaming event shape. Runtime B uses different field names and emits usage only at the end. The application should not learn both protocols. Two adapters map the same product request and outcome contract while the gateway enforces the same identity and limits. If Runtime B cannot preserve a required citation, cancellation, or error behavior, the adapter reports the capability unavailable. It must not fabricate equivalence or silently drop the field.",
+      "stageDirection": "Present one application contract mapped through two hypothetical adapters, with one unsupported behavior explicitly rejected.",
+      "estimatedSeconds": 60,
+      "sourceUrls": [
+        "https://docs.vllm.ai/en/latest/serving/openai_compatible_server/",
+        "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+      ],
+      "visual": {
+        "description": "One product-owned request and outcome maps to two runtime adapters with explicit support and rejection labels.",
+        "altText": "Both adapters preserve required application behavior; a runtime that cannot support a required cancellation or evidence field is labeled unavailable rather than treated as equivalent.",
+        "reducedMotionDescription": "Show the two mappings side by side as a static field table."
+      }
+    },
+    {
+      "id": "health-identity-narration",
+      "kind": "narration",
+      "sectionId": "define-health-and-identity",
+      "delivery": "spoken",
+      "spokenText": "Define health states separately. Liveness asks whether the server process is functioning enough that the supervisor should leave it running. It should not fail merely because every downstream dependency is unavailable. Instance readiness asks whether this instance should receive inference traffic. Model readiness confirms that the intended model and exact version are loaded and can serve the required contract. Model metadata exposes the served identity and supported contract without revealing credentials, internal paths, or unnecessary infrastructure. KServe's Open Inference Protocol version two separates server live, server ready, model ready, model metadata, and inference endpoints. Whatever protocol you choose, test startup, artifact loading, warm-up, pressure, dependency failure, unload, update, rollback, and shutdown transitions. A process can return HTTP two hundred while the wrong model, wrong adapter, or incomplete warm-up is present. That process may be live and still must not be ready.",
+      "stageDirection": "Show a static state table for live, instance-ready, model-ready, and exact identity during lifecycle transitions.",
+      "estimatedSeconds": 85,
+      "sourceUrls": [
+        "https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol",
+        "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/"
+      ],
+      "visual": {
+        "description": "A lifecycle-state table separates liveness, instance readiness, model readiness, and exact served identity.",
+        "altText": "During startup, pressure, update, and rollback, each health state has a separate result. A live process with the wrong model is not ready.",
+        "reducedMotionDescription": "Present all lifecycle rows statically with Ready, Not ready, or Not applicable written in each cell."
+      }
+    },
+    {
+      "id": "readiness-checkpoint",
+      "kind": "checkpoint",
+      "sectionId": "define-health-and-identity",
+      "delivery": "spoken",
+      "spokenText": "Checkpoint. The server process responds to its health endpoint, but telemetry shows it loaded the previous model revision after an update. Should it be live, ready, both, or neither, and what must happen next?",
+      "stageDirection": "Show response fields for state, routing action, and recovery evidence. Delay feedback until continuation.",
+      "estimatedSeconds": 24,
+      "sourceUrls": [
+        "https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol"
+      ],
+      "expectedLearnerAction": "Classify the process as potentially live but not ready, remove it from inference routing, and reconcile or restore the approved exact bundle."
+    },
+    {
+      "id": "readiness-response-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Hold the checkpoint for up to seventy-five seconds with pause, extend, and continue controls.",
+      "estimatedSeconds": 75,
+      "sourceUrls": []
+    },
+    {
+      "id": "readiness-feedback",
+      "kind": "feedback",
+      "sectionId": "define-health-and-identity",
+      "delivery": "spoken",
+      "spokenText": "A strong answer says the process may be live because it responds, but it is not model-ready for the approved contract. Remove it from inference routing, preserve exact identity evidence, reconcile why the prior revision loaded, then load or restore a verified bundle and repeat readiness and conformance checks. Restarting without identifying the bundle can repeat the same failure. If your answer marked it ready because the port opened, revise the rule: readiness includes the intended model identity and contract.",
+      "stageDirection": "Show the live-but-not-ready decision and provide Retry and Continue controls.",
+      "estimatedSeconds": 45,
+      "sourceUrls": [
+        "https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol",
+        "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/"
+      ],
+      "feedback": {
+        "correct": "You separated process health from model readiness and required exact-bundle reconciliation before routing.",
+        "retry": "Include the intended model identity and serving contract in the readiness decision."
+      }
+    },
+    {
+      "id": "inference-contract-narration",
+      "kind": "narration",
+      "sectionId": "own-inference-contract",
+      "delivery": "spoken",
+      "spokenText": "Own the inference and failure contract. Version allowed fields, roles or input parts, modalities, encodings, context and output limits, sampling controls, stop rules, optional tools, response schema, exact model identity, usage accounting, finish reasons, policy outcomes, and extension fields. Reject unsupported or ambiguous inputs instead of ignoring them. Define authentication and object authorization outside the prompt. Specify request and correlation identifiers, body limits, deadlines, cancellation, streaming event order, disconnect behavior, queue and rate limits, overload status, retryability, stable error codes, telemetry identifiers, redaction, and postconditions. A timeout does not automatically prove that no work occurred. A retry policy must classify the failure, reconcile any external effect, and remain bounded. One overloaded client must not multiply load through unbounded retries.",
+      "stageDirection": "Display a static endpoint contract with request, response, stream, failure, identity, limits, telemetry, and recovery sections.",
+      "estimatedSeconds": 90,
+      "sourceUrls": [
+        "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create",
+        "https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol"
+      ],
+      "visual": {
+        "description": "A versioned endpoint contract covers request fields, response fields, streaming order, authentication, limits, errors, retryability, telemetry, and recovery.",
+        "altText": "Unsupported fields are rejected or explicitly transformed, and every timeout, cancellation, overload, and error has stable semantics.",
+        "reducedMotionDescription": "Use a static contract table with required, optional, rejected, and unavailable labels."
+      }
+    },
+    {
+      "id": "compatibility-narration",
+      "kind": "narration",
+      "sectionId": "test-compatibility-subset",
+      "delivery": "spoken",
+      "spokenText": "Treat compatibility as a tested subset. A server described as OpenAI-compatible may implement selected paths and fields while differing in model discovery, roles, tools, structured output, streaming chunks, token accounting, errors, limits, extensions, or parameter handling. vLLM documents an OpenAI-compatible server, but application compatibility still depends on the exact vLLM version, endpoint, model, configuration, and features the application uses. Build a conformance matrix for the product-owned subset. Label every behavior required, transformed, ignored, emulated, rejected, or unavailable. Test normal, boundary, invalid, unauthorized, rate-limited, overloaded, timeout, cancellation, streaming, restart, and recovery cases. Verify status, body, event sequence, identity, usage, error category, and telemetry. Never infer full equivalence from matching URL paths or one successful response.",
+      "stageDirection": "Show a static compatibility matrix and conformance fixture table for baseline and candidate servers.",
+      "estimatedSeconds": 90,
+      "sourceUrls": [
+        "https://docs.vllm.ai/en/latest/serving/openai_compatible_server/",
+        "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+      ],
+      "visual": {
+        "description": "A tested-subset matrix labels each application behavior across two servers and links it to deterministic conformance cases.",
+        "altText": "Paths, roles, tools, structured output, streaming, usage, errors, limits, and extensions can differ; each required behavior receives an explicit status and test.",
+        "reducedMotionDescription": "Keep baseline and candidate columns visible and identify differences with text rather than animation."
+      }
+    },
+    {
+      "id": "adapter-cutover-narration",
+      "kind": "narration",
+      "sectionId": "preserve-portable-adapter",
+      "delivery": "spoken",
+      "spokenText": "Keep user outcomes, application schemas, authorization policy, evaluation cases, trace fields, postconditions, error categories, and recovery rules above runtime adapters. Put server-specific field names, streaming events, tool formats, and extensions inside adapters. Portability does not mean hiding important differences behind the lowest common denominator. Expose capabilities and safety differences explicitly. For a runtime change, run identical conformance and evaluation suites against baseline and candidate. Compare quality, security, latency, capacity, streaming, cancellation, failures, and observability. Canary a bounded route, preserve exact identities in telemetry, and retain the last verified adapter and serving bundle. Roll back on any critical contract, quality, security, performance, capacity, or evidence regression.",
+      "stageDirection": "Display a static baseline-candidate cutover record with thresholds, canary scope, stop conditions, and retained rollback.",
+      "estimatedSeconds": 82,
+      "sourceUrls": [
+        "https://docs.vllm.ai/en/latest/serving/openai_compatible_server/",
+        "https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol"
+      ],
+      "visual": {
+        "description": "A portable application contract feeds baseline and candidate adapters through identical conformance and evaluation gates.",
+        "altText": "A bounded canary compares exact identities and stops on contract, quality, security, latency, capacity, or observability regression while preserving rollback.",
+        "reducedMotionDescription": "Show the baseline, candidate, gates, canary, stop, and rollback states as numbered static panels."
+      }
+    },
+    {
+      "id": "activity-transition",
+      "kind": "learner-prompt",
+      "delivery": "spoken",
+      "spokenText": "Now design the portable serving conformance suite. Define separate health, readiness, identity, inference, stream, cancellation, timeout, invalid-input, unauthorized, rate-limit, and overload contracts. Map one application schema to two hypothetical adapters. Label each behavior required, transformed, ignored, emulated, rejected, or unavailable. Write deterministic normal, boundary, failure, restart, and recovery cases, then define cutover thresholds, canary scope, stop conditions, and rollback evidence.",
+      "stageDirection": "Open the endpoint-contract, adapter-matrix, conformance-fixture, and cutover workspace.",
+      "estimatedSeconds": 45,
+      "sourceUrls": [
+        "https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol",
+        "https://docs.vllm.ai/en/latest/serving/openai_compatible_server/"
+      ],
+      "expectedLearnerAction": "Complete the endpoint and error contract, two-adapter matrix, deterministic conformance fixtures, and reversible baseline-candidate cutover decision.",
+      "learningHandoff": {
+        "command": "open-activity",
+        "activityId": "activity-serving-conformance-suite"
+      }
+    },
+    {
+      "id": "activity-work-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Provide one hundred eighty seconds of optional work time with pause, extend, save, and continue controls.",
+      "estimatedSeconds": 180,
+      "sourceUrls": []
+    },
+    {
+      "id": "assessment-handoff",
+      "kind": "assessment-handoff",
+      "delivery": "spoken",
+      "spokenText": "Begin the check when you can place protocol translation in the adapter, distinguish liveness from readiness, bound compatibility claims, reject unsupported fields, design representative conformance cases, and plan a tested cutover and rollback. The check starts only when you choose Begin knowledge check.",
+      "stageDirection": "Display Review class, Return to activity, and Begin knowledge check. Do not begin or submit automatically.",
+      "estimatedSeconds": 25,
+      "sourceUrls": [],
+      "learningHandoff": {
+        "command": "open-knowledge-check",
+        "questionIds": [
+          "q-serving-contract-1",
+          "q-serving-contract-2",
+          "q-serving-contract-3",
+          "q-serving-contract-4",
+          "q-serving-contract-5",
+          "q-serving-contract-6"
+        ]
+      }
+    },
+    {
+      "id": "class-closing",
+      "kind": "closing",
+      "delivery": "spoken",
+      "spokenText": "Remember: a stable service owns its behavior above the runtime, proves exact readiness, calls compatibility only what it tests, and keeps every serving change observable and reversible.",
+      "stageDirection": "Display the closing rule and leave focus on the learner's next action.",
+      "estimatedSeconds": 15,
+      "sourceUrls": []
+    }
+  ],
+  "accessibility": {
+    "transcriptRequired": true,
+    "captionsRequired": true,
+    "textOnlyEquivalentRequired": true,
+    "reducedMotionRequired": true
+  },
+  "provenance": {
+    "canonicalContentVersion": "0.41.0",
+    "evidenceReviewedAt": "2026-07-27",
+    "contributions": [
+      {"role": "evidence-research", "roleProfileRef": "pending-qualification-research", "providerFamily": "pending-research-family", "status": "planned"},
+      {"role": "curriculum-writing", "roleProfileRef": "pending-qualification-writing", "providerFamily": "pending-writing-family", "status": "planned"},
+      {"role": "factual-verification", "roleProfileRef": "pending-qualification-verification", "providerFamily": "pending-verification-family", "status": "planned"},
+      {"role": "learning-design-review", "roleProfileRef": "pending-qualification-learning-design", "providerFamily": "pending-learning-design-family", "status": "planned"},
+      {"role": "accessibility-review", "roleProfileRef": "pending-qualification-accessibility", "providerFamily": "pending-accessibility-family", "status": "planned"}
+    ],
+    "approvals": []
+  },
+  "releaseStatus": "draft"
+}

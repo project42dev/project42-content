@@ -1,0 +1,276 @@
+{
+  "id": "claude-prompting-in-practice",
+  "title": "Prompt Claude with Testable Contracts",
+  "summary": "Turn a real task into a clear, structured, testable Claude prompt and improve it from evaluation evidence instead of guesswork.",
+  "level": "intermediate",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "providers": ["anthropic"],
+  "estimatedMinutes": 48,
+  "objectives": [
+    "Define success criteria and evaluation cases before tuning a Claude prompt.",
+    "Structure instructions, context, examples, variable input, and output requirements clearly.",
+    "Use relevant and diverse examples without leaking secrets or treating untrusted content as instructions.",
+    "Diagnose whether a failed result needs prompt, context, model, tool, or application changes."
+  ],
+  "prerequisites": ["anthropic-ecosystem-and-interfaces"],
+  "sections": [
+    {
+      "id": "define-success-before-wording",
+      "title": "Define success before changing wording",
+      "paragraphs": [
+        "Prompt engineering begins with a clear success definition, representative examples, and a way to evaluate results. Write the required outcome, unacceptable behavior, output contract, and pass threshold before optimizing phrasing.",
+        "Not every failure is a prompt failure. Missing source data, an unsuitable model or surface, unavailable tools, excessive latency, insufficient permissions, or broken application validation require changes outside the prompt."
+      ],
+      "callout": "A better-sounding response is not evidence of a better prompt. Compare both versions on the same cases and rubric."
+    },
+    {
+      "id": "be-clear-and-direct",
+      "title": "Be clear, direct, and explicit",
+      "paragraphs": [
+        "State the task, audience, trusted context, constraints, required steps, output shape, and verification. If order or completeness matters, use explicit numbered instructions. Explain why a constraint matters when that context helps resolve ambiguity.",
+        "Do not rely on Claude to infer hidden organizational norms. A useful test is whether a capable colleague who knows little about the task could follow the same instruction and produce a checkable result."
+      ]
+    },
+    {
+      "id": "structure-context-and-trust",
+      "title": "Structure context and trust boundaries",
+      "paragraphs": [
+        "Separate instructions from reference documents, examples, and user-supplied variable input. Descriptive XML tags can make complex prompts easier to inspect and reduce accidental mixing of roles, especially when several documents or examples are included.",
+        "Tags organize content; they do not make untrusted content safe. Tell the workflow which material is authoritative, treat retrieved or user-provided text as data, and enforce permissions and output validation outside the model."
+      ],
+      "code": {
+        "language": "xml",
+        "label": "Testable Claude prompt shape",
+        "code": "<instructions>\n  Produce a decision memo using only supported claims.\n</instructions>\n<success_criteria>\n  Include recommendation, tradeoffs, evidence links, and unresolved risks.\n</success_criteria>\n<context trust=\"authoritative\">\n  [APPROVED SOURCE MATERIAL]\n</context>\n<input trust=\"untrusted\">\n  [VARIABLE USER REQUEST]\n</input>\n<output_contract>\n  Markdown with the required headings; label unsupported claims.\n</output_contract>\n<verification>\n  Check every material claim against the approved context before finishing.\n</verification>"
+      }
+    },
+    {
+      "id": "use-examples-deliberately",
+      "title": "Use examples deliberately",
+      "paragraphs": [
+        "Examples can demonstrate the desired format, tone, classification boundary, and edge-case behavior more precisely than abstract instructions. Use examples that are relevant to the real distribution and diverse enough to avoid teaching an accidental pattern.",
+        "Keep examples synthetic or approved, remove secrets and sensitive data, and distinguish example inputs from ideal outputs. Evaluate cases that are not shown in the prompt so improvement does not merely memorize the demonstrations."
+      ]
+    },
+    {
+      "id": "iterate-from-evidence",
+      "title": "Iterate from failure evidence",
+      "paragraphs": [
+        "Run the original and candidate prompt against the same versioned case set. Record outputs, rubric scores, critical failures, latency, cost, model and prompt versions, and reviewer disagreement. Change one meaningful hypothesis at a time when practical.",
+        "Classify each failure before editing: ambiguous instruction, missing context, misleading example, output-contract violation, model limitation, tool failure, policy boundary, or application defect. Promote passing failures into regression cases and preserve the prior version for rollback."
+      ]
+    }
+  ],
+  "activity": {
+    "id": "activity-claude-prompt-contract",
+    "title": "Build and evaluate a Claude prompt contract",
+    "instructions": [
+      "Choose a recurring task and define a rubric with at least four criteria, one unacceptable failure, and an 80 percent pass threshold.",
+      "Create six versioned cases: three typical, one boundary, one adversarial or instruction-conflict case, and one prior failure.",
+      "Write a prompt that separates instructions, authoritative context, untrusted input, examples, output contract, and verification.",
+      "Compare a baseline and candidate on the same cases, classify every miss, and recommend prompt, context, model, tool, or application action from the evidence."
+    ],
+    "evidence": [
+      "A secret-free prompt template, rubric, and six-case evaluation set with trust boundaries and expected behavior.",
+      "A baseline-versus-candidate report with per-case scores, failure classifications, version information, and a ship, revise, or reject decision."
+    ],
+    "reflectionPrompt": "Which failed case could not be repaired safely by prompt wording alone, and what system boundary needed to change?"
+  },
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 1560,
+    "cues": [
+      {
+        "id": "cue-claude-prompt-success",
+        "kind": "narration",
+        "sectionId": "define-success-before-wording",
+        "text": "Define the outcome, unacceptable behavior, cases, rubric, and threshold before judging whether a Claude prompt improved."
+      },
+      {
+        "id": "cue-claude-prompt-clear",
+        "kind": "narration",
+        "sectionId": "be-clear-and-direct",
+        "text": "State the task, audience, context, constraints, required steps, output contract, and verification clearly enough for another capable person to follow."
+      },
+      {
+        "id": "cue-claude-prompt-structure",
+        "kind": "narration",
+        "sectionId": "structure-context-and-trust",
+        "text": "Separate instructions, authoritative context, untrusted input, examples, and output requirements while enforcing trust outside the prompt."
+      },
+      {
+        "id": "cue-claude-prompt-examples",
+        "kind": "narration",
+        "sectionId": "use-examples-deliberately",
+        "text": "Use relevant, diverse, secret-free examples to demonstrate behavior, then evaluate on cases that were not shown."
+      },
+      {
+        "id": "cue-claude-prompt-iterate",
+        "kind": "narration",
+        "sectionId": "iterate-from-evidence",
+        "text": "Compare versions on identical cases, classify each failure boundary, preserve provenance, and add repaired failures to regression coverage."
+      },
+      {
+        "id": "cue-claude-prompt-visual",
+        "kind": "visual",
+        "sectionId": "structure-context-and-trust",
+        "text": "Stack instructions, success criteria, authoritative context, untrusted input, examples, output contract, and verification as labeled prompt blocks.",
+        "accessibilityAlternative": "A static ordered list shows instructions, success criteria, authoritative context, untrusted input, examples, output contract, and verification, with trust labels."
+      },
+      {
+        "id": "cue-claude-prompt-question",
+        "kind": "learner-prompt",
+        "sectionId": "use-examples-deliberately",
+        "text": "Ask learners how an example can improve format consistency while still creating an unintended bias."
+      },
+      {
+        "id": "cue-claude-prompt-pause",
+        "kind": "pause",
+        "sectionId": "iterate-from-evidence",
+        "text": "Allow three minutes to classify one miss as prompt, context, model, tool, policy, or application failure."
+      },
+      {
+        "id": "cue-claude-prompt-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "iterate-from-evidence",
+        "text": "Check that baseline and candidate used identical cases, rubric, model configuration, and documented versions."
+      },
+      {
+        "id": "cue-claude-prompt-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the learner through success criteria, prompt structure, six cases, comparison, and failure classification."
+      },
+      {
+        "id": "cue-claude-prompt-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check after the learner can improve a prompt from evidence without treating every failure as wording."
+      }
+    ],
+    "transcript": "Define the outcome, unacceptable behavior, cases, rubric, and threshold before judging whether a Claude prompt improved. State the task, audience, context, constraints, required steps, output contract, and verification clearly enough for another capable person to follow. Separate instructions, authoritative context, untrusted input, examples, and output requirements while enforcing trust outside the prompt. Use relevant, diverse, secret-free examples to demonstrate behavior, then evaluate on cases that were not shown. Compare versions on identical cases, classify each failure boundary, preserve provenance, and add repaired failures to regression coverage.",
+    "captions": [
+      {
+        "cueId": "cue-claude-prompt-success",
+        "startSeconds": 0,
+        "endSeconds": 300,
+        "text": "Define the outcome, unacceptable behavior, cases, rubric, and threshold before judging whether a Claude prompt improved."
+      },
+      {
+        "cueId": "cue-claude-prompt-clear",
+        "startSeconds": 330,
+        "endSeconds": 630,
+        "text": "State the task, audience, context, constraints, required steps, output contract, and verification clearly enough for another capable person to follow."
+      },
+      {
+        "cueId": "cue-claude-prompt-structure",
+        "startSeconds": 660,
+        "endSeconds": 960,
+        "text": "Separate instructions, authoritative context, untrusted input, examples, and output requirements while enforcing trust outside the prompt."
+      },
+      {
+        "cueId": "cue-claude-prompt-examples",
+        "startSeconds": 990,
+        "endSeconds": 1230,
+        "text": "Use relevant, diverse, secret-free examples to demonstrate behavior, then evaluate on cases that were not shown."
+      },
+      {
+        "cueId": "cue-claude-prompt-iterate",
+        "startSeconds": 1260,
+        "endSeconds": 1530,
+        "text": "Compare versions on identical cases, classify each failure boundary, preserve provenance, and add repaired failures to regression coverage."
+      }
+    ],
+    "reducedMotionAlternative": "Use a static prompt-block diagram and baseline comparison table with focus highlighting instead of animated assembly."
+  },
+  "knowledgeCheck": {
+    "passPercent": 80,
+    "questions": [
+      {
+        "id": "q-claude-prompting-1",
+        "prompt": "What should exist before prompt wording is optimized?",
+        "choices": [
+          "A preferred writing style only",
+          "The newest model identifier",
+          "Success criteria, representative cases, a rubric, and a threshold",
+          "A long system prompt"
+        ],
+        "answerIndex": 2,
+        "explanation": "Prompt changes need predeclared success evidence so improvement can be measured rather than assumed."
+      },
+      {
+        "id": "q-claude-prompting-2",
+        "prompt": "What is the main purpose of XML tags in a complex Claude prompt?",
+        "choices": [
+          "To organize and distinguish prompt components",
+          "To enforce application permissions",
+          "To encrypt untrusted content",
+          "To guarantee factual accuracy"
+        ],
+        "answerIndex": 0,
+        "explanation": "Tags clarify structure; external systems must still enforce trust, permissions, and validation."
+      },
+      {
+        "id": "q-claude-prompting-3",
+        "prompt": "Which example set is most useful?",
+        "choices": [
+          "One example containing a production credential",
+          "Several nearly identical easy cases",
+          "Examples copied from the hidden evaluation set",
+          "Relevant, diverse, approved examples that cover format and edge behavior"
+        ],
+        "answerIndex": 3,
+        "explanation": "Examples should represent the task and important variation without secrets or evaluation leakage."
+      },
+      {
+        "id": "q-claude-prompting-4",
+        "prompt": "A response lacks facts that were never supplied or retrievable. What is the first failure classification?",
+        "choices": [
+          "Typography",
+          "Missing context or data",
+          "Always the model",
+          "Always the output format"
+        ],
+        "answerIndex": 1,
+        "explanation": "Prompt wording cannot recover authoritative information that the workflow did not make available."
+      },
+      {
+        "id": "q-claude-prompting-5",
+        "prompt": "How should a candidate prompt be compared with its baseline?",
+        "choices": [
+          "On one new demo with no rubric",
+          "Using different models and cases",
+          "On the same versioned cases, rubric, and configuration with recorded failures",
+          "By selecting the response that sounds most confident"
+        ],
+        "answerIndex": 2,
+        "explanation": "Controlled comparison and failure evidence make the prompt decision reproducible and reversible."
+      }
+    ]
+  },
+  "sources": [
+    {
+      "title": "Prompt engineering overview",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Prompting best practices",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Console prompting tools",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-tools",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Using the Evaluation Tool",
+      "url": "https://platform.claude.com/docs/en/test-and-evaluate/eval-tool",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

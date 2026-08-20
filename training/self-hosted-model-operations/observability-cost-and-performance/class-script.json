@@ -1,0 +1,250 @@
+{
+  "schemaVersion": "2.0",
+  "id": "observability-cost-and-performance-class",
+  "version": "1.0.0",
+  "moduleId": "observability-cost-and-performance",
+  "locale": "en-US",
+  "title": "Make Model Operations Observable without Making Data Public",
+  "audience": "Practitioners and operators designing privacy-conscious telemetry, objectives, cost evidence, performance analysis, dashboards, and actionable alerts for self-hosted model services.",
+  "learningObjectives": [
+    "Define observable questions and service objectives before selecting telemetry fields or dashboards.",
+    "Correlate requests, model identities, policy outcomes, errors, latency, resource use, and cost without logging unnecessary content or secrets.",
+    "Interpret distributions, queueing, saturation, cardinality, sampling, and missing telemetry correctly.",
+    "Create actionable alerts, investigation views, retention controls, and evidence that supports tuning, capacity, release, and incident decisions."
+  ],
+  "plannedDurationSeconds": 1052,
+  "spokenWordCount": 1223,
+  "segments": [
+    {
+      "id": "welcome-and-outcomes",
+      "kind": "welcome",
+      "delivery": "spoken",
+      "spokenText": "Welcome. Observability is not the act of collecting everything. It is the ability to answer important operational questions with justified, privacy-conscious evidence. In this class, you will define questions and objectives, correlate exact serving identities, minimize sensitive telemetry, interpret performance and cost distributions, and build alerts that lead an accountable operator toward safe action and recovery.",
+      "stageDirection": "Display the four outcomes beside a static request-to-decision map. Keep transcript and source controls visible.",
+      "estimatedSeconds": 36,
+      "sourceUrls": []
+    },
+    {
+      "id": "questions-objectives-narration",
+      "kind": "narration",
+      "sectionId": "start-with-questions",
+      "delivery": "spoken",
+      "spokenText": "Start with questions an operator, product owner, security reviewer, or incident responder must answer. Is the approved model and runtime bundle serving? Are users receiving valid outcomes? Which languages, accessibility needs, workflows, or other important slices fail? Where is time spent? What is queued, rejected, canceled, or retried? Which resource is saturated? Did an update change quality, policy outcomes, latency, cost, or recovery? Can an incident be scoped and reproduced without exposing unnecessary content? Translate those questions into indicators and objectives for availability, successful outcomes, policy dispositions, latency distributions, queue time, throughput, rejection, error, recovery, and budget. State the population, window, threshold, owner, decision, and response. A dashboard panel with no question, owner, or decision is decorative telemetry. NIST's generative-AI risk profile emphasizes measurement and management across the lifecycle. Here, that becomes an observability contract: every collected signal has an approved purpose, an accountable consumer, and a defined retention and response.",
+      "stageDirection": "Show a question-to-signal matrix with question, indicator, objective, population, window, owner, decision, and retention.",
+      "estimatedSeconds": 100,
+      "sourceUrls": [
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence"
+      ],
+      "visual": {
+        "description": "Operational questions map to indicators, objectives, populations, owners, decisions, and retention rather than directly to dashboard widgets.",
+        "altText": "Rows cover exact model identity, valid outcomes, failing slices, queueing, saturation, release change, cost, recovery, and incident scope.",
+        "reducedMotionDescription": "Display the entire mapping as a static table and emphasize the current row with text and a border."
+      }
+    },
+    {
+      "id": "correlation-narration",
+      "kind": "narration",
+      "sectionId": "correlate-signals",
+      "delivery": "spoken",
+      "spokenText": "Correlate the serving path with a bounded request or run identifier. Connect gateway, application adapter, inference server, runtime, policy, optional tool, and user-outcome events. Record an application-owned core: service and instance identity, immutable model and runtime bundle, release, route, operation, status, stable error category, policy disposition, bounded input and output size measures, queue time, processing time, resource observations, and a result or evaluation reference. OpenTelemetry semantic conventions provide shared names and stability metadata, but not every generative-AI field is stable or implemented identically across runtimes. Version the convention and fields you adopt. Keep your product's core contract stable and map external conventions through explicit adapters. Avoid using raw personal identifiers, prompts, or unbounded user values as correlation labels. Exact identities let an operator compare releases and reproduce failures. A friendly alias alone can hide that two replicas served different artifacts, templates, runtimes, or policies.",
+      "stageDirection": "Display one correlated request across gateway, adapter, server, runtime, policy, resource, release, and outcome rows.",
+      "estimatedSeconds": 94,
+      "sourceUrls": [
+        "https://opentelemetry.io/docs/specs/semconv/",
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence"
+      ],
+      "visual": {
+        "description": "A shared bounded run identifier connects application-owned fields emitted by each serving layer.",
+        "altText": "Gateway, adapter, server, runtime, policy, resource, and outcome rows share the run identifier and exact release identity without storing raw prompt content.",
+        "reducedMotionDescription": "Show the correlated rows simultaneously as a static table."
+      }
+    },
+    {
+      "id": "correlation-demonstration",
+      "kind": "demonstration",
+      "sectionId": "correlate-signals",
+      "delivery": "spoken",
+      "spokenText": "Consider a synthetic assistant request that feels slow and returns an invalid citation. The gateway event shows an approved caller, route, release, and no policy denial. The adapter records a bounded input-size class and output contract failure. The inference server records two seconds of queue time, one second to first output, and a completed stream. Runtime metrics show high accelerator use but available host memory. The exact identity reveals that one replica loaded the prior prompt-template bundle. A release annotation shows the mismatch began during a partial rollout. No raw prompt is needed to answer the first operational questions: which build failed, where time accumulated, and which replica should leave service. An authorized evaluator can use a separately governed fixture to reproduce citation quality. The operator removes the mismatched replica, verifies the approved bundle, repeats readiness and regression checks, and records the recovery. Correlation turned several signals into a bounded diagnosis without copying learner content into every telemetry store.",
+      "stageDirection": "Populate the correlation table, highlighting queue time, contract failure, identity mismatch, rollout annotation, and recovery.",
+      "estimatedSeconds": 80,
+      "sourceUrls": [
+        "https://opentelemetry.io/docs/specs/semconv/",
+        "https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-usage-monitoring/"
+      ],
+      "visual": {
+        "description": "A synthetic slow invalid response is traced to queueing and one replica's mismatched prompt-template bundle.",
+        "altText": "Metadata and exact identities support diagnosis and recovery while raw prompt and response content remain outside routine telemetry.",
+        "reducedMotionDescription": "Present the diagnosis as a numbered static evidence table."
+      }
+    },
+    {
+      "id": "telemetry-privacy-narration",
+      "kind": "narration",
+      "sectionId": "minimize-sensitive-telemetry",
+      "delivery": "spoken",
+      "spokenText": "Default to metadata and derived measurements, not raw prompts, responses, retrieved documents, credentials, authorization headers, personal identifiers, or tool secrets. Classify each proposed field as required metadata, derived measurement, optional sensitive content, or prohibited secret. For approved content sampling, document purpose and authority, minimize and redact, encrypt in transit and storage, restrict access, audit use, set short retention, and test deletion. Sampling reduces volume; it does not remove sensitivity. Threat-model the whole telemetry path: instrumentation, collectors, exporters, queues, stores, dashboards, alerts, exemplars, support bundles, backups, and analyst exports. A securely encrypted inference request can still be disclosed by a verbose exception, trace body, metric label, screenshot, or copied support archive. Control cardinality as both a reliability and privacy concern. Unbounded request, user, prompt, or document values can overwhelm metric systems and create searchable data copies. Detect unauthorized field appearance with fixtures and scans, and make telemetry access itself an audited privilege.",
+      "stageDirection": "Show a field-classification and lifecycle table covering collection, redaction, access, retention, deletion, and prohibited destinations.",
+      "estimatedSeconds": 105,
+      "sourceUrls": [
+        "https://opentelemetry.io/docs/specs/semconv/",
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence"
+      ],
+      "visual": {
+        "description": "Telemetry fields are classified and governed across collection, transport, storage, access, alerting, export, retention, and deletion.",
+        "altText": "Secrets and routine raw content are prohibited; bounded metadata and derived measures are preferred; approved samples receive strict controls.",
+        "reducedMotionDescription": "Display the lifecycle as a static table with Required, Optional sensitive, Derived, and Prohibited labels."
+      }
+    },
+    {
+      "id": "privacy-checkpoint",
+      "kind": "checkpoint",
+      "sectionId": "minimize-sensitive-telemetry",
+      "delivery": "spoken",
+      "spokenText": "Checkpoint. Inference transport is encrypted, but a trace exporter copies full prompts, retrieved passages, authorization headers, and responses into a broadly accessible support store for ninety days. Is the serving data boundary protected, and what must change?",
+      "stageDirection": "Show response fields for exposure paths, prohibited fields, approved purpose, access, retention, deletion, and verification. Delay feedback until continuation.",
+      "estimatedSeconds": 28,
+      "sourceUrls": [
+        "https://opentelemetry.io/docs/specs/semconv/",
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence"
+      ],
+      "expectedLearnerAction": "Recognize the telemetry disclosure, stop prohibited collection, remove credentials and unjustified content, govern any approved minimized sample, restrict and audit access, shorten retention, delete existing copies, and verify the fix."
+    },
+    {
+      "id": "privacy-response-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Hold the checkpoint for up to seventy-five seconds with pause, extend, and continue controls.",
+      "estimatedSeconds": 75,
+      "sourceUrls": []
+    },
+    {
+      "id": "privacy-feedback",
+      "kind": "feedback",
+      "sectionId": "minimize-sensitive-telemetry",
+      "delivery": "spoken",
+      "spokenText": "The boundary is not protected. Encryption on the inference hop does not authorize a second copy in telemetry. Stop exporting authorization headers and unjustified raw content, revoke any exposed credentials, restrict the store, assess access, delete existing copies under the incident and retention process, and verify deletion. If approved content sampling is genuinely required, create a separate minimized, redacted, encrypted, access-controlled, short-lived, audited path. If your answer only encrypted the support store, revisit data minimization: protection begins by not collecting what the operational question does not require.",
+      "stageDirection": "Show containment, assessment, deletion, redesigned sampling, and verification steps. Provide Retry and Continue controls.",
+      "estimatedSeconds": 53,
+      "sourceUrls": [
+        "https://opentelemetry.io/docs/specs/semconv/",
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence"
+      ],
+      "feedback": {
+        "correct": "You treated telemetry as a separate governed data path and removed unjustified sensitive copies.",
+        "retry": "Encryption does not make unnecessary prompt, response, retrieved content, or credential collection acceptable."
+      }
+    },
+    {
+      "id": "distributions-cost-narration",
+      "kind": "narration",
+      "sectionId": "measure-distributions-and-cost",
+      "delivery": "spoken",
+      "spokenText": "Measure latency and size as distributions with appropriate histogram resolution, not only averages. Preserve event counts, failures, and the population behind each percentile. Prometheus explains that precomputed summary quantiles generally cannot be aggregated across replicas, while histograms support later aggregation subject to their buckets or representation. Do not average three p95 values and call the result a fleet p95. Aggregate the underlying histogram observations correctly. Separate queue time, time to first output, processing time, streaming duration, and total duration. Track throughput, concurrency, rejections, cancellations, retries, cache behavior, accelerator and host utilization, memory headroom, storage, network, and energy or cloud charges when available. Kubernetes resource-monitoring guidance distinguishes pipeline and full-metrics approaches; choose signals that support your questions and capacity actions. Attribute cost by bounded tenant class, workload, route, model, and release. Avoid unbounded labels. Include idle capacity, failed work, retries, data transfer, storage, telemetry, and operational labor where relevant, and state what the estimate excludes.",
+      "stageDirection": "Display three replica histograms, a correct fleet aggregation, saturation signals, and a bounded cost-allocation table.",
+      "estimatedSeconds": 110,
+      "sourceUrls": [
+        "https://prometheus.io/docs/practices/histograms/",
+        "https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-usage-monitoring/"
+      ],
+      "visual": {
+        "description": "Replica latency histograms combine into a fleet distribution while a cost table attributes bounded workload, model, release, and infrastructure components.",
+        "altText": "Underlying histogram observations aggregate across replicas; precomputed p95 values are not averaged. Queue, first-output, processing, streaming, saturation, and cost are separate.",
+        "reducedMotionDescription": "Provide exact histogram bucket counts and cost values in labeled static tables in addition to any charts."
+      }
+    },
+    {
+      "id": "alerts-investigation-narration",
+      "kind": "narration",
+      "sectionId": "alert-and-investigate",
+      "delivery": "spoken",
+      "spokenText": "Alert on symptoms that require action: user-visible objective burn, critical safety or security outcomes, sustained queueing or rejection, error growth, memory pressure, unavailable replicas, exact-model identity mismatch, telemetry loss, cost anomalies, and failed backup or rollback checks. Every alert needs an owner, severity, population, threshold and duration, safe first action, runbook, evidence links, escalation, and recovery condition. Test firing, routing, deduplication, suppression, escalation, acknowledgment, and resolution. Attach baseline and deployment annotations so the investigator can compare before and after a change. Missing telemetry is not proof of health. Create a separate signal for absent expected observations, stalled exporters, dropped spans, delayed metrics, and inconsistent replica counts. Dashboards should move from service symptom to slice, release, serving layer, saturation, and recovery evidence without requiring broad access to sensitive content.",
+      "stageDirection": "Show five paper-tested alerts with symptom, owner, severity, evidence, safe action, runbook, escalation, and recovery.",
+      "estimatedSeconds": 92,
+      "sourceUrls": [
+        "https://opentelemetry.io/docs/specs/semconv/",
+        "https://prometheus.io/docs/practices/histograms/",
+        "https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-usage-monitoring/"
+      ],
+      "visual": {
+        "description": "Actionable alerts connect user and control symptoms to evidence, owners, safe actions, runbooks, escalation, and tested recovery.",
+        "altText": "Alerts cover objective burn, queueing, identity mismatch, telemetry loss, and rollback failure, each with a named response and resolution condition.",
+        "reducedMotionDescription": "Use a static alert contract table with all response fields visible."
+      }
+    },
+    {
+      "id": "activity-transition",
+      "kind": "learner-prompt",
+      "delivery": "spoken",
+      "spokenText": "Now build the privacy-conscious observability contract. Write ten operator questions and map each to signals, exact identities, bounded dimensions, owner, decision, and retention. Define request, model, release, policy, latency, queue, error, saturation, and cost fields with stability and cardinality limits. Classify every field as required metadata, derived measurement, optional sensitive content, or prohibited secret. Design latency and size histograms, objective calculations, and cost allocation for three replicas without averaging quantiles. Create five alerts, then paper-test firing, routing, evidence, safe first action, runbook, escalation, telemetry-loss behavior, and recovery.",
+      "stageDirection": "Open the question matrix, field contract, privacy review, histogram, cost, dashboard, and alert-test workspace.",
+      "estimatedSeconds": 56,
+      "sourceUrls": [
+        "https://opentelemetry.io/docs/specs/semconv/",
+        "https://prometheus.io/docs/practices/histograms/",
+        "https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-usage-monitoring/",
+        "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence"
+      ],
+      "expectedLearnerAction": "Complete the operator-question matrix, versioned telemetry contract, privacy and retention review, fleet distributions, bounded cost attribution, investigation views, and five tested alert contracts.",
+      "learningHandoff": {
+        "command": "open-activity",
+        "activityId": "activity-observability-contract"
+      }
+    },
+    {
+      "id": "activity-work-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Provide one hundred eighty seconds of optional work time with pause, extend, save, and continue controls.",
+      "estimatedSeconds": 180,
+      "sourceUrls": []
+    },
+    {
+      "id": "assessment-handoff",
+      "kind": "assessment-handoff",
+      "delivery": "spoken",
+      "spokenText": "Begin the check when you can start from operational questions, preserve exact release identity, defend content minimization, interpret latency distributions, avoid averaging replica quantiles, and design an actionable alert. The check starts only when you choose Begin knowledge check.",
+      "stageDirection": "Display Review class, Return to activity, and Begin knowledge check. Do not begin or submit automatically.",
+      "estimatedSeconds": 25,
+      "sourceUrls": [],
+      "learningHandoff": {
+        "command": "open-knowledge-check",
+        "questionIds": [
+          "q-observability-1",
+          "q-observability-2",
+          "q-observability-3",
+          "q-observability-4",
+          "q-observability-5",
+          "q-observability-6"
+        ]
+      }
+    },
+    {
+      "id": "class-closing",
+      "kind": "closing",
+      "delivery": "spoken",
+      "spokenText": "Remember: collect only signals that answer owned questions, connect them to the exact serving build, protect the data boundary, measure distributions and cost honestly, and test every alert through recovery.",
+      "stageDirection": "Display the closing rule and leave focus on the learner's next action.",
+      "estimatedSeconds": 18,
+      "sourceUrls": []
+    }
+  ],
+  "accessibility": {
+    "transcriptRequired": true,
+    "captionsRequired": true,
+    "textOnlyEquivalentRequired": true,
+    "reducedMotionRequired": true
+  },
+  "provenance": {
+    "canonicalContentVersion": "0.41.0",
+    "evidenceReviewedAt": "2026-07-27",
+    "contributions": [
+      {"role": "evidence-research", "roleProfileRef": "pending-qualification-research", "providerFamily": "pending-research-family", "status": "planned"},
+      {"role": "curriculum-writing", "roleProfileRef": "pending-qualification-writing", "providerFamily": "pending-writing-family", "status": "planned"},
+      {"role": "factual-verification", "roleProfileRef": "pending-qualification-verification", "providerFamily": "pending-verification-family", "status": "planned"},
+      {"role": "learning-design-review", "roleProfileRef": "pending-qualification-learning-design", "providerFamily": "pending-learning-design-family", "status": "planned"},
+      {"role": "accessibility-review", "roleProfileRef": "pending-qualification-accessibility", "providerFamily": "pending-accessibility-family", "status": "planned"}
+    ],
+    "approvals": []
+  },
+  "releaseStatus": "draft"
+}

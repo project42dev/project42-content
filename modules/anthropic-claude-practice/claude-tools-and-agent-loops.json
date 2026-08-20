@@ -1,0 +1,276 @@
+{
+  "id": "claude-tools-and-agent-loops",
+  "title": "Build Bounded Claude Tool and Agent Loops",
+  "summary": "Connect Claude to client and server tools through narrow contracts, enforced authority, explicit loop states, bounded budgets, postcondition checks, and safe recovery.",
+  "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "providers": ["anthropic"],
+  "estimatedMinutes": 60,
+  "objectives": [
+    "Distinguish user-defined client tools, Anthropic-schema client tools, and server-executed tools.",
+    "Define narrow schemas and enforce authorization, validation, idempotency, and postconditions outside the model.",
+    "Drive the tool-use loop from explicit stop reasons, budgets, approvals, and terminal states.",
+    "Choose a deterministic workflow or a bounded agent according to task uncertainty and operational risk."
+  ],
+  "prerequisites": ["claude-api-and-sdk-workflows"],
+  "sections": [
+    {
+      "id": "tool-use-is-a-contract",
+      "title": "Tool use is an execution contract",
+      "paragraphs": [
+        "A tool definition tells Claude which operation exists and what inputs it accepts. For a client tool, Claude emits a structured tool request, the application validates and executes it, and the application returns a matching result. The model does not secretly run your business logic.",
+        "Server-executed tools run through Anthropic's infrastructure, while user-defined and Anthropic-schema client tools run through your application. Identify the execution owner because it determines authentication, data handling, error recovery, logging, and who verifies the side effect."
+      ]
+    },
+    {
+      "id": "design-narrow-tools",
+      "title": "Design narrow, legible tools",
+      "paragraphs": [
+        "Give each tool a clear purpose, precise name, complete description, strict input shape, constrained values, and unambiguous result. A tool such as update_record with a defined record identifier and allowed fields is safer to authorize and evaluate than execute_arbitrary_request.",
+        "Treat tool arguments as untrusted proposals. Validate schema and business rules, resolve the acting identity, authorize the exact resource and operation, and reject unknown or excess fields before execution."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Narrow tool definition",
+        "code": "{\n  \"name\": \"set_training_status\",\n  \"description\": \"Set one learner module to an allowed status after authorization.\",\n  \"input_schema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"learnerId\": { \"type\": \"string\" },\n      \"moduleId\": { \"type\": \"string\" },\n      \"status\": { \"enum\": [\"not-started\", \"in-progress\", \"completed\"] },\n      \"operationId\": { \"type\": \"string\" }\n    },\n    \"required\": [\"learnerId\", \"moduleId\", \"status\", \"operationId\"],\n    \"additionalProperties\": false\n  }\n}"
+      }
+    },
+    {
+      "id": "drive-an-explicit-loop",
+      "title": "Drive an explicit loop",
+      "paragraphs": [
+        "For client tools, preserve the assistant's tool-use blocks, execute each authorized call, and return results matched to the correct tool-use identifier. Continue only while the stop reason and workflow state allow it. Handle parallel requests, tool errors, pauses, refusals, output limits, and final turns deliberately.",
+        "Define maximum turns, tool calls, elapsed time, tokens, cost, and consecutive failures. Add a cancellation signal and terminal states such as completed, needs approval, refused, budget exceeded, failed safely, and outcome unknown."
+      ]
+    },
+    {
+      "id": "enforce-side-effect-safety",
+      "title": "Enforce side-effect safety around the model",
+      "paragraphs": [
+        "Separate read operations, reversible writes, external communication, privileged changes, and destructive actions. Require stronger evidence and human approval as consequence and irreversibility increase. The prompt can describe these rules, but the application must enforce them.",
+        "Use operation identifiers and idempotent handlers where possible. After an execution error or timeout, record whether the outcome is confirmed success, confirmed failure, or unknown. Reconcile the target system and verify the postcondition before retry, compensation, rollback, or completion."
+      ],
+      "callout": "A tool result saying success is evidence from the handler, not proof that the intended external postcondition now holds."
+    },
+    {
+      "id": "workflow-or-agent",
+      "title": "Choose workflow or agent deliberately",
+      "paragraphs": [
+        "Use a deterministic workflow when the steps and branches are known and repeatability matters. Use a bounded agent when the path depends on observations, tool results, and intermediate decisions that cannot be enumerated economically.",
+        "Start with the simplest composable pattern that meets the requirement. Add routing, parallelism, evaluators, memory, or multiple agents only when evaluation evidence shows the simpler design is insufficient. Greater autonomy requires stronger containment, observability, recovery, and human escalation."
+      ]
+    }
+  ],
+  "activity": {
+    "id": "activity-claude-bounded-agent",
+    "title": "Implement a bounded Claude tool loop",
+    "instructions": [
+      "Define one read tool and one reversible write tool with strict schemas, explicit identities, resource authorization, operation identifiers, and documented error results.",
+      "Draw or implement loop states for request, model response, validation, approval, execution, result return, postcondition verification, terminal success, safe failure, budget exceeded, and unknown outcome.",
+      "Create tests for invalid arguments, unauthorized scope, duplicate operation identifier, rejected approval, tool timeout after a possible write, mismatched result identifier, and maximum-turn exhaustion.",
+      "Compare the bounded agent with a deterministic workflow and justify which design you would release using quality, risk, latency, cost, and recovery evidence."
+    ],
+    "evidence": [
+      "Two secret-free tool contracts plus policy, idempotency, approval, loop-state, budget, postcondition, and recovery implementation or design evidence.",
+      "A passing adversarial test report and a documented workflow-versus-agent release decision tied to measurable requirements."
+    ],
+    "reflectionPrompt": "Which control in your design remains trustworthy if the model selects the wrong tool with plausible arguments?"
+  },
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 1800,
+    "cues": [
+      {
+        "id": "cue-claude-tools-contract",
+        "kind": "narration",
+        "sectionId": "tool-use-is-a-contract",
+        "text": "Identify who executes each tool because the execution owner determines credentials, data controls, failures, logs, and side-effect verification."
+      },
+      {
+        "id": "cue-claude-tools-narrow",
+        "kind": "narration",
+        "sectionId": "design-narrow-tools",
+        "text": "Give Claude narrow schemas, then validate arguments, identity, resource authority, and business rules before any handler runs."
+      },
+      {
+        "id": "cue-claude-tools-loop",
+        "kind": "narration",
+        "sectionId": "drive-an-explicit-loop",
+        "text": "Drive the loop from stop reasons and explicit states with turn, tool, time, token, cost, failure, and cancellation budgets."
+      },
+      {
+        "id": "cue-claude-tools-safety",
+        "kind": "narration",
+        "sectionId": "enforce-side-effect-safety",
+        "text": "Enforce approvals and idempotency outside the model, then reconcile uncertain actions and verify external postconditions."
+      },
+      {
+        "id": "cue-claude-tools-choice",
+        "kind": "narration",
+        "sectionId": "workflow-or-agent",
+        "text": "Prefer a deterministic workflow when the path is known and use bounded agent autonomy only when evaluation evidence justifies it."
+      },
+      {
+        "id": "cue-claude-tools-visual",
+        "kind": "visual",
+        "sectionId": "drive-an-explicit-loop",
+        "text": "Move a request through model decision, validation, approval, execution, result, postcondition, and bounded terminal states.",
+        "accessibilityAlternative": "A static state table lists model decision, validation, approval, execution, result, postcondition, and each allowed terminal state with transition conditions."
+      },
+      {
+        "id": "cue-claude-tools-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "enforce-side-effect-safety",
+        "text": "Ask learners what the system should do when a write times out after the target may have accepted it."
+      },
+      {
+        "id": "cue-claude-tools-pause",
+        "kind": "pause",
+        "sectionId": "workflow-or-agent",
+        "text": "Allow three minutes to replace one unnecessary agent decision with a deterministic branch."
+      },
+      {
+        "id": "cue-claude-tools-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "workflow-or-agent",
+        "text": "Check that the released design contains no unbounded loop, implicit authority, or unverified side effect."
+      },
+      {
+        "id": "cue-claude-tools-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the two tool contracts, state machine, adversarial cases, and workflow-versus-agent decision."
+      },
+      {
+        "id": "cue-claude-tools-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check after the learner can defend execution ownership, authority, loop bounds, recovery, and design choice."
+      }
+    ],
+    "transcript": "Identify who executes each tool because the execution owner determines credentials, data controls, failures, logs, and side-effect verification. Give Claude narrow schemas, then validate arguments, identity, resource authority, and business rules before any handler runs. Drive the loop from stop reasons and explicit states with turn, tool, time, token, cost, failure, and cancellation budgets. Enforce approvals and idempotency outside the model, then reconcile uncertain actions and verify external postconditions. Prefer a deterministic workflow when the path is known and use bounded agent autonomy only when evaluation evidence justifies it.",
+    "captions": [
+      {
+        "cueId": "cue-claude-tools-contract",
+        "startSeconds": 0,
+        "endSeconds": 330,
+        "text": "Identify who executes each tool because the execution owner determines credentials, data controls, failures, logs, and side-effect verification."
+      },
+      {
+        "cueId": "cue-claude-tools-narrow",
+        "startSeconds": 360,
+        "endSeconds": 690,
+        "text": "Give Claude narrow schemas, then validate arguments, identity, resource authority, and business rules before any handler runs."
+      },
+      {
+        "cueId": "cue-claude-tools-loop",
+        "startSeconds": 720,
+        "endSeconds": 1050,
+        "text": "Drive the loop from stop reasons and explicit states with turn, tool, time, token, cost, failure, and cancellation budgets."
+      },
+      {
+        "cueId": "cue-claude-tools-safety",
+        "startSeconds": 1080,
+        "endSeconds": 1410,
+        "text": "Enforce approvals and idempotency outside the model, then reconcile uncertain actions and verify external postconditions."
+      },
+      {
+        "cueId": "cue-claude-tools-choice",
+        "startSeconds": 1440,
+        "endSeconds": 1770,
+        "text": "Prefer a deterministic workflow when the path is known and use bounded agent autonomy only when evaluation evidence justifies it."
+      }
+    ],
+    "reducedMotionAlternative": "Use a static tool-ownership matrix and loop-state table with focus highlighting instead of animated execution."
+  },
+  "knowledgeCheck": {
+    "passPercent": 80,
+    "questions": [
+      {
+        "id": "q-claude-tools-1",
+        "prompt": "Who executes a user-defined client tool requested by Claude?",
+        "choices": [
+          "The model secretly executes it",
+          "The application that defined the tool",
+          "The user's browser in every case",
+          "No one needs to execute it"
+        ],
+        "answerIndex": 1,
+        "explanation": "Claude proposes a structured call; the application validates, authorizes, executes, and returns the result."
+      },
+      {
+        "id": "q-claude-tools-2",
+        "prompt": "What should happen before a tool handler changes a record?",
+        "choices": [
+          "Validate arguments and authorize the actor, resource, and operation",
+          "Trust plausible model arguments",
+          "Log the credential in the result",
+          "Remove the operation identifier"
+        ],
+        "answerIndex": 0,
+        "explanation": "Tool input is untrusted until schema, identity, resource, operation, and business rules pass."
+      },
+      {
+        "id": "q-claude-tools-3",
+        "prompt": "A write tool times out after the target may have accepted it. What is the next state?",
+        "choices": [
+          "Confirmed failure",
+          "Completed",
+          "Outcome unknown pending reconciliation",
+          "Retry forever"
+        ],
+        "answerIndex": 2,
+        "explanation": "The real postcondition must be reconciled before repeating, compensating, rolling back, or claiming completion."
+      },
+      {
+        "id": "q-claude-tools-4",
+        "prompt": "When is a deterministic workflow preferable to an agent?",
+        "choices": [
+          "When all work requires autonomy",
+          "When steps and branches are known and repeatability matters",
+          "Only when no model is involved",
+          "Never"
+        ],
+        "answerIndex": 1,
+        "explanation": "Known paths are usually safer and easier to evaluate as explicit workflows."
+      },
+      {
+        "id": "q-claude-tools-5",
+        "prompt": "Which set makes an agent loop bounded?",
+        "choices": [
+          "A friendly prompt only",
+          "One model name",
+          "Unlimited retries and implicit success",
+          "Explicit states, approvals, turn and tool limits, deadline, cost budget, cancellation, and terminal conditions"
+        ],
+        "answerIndex": 3,
+        "explanation": "The surrounding system enforces budgets, approvals, and terminal behavior independently of the model."
+      }
+    ]
+  },
+  "sources": [
+    {
+      "title": "How tool use works",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Handle tool calls",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Tool reference",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-reference",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Building effective agents",
+      "url": "https://www.anthropic.com/engineering/building-effective-agents",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

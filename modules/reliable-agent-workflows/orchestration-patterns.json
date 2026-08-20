@@ -1,0 +1,151 @@
+{
+  "id": "orchestration-patterns",
+  "title": "Choose Reliable Orchestration Patterns",
+  "summary": "Match deterministic workflows, model-directed routing, manager patterns, parallel work, and review loops to the uncertainty and control needs of a task.",
+  "level": "intermediate",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "providers": ["provider-neutral"],
+  "estimatedMinutes": 50,
+  "objectives": [
+    "Choose between direct execution, deterministic workflow, manager, handoff, parallel, and evaluator patterns.",
+    "Keep routing, budgets, shared state, and terminal conditions observable.",
+    "Use concurrency only for independent work and reconcile partial failure deterministically.",
+    "Distinguish portable orchestration concepts from provider-specific framework features."
+  ],
+  "prerequisites": ["mcp-trust-and-security"],
+  "sections": [
+    {
+      "id": "simplest-sufficient-pattern",
+      "title": "Use the simplest control structure that fits the uncertainty",
+      "paragraphs": [
+        "A direct model call or fixed sequence is easier to test than an open-ended agent. Add model-directed routing only when the next step depends on semantic judgment that deterministic code cannot express economically.",
+        "Write down why each agent boundary exists. Specialization should reduce prompt conflict, permission breadth, or evaluation ambiguity enough to justify extra latency, cost, state transfer, and failure modes."
+      ],
+      "callout": "More agents create more boundaries; they do not automatically create better work."
+    },
+    {
+      "id": "deterministic-workflows",
+      "title": "Keep known control flow in code",
+      "paragraphs": [
+        "Sequential workflows fit ordered dependencies. Parallel workflows fit independent branches. Bounded loops fit iterative improvement with a measurable exit. Conditional routes fit decisions based on validated state.",
+        "Google ADK describes sequential, loop, and parallel workflow agents as deterministic execution patterns. The same portable idea applies outside ADK: application code owns the graph while models perform bounded nodes."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Deterministic graph",
+        "code": "intake -> classify\nclassify -> {direct | specialist | human}\nspecialist -> verify\nverify -> {accept | revise once | escalate}\nEvery edge records input version, output version, decision, and budget."
+      }
+    },
+    {
+      "id": "manager-and-handoff",
+      "title": "Decide who retains control",
+      "paragraphs": [
+        "In a manager pattern, one agent owns the user-facing result and invokes specialists as tools. This centralizes synthesis, guardrails, and budget control. It also makes the manager a bottleneck and requires it to evaluate specialist output.",
+        "In a handoff pattern, a router transfers control to a specialist. This narrows active instructions and lets the specialist interact directly, but the handoff contract must preserve user intent, trusted facts, permissions, unresolved questions, and return conditions."
+      ]
+    },
+    {
+      "id": "parallelism-and-joins",
+      "title": "Parallelize independence, then make the join explicit",
+      "paragraphs": [
+        "Run branches concurrently only when they do not mutate the same state, depend on each other's results, or consume a shared scarce limit in an unsafe way. Give each branch its own scope, budget, idempotency keys, and evidence contract.",
+        "The join must define required versus optional branches, timeout behavior, conflicting evidence, retry ownership, cancellation, and partial-result policy. Do not let whichever branch finishes last silently become the answer."
+      ]
+    },
+    {
+      "id": "observe-and-limit",
+      "title": "Trace the graph and bound every edge",
+      "paragraphs": [
+        "Record a run ID, parent and child span, active agent, route reason, input and output contract versions, tool calls, approvals, token or cost budget, retries, and terminal state. Keep sensitive content out of telemetry while retaining useful hashes and references.",
+        "Provider frameworks expose different primitives: Anthropic discusses workflow and agent patterns, OpenAI documents managers and handoffs, and Google ADK provides workflow and collaborative structures. Treat those as implementation options and test the same product-level invariants across them."
+      ]
+    }
+  ],
+  "activity": {
+    "id": "activity-orchestration-design",
+    "title": "Design and simulate an orchestration graph",
+    "instructions": [
+      "Choose a real task and compare direct, deterministic workflow, manager, and handoff designs using quality, risk, latency, cost, and debuggability.",
+      "Create the smallest justified graph with typed node inputs, outputs, budgets, permissions, retry limits, and terminal states.",
+      "Add one parallel branch only if independence is proven, then define its join, timeout, cancellation, conflict, and partial-failure policies.",
+      "Simulate normal completion, a bad route, conflicting branch evidence, specialist timeout, repeated revision, and human escalation."
+    ],
+    "evidence": [
+      "A pattern decision record and versioned orchestration graph with explicit contracts on every edge.",
+      "Six trace records showing routes, budgets, failures, joins, and deterministic terminal states."
+    ],
+    "reflectionPrompt": "Which proposed agent became unnecessary after the control-flow decision was made explicit?"
+  },
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 1500,
+    "cues": [
+      {"id": "cue-orchestration-simple", "kind": "narration", "sectionId": "simplest-sufficient-pattern", "text": "Choose the simplest orchestration that handles the task's real uncertainty and control requirements."},
+      {"id": "cue-orchestration-deterministic", "kind": "narration", "sectionId": "deterministic-workflows", "text": "Keep known sequencing, branching, looping, and joins in deterministic code with models inside bounded nodes."},
+      {"id": "cue-orchestration-control", "kind": "narration", "sectionId": "manager-and-handoff", "text": "Use a manager when one agent must retain synthesis control and a handoff when a specialist should take over."},
+      {"id": "cue-orchestration-visual", "kind": "visual", "sectionId": "manager-and-handoff", "text": "Compare direct, sequential, manager, handoff, parallel, and evaluator graphs on one task.", "accessibilityAlternative": "A static comparison table lists control owner, state transfer, best fit, added risk, and terminal behavior for six orchestration patterns. Reduced-motion mode shows the entire table."},
+      {"id": "cue-orchestration-parallel", "kind": "narration", "sectionId": "parallelism-and-joins", "text": "Parallelize only independent branches and define timeout, conflict, cancellation, and partial-failure behavior at the join."},
+      {"id": "cue-orchestration-observe", "kind": "narration", "sectionId": "observe-and-limit", "text": "Trace every route and bound every agent, edge, retry, approval, and terminal state."},
+      {"id": "cue-orchestration-prompt", "kind": "learner-prompt", "sectionId": "simplest-sufficient-pattern", "text": "Ask learners which semantic decision truly requires model-directed routing."},
+      {"id": "cue-orchestration-pause", "kind": "pause", "sectionId": "parallelism-and-joins", "text": "Allow three minutes to define what the join does when one required branch times out."},
+      {"id": "cue-orchestration-checkpoint", "kind": "checkpoint", "sectionId": "observe-and-limit", "text": "Check that every path ends in accept, bounded revise, escalate, cancel, or fail with evidence."},
+      {"id": "cue-orchestration-activity", "kind": "learner-prompt", "text": "Guide the pattern comparison, graph design, parallel join, and six execution traces."},
+      {"id": "cue-orchestration-assessment", "kind": "assessment-handoff", "text": "Begin the check after each agent boundary has a reason, contract, budget, and owner."}
+    ],
+    "transcript": "Choose the simplest orchestration that handles the task's real uncertainty and control requirements. Keep known sequencing, branching, looping, and joins in deterministic code with models inside bounded nodes. Use a manager when one agent must retain synthesis control and a handoff when a specialist should take over. Parallelize only independent branches and define timeout, conflict, cancellation, and partial-failure behavior at the join. Trace every route and bound every agent, edge, retry, approval, and terminal state.",
+    "captions": [
+      {"cueId": "cue-orchestration-simple", "startSeconds": 0, "endSeconds": 270, "text": "Choose the simplest orchestration that handles the task's real uncertainty and control requirements."},
+      {"cueId": "cue-orchestration-deterministic", "startSeconds": 300, "endSeconds": 570, "text": "Keep known sequencing, branching, looping, and joins in deterministic code with models inside bounded nodes."},
+      {"cueId": "cue-orchestration-control", "startSeconds": 600, "endSeconds": 870, "text": "Use a manager when one agent must retain synthesis control and a handoff when a specialist should take over."},
+      {"cueId": "cue-orchestration-parallel", "startSeconds": 900, "endSeconds": 1170, "text": "Parallelize only independent branches and define timeout, conflict, cancellation, and partial-failure behavior at the join."},
+      {"cueId": "cue-orchestration-observe", "startSeconds": 1200, "endSeconds": 1440, "text": "Trace every route and bound every agent, edge, retry, approval, and terminal state."}
+    ],
+    "reducedMotionAlternative": "Present the orchestration patterns and join behavior as static tables with focus-based highlighting."
+  },
+  "knowledgeCheck": {
+    "passPercent": 80,
+    "questions": [
+      {
+        "id": "q-orchestration-1",
+        "prompt": "A process has fixed ordered steps and no semantic routing decision. What is the best starting pattern?",
+        "choices": ["An unbounded swarm", "A deterministic sequential workflow", "Random handoffs", "Parallel writes"],
+        "answerIndex": 1,
+        "explanation": "Known control flow is easier to test and govern in deterministic code."
+      },
+      {
+        "id": "q-orchestration-2",
+        "prompt": "When is a manager pattern preferable to a handoff?",
+        "choices": ["When a central agent must combine specialist results and own the final response", "When no synthesis is needed", "When every specialist needs administrator access", "When state should be hidden"],
+        "answerIndex": 0,
+        "explanation": "The manager retains control and can centralize synthesis and shared guardrails."
+      },
+      {
+        "id": "q-orchestration-3",
+        "prompt": "Two branches both edit the same document. Should they run in parallel by default?",
+        "choices": ["Yes, because all parallelism is faster", "Yes, if they use different models", "No, shared mutation requires coordination or serialization", "Only if neither has a budget"],
+        "answerIndex": 2,
+        "explanation": "Parallel branches should be independent or use explicit concurrency control."
+      },
+      {
+        "id": "q-orchestration-4",
+        "prompt": "What must a parallel join define?",
+        "choices": ["Only the longest branch", "Required results, timeouts, conflicts, cancellation, and partial failure", "A provider logo", "Unlimited retries"],
+        "answerIndex": 1,
+        "explanation": "Join policy determines whether concurrent work produces a predictable system outcome."
+      },
+      {
+        "id": "q-orchestration-5",
+        "prompt": "Why record a route reason and contract version on each edge?",
+        "choices": ["To make logs larger", "To reconstruct why control moved and which interface governed the transfer", "To replace acceptance tests", "To expose secrets"],
+        "answerIndex": 1,
+        "explanation": "Traceable routing and versioned contracts make failures reproducible and auditable."
+      }
+    ]
+  },
+  "sources": [
+    {"title": "Building effective agents", "url": "https://www.anthropic.com/engineering/building-effective-agents", "publisher": "Anthropic", "lastVerified": "2026-07-25"},
+    {"title": "Agent orchestration", "url": "https://openai.github.io/openai-agents-js/guides/multi-agent/", "publisher": "OpenAI", "lastVerified": "2026-07-25"},
+    {"title": "Template agent workflows", "url": "https://google.github.io/adk-docs/agents/workflow-agents/", "publisher": "Google", "lastVerified": "2026-07-25"}
+  ]
+}

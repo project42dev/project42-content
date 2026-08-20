@@ -1,0 +1,77 @@
+{
+  "id": "agent-tool-failure-recovery",
+  "slug": "agent-tool-failure-recovery",
+  "title": "Agent Tool Failure Recovery",
+  "summary": "Diagnose tool selection, schema, authorization, execution, result-matching, timeout, and side-effect failures without allowing an agent to retry blindly.",
+  "category": "Troubleshooting and operations",
+  "format": "troubleshooting",
+  "audience": ["developer", "operator"],
+  "level": "advanced",
+  "providers": ["provider-neutral"],
+  "prerequisites": [
+    "A tool contract with schemas, execution ownership, and postconditions",
+    "Trace access that links model requests, tool calls, and results",
+    "An idempotency, compensation, or manual reconciliation strategy"
+  ],
+  "owner": "project42-editorial",
+  "reviewCadenceDays": 60,
+  "lastVerified": "2026-07-25",
+  "tags": ["agents", "tools", "mcp", "errors", "reconciliation"],
+  "sections": [
+    {
+      "id": "locate-tool-divergence",
+      "title": "Find the first broken contract",
+      "paragraphs": [
+        "Walk the trace from user authority and intended outcome through tool exposure, selection, call identifier, schema validation, policy validation, handler execution, result matching, model continuation, and external postcondition. Distinguish wrong tool, missing tool, invalid arguments, rejected authorization, dependency failure, timeout, malformed result, unmatched result ID, injected tool content, loop exhaustion, and an outcome that is unknown after a write.",
+        "Never ask the model to decide whether it had authority or whether a side effect occurred. Enforce those checks in application code. Treat external tool results as untrusted data, preserve provider-specific call/result ordering, and do not substitute prose for a required structured error result."
+      ]
+    },
+    {
+      "id": "record-tool-failure",
+      "title": "Record and contain the failed transition",
+      "paragraphs": [
+        "Pause the loop before another consequential action. Record stable operation, trace, call, and result identifiers; the redacted arguments; schema and policy versions; executor; timeout; attempt; result class; and observed external state. Use a controlled test client or MCP Inspector against an isolated target when protocol or server behavior needs reproduction."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Agent tool failure decision path",
+        "code": "User outcome and authority: [REQUEST -> ALLOWED SCOPE]\nTrace/call/result IDs: [CORRELATION]\nTool and contract version: [NAME -> SCHEMA/POLICY]\nExecutor and target: [CLIENT | PROVIDER | MCP SERVER -> RESOURCE]\nFailure stage: [SELECTION | VALIDATION | AUTH | EXECUTION | RESULT | CONTINUATION | POSTCONDITION]\nObserved result: [SUCCESS | FAILURE | UNKNOWN]\nAttempts and budgets: [TOOL/TIME/COST/LOOP]\nExternal-state check: [POSTCONDITION OR RECONCILIATION RESULT]\nOwner and cadence: [SERVICE OWNER -> UPDATE INTERVAL]\nStop criteria: [AUTH FAILURE | UNKNOWN WRITE | BUDGET | INJECTION | CONTRACT MISMATCH]\nRecovery: [CORRECT RESULT | COMPENSATE | RESTORE | MANUAL QUEUE]\nVerification: [ISOLATED REPRODUCTION + END-TO-END POSTCONDITION]"
+      }
+    },
+    {
+      "id": "verify-tool-recovery",
+      "title": "Expected evidence and verification",
+      "paragraphs": [
+        "Expected evidence is a complete redacted transition from authorized request to tool contract, execution, result, continuation, and postcondition, plus the containment and owner. Verify the fix with deterministic schema and policy tests, provider-format fixtures, timeout and duplicate-delivery cases, injected-result cases, isolated execution, and a final end-to-end trajectory.",
+        "Stop the agent when authorization fails, a write outcome is unknown, result identity or ordering is broken, untrusted content crosses an instruction boundary, budgets are exhausted, or the observed state differs from the claimed state. Recovery means reconciling the target before retry, returning a typed error to the loop, applying an approved compensation or rollback, restoring the last verified tool contract, and routing unresolved operations to a human queue."
+      ],
+      "callout": "After a timeout, unknown is a real state; repeating the write can create a second incident."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Troubleshooting tool use",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/troubleshooting-tool-use",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Function calling",
+      "url": "https://developers.openai.com/api/docs/guides/function-calling",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Function calling with the Gemini API",
+      "url": "https://ai.google.dev/gemini-api/docs/function-calling",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Debugging MCP integrations",
+      "url": "https://modelcontextprotocol.io/docs/tools/debugging",
+      "publisher": "Model Context Protocol",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "id": "anthropic-messages-api-request",
+  "slug": "anthropic-messages-api-request",
+  "title": "Anthropic Messages API Request Workflow",
+  "summary": "Send a bounded Claude Messages API request with environment-based credentials, explicit configuration, response inspection, and recoverable failure handling.",
+  "category": "Provider workflows",
+  "format": "playbook",
+  "audience": ["developer", "operator"],
+  "level": "beginner",
+  "providers": ["anthropic"],
+  "prerequisites": ["Node.js 20 or later", "An Anthropic API key stored outside source control", "An approved Claude model ID"],
+  "owner": "project42-editorial",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "tags": ["anthropic", "messages-api", "api", "javascript"],
+  "sections": [
+    {
+      "id": "prepare-request",
+      "title": "Prepare the request boundary",
+      "paragraphs": [
+        "Set ANTHROPIC_API_KEY in the process environment or an approved secret manager and set PROJECT42_ANTHROPIC_MODEL to a reviewed model ID. Do not print, commit, paste into source, or send the key as model input. Decide the request purpose, permitted input, maximum output, timeout, retention, and expected response before calling the API.",
+        "The Messages API is stateless: your application owns conversation history and must send the intended turns on every request. Minimize retained content, separate trusted instructions from user data, and treat model text as untrusted until application checks pass."
+      ]
+    },
+    {
+      "id": "send-request",
+      "title": "Send a minimal request",
+      "paragraphs": [
+        "This dependency-free Node.js example uses the required API version header and environment-only credentials. Replace the bracketed input at runtime; do not replace it with a secret."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "messages-request.mjs",
+        "code": "const apiKey = process.env.ANTHROPIC_API_KEY;\nconst model = process.env.PROJECT42_ANTHROPIC_MODEL;\nif (!apiKey || !model) throw new Error(\"Missing ANTHROPIC_API_KEY or PROJECT42_ANTHROPIC_MODEL\");\n\nconst response = await fetch(\"https://api.anthropic.com/v1/messages\", {\n  method: \"POST\",\n  headers: {\n    \"content-type\": \"application/json\",\n    \"x-api-key\": apiKey,\n    \"anthropic-version\": \"2023-06-01\",\n  },\n  body: JSON.stringify({\n    model,\n    max_tokens: 300,\n    messages: [{ role: \"user\", content: \"[INPUT_TEXT]\" }],\n  }),\n  signal: AbortSignal.timeout(30_000),\n});\nconst requestId = response.headers.get(\"request-id\");\nconst body = await response.json();\nif (!response.ok) throw new Error(`Anthropic request failed (${response.status}, request ${requestId ?? \"unknown\"})`);\nconst text = body.content?.find((block) => block.type === \"text\")?.text;\nif (body.stop_reason !== \"end_turn\" || typeof text !== \"string\") throw new Error(\"Unexpected completion shape\");\nconsole.log({ requestId, text });"
+      }
+    },
+    {
+      "id": "verify-and-recover",
+      "title": "Expected evidence and verification",
+      "paragraphs": [
+        "Expected output is an HTTP success containing a message object, a text content block, usage, an acceptable stop_reason, and a request-id header. Verify the status, content block types, stop reason, length, and application-specific rules before displaying or storing output. Log the request ID, model, latency, token counts, and redacted outcome—not the key or sensitive prompt content.",
+        "On authentication or validation errors, correct configuration rather than retrying. Retry only classified transient failures with bounded exponential backoff and jitter; honor rate limits and keep the original operation identifier. Because this read-only example has no external side effect, rollback means discarding the unaccepted response and restoring the last verified application state. If downstream side effects were added, require idempotency and explicit compensation before enabling them."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Get started with Claude",
+      "url": "https://platform.claude.com/docs/en/get-started",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Create a Message",
+      "url": "https://platform.claude.com/docs/en/api/messages/create",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Working with the Messages API",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/working-with-messages",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

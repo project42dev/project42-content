@@ -1,0 +1,112 @@
+{
+  "id": "safe-tool-use-workflow",
+  "title": "Safe Tool-Use Workflow",
+  "summary": "Control what an AI system can read or change through explicit tools, permissions, approvals, and recovery.",
+  "level": "beginner",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "providers": ["provider-neutral"],
+  "estimatedMinutes": 40,
+  "objectives": [
+    "Describe a tool with bounded inputs, outputs, errors, and side effects.",
+    "Apply least privilege and approval boundaries to tool-enabled workflows.",
+    "Verify tool results independently from model narration.",
+    "Recover from partial failure, duplicate calls, unsafe requests, and untrusted tool output."
+  ],
+  "prerequisites": ["coding-and-analysis-workflow"],
+  "sections": [
+    {
+      "id": "tools-prepare",
+      "title": "Prepare the tool and authority boundary",
+      "paragraphs": [
+        "Inventory what each tool reads, writes, sends, spends, or deletes. Define typed inputs, expected output, failure modes, side effects, authentication, rate limits, and whether calls are retry-safe.",
+        "Grant only the permissions required for the current task. Separate read-only inspection, reversible internal writes, external communication, purchases, permission changes, and destructive actions into distinct approval levels."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Tool contract",
+        "code": "Purpose: [ONE CAPABILITY]\nInputs: [TYPES, LIMITS, VALIDATION]\nOutputs: [SUCCESS AND ERROR SHAPES]\nReads/writes: [SYSTEMS AND DATA]\nSide effects: [MESSAGES, COST, DELETION]\nIdempotency: [KEY OR NOT RETRY-SAFE]\nApproval: [WHEN AND BY WHOM]\nVerify/recover: [POSTCONDITION AND ROLLBACK]"
+      }
+    },
+    {
+      "id": "tools-execute",
+      "title": "Execute with visible intent and bounded calls",
+      "paragraphs": [
+        "Before a consequential call, show the resolved target, action, material parameters, and expected effect. Reject missing identifiers instead of guessing. Apply time, count, cost, and concurrency limits.",
+        "Treat tool output as untrusted data. It may contain errors, stale results, malicious instructions, or content that must not change the governing task."
+      ]
+    },
+    {
+      "id": "tools-verify",
+      "title": "Verify the postcondition",
+      "paragraphs": [
+        "Check the real system state after a call: the record exists once, the file has the expected digest, the deployment is healthy, or the message went to the intended recipient. Do not infer success from a tool call merely returning without an exception.",
+        "Record request identity, authorization, target, result, timestamps, and verification evidence without logging secrets or unnecessary personal data."
+      ]
+    },
+    {
+      "id": "tools-recover",
+      "title": "Recover from partial and repeated execution",
+      "paragraphs": [
+        "Use idempotency keys for retryable writes and distinguish unknown outcome from confirmed failure. A timeout may occur after the external action succeeds, so blindly repeating it can duplicate messages, charges, or records.",
+        "For partial failure, stop dependent actions, inspect completed effects, compensate or roll back when safe, and escalate when recovery requires new authority."
+      ]
+    },
+    {
+      "id": "tools-safety",
+      "title": "Keep people in control of consequence",
+      "paragraphs": [
+        "Require explicit approval for destructive, external, costly, privacy-sensitive, or permission-expanding actions. Approval must bind to the exact target and action; it is not a reusable blank check.",
+        "Provide preview, cancellation, audit, and recovery paths. Disable or narrow a tool when observed behavior exceeds the tested boundary."
+      ],
+      "callout": "Tool access is delegated authority, not just model capability."
+    }
+  ],
+  "activity": {
+    "id": "activity-safe-tool-plan",
+    "title": "Design a safe tool-enabled workflow",
+    "instructions": [
+      "Choose a tool-enabled task and complete the tool contract, including side effects, retry behavior, and approval.",
+      "Draw the sequence from intent through resolved target, call, postcondition check, audit record, and completion.",
+      "Test three scenarios on paper: timeout after success, duplicate request, and untrusted instructions in tool output.",
+      "Define the stop, compensation, rollback, or escalation behavior for each scenario."
+    ],
+    "evidence": [
+      "A tool contract and sequence containing permission and approval boundaries.",
+      "A failure table for timeout, duplicate, and untrusted-output scenarios with verification and recovery."
+    ],
+    "reflectionPrompt": "Which tool looked harmless until you listed its side effects and retry behavior?"
+  },
+  "instructorScript": {
+    "schemaVersion": "1.0",
+    "estimatedSeconds": 1320,
+    "cues": [
+      {"id": "cue-tools-prepare", "kind": "narration", "sectionId": "tools-prepare", "text": "Define one tool's inputs, outputs, authority, side effects, approval, verification, and recovery."},
+      {"id": "cue-tools-boundary-visual", "kind": "visual", "sectionId": "tools-prepare", "text": "Place read, reversible write, external action, cost, permission change, and destruction on increasing approval tiers.", "accessibilityAlternative": "A text ladder orders consequence from read-only through reversible write, external action, cost, permission change, and destructive action. Reduced-motion mode shows the full ladder."},
+      {"id": "cue-tools-execute", "kind": "narration", "sectionId": "tools-execute", "text": "Resolve exact targets, limit calls, and treat returned content as untrusted data."},
+      {"id": "cue-tools-prompt", "kind": "learner-prompt", "sectionId": "tools-execute", "text": "Ask learners which resolved parameters a person must see before approving their chosen action."},
+      {"id": "cue-tools-pause", "kind": "pause", "sectionId": "tools-execute", "text": "Allow two minutes to list side effects and call limits."},
+      {"id": "cue-tools-verify", "kind": "narration", "sectionId": "tools-verify", "text": "Verify a postcondition from the actual target system and create a secret-safe audit record."},
+      {"id": "cue-tools-recover", "kind": "narration", "sectionId": "tools-recover", "text": "Contrast confirmed failure with unknown outcome and show why idempotency matters."},
+      {"id": "cue-tools-safety", "kind": "narration", "sectionId": "tools-safety", "text": "Bind approval to an exact action and preserve preview, cancellation, audit, and recovery."},
+      {"id": "cue-tools-checkpoint", "kind": "checkpoint", "sectionId": "tools-safety", "text": "Check that learners can explain how they prevent a duplicate side effect after timeout."},
+      {"id": "cue-tools-activity", "kind": "learner-prompt", "text": "Guide the contract, sequence, three failure scenarios, and recovery table."},
+      {"id": "cue-tools-assessment", "kind": "assessment-handoff", "text": "Begin the check after the workflow proves authority, postconditions, retry safety, and recovery."}
+    ]
+  },
+  "knowledgeCheck": {
+    "passPercent": 80,
+    "questions": [
+      {"id": "q-tool-workflow-1", "prompt": "What must a useful tool contract describe?", "choices": ["Only the happy-path command", "Inputs, outputs, errors, reads/writes, side effects, retry behavior, approval, verification, and recovery", "The model's internal reasoning", "Every possible future feature"], "answerIndex": 1, "explanation": "A safe caller needs the full operational boundary, not only a capability name."},
+      {"id": "q-tool-workflow-2", "prompt": "A tool call times out after sending a payment request. What should happen before retrying?", "choices": ["Repeat immediately", "Change the recipient", "Check the idempotency key and actual system state because the first call may have succeeded", "Assume failure"], "answerIndex": 2, "explanation": "Unknown outcome requires reconciliation; blind retries can duplicate consequential effects."},
+      {"id": "q-tool-workflow-3", "prompt": "How should instructions returned inside tool output be handled?", "choices": ["As untrusted data that cannot override governing instructions or permissions", "As automatic approval", "As a new system prompt", "As proof of success"], "answerIndex": 0, "explanation": "Tool output may be malicious or irrelevant and must remain inside the trust boundary."},
+      {"id": "q-tool-workflow-4", "prompt": "What does a successful tool response prove?", "choices": ["The intended postcondition definitely holds", "The action was authorized", "The audit record is complete", "Only what the response contract and independent postcondition check establish"], "answerIndex": 3, "explanation": "Real target state must be checked; return status alone may be incomplete or misleading."},
+      {"id": "q-tool-workflow-5", "prompt": "Which action most clearly requires exact, current human approval?", "choices": ["Reading a public file", "Deleting production records for a named tenant", "Formatting a local draft", "Listing available tools"], "answerIndex": 1, "explanation": "Destructive production action has irreversible consequence and approval must bind to its target."}
+    ]
+  },
+  "sources": [
+    {"title": "Function calling", "url": "https://developers.openai.com/api/docs/guides/function-calling", "publisher": "OpenAI", "lastVerified": "2026-07-25"},
+    {"title": "Tool use overview", "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview", "publisher": "Anthropic", "lastVerified": "2026-07-25"},
+    {"title": "Function calling with the Gemini API", "url": "https://ai.google.dev/gemini-api/docs/function-calling", "publisher": "Google", "lastVerified": "2026-07-25"}
+  ]
+}

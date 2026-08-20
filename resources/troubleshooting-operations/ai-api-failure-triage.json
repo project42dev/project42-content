@@ -1,0 +1,77 @@
+{
+  "id": "ai-api-failure-triage",
+  "slug": "ai-api-failure-triage",
+  "title": "AI API Failure Triage",
+  "summary": "Classify authentication, request, quota, timeout, rate-limit, provider, and application failures before retrying or escalating an AI API call.",
+  "category": "Troubleshooting and operations",
+  "format": "troubleshooting",
+  "audience": ["developer", "operator"],
+  "level": "intermediate",
+  "providers": ["provider-neutral"],
+  "prerequisites": [
+    "Access to redacted request metadata and application telemetry",
+    "A documented timeout and retry budget",
+    "Provider status and support paths for the deployed service"
+  ],
+  "owner": "project42-editorial",
+  "reviewCadenceDays": 60,
+  "lastVerified": "2026-07-25",
+  "tags": ["api", "errors", "retry", "rate-limit", "operations"],
+  "sections": [
+    {
+      "id": "classify-api-failure",
+      "title": "Classify the failing boundary",
+      "paragraphs": [
+        "Confirm the exact application, provider, endpoint or API version, model, region, timestamp, attempt, timeout, and request identifier. Separate DNS or connection failure, authentication, authorization, malformed request, unavailable resource, content or safety stop, context limit, quota, rate limit, provider overload, application parsing, and downstream side effects. A provider HTTP response proves connectivity, not end-to-end success.",
+        "Do not retry authentication, permission, invalid-request, unsupported-model, or deterministic application-validation failures unchanged. Retry only a classified transient failure within one total budget that includes SDK retries, proxy retries, and application retries. Apply jitter, honor provider guidance, cap concurrency, and preserve an operation ID so a repeated call cannot duplicate a downstream action."
+      ]
+    },
+    {
+      "id": "record-api-triage",
+      "title": "Record a privacy-safe API triage packet",
+      "paragraphs": [
+        "Capture headers and identifiers needed for support while excluding credentials, full prompts, user content, and unrestricted model output. Compare a minimal synthetic request from the same deployment path; do not use a successful request from a different region, account, API surface, or model as proof that the affected boundary is healthy."
+      ],
+      "code": {
+        "language": "text",
+        "label": "AI API failure record",
+        "code": "Service and operation: [PROVIDER/API/MODEL -> APPLICATION OPERATION ID]\nVersion and environment: [APP/PROMPT/SDK/API/REGION]\nTimestamp and correlation: [UTC -> REQUEST/RESPONSE/TRACE IDS]\nObserved failure: [HTTP/STATUS/ERROR/STOP REASON]\nFailure class: [NETWORK | AUTH | INVALID | LIMIT | SAFETY | CONTEXT | PROVIDER | APP | DOWNSTREAM]\nSensitive-data review: [REDACTED FIELDS -> AUTHORIZED EVIDENCE]\nTotal retry budget: [SDK + PROXY + APP -> ATTEMPT/LIMIT]\nMinimal synthetic reproduction: [RESULT]\nOwner and cadence: [ON-CALL ROLE -> UPDATE INTERVAL]\nStop criteria: [NON-TRANSIENT | BUDGET | COST | SAFETY | UNKNOWN SIDE EFFECT]\nRecovery or escalation: [DEGRADE | FAIL CLOSED | RESTORE CONFIG | PROVIDER CASE]\nVerification: [USER JOURNEY, POSTCONDITION, AND ERROR RATE]"
+      }
+    },
+    {
+      "id": "verify-api-recovery",
+      "title": "Expected evidence and verification",
+      "paragraphs": [
+        "Expected evidence includes the classified failure, redacted correlation identifiers, effective configuration, total attempts, minimal reproduction, provider or dependency state, containment decision, and an owner. Verify recovery with the affected route and model, a representative request, application parsing, latency and error-rate observation, and any downstream postcondition.",
+        "Stop retries when the failure is non-transient, the shared budget is exhausted, costs or load exceed the boundary, a safety control fires, provider guidance says not to retry, or a prior request may already have caused a side effect. Recovery means reducing load or failing safely, restoring the last verified configuration when a change caused the issue, reconciling uncertain operations, and escalating persistent provider failures with redacted IDs and a timeline."
+      ],
+      "callout": "Retry is a controlled response to a transient class, not a default response to every error."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Claude API errors",
+      "url": "https://platform.claude.com/docs/en/api/errors",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "OpenAI API error codes",
+      "url": "https://developers.openai.com/api/docs/guides/error-codes",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Gemini API troubleshooting guide",
+      "url": "https://ai.google.dev/gemini-api/docs/troubleshooting",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Incident Response Recommendations and Considerations for Cybersecurity Risk Management",
+      "url": "https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf",
+      "publisher": "NIST",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

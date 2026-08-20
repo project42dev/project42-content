@@ -1,0 +1,66 @@
+{
+  "id": "cross-provider-runtime-configuration",
+  "slug": "cross-provider-runtime-configuration",
+  "title": "Cross-Provider Runtime Configuration Contract",
+  "summary": "Separate application intent from Anthropic, OpenAI, and Google credentials, models, API versions, state, capabilities, and operational limits without pretending their APIs are equivalent.",
+  "category": "Provider workflows",
+  "format": "template",
+  "audience": ["developer", "operator", "leader"],
+  "level": "intermediate",
+  "providers": ["provider-neutral", "anthropic", "openai", "google"],
+  "prerequisites": ["A defined AI use case and data classification", "Approved provider accounts and secret storage", "Provider-specific capability checks"],
+  "owner": "project42-editorial",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "tags": ["cross-provider", "configuration", "credentials", "portability"],
+  "sections": [
+    {
+      "id": "separate-contract-and-adapter",
+      "title": "Separate the application contract from adapters",
+      "paragraphs": [
+        "Define provider-neutral application inputs, outputs, evidence, safety rules, latency and cost budgets, state ownership, and failure semantics. Implement an explicit adapter for each provider. Do not flatten different tool loops, response types, storage defaults, safety signals, citations, or error models into false one-to-one fields.",
+        "Select a provider and model only after checking the exact required capabilities, region, policy, data handling, context, structured-output, tool, and availability constraints. Fail closed when configuration names an unsupported combination. A fallback is a new execution with a traceable reason, not a silent retry against a different model."
+      ]
+    },
+    {
+      "id": "record-configuration",
+      "title": "Record a deployable configuration",
+      "paragraphs": [
+        "Store secret values in an approved secret boundary; store only environment variable names in source. Pin reviewed defaults, validate at startup, and expose safe configuration fingerprints in telemetry."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Cross-provider configuration contract",
+        "code": "Application capability: [BOUNDED USE CASE]\nData classification/region: [POLICY]\nProvider selection rule: [EXPLICIT CONDITION]\nFallback rule and approval: [CONDITION / OWNER]\n\nAnthropic: key env=ANTHROPIC_API_KEY; model env=PROJECT42_ANTHROPIC_MODEL; interface=[MESSAGES]; capabilities=[VERIFIED LIST]\nOpenAI: key env=OPENAI_API_KEY; model env=PROJECT42_OPENAI_MODEL; interface=[RESPONSES]; capabilities=[VERIFIED LIST]\nGoogle: key env=GEMINI_API_KEY; model env=PROJECT42_GEMINI_MODEL; API version env=PROJECT42_GEMINI_API_VERSION; interface=[INTERACTIONS]; capabilities=[VERIFIED LIST]\n\nTimeout/retry/total budget: [VALUES]\nState/storage/retention owner: [APPLICATION OR PROVIDER / POLICY]\nStructured-output validation: [SCHEMA + DOMAIN RULES]\nTool authorization/approval/idempotency: [ENFORCEMENT]\nLogging/redaction: [INCLUDE / EXCLUDE]\nConfiguration version/fingerprint: [VERSION]\nRollback configuration: [LAST VERIFIED VERSION]"
+      }
+    },
+    {
+      "id": "verify-and-recover",
+      "title": "Expected evidence and verification",
+      "paragraphs": [
+        "Expected evidence is a reviewed contract plus provider-specific startup and smoke-test results. Verify missing-secret failures, model and API allowlists, capability probes, schema handling, tool authorization, state and retention behavior, timeouts, retry budgets, redaction, and provider-attributed metrics. Test every configured fallback with synthetic data.",
+        "On invalid configuration, stop before serving traffic. Rollback by restoring the last verified configuration fingerprint and provider adapter, then rerun startup, smoke, and policy checks. If a provider becomes unavailable, use a pre-approved fallback only when its capability and data-policy gates pass; otherwise return a clear unavailable state and preserve the incident evidence."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Get started with Claude",
+      "url": "https://platform.claude.com/docs/en/get-started",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "OpenAI API developer quickstart",
+      "url": "https://developers.openai.com/api/docs/quickstart",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Using Gemini API keys",
+      "url": "https://ai.google.dev/gemini-api/docs/api-key",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

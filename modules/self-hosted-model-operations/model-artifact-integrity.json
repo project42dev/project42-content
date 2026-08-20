@@ -1,0 +1,291 @@
+{
+  "id": "model-artifact-integrity",
+  "title": "Model Artifact Integrity and Safe Promotion",
+  "summary": "Acquire model artifacts into quarantine, verify identity and provenance, inspect executable surfaces, and promote only an immutable reviewed bundle.",
+  "level": "advanced",
+  "reviewCadenceDays": 60,
+  "lastVerified": "2026-07-27",
+  "providers": ["provider-neutral"],
+  "estimatedMinutes": 54,
+  "objectives": [
+    "Design a quarantined acquisition path that prevents unreviewed artifacts from entering a trusted runtime.",
+    "Explain what digests, signatures, provenance, scans, and software bills of materials each establish and do not establish.",
+    "Identify executable serialization, custom-code, dependency, tokenizer, template, and conversion risks.",
+    "Promote an immutable artifact bundle with reproducible verification evidence, stop conditions, and revocation rules."
+  ],
+  "prerequisites": ["model-identity-license-and-provenance"],
+  "sections": [
+    {
+      "id": "acquire-into-quarantine",
+      "title": "Acquire into quarantine, not the serving path",
+      "paragraphs": [
+        "Download or copy the exact pinned revision into a non-serving, non-production environment with no learner data, no production credentials, minimal network access, bounded storage and compute, and an operator-approved destination. Preserve repository metadata and original filenames. Do not enable remote code, plugins, post-install hooks, or model loading merely to discover what the package contains.",
+        "Capture the source URL, immutable revision, retrieval time, transfer mechanism, expected manifest, observed files, sizes, and cryptographic digests before transformation. A mutable branch, tag, latest alias, cache entry, or friendly model name must not silently replace the approved artifact."
+      ],
+      "callout": "Inspection starts before execution. Quarantine is a trust boundary, not a folder name."
+    },
+    {
+      "id": "verify-distinct-evidence",
+      "title": "Verify distinct evidence without overstating it",
+      "paragraphs": [
+        "A cryptographic digest detects whether bytes differ from the expected bytes; it does not identify a trustworthy publisher or prove safety. A verified signature can bind an identity to signed material under a trust policy; it does not prove that the signer made a safe model. Provenance can describe where and how an artifact was produced; it must be checked against expectations and does not replace evaluation.",
+        "Scanners can identify known patterns, malware, secrets, vulnerable dependencies, and suspicious files within their coverage. A software bill of materials inventories components and relationships. Neither a clean scan nor a complete inventory proves the absence of malicious behavior, unsafe deserialization, model-level failures, or unacceptable license terms."
+      ]
+    },
+    {
+      "id": "inspect-executable-surfaces",
+      "title": "Treat model packages as executable supply-chain input",
+      "paragraphs": [
+        "Model repositories may include serialized objects, Python modules, native extensions, build scripts, package metadata, custom operators, tokenizer code, templates, conversion tools, or runtime plugins. PyTorch documentation warns never to load data from an untrusted source because its loading path uses unpickling; restricted weight-only loading narrows but does not eliminate denial-of-service or memory-corruption risks.",
+        "Prefer non-executable tensor formats where the selected runtime supports them, but verify the entire path rather than trusting a file extension. Inspect archive traversal, symbolic links, oversized or malformed tensors, unexpected files, dependency installers, custom code flags, dynamic imports, network calls, and conversion steps. Run any unavoidable parser or conversion in a disposable, least-privileged sandbox with strict resource and network limits."
+      ]
+    },
+    {
+      "id": "bind-transformations-to-provenance",
+      "title": "Bind conversions and quantization to new identities",
+      "paragraphs": [
+        "Conversion, merging, pruning, quantization, sharding, repackaging, or changing a tokenizer or template produces a materially different deployment artifact. Record the input digests, tool and dependency versions, configuration, command or workflow, environment, output manifest, output digests, operator or automation identity, and resulting evaluation target.",
+        "Use provenance and verification expectations to connect each output to its inputs and approved process. Re-run license, integrity, compatibility, and evaluation gates for the transformed artifact. Never inherit an approval solely because the new file began from approved weights."
+      ]
+    },
+    {
+      "id": "promote-and-revoke",
+      "title": "Promote an immutable bundle and preserve revocation",
+      "paragraphs": [
+        "The promoted bundle should contain or reference exact weight, tokenizer, template, configuration, runtime, dependency, and policy identities; their digests; verified signatures or documented absence; provenance; scans; license disposition; compatibility results; evaluation target; reviewer decisions; and expiry triggers. Move or copy by digest into a read-only trusted store and configure serving by immutable identity.",
+        "Fail closed when expected files, digests, signer identity, provenance predicates, lineage, terms, scans, dependency review, or sandbox checks do not match policy. Preserve evidence, block serving, revoke the candidate from caches and mirrors under your control, investigate affected environments, restore the last verified bundle, and repeat the full gate before promotion."
+      ]
+    }
+  ],
+  "activity": {
+    "id": "activity-artifact-promotion-packet",
+    "title": "Design a safe artifact promotion packet",
+    "instructions": [
+      "Use a synthetic manifest rather than downloading or loading a real model.",
+      "Define a quarantined acquisition environment, immutable source revision, expected file inventory, digest algorithm, signature policy, provenance expectations, scan plan, dependency inventory, and executable-surface review.",
+      "Add one quantization transformation and record its input identity, toolchain, configuration, output identity, and new evaluation boundary.",
+      "Write pass, hold, and fail-closed rules for every evidence type. Include resource-exhaustion and unsafe-deserialization stop conditions.",
+      "Produce the promoted-bundle manifest and a revocation procedure that restores the last verified bundle without deleting investigation evidence."
+    ],
+    "evidence": [
+      "A synthetic acquisition and quarantine plan with no production data, credentials, or automatic execution.",
+      "An evidence matrix that states what each digest, signature, provenance record, scan, and inventory proves and does not prove.",
+      "A transformed-artifact provenance record, immutable promotion manifest, and tested-paper revocation procedure."
+    ],
+    "reflectionPrompt": "Which control in your packet prevents trusted but wrong bytes, and which different control addresses correctly signed but unsafe behavior?"
+  },
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 1620,
+    "cues": [
+      {
+        "id": "cue-artifact-quarantine",
+        "kind": "narration",
+        "sectionId": "acquire-into-quarantine",
+        "text": "Follow an artifact from an immutable source into a bounded quarantine that cannot serve traffic or access production data."
+      },
+      {
+        "id": "cue-artifact-boundary-visual",
+        "kind": "visual",
+        "sectionId": "acquire-into-quarantine",
+        "text": "Show source, quarantine, verification gates, trusted immutable store, and serving as five separated zones with one-way promotion.",
+        "accessibilityAlternative": "A numbered list describes five zones: immutable source, quarantine, verification gates, trusted store, and serving. Promotion is allowed only after every gate passes."
+      },
+      {
+        "id": "cue-artifact-evidence",
+        "kind": "narration",
+        "sectionId": "verify-distinct-evidence",
+        "text": "Compare digest, signature, provenance, scan, and inventory in a proves and does-not-prove table."
+      },
+      {
+        "id": "cue-artifact-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "verify-distinct-evidence",
+        "text": "Ask whether a matching digest proves the publisher, license, safety, or only byte equality with an expected digest."
+      },
+      {
+        "id": "cue-artifact-executable",
+        "kind": "narration",
+        "sectionId": "inspect-executable-surfaces",
+        "text": "Inspect serialization, custom code, native extensions, installers, tokenizers, templates, plugins, archives, and conversions before any model load."
+      },
+      {
+        "id": "cue-artifact-transformation",
+        "kind": "narration",
+        "sectionId": "bind-transformations-to-provenance",
+        "text": "Turn a quantization step into a new identity with input and output digests, toolchain, configuration, provenance, and evaluation scope."
+      },
+      {
+        "id": "cue-artifact-promotion",
+        "kind": "narration",
+        "sectionId": "promote-and-revoke",
+        "text": "Promote by immutable identity, then rehearse a mismatch response that blocks serving and restores the last verified bundle."
+      },
+      {
+        "id": "cue-artifact-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the learner through the synthetic quarantine plan, evidence matrix, transformation record, promotion manifest, and revocation procedure."
+      },
+      {
+        "id": "cue-artifact-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check after the learner distinguishes every evidence claim and can defend fail-closed promotion."
+      }
+    ],
+    "transcript": "Follow an artifact from an immutable source into a bounded quarantine that cannot serve traffic or access production data. Acquire the exact pinned artifact with no learner data, production credentials, or automatic execution, then record the immutable source, expected manifest, observed files, and digests before transformation. Compare digest, signature, provenance, scan, and inventory in a proves and does-not-prove table. A digest establishes byte equality against an expected value, a signature binds signed material to an identity under policy, provenance describes production history, scans cover detectable patterns, and inventories list components. None independently proves safe model behavior. Inspect serialization, custom code, native extensions, installers, tokenizers, templates, plugins, archives, and conversions before any model load. Use a disposable, least-privileged environment for every unavoidable parser. Turn a quantization step into a new identity with input and output digests, toolchain, configuration, provenance, and evaluation scope. Treat every transformed artifact as a new candidate. Promote by immutable identity, then rehearse a mismatch response that blocks serving and restores the last verified bundle. Preserve investigation evidence and repeat the complete gate before any replacement is promoted.",
+    "captions": [
+      {
+        "cueId": "cue-artifact-quarantine",
+        "startSeconds": 0,
+        "endSeconds": 270,
+        "text": "Follow an artifact from an immutable source into a bounded quarantine that cannot serve traffic or access production data."
+      },
+      {
+        "cueId": "cue-artifact-evidence",
+        "startSeconds": 270,
+        "endSeconds": 570,
+        "text": "Compare digest, signature, provenance, scan, and inventory in a proves and does-not-prove table."
+      },
+      {
+        "cueId": "cue-artifact-executable",
+        "startSeconds": 570,
+        "endSeconds": 900,
+        "text": "Inspect serialization, custom code, native extensions, installers, tokenizers, templates, plugins, archives, and conversions before any model load."
+      },
+      {
+        "cueId": "cue-artifact-transformation",
+        "startSeconds": 900,
+        "endSeconds": 1170,
+        "text": "Turn a quantization step into a new identity with input and output digests, toolchain, configuration, provenance, and evaluation scope."
+      },
+      {
+        "cueId": "cue-artifact-promotion",
+        "startSeconds": 1170,
+        "endSeconds": 1410,
+        "text": "Promote by immutable identity, then rehearse a mismatch response that blocks serving and restores the last verified bundle."
+      },
+      {
+        "cueId": "cue-artifact-activity",
+        "startSeconds": 1410,
+        "endSeconds": 1590,
+        "text": "Guide the learner through the synthetic quarantine plan, evidence matrix, transformation record, promotion manifest, and revocation procedure."
+      },
+      {
+        "cueId": "cue-artifact-assessment",
+        "startSeconds": 1590,
+        "endSeconds": 1620,
+        "text": "Begin the check after the learner distinguishes every evidence claim and can defend fail-closed promotion."
+      }
+    ],
+    "reducedMotionAlternative": "Use a static five-zone trust-boundary diagram and a fixed evidence matrix. Mark promotion states with text labels rather than animated movement."
+  },
+  "knowledgeCheck": {
+    "passPercent": 80,
+    "questions": [
+      {
+        "id": "q-artifact-integrity-1",
+        "prompt": "Where should an unreviewed model artifact first be acquired?",
+        "choices": [
+          "Directly into the production serving cache",
+          "Into a bounded, non-serving quarantine without production data or credentials",
+          "Onto every operator workstation",
+          "Into the learner-record database"
+        ],
+        "answerIndex": 1,
+        "explanation": "Quarantine prevents acquisition and inspection from automatically crossing the serving trust boundary."
+      },
+      {
+        "id": "q-artifact-integrity-2",
+        "prompt": "What does a matching cryptographic digest establish?",
+        "choices": [
+          "The bytes match the expected digest",
+          "The publisher is trustworthy",
+          "The model is safe for every use",
+          "The license allows redistribution"
+        ],
+        "answerIndex": 0,
+        "explanation": "A digest detects byte changes relative to an expected digest; other claims need different evidence."
+      },
+      {
+        "id": "q-artifact-integrity-3",
+        "prompt": "Why should model loading be treated as a supply-chain execution boundary?",
+        "choices": [
+          "All weight files are plain text",
+          "Only benchmarks execute code",
+          "Repositories can include unsafe serialization, custom code, native extensions, installers, plugins, and parsers",
+          "A file extension guarantees behavior"
+        ],
+        "answerIndex": 2,
+        "explanation": "Model packages and their runtimes can expose executable and parser surfaces before inference begins."
+      },
+      {
+        "id": "q-artifact-integrity-4",
+        "prompt": "A model is quantized from approved weights. What is the correct next step?",
+        "choices": [
+          "Reuse the old approval without recording the change",
+          "Delete the source digests",
+          "Rename the file latest",
+          "Create a new artifact identity and provenance record, then repeat compatibility, integrity, license, and evaluation gates"
+        ],
+        "answerIndex": 3,
+        "explanation": "Transformation changes the deployable artifact and can change behavior, dependencies, obligations, and compatibility."
+      },
+      {
+        "id": "q-artifact-integrity-5",
+        "prompt": "What does a clean scanner result prove?",
+        "choices": [
+          "No malicious or unsafe behavior exists",
+          "No issue detectable by that scanner and configuration was reported in the scanned material",
+          "The model is accurate",
+          "The artifact is Open Source"
+        ],
+        "answerIndex": 1,
+        "explanation": "Scanner evidence is bounded by its rules, configuration, inputs, and detectable classes."
+      },
+      {
+        "id": "q-artifact-integrity-6",
+        "prompt": "What is the safest response to a provenance or digest mismatch during promotion?",
+        "choices": [
+          "Block serving, preserve evidence, investigate, and restore only the last verified bundle",
+          "Ignore it if the filename is familiar",
+          "Regenerate the expected digest from the candidate",
+          "Disable logging and retry"
+        ],
+        "answerIndex": 0,
+        "explanation": "Fail-closed handling preserves the trust boundary and supports investigation and controlled recovery."
+      }
+    ]
+  },
+  "sources": [
+    {
+      "title": "SLSA Specification 1.2: Provenance",
+      "url": "https://slsa.dev/spec/v1.2/provenance",
+      "publisher": "SLSA",
+      "lastVerified": "2026-07-27"
+    },
+    {
+      "title": "SLSA Specification 1.2: Verifying Artifacts",
+      "url": "https://slsa.dev/spec/v1.2/verifying-artifacts",
+      "publisher": "SLSA",
+      "lastVerified": "2026-07-27"
+    },
+    {
+      "title": "torch.load",
+      "url": "https://docs.pytorch.org/docs/stable/generated/torch.load.html",
+      "publisher": "PyTorch",
+      "lastVerified": "2026-07-27"
+    },
+    {
+      "title": "SPDX Specification 3.0.1 AI Profile",
+      "url": "https://spdx.github.io/spdx-spec/v3.0.1/model/AI/AI/",
+      "publisher": "SPDX",
+      "lastVerified": "2026-07-27"
+    },
+    {
+      "title": "Model Release Checklist",
+      "url": "https://huggingface.co/docs/hub/en/model-release-checklist",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-07-27"
+    }
+  ]
+}

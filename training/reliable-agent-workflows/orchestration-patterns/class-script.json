@@ -1,0 +1,285 @@
+{
+  "schemaVersion": "2.0",
+  "id": "orchestration-patterns-class",
+  "version": "1.0.0",
+  "moduleId": "orchestration-patterns",
+  "locale": "en-US",
+  "title": "Choose Reliable Orchestration Patterns",
+  "audience": "Practitioners designing agent workflows that must remain understandable, bounded, testable, and portable across model and framework choices.",
+  "learningObjectives": [
+    "Choose between direct execution, deterministic workflow, manager, handoff, parallel, and evaluator patterns.",
+    "Keep routing, budgets, shared state, and terminal conditions observable.",
+    "Use concurrency only for independent work and reconcile partial failure deterministically.",
+    "Distinguish portable orchestration concepts from provider-specific framework features."
+  ],
+  "plannedDurationSeconds": 942,
+  "spokenWordCount": 1002,
+  "segments": [
+    {
+      "id": "welcome-and-outcomes",
+      "kind": "welcome",
+      "delivery": "spoken",
+      "spokenText": "Welcome. This class helps you choose an orchestration pattern because the task requires it, not because multiple agents sound impressive. You will compare direct execution, deterministic workflows, managers, handoffs, parallel branches, and review loops while preserving observable routes, budgets, state, and terminal outcomes.",
+      "stageDirection": "Display six orchestration shapes around one governed task.",
+      "estimatedSeconds": 32,
+      "sourceUrls": []
+    },
+    {
+      "id": "simplest-sufficient-pattern",
+      "kind": "narration",
+      "sectionId": "simplest-sufficient-pattern",
+      "delivery": "spoken",
+      "spokenText": "Begin with the simplest structure that handles the real uncertainty. If one bounded model call followed by validation can finish the task, use it. If the steps and branches are already known, encode them in deterministic application logic. Add model-directed routing only when selecting the next step requires semantic judgment that fixed rules cannot express economically. For every proposed agent boundary, write the benefit and the new cost. A specialist may reduce prompt conflict, permission breadth, or evaluation ambiguity. It also adds latency, state transfer, another failure surface, and another place where instructions or authority can drift. More agents create more boundaries; they do not automatically create better work. If you cannot name the distinct responsibility, evidence contract, and terminal behavior of an agent, remove it or make it a deterministic function.",
+      "stageDirection": "Reduce a proposed five-agent graph to the smallest justified structure.",
+      "estimatedSeconds": 78,
+      "sourceUrls": [
+        "https://www.anthropic.com/engineering/building-effective-agents"
+      ],
+      "visual": {
+        "description": "A decision funnel removes unnecessary agent boundaries before implementation.",
+        "altText": "The funnel asks whether one call works, whether control flow is known, and whether semantic routing is necessary before introducing an agent.",
+        "reducedMotionDescription": "Show the complete decision funnel as a static diagram."
+      }
+    },
+    {
+      "id": "deterministic-workflow-demonstration",
+      "kind": "narration",
+      "sectionId": "deterministic-workflows",
+      "delivery": "spoken",
+      "spokenText": "Consider a curriculum update. Intake validates the source record. Classification chooses direct review, specialist review, or human escalation. A specialist produces a typed claim table. Verification either accepts it, permits one revision, or escalates. The application owns this graph. Models perform bounded nodes; they do not invent edges. Each edge records the input version, output version, route reason, remaining budget, and next allowed states. A sequential path handles dependencies. A conditional path uses validated state. A bounded loop permits one measurable improvement. A deterministic terminal state ends in accept, escalate, cancel, or fail with evidence. Google ADK exposes sequential, loop, and parallel workflow agents, but the portable principle is broader: keep known control flow in code and place uncertain model work inside explicit contracts.",
+      "stageDirection": "Trace one curriculum update through validation, classification, specialist review, verification, and escalation.",
+      "estimatedSeconds": 72,
+      "sourceUrls": [
+        "https://google.github.io/adk-docs/agents/workflow-agents/"
+      ],
+      "visual": {
+        "description": "A deterministic graph surrounds bounded model nodes with typed edges and terminal states.",
+        "altText": "Intake leads to classification, optional specialist work, verification, one bounded revision, and explicit accept or escalate outcomes.",
+        "reducedMotionDescription": "Present all graph nodes, edges, and terminal states at once."
+      }
+    },
+    {
+      "id": "pattern-selection-demonstration",
+      "kind": "demonstration",
+      "sectionId": "deterministic-workflows",
+      "delivery": "spoken",
+      "spokenText": "Now compare two implementations. Design A lets an agent decide whether to research, write, verify, retry, or publish until it feels finished. Design B fixes intake, research, writing, two independent verification judgments, human approval, and publication as governed states. Models choose evidence and language inside bounded nodes, but cannot skip approval or invent a terminal state. Design B exposes failure, cost, and recovery, so it is the reliable starting point.",
+      "stageDirection": "Compare an open-ended agent loop with a governed deterministic content-maintenance graph.",
+      "estimatedSeconds": 42,
+      "sourceUrls": [
+        "https://www.anthropic.com/engineering/building-effective-agents",
+        "https://google.github.io/adk-docs/agents/workflow-agents/"
+      ],
+      "visual": {
+        "description": "An open-ended loop is replaced by a governed content-maintenance graph.",
+        "altText": "The open loop can choose and repeat any step. The governed graph requires intake, research, writing, two verification judgments, human approval, and publication.",
+        "reducedMotionDescription": "Show the two complete designs side by side."
+      }
+    },
+    {
+      "id": "manager-and-handoff",
+      "kind": "narration",
+      "sectionId": "manager-and-handoff",
+      "delivery": "spoken",
+      "spokenText": "Choose a manager when one agent should retain responsibility for the user-facing result. The manager calls specialists as tools, validates their artifacts, combines evidence, applies shared guardrails, and owns the final answer. This centralizes synthesis and budget control, but it can become a bottleneck and must be able to judge specialist output. Choose a handoff when a specialist should take over the next phase under a narrower instruction set. A handoff can reduce prompt conflict and support direct specialist interaction, but it transfers active control. The transfer must preserve user intent, trusted facts, unresolved questions, allowed actions, completed side effects, budget, return conditions, and trace continuity. Delegation returns an artifact to the manager. A handoff changes who is active. Do not use the labels interchangeably, and do not let framework syntax decide the product behavior.",
+      "stageDirection": "Compare manager-owned delegation with a visible transfer of active control.",
+      "estimatedSeconds": 76,
+      "sourceUrls": [
+        "https://www.anthropic.com/engineering/building-effective-agents",
+        "https://openai.github.io/openai-agents-js/guides/multi-agent/"
+      ],
+      "visual": {
+        "description": "Manager and handoff patterns differ by control owner and return behavior.",
+        "altText": "In delegation the manager remains active and receives a typed artifact. In handoff the specialist becomes active under a transfer contract.",
+        "reducedMotionDescription": "Show both patterns side by side in a static comparison."
+      }
+    },
+    {
+      "id": "parallelism-and-joins",
+      "kind": "narration",
+      "sectionId": "parallelism-and-joins",
+      "delivery": "spoken",
+      "spokenText": "Parallelize only proven independence. Two branches are not independent when one needs the other's result, both mutate the same object, or both consume a shared scarce limit without coordination. Give each safe branch its own input snapshot, scope, permission set, budget, idempotency key, timeout, and evidence contract. Then design the join before starting the branches. Name which results are required, which are optional, how long the join waits, who cancels unfinished work, who owns retries, and what happens when evidence conflicts. Define whether a partial result may be shown and how it is labeled. A fast branch does not authorize a missing required branch. A late branch does not silently overwrite accepted evidence. If two reviewers disagree, preserve both judgments and route to a declared adjudication or human decision. Concurrency is an execution choice; the join is the product decision.",
+      "stageDirection": "Run two independent evidence branches into a join with timeout, conflict, cancellation, and partial-result rules.",
+      "estimatedSeconds": 78,
+      "sourceUrls": [
+        "https://www.anthropic.com/engineering/building-effective-agents",
+        "https://google.github.io/adk-docs/agents/workflow-agents/"
+      ],
+      "visual": {
+        "description": "Parallel branches enter a governed join instead of racing to become the answer.",
+        "altText": "Each branch has isolated scope and budget. The join checks required results, timeout, conflict, cancellation, retry, and partial-failure policy.",
+        "reducedMotionDescription": "Show branch contracts and the complete join policy in one static view."
+      }
+    },
+    {
+      "id": "observe-and-limit",
+      "kind": "narration",
+      "sectionId": "observe-and-limit",
+      "delivery": "spoken",
+      "spokenText": "Make every route reconstructable. Record a run identifier, parent and child span, active agent, route reason, input and output contract versions, approved tools, decisions, retries, budget consumption, and terminal state. Keep secrets and unnecessary personal data out of telemetry; retain safe hashes and governed references when full content is not appropriate. Bound turns, tokens, cost, elapsed time, tool calls, revisions, and recursive transfers. A limit needs an owner and an outcome when exhausted. OpenAI documents managers and handoffs, Anthropic describes workflow and agent patterns, and Google ADK provides workflow structures. Those are implementation options, not identical guarantees. Define product-level invariants first, map each framework through an adapter, and run the same route, budget, failure, and terminal-state tests. Portability means preserving behavior and evidence, not pretending every SDK uses the same objects.",
+      "stageDirection": "Overlay trace fields and limits on every graph edge and provider adapter.",
+      "estimatedSeconds": 72,
+      "sourceUrls": [
+        "https://www.anthropic.com/engineering/building-effective-agents",
+        "https://openai.github.io/openai-agents-js/guides/multi-agent/",
+        "https://google.github.io/adk-docs/agents/workflow-agents/"
+      ],
+      "visual": {
+        "description": "One portable orchestration contract maps to provider adapters while retaining identical evidence fields.",
+        "altText": "Run, route, contract, budget, approval, retry, and terminal-state requirements stay constant across Anthropic, OpenAI, and Google implementation mappings.",
+        "reducedMotionDescription": "Display the contract and adapter matrix without animation."
+      }
+    },
+    {
+      "id": "learner-pattern-prompt",
+      "kind": "learner-prompt",
+      "sectionId": "simplest-sufficient-pattern",
+      "delivery": "spoken",
+      "spokenText": "Choose a real workflow. Identify the one decision, if any, that truly requires semantic routing. Compare a direct call, deterministic graph, manager, and handoff using quality, risk, latency, cost, and debuggability.",
+      "stageDirection": "Display a four-pattern comparison worksheet with six decision criteria.",
+      "estimatedSeconds": 24,
+      "sourceUrls": [],
+      "expectedLearnerAction": "Select the smallest justified pattern and document why each retained agent boundary exists."
+    },
+    {
+      "id": "learner-work-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Hold the comparison worksheet for up to ninety seconds with pause, extend, transcript, and continue controls.",
+      "estimatedSeconds": 90,
+      "sourceUrls": []
+    },
+    {
+      "id": "shared-mutation-checkpoint",
+      "kind": "checkpoint",
+      "sectionId": "parallelism-and-joins",
+      "delivery": "spoken",
+      "spokenText": "Checkpoint. Two proposed branches edit the same curriculum document. Should they run concurrently merely because different models perform the work?",
+      "stageDirection": "Show both branches targeting the same document and hide feedback until selection.",
+      "estimatedSeconds": 14,
+      "sourceUrls": [
+        "https://www.anthropic.com/engineering/building-effective-agents"
+      ],
+      "expectedLearnerAction": "Reject default parallel execution because shared mutation requires coordination or serialization."
+    },
+    {
+      "id": "checkpoint-response-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Hold the checkpoint for up to sixty seconds with accessible response and extend controls.",
+      "estimatedSeconds": 60,
+      "sourceUrls": []
+    },
+    {
+      "id": "shared-mutation-feedback",
+      "kind": "feedback",
+      "sectionId": "parallelism-and-joins",
+      "delivery": "spoken",
+      "spokenText": "Do not parallelize those writes by default. Different models do not make shared state independent. Serialize the edits, partition the document into nonoverlapping owned regions, or have branches return proposals that a deterministic join reconciles. If you chose concurrency for speed, add the missing state and conflict analysis. If you rejected all parallel work, refine the answer: independent read-only evidence collection may still run concurrently when the join defines required results, disagreement, timeout, and partial failure.",
+      "stageDirection": "Reveal Shared mutation, Coordinate or serialize, and Explicit join.",
+      "estimatedSeconds": 42,
+      "sourceUrls": [
+        "https://www.anthropic.com/engineering/building-effective-agents",
+        "https://google.github.io/adk-docs/agents/workflow-agents/"
+      ],
+      "feedback": {
+        "correct": "You recognized that independence is a data and side-effect property, not a model property.",
+        "retry": "Check whether either branch depends on or mutates state used by the other."
+      }
+    },
+    {
+      "id": "activity-transition",
+      "kind": "transition",
+      "delivery": "spoken",
+      "spokenText": "Open the orchestration design activity. Compare four patterns, create the smallest typed graph, justify any parallel branch, define its join, and simulate normal completion, bad routing, conflicting evidence, specialist timeout, repeated revision, and human escalation. Save the graph and six trace records.",
+      "stageDirection": "Display the pattern record, graph, join policy, and six required traces.",
+      "estimatedSeconds": 35,
+      "sourceUrls": [],
+      "learningHandoff": {
+        "command": "open-activity",
+        "activityId": "activity-orchestration-design"
+      }
+    },
+    {
+      "id": "activity-work-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Provide one hundred eighty seconds of optional work time with pause, extend, save, transcript, and continue controls.",
+      "estimatedSeconds": 188,
+      "sourceUrls": []
+    },
+    {
+      "id": "assessment-handoff",
+      "kind": "assessment-handoff",
+      "delivery": "spoken",
+      "spokenText": "When ready, begin the knowledge check. You will choose deterministic control for known steps, distinguish managers from handoffs, reject unsafe parallel mutation, define explicit joins, and explain why route reasons and contract versions belong in traces.",
+      "stageDirection": "Show Review class, Return to activity, and Begin knowledge check.",
+      "estimatedSeconds": 24,
+      "sourceUrls": [],
+      "learningHandoff": {
+        "command": "open-knowledge-check",
+        "questionIds": [
+          "q-orchestration-1",
+          "q-orchestration-2",
+          "q-orchestration-3",
+          "q-orchestration-4",
+          "q-orchestration-5"
+        ]
+      }
+    },
+    {
+      "id": "class-closing",
+      "kind": "closing",
+      "delivery": "spoken",
+      "spokenText": "Keep known control flow deterministic, justify every agent boundary, parallelize only independence, govern the join, and make every route and ending observable.",
+      "stageDirection": "Display the five orchestration rules beside the final graph.",
+      "estimatedSeconds": 15,
+      "sourceUrls": []
+    }
+  ],
+  "accessibility": {
+    "transcriptRequired": true,
+    "captionsRequired": true,
+    "textOnlyEquivalentRequired": true,
+    "reducedMotionRequired": true
+  },
+  "provenance": {
+    "canonicalContentVersion": "0.41.0",
+    "evidenceReviewedAt": "2026-07-27",
+    "contributions": [
+      {
+        "role": "evidence-research",
+        "roleProfileRef": "pending-qualification-research",
+        "providerFamily": "pending-research-family",
+        "status": "planned"
+      },
+      {
+        "role": "curriculum-writing",
+        "roleProfileRef": "pending-qualification-writing",
+        "providerFamily": "pending-writing-family",
+        "status": "planned"
+      },
+      {
+        "role": "factual-verification",
+        "roleProfileRef": "pending-qualification-verification",
+        "providerFamily": "pending-verification-family",
+        "status": "planned"
+      },
+      {
+        "role": "learning-design-review",
+        "roleProfileRef": "pending-qualification-learning-design",
+        "providerFamily": "pending-learning-design-family",
+        "status": "planned"
+      },
+      {
+        "role": "accessibility-review",
+        "roleProfileRef": "pending-qualification-accessibility",
+        "providerFamily": "pending-accessibility-family",
+        "status": "planned"
+      }
+    ],
+    "approvals": []
+  },
+  "releaseStatus": "draft"
+}

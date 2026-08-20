@@ -1,0 +1,67 @@
+{
+  "id": "google-gemini-evaluation-error-triage",
+  "slug": "google-gemini-evaluation-error-triage",
+  "title": "Google Gemini Evaluation and Error Triage",
+  "summary": "Build representative Gemini evaluation datasets, preserve interaction evidence, classify API failures, and release or recover through explicit gates.",
+  "category": "Provider workflows",
+  "format": "playbook",
+  "audience": ["developer", "operator", "leader"],
+  "level": "intermediate",
+  "providers": ["google"],
+  "prerequisites": ["A defined Gemini workflow", "Representative redacted or synthetic cases", "An approved logging and retention policy"],
+  "owner": "project42-editorial",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "tags": ["google", "gemini", "evaluation", "troubleshooting"],
+  "sections": [
+    {
+      "id": "build-evaluation",
+      "title": "Build evidence from logs and datasets",
+      "paragraphs": [
+        "Define measurable success and failure criteria before changing a prompt, model, or API version. Build representative, boundary, adversarial, blocked, and regression cases from redacted or synthetic data. When Gemini logging is approved and available, curate challenge and evaluation sets from production-shaped cases; do not opt into sharing or retain sensitive data without explicit authority.",
+        "Version the prompt, model, API version, parameters, dataset, grader, and thresholds. Prefer deterministic checks for schemas, calculations, citations, prohibited output, and required evidence. Calibrate human or model graders against examples for judgment tasks. Compare candidates with the baseline across quality, safety, latency, and cost, including worst-case slices."
+      ]
+    },
+    {
+      "id": "triage-failure",
+      "title": "Classify the failure before acting",
+      "paragraphs": [
+        "Separate connection, authentication, permission, invalid request, resource exhaustion, unavailable service, interaction status, application validation, and downstream-side-effect failures. Capture HTTP status, error status and message, interaction ID when present, timestamp, model, API version, attempt, latency, and a privacy-safe input fingerprint. Never log the API key or sensitive body.",
+        "Do not retry 400 or 403 failures unchanged. Retry only classified transient 408, 429, and 5xx failures using bounded exponential backoff and jitter; account for SDK automatic retries when setting the total attempt budget. Preserve application operation identity so retries cannot duplicate side effects."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Gemini workflow evidence record",
+        "code": "Workflow/version: [NAME / COMMIT]\nModel/API/configuration: [MODEL / VERSION / PARAMETERS]\nDataset/grader: [VERSION / METHOD]\nRequired thresholds: [QUALITY / SAFETY / LATENCY / COST]\nObserved results and worst slice: [METRICS]\nFailure class: [CONNECTION | AUTH | INVALID | EXHAUSTED | UNAVAILABLE | INTERACTION | APPLICATION | DOWNSTREAM]\nHTTP/error/interaction ID: [REDACTED EVIDENCE]\nRetry decision and total budget: [DO NOT RETRY | ATTEMPT N OF LIMIT]\nRollback target: [LAST VERIFIED VERSION]\nRelease decision/approver: [PROMOTE | HOLD | REVERT / OWNER]"
+      }
+    },
+    {
+      "id": "verify-and-recover",
+      "title": "Expected evidence and verification",
+      "paragraphs": [
+        "Expected evidence is a versioned evaluation report plus a privacy-safe triage record another operator can reproduce. Verify dataset authority, logging consent and retention, grader calibration, thresholds, regression slices, total retry budget, redaction, interaction identifiers, and the final release decision.",
+        "If a gate fails or production regresses, halt promotion and restore the last verified prompt, model, API version, or application release. Reconcile uncertain downstream operations before retrying, then repeat the same evaluation and smoke checks. Escalate persistent provider failures with interaction and error evidence; close only after recovery verification passes."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Gemini API troubleshooting guide",
+      "url": "https://ai.google.dev/gemini-api/docs/troubleshooting",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Gemini API logs and datasets",
+      "url": "https://ai.google.dev/gemini-api/docs/logs-datasets",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Gemini API data logging and sharing",
+      "url": "https://ai.google.dev/gemini-api/docs/logs-policy",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

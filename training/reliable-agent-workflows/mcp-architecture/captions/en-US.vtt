@@ -1,0 +1,492 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:06.000
+Welcome. This class gives you a reliable
+mental model for
+
+2
+00:00:06.000 --> 00:00:12.000
+Model Context Protocol. You will separate
+host, client, and server
+
+3
+00:00:12.000 --> 00:00:18.000
+responsibilities, trace lifecycle
+negotiation, distinguish prompts,
+
+4
+00:00:18.000 --> 00:00:24.000
+resources, and tools, design narrow tool
+contracts, and keep application
+
+5
+00:00:24.000 --> 00:00:30.000
+policy portable when providers expose
+different MCP integration surfaces.
+
+6
+00:00:30.000 --> 00:00:36.500
+Start with three roles. The host is the AI
+
+7
+00:00:36.500 --> 00:00:43.000
+application. It owns the user experience,
+consent, policy, model access,
+
+8
+00:00:43.000 --> 00:00:49.500
+aggregation, and decisions about what
+crosses boundaries. The host creates
+
+9
+00:00:49.500 --> 00:00:56.000
+one MCP client for each server connection.
+A client maintains
+
+10
+00:00:56.000 --> 00:01:02.500
+session and negotiated-capability state,
+routes protocol messages, and isolates
+
+11
+00:01:02.500 --> 00:01:09.000
+that connection from others. A server
+exposes a focused set
+
+12
+00:01:09.000 --> 00:01:15.500
+of prompts, resources, or tools. It may be
+a local
+
+13
+00:01:15.500 --> 00:01:22.000
+process or a remote service. Local does
+not automatically mean
+
+14
+00:01:22.000 --> 00:01:28.500
+safe, and remote does not automatically
+mean untrusted. Assess identity,
+
+15
+00:01:28.500 --> 00:01:35.000
+code or service provenance, credentials,
+data flow, and actions. One
+
+16
+00:01:35.000 --> 00:01:41.500
+server must not observe another server's
+data merely because the
+
+17
+00:01:41.500 --> 00:01:48.000
+host can access both.
+
+18
+00:01:48.000 --> 00:01:53.273
+Consider a learning assistant connected to
+a file server and
+
+19
+00:01:53.273 --> 00:01:58.545
+a ticket server. The file client
+negotiates resource and read-tool
+
+20
+00:01:58.545 --> 00:02:03.818
+capabilities. The ticket client negotiates
+search and comment tools. A
+
+21
+00:02:03.818 --> 00:02:09.091
+ticket result must not flow to the file
+server unless
+
+22
+00:02:09.091 --> 00:02:14.364
+the host makes an explicit, authorized
+decision. Each server receives
+
+23
+00:02:14.364 --> 00:02:19.636
+only the context required for its
+operation. If the ticket
+
+24
+00:02:19.636 --> 00:02:24.909
+server fails, the file session can remain
+healthy. If one
+
+25
+00:02:24.909 --> 00:02:30.182
+server changes tools, only its capability
+state changes. This separation
+
+26
+00:02:30.182 --> 00:02:35.455
+makes data movement, failure,
+authorization, and incident response
+
+27
+00:02:35.455 --> 00:02:40.727
+inspectable instead of creating one
+invisible pool of tools and
+
+28
+00:02:40.727 --> 00:02:46.000
+context.
+
+29
+00:02:46.000 --> 00:02:53.000
+Negotiate before operating. During
+initialization, client and server exchange
+
+30
+00:02:53.000 --> 00:03:00.000
+protocol revision and capabilities. Only
+after initialization completes may normal
+
+31
+00:03:00.000 --> 00:03:07.000
+operations use the features both sides
+support. Treat negotiated state
+
+32
+00:03:07.000 --> 00:03:14.000
+as runtime evidence. A configured tool
+name does not prove
+
+33
+00:03:14.000 --> 00:03:21.000
+the connected server currently exposes
+tools, supports notifications, or
+
+34
+00:03:21.000 --> 00:03:28.000
+implements the expected revision. Record
+server identity, requested and agreed
+
+35
+00:03:28.000 --> 00:03:35.000
+protocol, advertised client and server
+capabilities, and fallback behavior. If
+
+36
+00:03:35.000 --> 00:03:42.000
+a required capability is absent, fail
+closed or degrade through
+
+37
+00:03:42.000 --> 00:03:49.000
+a declared path. Do not invent support,
+call an unnegotiated
+
+38
+00:03:49.000 --> 00:03:56.000
+operation, or silently substitute a more
+powerful capability.
+
+39
+00:03:56.000 --> 00:04:02.000
+Prompts, resources, and tools have
+different control models. Prompts are
+
+40
+00:04:02.000 --> 00:04:08.000
+commonly user-selected templates.
+Resources are application-selected
+
+41
+00:04:08.000 --> 00:04:14.000
+context. Tools are functions the model may
+propose calling. These
+
+42
+00:04:14.000 --> 00:04:20.000
+labels help design the interface, but none
+creates authorization. A
+
+43
+00:04:20.000 --> 00:04:26.000
+resource can contain stale facts,
+malicious instructions, or sensitive data.
+
+44
+00:04:26.000 --> 00:04:32.000
+A tool result can attempt to redirect the
+model. A
+
+45
+00:04:32.000 --> 00:04:38.000
+discovered tool can still be denied by
+host policy. The
+
+46
+00:04:38.000 --> 00:04:44.000
+host decides which servers and primitives
+are exposed, what context
+
+47
+00:04:44.000 --> 00:04:50.000
+is sent, what requires user confirmation,
+and which trusted executor
+
+48
+00:04:50.000 --> 00:04:56.000
+may act. Protocol compatibility enables
+exchange. It does not certify
+
+49
+00:04:56.000 --> 00:05:02.000
+the server, validate content, grant
+permission, or prove a side
+
+50
+00:05:02.000 --> 00:05:08.000
+effect.
+
+51
+00:05:08.000 --> 00:05:15.000
+Make a tool narrow and inspectable. Give
+it a stable
+
+52
+00:05:15.000 --> 00:05:22.000
+name and a decision-oriented description
+that distinguishes it from similar
+
+53
+00:05:22.000 --> 00:05:29.000
+tools. Constrain inputs with required
+fields, explicit types, enums, formats,
+
+54
+00:05:29.000 --> 00:05:36.000
+bounds, and rejected additional
+properties. Where supported, publish an
+
+55
+00:05:36.000 --> 00:05:43.000
+output schema and return structured
+success and error variants. Separately
+
+56
+00:05:43.000 --> 00:05:50.000
+document side effects, data sent, identity
+and object authorization, approval
+
+57
+00:05:50.000 --> 00:05:57.000
+rule, idempotency, limits, postcondition,
+retryability, and recovery. A schema can
+
+58
+00:05:57.000 --> 00:06:04.000
+prove that workspace ID has the expected
+form. It cannot
+
+59
+00:06:04.000 --> 00:06:11.000
+prove the workspace belongs to the caller.
+An output schema
+
+60
+00:06:11.000 --> 00:06:18.000
+can make a result parseable. It cannot
+prove the draft
+
+61
+00:06:18.000 --> 00:06:25.000
+was created in the real system.
+
+62
+00:06:25.000 --> 00:06:30.231
+Keep the product contract above provider
+adapters. Define the required
+
+63
+00:06:30.231 --> 00:06:35.462
+capability, approved server identity,
+allowed primitive and tool set, data
+
+64
+00:06:35.462 --> 00:06:40.692
+policy, approval rule, stable result,
+telemetry, and recovery once. Then
+
+65
+00:06:40.692 --> 00:06:45.923
+map provider SDK objects, request fields,
+remote connector identifiers, supported
+
+66
+00:06:45.923 --> 00:06:51.154
+transports, approval surfaces, beta
+status, limitations, and errors in
+
+67
+00:06:51.154 --> 00:06:56.385
+replaceable adapters. Different providers
+and frameworks may expose MCP in
+
+68
+00:06:56.385 --> 00:07:01.615
+different products or maturity stages. Do
+not claim identical behavior
+
+69
+00:07:01.615 --> 00:07:06.846
+from a shared acronym. Verify each adapter
+against current first-party
+
+70
+00:07:06.846 --> 00:07:12.077
+documentation and the same application
+tests. Unsupported behavior must be
+
+71
+00:07:12.077 --> 00:07:17.308
+explicit, not emulated silently when it
+changes safety or user
+
+72
+00:07:17.308 --> 00:07:22.538
+control. Record the exact adapter version,
+verified feature subset, test
+
+73
+00:07:22.538 --> 00:07:27.769
+date, and rollback route so later changes
+can be reproduced
+
+74
+00:07:27.769 --> 00:07:33.000
+and compared.
+
+75
+00:07:33.000 --> 00:07:40.000
+Sketch one host with two MCP servers. For
+each connection,
+
+76
+00:07:40.000 --> 00:07:47.000
+name the client, server identity, required
+capability, data sent, tool
+
+77
+00:07:47.000 --> 00:07:54.000
+exposed, approval point, postcondition,
+and fallback when negotiation fails.
+
+78
+00:09:24.000 --> 00:09:31.000
+Checkpoint. Configuration lists a write
+tool, but the connected server
+
+79
+00:09:31.000 --> 00:09:38.000
+did not advertise tool capability during
+initialization. Should the client
+
+80
+00:09:38.000 --> 00:09:45.000
+call that tool because configuration says
+it exists?
+
+81
+00:10:45.000 --> 00:10:50.429
+Do not call it. Configuration describes
+intent, while initialization records
+
+82
+00:10:50.429 --> 00:10:55.857
+what this session supports. Use the
+declared no-tool fallback or
+
+83
+00:10:55.857 --> 00:11:01.286
+stop with missing-capability evidence. If
+you chose to try the
+
+84
+00:11:01.286 --> 00:11:06.714
+call, move capability validation before
+operation. If you assumed the
+
+85
+00:11:06.714 --> 00:11:12.143
+server was unsafe, refine the conclusion:
+absence may be version,
+
+86
+00:11:12.143 --> 00:11:17.571
+configuration, or server behavior, but the
+safe operational result is
+
+87
+00:11:17.571 --> 00:11:23.000
+still no unnegotiated call.
+
+88
+00:11:23.000 --> 00:11:29.400
+Open the MCP contract activity. Draw the
+host and two
+
+89
+00:11:29.400 --> 00:11:35.800
+isolated connections, record
+initialization and fallback behavior,
+
+90
+00:11:35.800 --> 00:11:42.200
+define one read and one write tool, and
+map the
+
+91
+00:11:42.200 --> 00:11:48.600
+portable contract into one provider
+adapter. Retain the architecture,
+
+92
+00:11:48.600 --> 00:11:55.000
+lifecycle record, contracts, and adapter
+assumptions.
+
+93
+00:15:01.000 --> 00:15:05.400
+When ready, begin the knowledge check. You
+will identify host
+
+94
+00:15:05.400 --> 00:15:09.800
+policy ownership, enforce negotiated
+capabilities, separate schema from
+
+95
+00:15:09.800 --> 00:15:14.200
+authorization, preserve one client per
+server, and choose a portable
+
+96
+00:15:14.200 --> 00:15:18.600
+adapter boundary. The assessment begins
+only when you choose Begin
+
+97
+00:15:18.600 --> 00:15:23.000
+knowledge check.
+
+98
+00:15:23.000 --> 00:15:27.333
+Keep roles separate, negotiate before use,
+treat primitives as untrusted
+
+99
+00:15:27.333 --> 00:15:31.667
+inputs or proposals, own policy in the
+host, and verify
+
+100
+00:15:31.667 --> 00:15:36.000
+every adapter.

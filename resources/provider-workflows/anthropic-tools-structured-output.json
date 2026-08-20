@@ -1,0 +1,66 @@
+{
+  "id": "anthropic-tools-structured-output",
+  "slug": "anthropic-tools-structured-output",
+  "title": "Anthropic Strict Tools and Structured Output",
+  "summary": "Choose between Claude JSON output and strict tool use, define constrained schemas, validate semantics, and keep tool execution under application control.",
+  "category": "Provider workflows",
+  "format": "reference",
+  "audience": ["developer", "operator"],
+  "level": "intermediate",
+  "providers": ["anthropic"],
+  "prerequisites": ["A working Messages API request", "A Claude model that supports the selected structured-output feature", "A JSON Schema for the intended data"],
+  "owner": "project42-editorial",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "tags": ["anthropic", "structured-output", "tools", "json-schema"],
+  "sections": [
+    {
+      "id": "choose-control",
+      "title": "Choose the correct control",
+      "paragraphs": [
+        "Use output_config.format when the model should return schema-constrained JSON to the application. Use a tool definition with strict: true when the model should request an application capability with schema-constrained inputs. The schema controls syntax and required structure; it does not grant authority or prove that values are safe, current, permitted, or true.",
+        "Keep tool execution outside the model. Authenticate and authorize with trusted runtime identity, validate inputs again, obtain approval for consequential actions, use idempotency for mutations, and return a typed result for the next model turn."
+      ]
+    },
+    {
+      "id": "define-contract",
+      "title": "Define an explicit schema contract",
+      "paragraphs": [
+        "The following request-body fragments show the current Anthropic shapes. Insert exactly one fragment into a reviewed Messages API request and replace bracketed values with non-secret domain fields."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "Anthropic structured-output contracts",
+        "code": "const jsonOutput = {\n  output_config: {\n    format: {\n      type: \"json_schema\",\n      schema: {\n        type: \"object\",\n        properties: { decision: { type: \"string\", enum: [\"approve\", \"review\", \"reject\"] }, reason: { type: \"string\" } },\n        required: [\"decision\", \"reason\"],\n        additionalProperties: false,\n      },\n    },\n  },\n};\n\nconst strictTool = {\n  tools: [{\n    name: \"record_review_decision\",\n    description: \"Record an already authorized review decision for [SYSTEM_OF_RECORD]\",\n    strict: true,\n    input_schema: {\n      type: \"object\",\n      properties: { item_id: { type: \"string\" }, decision: { type: \"string\", enum: [\"approve\", \"reject\"] } },\n      required: [\"item_id\", \"decision\"],\n      additionalProperties: false,\n    },\n  }],\n};"
+      }
+    },
+    {
+      "id": "verify-and-recover",
+      "title": "Expected evidence and verification",
+      "paragraphs": [
+        "For JSON output, expect a text content block containing valid JSON that matches the schema. For strict tools, expect a tool_use block whose name and input match the declared tool. Verify response type, stop reason, schema, enum values, length limits, authorization, and domain rules. Test valid, missing, extra, malformed, unauthorized, duplicate, refusal, and truncation cases.",
+        "Do not execute when validation or authorization fails. Record a redacted failure and request a corrected response or human review within a retry budget. Rollback means discarding untrusted structured output; for a tool side effect, use the tool contract's idempotency key and tested compensation or reconciliation path. Never describe a schema-constrained output as factually guaranteed."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Structured outputs",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/structured-outputs",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Strict tool use",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Create a Message",
+      "url": "https://platform.claude.com/docs/en/api/messages/create",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

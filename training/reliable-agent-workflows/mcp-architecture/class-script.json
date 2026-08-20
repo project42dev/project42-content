@@ -1,0 +1,282 @@
+{
+  "schemaVersion": "2.0",
+  "id": "mcp-architecture-class",
+  "version": "1.0.0",
+  "moduleId": "mcp-architecture",
+  "locale": "en-US",
+  "title": "Understand MCP Architecture and Contracts",
+  "audience": "Practitioners connecting AI applications to local or remote context and tools through Model Context Protocol integrations.",
+  "learningObjectives": [
+    "Explain MCP host, client, and server responsibilities without collapsing their trust boundaries.",
+    "Trace initialization, protocol-version agreement, capability negotiation, operation, and shutdown.",
+    "Distinguish prompts, resources, and tools by who controls them and what risk they introduce.",
+    "Design a narrow MCP tool contract with typed inputs, outputs, errors, and human-control points."
+  ],
+  "plannedDurationSeconds": 936,
+  "spokenWordCount": 910,
+  "segments": [
+    {
+      "id": "welcome-and-outcomes",
+      "kind": "welcome",
+      "delivery": "spoken",
+      "spokenText": "Welcome. This class gives you a reliable mental model for Model Context Protocol. You will separate host, client, and server responsibilities, trace lifecycle negotiation, distinguish prompts, resources, and tools, design narrow tool contracts, and keep application policy portable when providers expose different MCP integration surfaces.",
+      "stageDirection": "Display the outcomes beside a host with two isolated client-server connections.",
+      "estimatedSeconds": 30,
+      "sourceUrls": []
+    },
+    {
+      "id": "host-client-server",
+      "kind": "narration",
+      "sectionId": "host-client-server",
+      "delivery": "spoken",
+      "spokenText": "Start with three roles. The host is the AI application. It owns the user experience, consent, policy, model access, aggregation, and decisions about what crosses boundaries. The host creates one MCP client for each server connection. A client maintains session and negotiated-capability state, routes protocol messages, and isolates that connection from others. A server exposes a focused set of prompts, resources, or tools. It may be a local process or a remote service. Local does not automatically mean safe, and remote does not automatically mean untrusted. Assess identity, code or service provenance, credentials, data flow, and actions. One server must not observe another server's data merely because the host can access both.",
+      "stageDirection": "Show host policy above two one-to-one client sessions and focused servers.",
+      "estimatedSeconds": 78,
+      "sourceUrls": [
+        "https://modelcontextprotocol.io/specification/2025-11-25/architecture"
+      ],
+      "visual": {
+        "description": "A host coordinates policy while separate clients isolate two server sessions.",
+        "altText": "The host owns users, consent, model, policy, and aggregation. Client A connects only to Server A, and Client B connects only to Server B.",
+        "reducedMotionDescription": "Present all roles and boundaries in one static architecture diagram."
+      }
+    },
+    {
+      "id": "role-demonstration",
+      "kind": "demonstration",
+      "sectionId": "host-client-server",
+      "delivery": "spoken",
+      "spokenText": "Consider a learning assistant connected to a file server and a ticket server. The file client negotiates resource and read-tool capabilities. The ticket client negotiates search and comment tools. A ticket result must not flow to the file server unless the host makes an explicit, authorized decision. Each server receives only the context required for its operation. If the ticket server fails, the file session can remain healthy. If one server changes tools, only its capability state changes. This separation makes data movement, failure, authorization, and incident response inspectable instead of creating one invisible pool of tools and context.",
+      "stageDirection": "Trace one file lookup and one ticket comment without cross-connection data leakage.",
+      "estimatedSeconds": 58,
+      "sourceUrls": [
+        "https://modelcontextprotocol.io/specification/2025-11-25/architecture"
+      ],
+      "visual": {
+        "description": "Two focused connections preserve independent data, capabilities, and failure states.",
+        "altText": "File lookup stays on the file connection. Ticket comment stays on the ticket connection. The host alone authorizes any cross-connection use.",
+        "reducedMotionDescription": "Show both operations as separate static rows."
+      }
+    },
+    {
+      "id": "lifecycle-negotiation",
+      "kind": "narration",
+      "sectionId": "lifecycle-and-negotiation",
+      "delivery": "spoken",
+      "spokenText": "Negotiate before operating. During initialization, client and server exchange protocol revision and capabilities. Only after initialization completes may normal operations use the features both sides support. Treat negotiated state as runtime evidence. A configured tool name does not prove the connected server currently exposes tools, supports notifications, or implements the expected revision. Record server identity, requested and agreed protocol, advertised client and server capabilities, and fallback behavior. If a required capability is absent, fail closed or degrade through a declared path. Do not invent support, call an unnegotiated operation, or silently substitute a more powerful capability.",
+      "stageDirection": "Trace initialize request, initialize result, initialized notification, operation, and shutdown.",
+      "estimatedSeconds": 70,
+      "sourceUrls": [
+        "https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle"
+      ],
+      "visual": {
+        "description": "A lifecycle sequence establishes protocol and capability evidence before operation.",
+        "altText": "Client and server initialize, agree on revision and capabilities, acknowledge readiness, operate within the agreement, and shut down.",
+        "reducedMotionDescription": "Present the entire sequence as a static message table."
+      }
+    },
+    {
+      "id": "primitives-control",
+      "kind": "narration",
+      "sectionId": "primitives-and-control",
+      "delivery": "spoken",
+      "spokenText": "Prompts, resources, and tools have different control models. Prompts are commonly user-selected templates. Resources are application-selected context. Tools are functions the model may propose calling. These labels help design the interface, but none creates authorization. A resource can contain stale facts, malicious instructions, or sensitive data. A tool result can attempt to redirect the model. A discovered tool can still be denied by host policy. The host decides which servers and primitives are exposed, what context is sent, what requires user confirmation, and which trusted executor may act. Protocol compatibility enables exchange. It does not certify the server, validate content, grant permission, or prove a side effect.",
+      "stageDirection": "Compare prompt, resource, and tool control while showing authorization as a separate host-owned layer.",
+      "estimatedSeconds": 72,
+      "sourceUrls": [
+        "https://modelcontextprotocol.io/specification/2025-11-25/architecture",
+        "https://modelcontextprotocol.io/specification/2025-11-25/server/tools"
+      ],
+      "visual": {
+        "description": "Primitive control labels sit below a separate application authorization boundary.",
+        "altText": "Users select prompts, applications select resources, and models may select tools, but host policy and trusted execution authorize every consequential operation.",
+        "reducedMotionDescription": "Show primitives and authorization in a static two-layer table."
+      }
+    },
+    {
+      "id": "tool-contract",
+      "kind": "narration",
+      "sectionId": "tool-contract",
+      "delivery": "spoken",
+      "spokenText": "Make a tool narrow and inspectable. Give it a stable name and a decision-oriented description that distinguishes it from similar tools. Constrain inputs with required fields, explicit types, enums, formats, bounds, and rejected additional properties. Where supported, publish an output schema and return structured success and error variants. Separately document side effects, data sent, identity and object authorization, approval rule, idempotency, limits, postcondition, retryability, and recovery. A schema can prove that workspace ID has the expected form. It cannot prove the workspace belongs to the caller. An output schema can make a result parseable. It cannot prove the draft was created in the real system.",
+      "stageDirection": "Build a create-training-draft contract and attach separate policy and postcondition controls.",
+      "estimatedSeconds": 77,
+      "sourceUrls": [
+        "https://modelcontextprotocol.io/specification/2025-11-25/server/tools"
+      ],
+      "visual": {
+        "description": "A tool definition is paired with an application-owned action and recovery contract.",
+        "altText": "Name, description, input, output, and errors define exchange; side effects, authorization, approval, idempotency, postcondition, limits, and recovery define safe operation.",
+        "reducedMotionDescription": "Show both contracts side by side without animated construction."
+      }
+    },
+    {
+      "id": "provider-adapters",
+      "kind": "narration",
+      "sectionId": "portable-provider-adapters",
+      "delivery": "spoken",
+      "spokenText": "Keep the product contract above provider adapters. Define the required capability, approved server identity, allowed primitive and tool set, data policy, approval rule, stable result, telemetry, and recovery once. Then map provider SDK objects, request fields, remote connector identifiers, supported transports, approval surfaces, beta status, limitations, and errors in replaceable adapters. Different providers and frameworks may expose MCP in different products or maturity stages. Do not claim identical behavior from a shared acronym. Verify each adapter against current first-party documentation and the same application tests. Unsupported behavior must be explicit, not emulated silently when it changes safety or user control. Record the exact adapter version, verified feature subset, test date, and rollback route so later changes can be reproduced and compared.",
+      "stageDirection": "Place one portable contract above three provider-specific adapter columns.",
+      "estimatedSeconds": 68,
+      "sourceUrls": [
+        "https://modelcontextprotocol.io/specification/2025-11-25/architecture",
+        "https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle",
+        "https://modelcontextprotocol.io/specification/2025-11-25/server/tools"
+      ],
+      "visual": {
+        "description": "A stable application contract maps into separately verified provider adapters.",
+        "altText": "Capability, server identity, tools, data, approval, results, telemetry, and recovery stay portable while SDK and transport details remain in adapters.",
+        "reducedMotionDescription": "Display the portable row and adapter differences as a static matrix."
+      }
+    },
+    {
+      "id": "learner-mcp-prompt",
+      "kind": "learner-prompt",
+      "sectionId": "portable-provider-adapters",
+      "delivery": "spoken",
+      "spokenText": "Sketch one host with two MCP servers. For each connection, name the client, server identity, required capability, data sent, tool exposed, approval point, postcondition, and fallback when negotiation fails.",
+      "stageDirection": "Display eight labeled fields for each of two connections.",
+      "estimatedSeconds": 21,
+      "sourceUrls": [],
+      "expectedLearnerAction": "Create a two-server architecture that preserves connection, capability, data, and approval boundaries."
+    },
+    {
+      "id": "learner-work-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Hold the architecture fields for up to ninety seconds with pause, extend, transcript, and continue controls.",
+      "estimatedSeconds": 90,
+      "sourceUrls": []
+    },
+    {
+      "id": "capability-checkpoint",
+      "kind": "checkpoint",
+      "sectionId": "lifecycle-and-negotiation",
+      "delivery": "spoken",
+      "spokenText": "Checkpoint. Configuration lists a write tool, but the connected server did not advertise tool capability during initialization. Should the client call that tool because configuration says it exists?",
+      "stageDirection": "Show configured tool beside the negotiated capability record. Hide feedback until selection.",
+      "estimatedSeconds": 21,
+      "sourceUrls": [
+        "https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle"
+      ],
+      "expectedLearnerAction": "Do not call an operation that was not negotiated; use the declared fallback or fail closed."
+    },
+    {
+      "id": "checkpoint-response-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Hold the checkpoint for up to sixty seconds with accessible response and extend controls.",
+      "estimatedSeconds": 60,
+      "sourceUrls": []
+    },
+    {
+      "id": "capability-feedback",
+      "kind": "feedback",
+      "sectionId": "lifecycle-and-negotiation",
+      "delivery": "spoken",
+      "spokenText": "Do not call it. Configuration describes intent, while initialization records what this session supports. Use the declared no-tool fallback or stop with missing-capability evidence. If you chose to try the call, move capability validation before operation. If you assumed the server was unsafe, refine the conclusion: absence may be version, configuration, or server behavior, but the safe operational result is still no unnegotiated call.",
+      "stageDirection": "Reveal Configured is not negotiated, Tool call blocked, and Fallback or stop.",
+      "estimatedSeconds": 38,
+      "sourceUrls": [
+        "https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle"
+      ],
+      "feedback": {
+        "correct": "You treated negotiated capability as runtime evidence and followed a declared fallback.",
+        "retry": "Compare desired configuration with the capability state actually agreed for the current session."
+      }
+    },
+    {
+      "id": "activity-transition",
+      "kind": "transition",
+      "delivery": "spoken",
+      "spokenText": "Open the MCP contract activity. Draw the host and two isolated connections, record initialization and fallback behavior, define one read and one write tool, and map the portable contract into one provider adapter. Retain the architecture, lifecycle record, contracts, and adapter assumptions.",
+      "stageDirection": "Display the four required activity artifacts.",
+      "estimatedSeconds": 32,
+      "sourceUrls": [],
+      "learningHandoff": {
+        "command": "open-activity",
+        "activityId": "activity-mcp-contract"
+      }
+    },
+    {
+      "id": "activity-work-time",
+      "kind": "pause",
+      "delivery": "silent",
+      "stageDirection": "Provide one hundred eighty seconds of optional work time with pause, extend, save, transcript, and continue controls.",
+      "estimatedSeconds": 186,
+      "sourceUrls": []
+    },
+    {
+      "id": "assessment-handoff",
+      "kind": "assessment-handoff",
+      "delivery": "spoken",
+      "spokenText": "When ready, begin the knowledge check. You will identify host policy ownership, enforce negotiated capabilities, separate schema from authorization, preserve one client per server, and choose a portable adapter boundary. The assessment begins only when you choose Begin knowledge check.",
+      "stageDirection": "Show Review class, Return to activity, and Begin knowledge check.",
+      "estimatedSeconds": 22,
+      "sourceUrls": [],
+      "learningHandoff": {
+        "command": "open-knowledge-check",
+        "questionIds": [
+          "q-mcp-architecture-1",
+          "q-mcp-architecture-2",
+          "q-mcp-architecture-3",
+          "q-mcp-architecture-4",
+          "q-mcp-architecture-5"
+        ]
+      }
+    },
+    {
+      "id": "class-closing",
+      "kind": "closing",
+      "delivery": "spoken",
+      "spokenText": "Keep roles separate, negotiate before use, treat primitives as untrusted inputs or proposals, own policy in the host, and verify every adapter.",
+      "stageDirection": "Display the five-part closing rule beside the architecture map.",
+      "estimatedSeconds": 13,
+      "sourceUrls": []
+    }
+  ],
+  "accessibility": {
+    "transcriptRequired": true,
+    "captionsRequired": true,
+    "textOnlyEquivalentRequired": true,
+    "reducedMotionRequired": true
+  },
+  "provenance": {
+    "canonicalContentVersion": "0.41.0",
+    "evidenceReviewedAt": "2026-07-27",
+    "contributions": [
+      {
+        "role": "evidence-research",
+        "roleProfileRef": "pending-qualification-research",
+        "providerFamily": "pending-research-family",
+        "status": "planned"
+      },
+      {
+        "role": "curriculum-writing",
+        "roleProfileRef": "pending-qualification-writing",
+        "providerFamily": "pending-writing-family",
+        "status": "planned"
+      },
+      {
+        "role": "factual-verification",
+        "roleProfileRef": "pending-qualification-verification",
+        "providerFamily": "pending-verification-family",
+        "status": "planned"
+      },
+      {
+        "role": "learning-design-review",
+        "roleProfileRef": "pending-qualification-learning-design",
+        "providerFamily": "pending-learning-design-family",
+        "status": "planned"
+      },
+      {
+        "role": "accessibility-review",
+        "roleProfileRef": "pending-qualification-accessibility",
+        "providerFamily": "pending-accessibility-family",
+        "status": "planned"
+      }
+    ],
+    "approvals": []
+  },
+  "releaseStatus": "draft"
+}

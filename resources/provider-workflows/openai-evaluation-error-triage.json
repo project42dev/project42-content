@@ -1,0 +1,67 @@
+{
+  "id": "openai-evaluation-error-triage",
+  "slug": "openai-evaluation-error-triage",
+  "title": "OpenAI Evaluation and Error Triage",
+  "summary": "Apply eval-driven development to an OpenAI workflow, preserve request evidence, classify failures, and release or recover through explicit gates.",
+  "category": "Provider workflows",
+  "format": "playbook",
+  "audience": ["developer", "operator", "leader"],
+  "level": "intermediate",
+  "providers": ["openai"],
+  "prerequisites": ["A defined OpenAI workflow", "Representative redacted or synthetic cases", "Access to application telemetry without secrets"],
+  "owner": "project42-editorial",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-07-25",
+  "tags": ["openai", "evaluation", "errors", "troubleshooting"],
+  "sections": [
+    {
+      "id": "build-evaluation",
+      "title": "Use eval-driven development",
+      "paragraphs": [
+        "Translate the real task into measurable success and failure criteria before changing prompts or models. Build representative, boundary, adversarial, refusal, and regression cases from redacted or synthetic data. Prefer deterministic grading for schemas, calculations, citations, required evidence, and prohibited outputs; calibrate human or model graders against examples when judgment is necessary.",
+        "Version the prompt, model, parameters, dataset, grader, and thresholds. Compare candidates with the current baseline across quality, safety, latency, and cost. Inspect slices and severe individual failures rather than relying on one average. Promotion requires all blocking thresholds and documented approval."
+      ]
+    },
+    {
+      "id": "triage-failure",
+      "title": "Classify the failure before acting",
+      "paragraphs": [
+        "Separate connection, authentication, permission, invalid request, rate limit, server, model-completion, application-validation, and downstream-side-effect failures. Capture HTTP status, error code and type, x-request-id, response ID when present, timestamp, model, attempt, latency, and a privacy-safe input fingerprint. Never log the API key or sensitive body.",
+        "Do not retry authentication, permission, or invalid-request errors unchanged. Retry only transient rate, timeout, connection, and server failures within a bounded exponential-backoff budget with jitter. Respect provider headers and preserve the application operation identifier so retries cannot duplicate side effects."
+      ],
+      "code": {
+        "language": "text",
+        "label": "OpenAI workflow evidence record",
+        "code": "Workflow/version: [NAME / COMMIT]\nModel/configuration: [MODEL / PARAMETERS]\nDataset/grader: [VERSION / METHOD]\nRequired thresholds: [QUALITY / SAFETY / LATENCY / COST]\nObserved results and worst slice: [METRICS]\nFailure class: [CONNECTION | AUTH | INVALID | RATE | SERVER | COMPLETION | APPLICATION | DOWNSTREAM]\nHTTP/error/request and response IDs: [REDACTED EVIDENCE]\nRetry decision and budget: [DO NOT RETRY | ATTEMPT N OF LIMIT]\nRollback target: [LAST VERIFIED VERSION]\nRelease decision/approver: [PROMOTE | HOLD | REVERT / OWNER]"
+      }
+    },
+    {
+      "id": "verify-and-recover",
+      "title": "Expected evidence and verification",
+      "paragraphs": [
+        "Expected evidence is a versioned evaluation report and a reproducible, privacy-safe triage record. Verify dataset integrity, grader agreement, thresholds, regression slices, retry limits, redaction, request identifiers, and the final release decision. Re-run fixed regression cases after every incident.",
+        "If the gate fails or production regresses, halt promotion and restore the last verified prompt, model configuration, or application version. Reconcile uncertain downstream operations before retrying, then repeat the same evaluation and smoke checks. Escalate persistent provider failures with request IDs and a redacted timeline; close only when service and post-rollback evidence pass."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Evaluation best practices",
+      "url": "https://developers.openai.com/api/docs/guides/evaluation-best-practices",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "OpenAI API error codes",
+      "url": "https://developers.openai.com/api/docs/guides/error-codes",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "OpenAI API developer quickstart",
+      "url": "https://developers.openai.com/api/docs/quickstart",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}
