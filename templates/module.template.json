@@ -1,0 +1,116 @@
+{
+  "$schema": "../schemas/module.schema.json",
+  "id": "example-module-slug",
+  "title": "Clear, Action-Oriented Title (e.g., Designing Resilient Multi-Agent Workflows)",
+  "summary": "Deep, 2-3 sentence executive summary explaining what the learner will build, understand, and evaluate.",
+  "level": "intermediate",
+  "reviewCadenceDays": 60,
+  "lastVerified": "2026-08-20",
+  "providers": [
+    "provider-neutral"
+  ],
+  "estimatedMinutes": 35,
+  "objectives": [
+    "Explain the core architectural principles and observable constraints of this pattern",
+    "Implement the pattern using concrete, runnable code examples",
+    "Identify critical failure modes, security boundaries, and edge cases",
+    "Evaluate performance, cost, and reliability against non-agentic alternatives"
+  ],
+  "prerequisites": [
+    "foundations-module-slug"
+  ],
+  "sections": [
+    {
+      "id": "conceptual-foundation",
+      "title": "1. Architectural Foundations and Mental Model",
+      "paragraphs": [
+        "In-depth explanation of the core concept. Avoid high-level marketing abstractions. Explain the mechanics of how data flows, where state is persisted, and what computational trade-offs are made.",
+        "Detailed comparison of this approach versus alternative techniques. Use concrete numbers (latency in milliseconds, token overhead, memory footprints) to ground the explanation in engineering reality."
+      ],
+      "callout": "Crucial engineering takeaway or rule of thumb to remember."
+    },
+    {
+      "id": "concrete-implementation",
+      "title": "2. Production Implementation & Working Code",
+      "paragraphs": [
+        "Walkthrough of the code structure, explaining key configuration parameters, retry policies, and error handling boundaries.",
+        "Highlighting how untrusted model outputs are sanitized and validated against schemas before state mutation."
+      ],
+      "code": {
+        "language": "typescript",
+        "label": "Bounded Orchestrator Loop with Circuit Breaker",
+        "code": "import { OpenAI } from 'openai';\n\ninterface AgentState {\n  stepCount: number;\n  maxSteps: number;\n  memory: string[];\n}\n\nexport async function runBoundedAgent(prompt: string, state: AgentState) {\n  if (state.stepCount >= state.maxSteps) {\n    throw new Error('Circuit breaker tripped: Max execution steps reached');\n  }\n  state.stepCount += 1;\n  // Implementation logic...\n}"
+      }
+    },
+    {
+      "id": "failure-modes-and-security",
+      "title": "3. Failure Modes, Edge Cases, and Threat Mitigation",
+      "paragraphs": [
+        "Comprehensive analysis of what happens when downstream models fail, return truncated responses, or hallucinate tool calls.",
+        "Concrete defense patterns for prompt injection, memory leakage, and infinite recursive tool execution."
+      ],
+      "callout": "Never allow an agent to execute irreversible side effects without human-in-the-loop authorization."
+    }
+  ],
+  "activity": {
+    "id": "activity-hands-on-lab",
+    "title": "Hands-On Lab: Build and Defend a Bounded Agent Workflow",
+    "instructions": [
+      "Step 1: Clone the reference repository and configure your local OpenAI/Foundry endpoint environment variables.",
+      "Step 2: Implement the circuit breaker middleware to enforce a hard maximum of 5 tool iterations.",
+      "Step 3: Execute the failure injection test script (`npm run test:inject-failures`) and observe how the system catches runaway loops.",
+      "Step 4: Refactor the tool handler to enforce read-only execution permissions for unauthenticated users."
+    ],
+    "evidence": [
+      "Working code implementation showing the bounded execution wrapper.",
+      "Terminal execution logs proving that runaway iterations tripped the circuit breaker with exit code 0.",
+      "A completed risk assessment matrix documenting residual failure modes."
+    ],
+    "reflectionPrompt": "Under what specific latency, cost, or security constraints would you choose a deterministic state machine over an autonomous agent?"
+  },
+  "questions": [
+    {
+      "id": "q1-core-concept",
+      "prompt": "What is the primary architectural purpose of a circuit breaker in an autonomous agent loop?",
+      "options": [
+        {
+          "id": "opt-a",
+          "text": "To increase the context window limit of the underlying frontier model.",
+          "isCorrect": false,
+          "feedback": "Incorrect. Circuit breakers do not alter context window sizes; they limit execution steps."
+        },
+        {
+          "id": "opt-b",
+          "text": "To bound execution steps and prevent runaway loops, runaway spend, and infinite retries.",
+          "isCorrect": true,
+          "feedback": "Correct! Circuit breakers ensure that runaway execution loops terminate safely after a predefined threshold."
+        },
+        {
+          "id": "opt-c",
+          "text": "To bypass user authentication for faster tool invocation.",
+          "isCorrect": false,
+          "feedback": "Incorrect. Circuit breakers enforce security boundaries rather than bypassing them."
+        }
+      ]
+    }
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.0",
+    "estimatedSeconds": 1200,
+    "cues": [
+      {
+        "id": "cue-intro",
+        "kind": "narration",
+        "sectionId": "conceptual-foundation",
+        "text": "Welcome to this module. Today we will dismantle the agent loop and implement production-grade safety boundaries."
+      },
+      {
+        "id": "cue-visual-architecture",
+        "kind": "visual",
+        "sectionId": "conceptual-foundation",
+        "text": "Display the multi-layered agent loop diagram with highlighted circuit breaker thresholds.",
+        "accessibilityAlternative": "A flowchart showing prompt input leading to model perception, tool selection, step counting, and emergency halt triggers."
+      }
+    ]
+  }
+}
