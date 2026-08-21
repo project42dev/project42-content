@@ -5,7 +5,9 @@
   "level": "advanced",
   "reviewCadenceDays": 30,
   "lastVerified": "2026-07-25",
-  "providers": ["openai"],
+  "providers": [
+    "openai"
+  ],
   "estimatedMinutes": 62,
   "objectives": [
     "Distinguish provider-hosted built-in tools from application-executed function tools.",
@@ -13,22 +15,28 @@
     "Enforce identity, authorization, approval, idempotency, postconditions, and recovery outside the model.",
     "Bound Codex and other agent loops with sandbox, approval, budget, cancellation, and terminal-state controls."
   ],
-  "prerequisites": ["openai-responses-api-and-sdk-workflows"],
+  "prerequisites": [
+    "openai-responses-api-and-sdk-workflows"
+  ],
   "sections": [
     {
       "id": "tools-have-execution-owners",
       "title": "Tools have execution owners",
       "paragraphs": [
-        "The Responses API can expose built-in tools operated through OpenAI and custom function tools executed by your application. A custom function call is a structured proposal: your code validates, authorizes, runs, and returns the result. The model does not secretly execute your business operation.",
-        "Identify the execution owner for every tool. Ownership determines credentials, network access, data handling, billing, failure semantics, audit evidence, and who verifies a side effect. Review current provider behavior before enabling a hosted tool with external access."
-      ]
+        "The Responses API can expose built-in tools operated through OpenAI and custom function tools executed by your application. A custom function call is a structured proposal: your code validates, authorizes, runs, and returns the result. The model does not secretly execute your business operation. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Identify the execution owner for every tool. Ownership determines credentials, network access, data handling, billing, failure semantics, audit evidence, and who verifies a side effect. Review current provider behavior before enabling a hosted tool with external access. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "typescript",
+        "content": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+      }
     },
     {
       "id": "define-narrow-strict-functions",
       "title": "Define narrow, strict functions",
       "paragraphs": [
-        "Give each function one legible purpose, a precise name and description, constrained properties, required fields, and no unrecognized properties. Prefer a small operation-specific function over a generic shell, HTTP, SQL, or arbitrary-command interface.",
-        "Strict schema conformance reduces malformed arguments but does not establish user intent or authority. Treat arguments as untrusted, resolve the acting identity server-side, authorize the exact resource and operation, apply business rules, and reject unknown scope before execution."
+        "Give each function one legible purpose, a precise name and description, constrained properties, required fields, and no unrecognized properties. Prefer a small operation-specific function over a generic shell, HTTP, SQL, or arbitrary-command interface. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Strict schema conformance reduces malformed arguments but does not establish user intent or authority. Treat arguments as untrusted, resolve the acting identity server-side, authorize the exact resource and operation, apply business rules, and reject unknown scope before execution. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
       "code": {
         "language": "json",
@@ -40,26 +48,38 @@
       "id": "match-calls-results-and-state",
       "title": "Match calls, results, and loop state",
       "paragraphs": [
-        "Inspect response.output for function_call items, parse their arguments as untrusted data, and preserve each call_id. Return a function_call_output with the matching call_id so the next response can associate evidence with the correct request. Handle multiple calls without depending on array position.",
-        "Drive the loop through explicit states: model response, validation, authorization, approval, execution, result return, postcondition verification, and terminal outcome. Bound model turns, tool calls, elapsed time, tokens, cost, consecutive failures, and parallel work; include cancellation and human escalation."
-      ]
+        "Inspect response.output for function_call items, parse their arguments as untrusted data, and preserve each call_id. Return a function_call_output with the matching call_id so the next response can associate evidence with the correct request. Handle multiple calls without depending on array position. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Drive the loop through explicit states: model response, validation, authorization, approval, execution, result return, postcondition verification, and terminal outcome. Bound model turns, tool calls, elapsed time, tokens, cost, consecutive failures, and parallel work; include cancellation and human escalation. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "typescript",
+        "content": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+      }
     },
     {
       "id": "enforce-tool-side-effect-safety",
       "title": "Enforce side-effect safety outside the model",
       "paragraphs": [
-        "Separate reads, reversible writes, communications, privileged changes, and destructive operations. Require fresh approval where policy demands it, pass the authenticated principal independently of model arguments, use operation identifiers or idempotency keys, and log the authorization decision.",
-        "A handler returning success is not proof that the desired external postcondition holds. Verify the system of record. If a timeout occurs after a write may have been accepted, mark the outcome unknown and reconcile before retrying, compensating, rolling back, or telling the user it completed."
+        "Separate reads, reversible writes, communications, privileged changes, and destructive operations. Require fresh approval where policy demands it, pass the authenticated principal independently of model arguments, use operation identifiers or idempotency keys, and log the authorization decision. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "A handler returning success is not proof that the desired external postcondition holds. Verify the system of record. If a timeout occurs after a write may have been accepted, mark the outcome unknown and reconcile before retrying, compensating, rolling back, or telling the user it completed. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
-      "callout": "Prompt instructions can guide behavior; only the surrounding system can enforce authority and side-effect policy."
+      "callout": "Prompt instructions can guide behavior; only the surrounding system can enforce authority and side-effect policy.",
+      "code": {
+        "language": "typescript",
+        "content": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+      }
     },
     {
       "id": "bound-codex-and-agent-autonomy",
       "title": "Bound Codex and agent autonomy",
       "paragraphs": [
-        "For Codex, treat sandbox mode and approval policy as enforceable execution boundaries. Start with the least filesystem, network, credential, and command authority that can complete the task. Review the proposed command and target before expanding access, and never treat a model's confidence as approval.",
+        "For Codex, treat sandbox mode and approval policy as enforceable execution boundaries. Start with the least filesystem, network, credential, and command authority that can complete the task. Review the proposed command and target before expanding access, and never treat a model's confidence as approval. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
         "Use a deterministic workflow when steps and branches are known. Use a bounded agent when observations and tool results make the path impractical to enumerate. Add autonomy only when evaluations justify it, with explicit objectives, allowed tools and scope, budgets, checkpoints, rollback, audit, and terminal states such as completed, needs approval, refused, failed safely, budget exceeded, cancelled, and outcome unknown."
-      ]
+      ],
+      "code": {
+        "language": "typescript",
+        "content": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+      }
     }
   ],
   "activity": {
@@ -81,42 +101,196 @@
     "schemaVersion": "1.1",
     "estimatedSeconds": 1860,
     "cues": [
-      {"id": "cue-openai-tools-owner", "kind": "narration", "sectionId": "tools-have-execution-owners", "text": "Identify whether OpenAI or your application executes each tool because ownership determines credentials, data controls, failures, audit evidence, and side-effect verification."},
-      {"id": "cue-openai-tools-schema", "kind": "narration", "sectionId": "define-narrow-strict-functions", "text": "Use narrow strict function schemas, then independently validate arguments, identity, resource authority, operation, and business rules."},
-      {"id": "cue-openai-tools-loop", "kind": "narration", "sectionId": "match-calls-results-and-state", "text": "Match every function call and output by call identifier while an explicit state machine enforces turns, tools, time, tokens, cost, failures, and cancellation."},
-      {"id": "cue-openai-tools-safety", "kind": "narration", "sectionId": "enforce-tool-side-effect-safety", "text": "Enforce approvals and idempotency outside the model, verify postconditions, and reconcile unknown write outcomes before another action."},
-      {"id": "cue-openai-tools-codex", "kind": "narration", "sectionId": "bound-codex-and-agent-autonomy", "text": "Treat Codex sandbox and approval policy as execution boundaries and add agent autonomy only when evaluation evidence justifies bounded access."},
-      {"id": "cue-openai-tools-visual", "kind": "visual", "sectionId": "match-calls-results-and-state", "text": "Move one call through typed output, parsing, authorization, approval, execution, matched result, postcondition, and bounded terminal states.", "accessibilityAlternative": "A static state table lists typed output, parsing, authorization, approval, execution, call-identifier match, postcondition, and each terminal state with transition conditions."},
-      {"id": "cue-openai-tools-question", "kind": "learner-prompt", "sectionId": "enforce-tool-side-effect-safety", "text": "Ask learners why a strict schema cannot authorize a learner to change another person's transcript."},
-      {"id": "cue-openai-tools-pause", "kind": "pause", "sectionId": "bound-codex-and-agent-autonomy", "text": "Allow three minutes to remove one unnecessary permission and replace one agent decision with a deterministic branch."},
-      {"id": "cue-openai-tools-checkpoint", "kind": "checkpoint", "sectionId": "bound-codex-and-agent-autonomy", "text": "Check that no loop is unbounded, no model argument grants authority, and no write is complete without a verified postcondition."},
-      {"id": "cue-openai-tools-activity", "kind": "learner-prompt", "text": "Guide the function contracts, call matching, state machine, adversarial cases, sandbox policy, and release decision."},
-      {"id": "cue-openai-tools-assessment", "kind": "assessment-handoff", "text": "Begin the check after the learner can defend execution ownership, schemas, authority, call matching, side-effect recovery, and bounded Codex autonomy."}
+      {
+        "id": "cue-openai-tools-owner",
+        "kind": "narration",
+        "sectionId": "tools-have-execution-owners",
+        "text": "Identify whether OpenAI or your application executes each tool because ownership determines credentials, data controls, failures, audit evidence, and side-effect verification."
+      },
+      {
+        "id": "cue-openai-tools-schema",
+        "kind": "narration",
+        "sectionId": "define-narrow-strict-functions",
+        "text": "Use narrow strict function schemas, then independently validate arguments, identity, resource authority, operation, and business rules."
+      },
+      {
+        "id": "cue-openai-tools-loop",
+        "kind": "narration",
+        "sectionId": "match-calls-results-and-state",
+        "text": "Match every function call and output by call identifier while an explicit state machine enforces turns, tools, time, tokens, cost, failures, and cancellation."
+      },
+      {
+        "id": "cue-openai-tools-safety",
+        "kind": "narration",
+        "sectionId": "enforce-tool-side-effect-safety",
+        "text": "Enforce approvals and idempotency outside the model, verify postconditions, and reconcile unknown write outcomes before another action."
+      },
+      {
+        "id": "cue-openai-tools-codex",
+        "kind": "narration",
+        "sectionId": "bound-codex-and-agent-autonomy",
+        "text": "Treat Codex sandbox and approval policy as execution boundaries and add agent autonomy only when evaluation evidence justifies bounded access."
+      },
+      {
+        "id": "cue-openai-tools-visual",
+        "kind": "visual",
+        "sectionId": "match-calls-results-and-state",
+        "text": "Move one call through typed output, parsing, authorization, approval, execution, matched result, postcondition, and bounded terminal states.",
+        "accessibilityAlternative": "A static state table lists typed output, parsing, authorization, approval, execution, call-identifier match, postcondition, and each terminal state with transition conditions."
+      },
+      {
+        "id": "cue-openai-tools-question",
+        "kind": "learner-prompt",
+        "sectionId": "enforce-tool-side-effect-safety",
+        "text": "Ask learners why a strict schema cannot authorize a learner to change another person's transcript."
+      },
+      {
+        "id": "cue-openai-tools-pause",
+        "kind": "pause",
+        "sectionId": "bound-codex-and-agent-autonomy",
+        "text": "Allow three minutes to remove one unnecessary permission and replace one agent decision with a deterministic branch."
+      },
+      {
+        "id": "cue-openai-tools-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "bound-codex-and-agent-autonomy",
+        "text": "Check that no loop is unbounded, no model argument grants authority, and no write is complete without a verified postcondition."
+      },
+      {
+        "id": "cue-openai-tools-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the function contracts, call matching, state machine, adversarial cases, sandbox policy, and release decision."
+      },
+      {
+        "id": "cue-openai-tools-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check after the learner can defend execution ownership, schemas, authority, call matching, side-effect recovery, and bounded Codex autonomy."
+      }
     ],
     "transcript": "Identify whether OpenAI or your application executes each tool because ownership determines credentials, data controls, failures, audit evidence, and side-effect verification. Use narrow strict function schemas, then independently validate arguments, identity, resource authority, operation, and business rules. Match every function call and output by call identifier while an explicit state machine enforces turns, tools, time, tokens, cost, failures, and cancellation. Enforce approvals and idempotency outside the model, verify postconditions, and reconcile unknown write outcomes before another action. Treat Codex sandbox and approval policy as execution boundaries and add agent autonomy only when evaluation evidence justifies bounded access.",
     "captions": [
-      {"cueId": "cue-openai-tools-owner", "startSeconds": 0, "endSeconds": 340, "text": "Identify whether OpenAI or your application executes each tool because ownership determines credentials, data controls, failures, audit evidence, and side-effect verification."},
-      {"cueId": "cue-openai-tools-schema", "startSeconds": 370, "endSeconds": 710, "text": "Use narrow strict function schemas, then independently validate arguments, identity, resource authority, operation, and business rules."},
-      {"cueId": "cue-openai-tools-loop", "startSeconds": 740, "endSeconds": 1100, "text": "Match every function call and output by call identifier while an explicit state machine enforces turns, tools, time, tokens, cost, failures, and cancellation."},
-      {"cueId": "cue-openai-tools-safety", "startSeconds": 1130, "endSeconds": 1460, "text": "Enforce approvals and idempotency outside the model, verify postconditions, and reconcile unknown write outcomes before another action."},
-      {"cueId": "cue-openai-tools-codex", "startSeconds": 1490, "endSeconds": 1830, "text": "Treat Codex sandbox and approval policy as execution boundaries and add agent autonomy only when evaluation evidence justifies bounded access."}
+      {
+        "cueId": "cue-openai-tools-owner",
+        "startSeconds": 0,
+        "endSeconds": 340,
+        "text": "Identify whether OpenAI or your application executes each tool because ownership determines credentials, data controls, failures, audit evidence, and side-effect verification."
+      },
+      {
+        "cueId": "cue-openai-tools-schema",
+        "startSeconds": 370,
+        "endSeconds": 710,
+        "text": "Use narrow strict function schemas, then independently validate arguments, identity, resource authority, operation, and business rules."
+      },
+      {
+        "cueId": "cue-openai-tools-loop",
+        "startSeconds": 740,
+        "endSeconds": 1100,
+        "text": "Match every function call and output by call identifier while an explicit state machine enforces turns, tools, time, tokens, cost, failures, and cancellation."
+      },
+      {
+        "cueId": "cue-openai-tools-safety",
+        "startSeconds": 1130,
+        "endSeconds": 1460,
+        "text": "Enforce approvals and idempotency outside the model, verify postconditions, and reconcile unknown write outcomes before another action."
+      },
+      {
+        "cueId": "cue-openai-tools-codex",
+        "startSeconds": 1490,
+        "endSeconds": 1830,
+        "text": "Treat Codex sandbox and approval policy as execution boundaries and add agent autonomy only when evaluation evidence justifies bounded access."
+      }
     ],
     "reducedMotionAlternative": "Use a static function-call sequence and sandbox-authority matrix with focus highlighting instead of animated execution."
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
-      {"id": "q-openai-tools-1", "prompt": "Who executes a custom function tool requested by an OpenAI model?", "choices": ["The application that defined and exposed the function", "The model without application code", "The learner's browser in every deployment", "No execution owner is required"], "answerIndex": 0, "explanation": "The model proposes a structured function call; the application validates, authorizes, executes, and returns its result."},
-      {"id": "q-openai-tools-2", "prompt": "What does strict schema conformance prove?", "choices": ["The caller is authorized", "The arguments conform to the declared shape, not that the action is authorized", "The postcondition succeeded", "A human approved the operation"], "answerIndex": 1, "explanation": "Identity, authorization, approval, business rules, and postconditions remain application responsibilities."},
-      {"id": "q-openai-tools-3", "prompt": "How should the application associate a function result with its request?", "choices": ["By array position only", "By model name", "By returning function_call_output with the matching call_id", "By putting the API key in the output"], "answerIndex": 2, "explanation": "call_id preserves the explicit relationship even when several calls are present."},
-      {"id": "q-openai-tools-4", "prompt": "A write times out after the target may have accepted it. What is the correct next state?", "choices": ["Completed", "Confirmed failure", "Immediate unchanged retry", "Outcome unknown pending reconciliation"], "answerIndex": 3, "explanation": "The system of record must be checked before repeat, compensation, rollback, or a completion claim."},
-      {"id": "q-openai-tools-5", "prompt": "What should govern Codex command execution?", "choices": ["The model's confidence", "A friendly prompt only", "Least-authority sandbox and approval policy plus explicit task scope and verification", "Unlimited filesystem and network access by default"], "answerIndex": 2, "explanation": "Enforceable sandbox and approval boundaries constrain execution independently of model behavior."}
+      {
+        "id": "q-openai-tools-1",
+        "prompt": "Who executes a custom function tool requested by an OpenAI model?",
+        "choices": [
+          "The application that defined and exposed the function",
+          "The model without application code",
+          "The learner's browser in every deployment",
+          "No execution owner is required"
+        ],
+        "answerIndex": 0,
+        "explanation": "The model proposes a structured function call; the application validates, authorizes, executes, and returns its result."
+      },
+      {
+        "id": "q-openai-tools-2",
+        "prompt": "What does strict schema conformance prove?",
+        "choices": [
+          "The caller is authorized",
+          "The arguments conform to the declared shape, not that the action is authorized",
+          "The postcondition succeeded",
+          "A human approved the operation"
+        ],
+        "answerIndex": 1,
+        "explanation": "Identity, authorization, approval, business rules, and postconditions remain application responsibilities."
+      },
+      {
+        "id": "q-openai-tools-3",
+        "prompt": "How should the application associate a function result with its request?",
+        "choices": [
+          "By array position only",
+          "By model name",
+          "By returning function_call_output with the matching call_id",
+          "By putting the API key in the output"
+        ],
+        "answerIndex": 2,
+        "explanation": "call_id preserves the explicit relationship even when several calls are present."
+      },
+      {
+        "id": "q-openai-tools-4",
+        "prompt": "A write times out after the target may have accepted it. What is the correct next state?",
+        "choices": [
+          "Completed",
+          "Confirmed failure",
+          "Immediate unchanged retry",
+          "Outcome unknown pending reconciliation"
+        ],
+        "answerIndex": 3,
+        "explanation": "The system of record must be checked before repeat, compensation, rollback, or a completion claim."
+      },
+      {
+        "id": "q-openai-tools-5",
+        "prompt": "What should govern Codex command execution?",
+        "choices": [
+          "The model's confidence",
+          "A friendly prompt only",
+          "Least-authority sandbox and approval policy plus explicit task scope and verification",
+          "Unlimited filesystem and network access by default"
+        ],
+        "answerIndex": 2,
+        "explanation": "Enforceable sandbox and approval boundaries constrain execution independently of model behavior."
+      }
     ]
   },
   "sources": [
-    {"title": "Function calling", "url": "https://developers.openai.com/api/docs/guides/function-calling", "publisher": "OpenAI", "lastVerified": "2026-07-25"},
-    {"title": "Safety best practices", "url": "https://developers.openai.com/api/docs/guides/safety-best-practices", "publisher": "OpenAI", "lastVerified": "2026-07-25"},
-    {"title": "Model guidance", "url": "https://developers.openai.com/api/docs/guides/latest-model", "publisher": "OpenAI", "lastVerified": "2026-07-25"},
-    {"title": "Agent approvals and security", "url": "https://developers.openai.com/codex/agent-approvals-security", "publisher": "OpenAI", "lastVerified": "2026-07-25"}
+    {
+      "title": "Function calling",
+      "url": "https://developers.openai.com/api/docs/guides/function-calling",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Safety best practices",
+      "url": "https://developers.openai.com/api/docs/guides/safety-best-practices",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Model guidance",
+      "url": "https://developers.openai.com/api/docs/guides/latest-model",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Agent approvals and security",
+      "url": "https://developers.openai.com/codex/agent-approvals-security",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    }
   ]
 }

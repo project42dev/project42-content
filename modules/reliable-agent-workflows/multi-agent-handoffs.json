@@ -5,7 +5,9 @@
   "level": "intermediate",
   "reviewCadenceDays": 30,
   "lastVerified": "2026-07-25",
-  "providers": ["provider-neutral"],
+  "providers": [
+    "provider-neutral"
+  ],
   "estimatedMinutes": 50,
   "objectives": [
     "Define when delegation or full control transfer is justified.",
@@ -13,22 +15,28 @@
     "Filter context and permissions for the receiving agent rather than copying everything.",
     "Test misrouting, rejection, timeout, recursion, and unsafe output across agent boundaries."
   ],
-  "prerequisites": ["orchestration-patterns"],
+  "prerequisites": [
+    "orchestration-patterns"
+  ],
   "sections": [
     {
       "id": "delegate-or-transfer",
       "title": "Distinguish a bounded subtask from a transfer of control",
       "paragraphs": [
-        "Delegation keeps the parent agent responsible for the final result. The specialist returns a typed artifact that the parent validates and synthesizes. A handoff transfers active control so the specialist continues the interaction under its own instructions.",
-        "Choose deliberately. Use delegation for research, classification, review, or generation that should remain behind a coordinator. Use a handoff when a specialist must own the next user-facing phase and the user can understand that transition."
-      ]
+        "Delegation keeps the parent agent responsible for the final result. The specialist returns a typed artifact that the parent validates and synthesizes. A handoff transfers active control so the specialist continues the interaction under its own instructions. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Choose deliberately. Use delegation for research, classification, review, or generation that should remain behind a coordinator. Use a handoff when a specialist must own the next user-facing phase and the user can understand that transition. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "handoff-packet",
       "title": "Transfer a contract, not a conversation dump",
       "paragraphs": [
-        "A handoff packet should name the run and parent, user goal, reason for routing, accepted facts with provenance, unresolved questions, completed actions and idempotency keys, current artifacts, allowed tools, denied actions, budget, success criteria, and return or escalation conditions.",
-        "Version the packet schema and bind it to a specific recipient role. The receiving agent validates required fields and can reject an incomplete, stale, misrouted, or over-privileged transfer."
+        "A handoff packet should name the run and parent, user goal, reason for routing, accepted facts with provenance, unresolved questions, completed actions and idempotency keys, current artifacts, allowed tools, denied actions, budget, success criteria, and return or escalation conditions. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Version the packet schema and bind it to a specific recipient role. The receiving agent validates required fields and can reject an incomplete, stale, misrouted, or over-privileged transfer. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
       "code": {
         "language": "json",
@@ -40,26 +48,38 @@
       "id": "filter-and-reauthorize",
       "title": "Minimize context and re-evaluate authority",
       "paragraphs": [
-        "Do not forward the full conversation, hidden chain of thought, unrelated personal data, secrets, or every prior tool result. Select only what the specialist needs, preserve source labels, and clearly separate instructions from untrusted material.",
-        "Permissions do not automatically flow downhill. Resolve the recipient's identity and tenant, issue scoped credentials where needed, and require fresh approval if the specialist proposes a target or side effect outside the original grant."
+        "Do not forward the full conversation, hidden chain of thought, unrelated personal data, secrets, or every prior tool result. Select only what the specialist needs, preserve source labels, and clearly separate instructions from untrusted material. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Permissions do not automatically flow downhill. Resolve the recipient's identity and tenant, issue scoped credentials where needed, and require fresh approval if the specialist proposes a target or side effect outside the original grant. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
-      "callout": "A handoff can narrow authority; it must never silently widen it."
+      "callout": "A handoff can narrow authority; it must never silently widen it.",
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "accept-return-and-escalate",
       "title": "Make both sides acknowledge the transfer",
       "paragraphs": [
-        "The receiver should accept or reject the packet with a reason. On acceptance, record the active agent and transfer time. On return, provide a typed outcome, changed artifacts, evidence, tool actions, remaining uncertainty, and the requested next decision.",
-        "Bound recursive delegation, repeated bounce-backs, and revision loops. If no eligible recipient accepts, required evidence is unavailable, or permissions conflict, escalate with the packet and failure history rather than guessing."
-      ]
+        "The receiver should accept or reject the packet with a reason. On acceptance, record the active agent and transfer time. On return, provide a typed outcome, changed artifacts, evidence, tool actions, remaining uncertainty, and the requested next decision. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Bound recursive delegation, repeated bounce-backs, and revision loops. If no eligible recipient accepts, required evidence is unavailable, or permissions conflict, escalate with the packet and failure history rather than guessing. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "provider-mappings-and-tests",
       "title": "Map framework features without losing the portable contract",
       "paragraphs": [
-        "OpenAI's Agents SDK represents handoffs as tools and supports typed handoff input and history filtering. Google ADK supports agent-team and workflow structures. Anthropic describes orchestrator-worker and evaluator-optimizer patterns. These examples solve related problems but do not promise identical lifecycle or guardrail behavior.",
-        "Test the product contract independently of the framework: right recipient, minimal context, unchanged authority, trace continuity, bounded recursion, deterministic failure, and verified return artifact. Then add adapter tests for each selected provider implementation."
-      ]
+        "OpenAI's Agents SDK represents handoffs as tools and supports typed handoff input and history filtering. Google ADK supports agent-team and workflow structures. Anthropic describes orchestrator-worker and evaluator-optimizer patterns. These examples solve related problems but do not promise identical lifecycle or guardrail behavior. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Test the product contract independently of the framework: right recipient, minimal context, unchanged authority, trace continuity, bounded recursion, deterministic failure, and verified return artifact. Then add adapter tests for each selected provider implementation. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     }
   ],
   "activity": {
@@ -81,25 +101,104 @@
     "schemaVersion": "1.1",
     "estimatedSeconds": 1500,
     "cues": [
-      {"id": "cue-handoff-mode", "kind": "narration", "sectionId": "delegate-or-transfer", "text": "Choose delegation when a parent retains responsibility and handoff when a specialist must own the next phase."},
-      {"id": "cue-handoff-packet", "kind": "narration", "sectionId": "handoff-packet", "text": "Transfer a versioned contract containing intent, evidence, artifacts, authority, budget, and return conditions."},
-      {"id": "cue-handoff-filter", "kind": "narration", "sectionId": "filter-and-reauthorize", "text": "Filter context to the recipient's need and re-evaluate permissions instead of forwarding everything."},
-      {"id": "cue-handoff-visual", "kind": "visual", "sectionId": "filter-and-reauthorize", "text": "Move one handoff packet through filter, authorize, accept, work, return, and verify states.", "accessibilityAlternative": "A static state table lists the packet fields and validation result at filter, authorize, accept, work, return, and verify. Reduced-motion mode shows every state at once."},
-      {"id": "cue-handoff-ack", "kind": "narration", "sectionId": "accept-return-and-escalate", "text": "Require explicit acceptance and a typed return while bounding rejection, timeout, recursion, and revision."},
-      {"id": "cue-handoff-provider", "kind": "narration", "sectionId": "provider-mappings-and-tests", "text": "Test one portable handoff contract across provider adapters without assuming identical framework behavior."},
-      {"id": "cue-handoff-prompt", "kind": "learner-prompt", "sectionId": "filter-and-reauthorize", "text": "Ask learners which parent permissions must be removed before the specialist receives the packet."},
-      {"id": "cue-handoff-pause", "kind": "pause", "sectionId": "handoff-packet", "text": "Allow three minutes to add one rejection reason and one return condition to the packet."},
-      {"id": "cue-handoff-checkpoint", "kind": "checkpoint", "sectionId": "accept-return-and-escalate", "text": "Check that a rejected or timed-out handoff cannot silently continue under broader authority."},
-      {"id": "cue-handoff-activity", "kind": "learner-prompt", "text": "Guide role definition, packet design, eight failure cases, and trace-continuity proof."},
-      {"id": "cue-handoff-assessment", "kind": "assessment-handoff", "text": "Begin the check after the learner can prove intent, authority, evidence, and trace continuity."}
+      {
+        "id": "cue-handoff-mode",
+        "kind": "narration",
+        "sectionId": "delegate-or-transfer",
+        "text": "Choose delegation when a parent retains responsibility and handoff when a specialist must own the next phase."
+      },
+      {
+        "id": "cue-handoff-packet",
+        "kind": "narration",
+        "sectionId": "handoff-packet",
+        "text": "Transfer a versioned contract containing intent, evidence, artifacts, authority, budget, and return conditions."
+      },
+      {
+        "id": "cue-handoff-filter",
+        "kind": "narration",
+        "sectionId": "filter-and-reauthorize",
+        "text": "Filter context to the recipient's need and re-evaluate permissions instead of forwarding everything."
+      },
+      {
+        "id": "cue-handoff-visual",
+        "kind": "visual",
+        "sectionId": "filter-and-reauthorize",
+        "text": "Move one handoff packet through filter, authorize, accept, work, return, and verify states.",
+        "accessibilityAlternative": "A static state table lists the packet fields and validation result at filter, authorize, accept, work, return, and verify. Reduced-motion mode shows every state at once."
+      },
+      {
+        "id": "cue-handoff-ack",
+        "kind": "narration",
+        "sectionId": "accept-return-and-escalate",
+        "text": "Require explicit acceptance and a typed return while bounding rejection, timeout, recursion, and revision."
+      },
+      {
+        "id": "cue-handoff-provider",
+        "kind": "narration",
+        "sectionId": "provider-mappings-and-tests",
+        "text": "Test one portable handoff contract across provider adapters without assuming identical framework behavior."
+      },
+      {
+        "id": "cue-handoff-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "filter-and-reauthorize",
+        "text": "Ask learners which parent permissions must be removed before the specialist receives the packet."
+      },
+      {
+        "id": "cue-handoff-pause",
+        "kind": "pause",
+        "sectionId": "handoff-packet",
+        "text": "Allow three minutes to add one rejection reason and one return condition to the packet."
+      },
+      {
+        "id": "cue-handoff-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "accept-return-and-escalate",
+        "text": "Check that a rejected or timed-out handoff cannot silently continue under broader authority."
+      },
+      {
+        "id": "cue-handoff-activity",
+        "kind": "learner-prompt",
+        "text": "Guide role definition, packet design, eight failure cases, and trace-continuity proof."
+      },
+      {
+        "id": "cue-handoff-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check after the learner can prove intent, authority, evidence, and trace continuity."
+      }
     ],
     "transcript": "Choose delegation when a parent retains responsibility and handoff when a specialist must own the next phase. Transfer a versioned contract containing intent, evidence, artifacts, authority, budget, and return conditions. Filter context to the recipient's need and re-evaluate permissions instead of forwarding everything. Require explicit acceptance and a typed return while bounding rejection, timeout, recursion, and revision. Test one portable handoff contract across provider adapters without assuming identical framework behavior.",
     "captions": [
-      {"cueId": "cue-handoff-mode", "startSeconds": 0, "endSeconds": 270, "text": "Choose delegation when a parent retains responsibility and handoff when a specialist must own the next phase."},
-      {"cueId": "cue-handoff-packet", "startSeconds": 300, "endSeconds": 570, "text": "Transfer a versioned contract containing intent, evidence, artifacts, authority, budget, and return conditions."},
-      {"cueId": "cue-handoff-filter", "startSeconds": 600, "endSeconds": 870, "text": "Filter context to the recipient's need and re-evaluate permissions instead of forwarding everything."},
-      {"cueId": "cue-handoff-ack", "startSeconds": 900, "endSeconds": 1170, "text": "Require explicit acceptance and a typed return while bounding rejection, timeout, recursion, and revision."},
-      {"cueId": "cue-handoff-provider", "startSeconds": 1200, "endSeconds": 1440, "text": "Test one portable handoff contract across provider adapters without assuming identical framework behavior."}
+      {
+        "cueId": "cue-handoff-mode",
+        "startSeconds": 0,
+        "endSeconds": 270,
+        "text": "Choose delegation when a parent retains responsibility and handoff when a specialist must own the next phase."
+      },
+      {
+        "cueId": "cue-handoff-packet",
+        "startSeconds": 300,
+        "endSeconds": 570,
+        "text": "Transfer a versioned contract containing intent, evidence, artifacts, authority, budget, and return conditions."
+      },
+      {
+        "cueId": "cue-handoff-filter",
+        "startSeconds": 600,
+        "endSeconds": 870,
+        "text": "Filter context to the recipient's need and re-evaluate permissions instead of forwarding everything."
+      },
+      {
+        "cueId": "cue-handoff-ack",
+        "startSeconds": 900,
+        "endSeconds": 1170,
+        "text": "Require explicit acceptance and a typed return while bounding rejection, timeout, recursion, and revision."
+      },
+      {
+        "cueId": "cue-handoff-provider",
+        "startSeconds": 1200,
+        "endSeconds": 1440,
+        "text": "Test one portable handoff contract across provider adapters without assuming identical framework behavior."
+      }
     ],
     "reducedMotionAlternative": "Use a static handoff state table and context-permission diff with focus indicators rather than animation."
   },
@@ -109,44 +208,89 @@
       {
         "id": "q-handoff-1",
         "prompt": "When should a specialist be used as a delegated worker instead of receiving a handoff?",
-        "choices": ["When the parent must retain synthesis and final responsibility", "When the specialist should take over the conversation", "When all permissions should expand", "When no output contract exists"],
+        "choices": [
+          "When the parent must retain synthesis and final responsibility",
+          "When the specialist should take over the conversation",
+          "When all permissions should expand",
+          "When no output contract exists"
+        ],
         "answerIndex": 0,
         "explanation": "Delegation returns a bounded artifact to the parent, which remains accountable."
       },
       {
         "id": "q-handoff-2",
         "prompt": "What is missing from a packet that contains only a conversation summary?",
-        "choices": ["A longer model name", "Explicit authority, evidence, artifacts, budgets, and return conditions", "More hidden reasoning", "Unlimited recursion"],
+        "choices": [
+          "A longer model name",
+          "Explicit authority, evidence, artifacts, budgets, and return conditions",
+          "More hidden reasoning",
+          "Unlimited recursion"
+        ],
         "answerIndex": 1,
         "explanation": "A safe handoff transfers a validated work contract, not merely prose history."
       },
       {
         "id": "q-handoff-3",
         "prompt": "The parent can publish, but the reviewer only needs to comment. What authority should the reviewer receive?",
-        "choices": ["Publish and delete", "Every parent credential", "Read and comment only", "No identity checks"],
+        "choices": [
+          "Publish and delete",
+          "Every parent credential",
+          "Read and comment only",
+          "No identity checks"
+        ],
         "answerIndex": 2,
         "explanation": "Authority should be re-evaluated and minimized for the recipient's task."
       },
       {
         "id": "q-handoff-4",
         "prompt": "A specialist rejects a handoff because provenance is missing. What should happen?",
-        "choices": ["Proceed as if accepted", "Record the rejection and repair or escalate the packet within bounded retries", "Grant more tools", "Delete the trace"],
+        "choices": [
+          "Proceed as if accepted",
+          "Record the rejection and repair or escalate the packet within bounded retries",
+          "Grant more tools",
+          "Delete the trace"
+        ],
         "answerIndex": 1,
         "explanation": "Rejection is an explicit state that requires repair or escalation, not silent continuation."
       },
       {
         "id": "q-handoff-5",
         "prompt": "Which invariant should hold across different provider frameworks?",
-        "choices": ["Identical SDK syntax", "The same model name", "Intent, minimal context, authority, trace, bounded failure, and verified return", "The same beta header"],
+        "choices": [
+          "Identical SDK syntax",
+          "The same model name",
+          "Intent, minimal context, authority, trace, bounded failure, and verified return",
+          "The same beta header"
+        ],
         "answerIndex": 2,
         "explanation": "Product-level handoff guarantees should survive adapter differences."
       }
     ]
   },
   "sources": [
-    {"title": "Handoffs", "url": "https://openai.github.io/openai-agents-js/guides/handoffs/", "publisher": "OpenAI", "lastVerified": "2026-07-25"},
-    {"title": "Agent orchestration", "url": "https://openai.github.io/openai-agents-js/guides/multi-agent/", "publisher": "OpenAI", "lastVerified": "2026-07-25"},
-    {"title": "Building effective agents", "url": "https://www.anthropic.com/engineering/building-effective-agents", "publisher": "Anthropic", "lastVerified": "2026-07-25"},
-    {"title": "Template agent workflows", "url": "https://google.github.io/adk-docs/agents/workflow-agents/", "publisher": "Google", "lastVerified": "2026-07-25"}
+    {
+      "title": "Handoffs",
+      "url": "https://openai.github.io/openai-agents-js/guides/handoffs/",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Agent orchestration",
+      "url": "https://openai.github.io/openai-agents-js/guides/multi-agent/",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Building effective agents",
+      "url": "https://www.anthropic.com/engineering/building-effective-agents",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Template agent workflows",
+      "url": "https://google.github.io/adk-docs/agents/workflow-agents/",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    }
   ]
 }

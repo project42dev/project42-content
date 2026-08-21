@@ -5,7 +5,12 @@
   "level": "advanced",
   "reviewCadenceDays": 30,
   "lastVerified": "2026-07-25",
-  "providers": ["provider-neutral", "anthropic", "openai", "google"],
+  "providers": [
+    "provider-neutral",
+    "anthropic",
+    "openai",
+    "google"
+  ],
   "estimatedMinutes": 61,
   "objectives": [
     "Implement versioned adapters, configurable routing, compatible records, and isolated telemetry before shifting traffic.",
@@ -13,14 +18,16 @@
     "Roll back safely by reconciling conversation state, tool side effects, queued work, learner records, and duplicate actions.",
     "Close a migration with observed production evidence, current runbooks, lifecycle cleanup, and accepted residual risk."
   ],
-  "prerequisites": ["plan-cross-provider-migration"],
+  "prerequisites": [
+    "plan-cross-provider-migration"
+  ],
   "sections": [
     {
       "id": "prepare-versioned-routes-and-records",
       "title": "Prepare versioned routes and records",
       "paragraphs": [
-        "Put source and candidate behind explicit versioned adapters and configurable routing. Keep domain records, learner progress, assessment attempts, transcripts, evidence references, and stable identifiers compatible across the change; add version fields rather than silently reinterpreting old data.",
-        "Separate telemetry by provider, surface, model, adapter, prompt, policy, evaluation set, and route. Validate credentials from environment or a secret manager, least-privilege access, timeouts, retries, budget controls, data handling, and incident ownership before enabling candidate execution."
+        "Put source and candidate behind explicit versioned adapters and configurable routing. Keep domain records, learner progress, assessment attempts, transcripts, evidence references, and stable identifiers compatible across the change; add version fields rather than silently reinterpreting old data. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Separate telemetry by provider, surface, model, adapter, prompt, policy, evaluation set, and route. Validate credentials from environment or a secret manager, least-privilege access, timeouts, retries, budget controls, data handling, and incident ownership before enabling candidate execution. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
       "code": {
         "language": "typescript",
@@ -32,34 +39,50 @@
       "id": "advance-through-controlled-stages",
       "title": "Advance through controlled stages",
       "paragraphs": [
-        "Start with deterministic contract tests and offline replay. Use shadow execution only when duplicate processing complies with privacy, contractual, cost, and side-effect policy; block or simulate tools so a shadow cannot repeat real actions.",
-        "Move to a small cohort or use-case canary only when offline and shadow gates pass. Cap traffic, duration, cost, retries, tool permissions, and blast radius. Expand one stage at a time after the named approver reviews critical-slice evidence."
-      ]
+        "Start with deterministic contract tests and offline replay. Use shadow execution only when duplicate processing complies with privacy, contractual, cost, and side-effect policy; block or simulate tools so a shadow cannot repeat real actions. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Move to a small cohort or use-case canary only when offline and shadow gates pass. Cap traffic, duration, cost, retries, tool permissions, and blast radius. Expand one stage at a time after the named approver reviews critical-slice evidence. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "typescript",
+        "content": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+      }
     },
     {
       "id": "enforce-gates-and-stop-authority",
       "title": "Enforce gates and stop authority",
       "paragraphs": [
-        "Evaluate output quality, factuality, safety and refusal behavior, structured data, tool trajectories, state continuity, accessibility, latency, errors, usage, cost, data controls, operator load, and incident signals by critical slice. Aggregate averages must not hide a failed safety, language, accessibility, or high-value workflow.",
-        "Automate bounded stops for clear thresholds and give an on-call human authority to pause or roll back on ambiguous high-consequence signals. Preserve the evidence, route version, decision, approver, and timestamp for every hold, expansion, or rollback."
+        "Evaluate output quality, factuality, safety and refusal behavior, structured data, tool trajectories, state continuity, accessibility, latency, errors, usage, cost, data controls, operator load, and incident signals by critical slice. Aggregate averages must not hide a failed safety, language, accessibility, or high-value workflow. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Automate bounded stops for clear thresholds and give an on-call human authority to pause or roll back on ambiguous high-consequence signals. Preserve the evidence, route version, decision, approver, and timestamp for every hold, expansion, or rollback. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
-      "callout": "A canary is a risk-control mechanism only when exposure is bounded and rollback remains faster than harm."
+      "callout": "A canary is a risk-control mechanism only when exposure is bounded and rollback remains faster than harm.",
+      "code": {
+        "language": "typescript",
+        "content": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+      }
     },
     {
       "id": "rollback-and-reconcile",
       "title": "Roll back and reconcile state and side effects",
       "paragraphs": [
-        "Route new work back to the proven source, stop or drain candidate workers, and preserve failure evidence. Identify in-flight conversations, tool calls, file or database writes, messages, purchases, queued jobs, caches, retries, learner attempts, and records that may be incomplete or duplicated.",
-        "Use idempotency keys, operation journals, versioned state, compensating actions, and manual review queues to reconcile each side effect. Verify source health, data integrity, duplicate suppression, access cleanup, and user communication before declaring rollback complete."
-      ]
+        "Route new work back to the proven source, stop or drain candidate workers, and preserve failure evidence. Identify in-flight conversations, tool calls, file or database writes, messages, purchases, queued jobs, caches, retries, learner attempts, and records that may be incomplete or duplicated. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Use idempotency keys, operation journals, versioned state, compensating actions, and manual review queues to reconcile each side effect. Verify source health, data integrity, duplicate suppression, access cleanup, and user communication before declaring rollback complete. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "typescript",
+        "content": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+      }
     },
     {
       "id": "observe-close-and-hand-off-risk",
       "title": "Observe, close, and hand off residual risk",
       "paragraphs": [
-        "After promotion, keep source routing or another tested fallback until the defined observation window passes. Confirm service, quality, safety, accessibility, cost, capacity, data, support, and incident indicators; rehearse rollback again if configuration or dependencies changed.",
-        "Close only when deprecated use is removed or accepted with an owner, records and migrations are verified, dashboards and alerts are current, runbooks and training match production, credentials and permissions are right-sized, unresolved risk is accepted by the accountable owner, and the next lifecycle review is scheduled."
-      ]
+        "After promotion, keep source routing or another tested fallback until the defined observation window passes. Confirm service, quality, safety, accessibility, cost, capacity, data, support, and incident indicators; rehearse rollback again if configuration or dependencies changed. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Close only when deprecated use is removed or accepted with an owner, records and migrations are verified, dashboards and alerts are current, runbooks and training match production, credentials and permissions are right-sized, unresolved risk is accepted by the accountable owner, and the next lifecycle review is scheduled. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "typescript",
+        "content": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+      }
     }
   ],
   "activity": {

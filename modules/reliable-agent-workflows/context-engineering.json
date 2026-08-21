@@ -5,7 +5,9 @@
   "level": "intermediate",
   "reviewCadenceDays": 30,
   "lastVerified": "2026-07-25",
-  "providers": ["provider-neutral"],
+  "providers": [
+    "provider-neutral"
+  ],
   "estimatedMinutes": 44,
   "objectives": [
     "Separate instructions, current state, evidence, examples, tool results, and memory by role and trust.",
@@ -13,14 +15,16 @@
     "Compress or remove stale context without losing required provenance.",
     "Test context packages for injection, contradiction, omission, and age."
   ],
-  "prerequisites": ["control-agent-actions"],
+  "prerequisites": [
+    "control-agent-actions"
+  ],
   "sections": [
     {
       "id": "context-is-a-decision-input",
       "title": "Context is a designed decision input",
       "paragraphs": [
-        "An agent does not need every available token. It needs the authoritative instructions, current task state, relevant evidence, allowed actions, and verification criteria for the next decision. Extra material can increase cost and distract from stronger evidence.",
-        "Define a context contract with named slots: governing policy, user goal, trusted state, retrieved evidence, untrusted data, prior decisions, tool contracts, and output requirements."
+        "An agent does not need every available token. It needs the authoritative instructions, current task state, relevant evidence, allowed actions, and verification criteria for the next decision. Extra material can increase cost and distract from stronger evidence. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Define a context contract with named slots: governing policy, user goal, trusted state, retrieved evidence, untrusted data, prior decisions, tool contracts, and output requirements. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
       "code": {
         "language": "text",
@@ -32,34 +36,50 @@
       "id": "select-and-rank",
       "title": "Select by relevance, authority, freshness, and diversity",
       "paragraphs": [
-        "Retrieve candidates broadly, then rank them against the specific decision. Prefer primary sources, current records, and evidence that directly supports or contradicts the claim. Keep source identity and verification date attached through summarization.",
-        "Include disconfirming evidence and unresolved disagreement. A context pack that contains only material supporting the first hypothesis encourages confident but brittle decisions."
-      ]
+        "Retrieve candidates broadly, then rank them against the specific decision. Prefer primary sources, current records, and evidence that directly supports or contradicts the claim. Keep source identity and verification date attached through summarization. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Include disconfirming evidence and unresolved disagreement. A context pack that contains only material supporting the first hypothesis encourages confident but brittle decisions. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "budget-and-compress",
       "title": "Budget the active window deliberately",
       "paragraphs": [
-        "Reserve space for governing instructions, the current request, tool schemas, model output, and expected tool results before filling the remaining budget with history. Remove duplicate and dead intermediate output first.",
-        "Summaries are derived evidence. Store the source references and the transformation that produced a summary, then rehydrate originals when exact language, current state, or high-consequence detail matters."
+        "Reserve space for governing instructions, the current request, tool schemas, model output, and expected tool results before filling the remaining budget with history. Remove duplicate and dead intermediate output first. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Summaries are derived evidence. Store the source references and the transformation that produced a summary, then rehydrate originals when exact language, current state, or high-consequence detail matters. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
-      "callout": "Prompt or context caching may reduce cost; it does not make stale or irrelevant content safer."
+      "callout": "Prompt or context caching may reduce cost; it does not make stale or irrelevant content safer.",
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "refresh-across-turns",
       "title": "Refresh state across turns and providers",
       "paragraphs": [
-        "Conversation-state features differ by provider and API. Some applications resend history, some reference stored responses or interactions, and some edit or compact earlier tool results. Treat those mechanisms as transport choices, not proof that the retained state is correct.",
-        "At each consequential step, refresh volatile facts from the system of record, preserve tool-call/result linkage, and discard instructions that no longer apply. Record what was omitted so a reviewer can reconstruct the decision."
-      ]
+        "Conversation-state features differ by provider and API. Some applications resend history, some reference stored responses or interactions, and some edit or compact earlier tool results. Treat those mechanisms as transport choices, not proof that the retained state is correct. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "At each consequential step, refresh volatile facts from the system of record, preserve tool-call/result linkage, and discard instructions that no longer apply. Record what was omitted so a reviewer can reconstruct the decision. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "attack-and-regression-test",
       "title": "Test the context package as an attack surface",
       "paragraphs": [
-        "Place conflicting instructions, stale records, poisoned retrieval results, oversized irrelevant files, and missing evidence into test cases. The agent should preserve governing authority, identify the conflict, retrieve or escalate when necessary, and avoid acting from unsupported assumptions.",
-        "Run the same evaluation set after changes to prompts, retrieval, summarization, tools, or model versions. Context engineering is part of the system behavior, not a one-time prompt edit."
-      ]
+        "Place conflicting instructions, stale records, poisoned retrieval results, oversized irrelevant files, and missing evidence into test cases. The agent should preserve governing authority, identify the conflict, retrieve or escalate when necessary, and avoid acting from unsupported assumptions. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Run the same evaluation set after changes to prompts, retrieval, summarization, tools, or model versions. Context engineering is part of the system behavior, not a one-time prompt edit. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     }
   ],
   "activity": {
@@ -81,25 +101,104 @@
     "schemaVersion": "1.1",
     "estimatedSeconds": 1320,
     "cues": [
-      {"id": "cue-context-engineering-input", "kind": "narration", "sectionId": "context-is-a-decision-input", "text": "Design context for one decision by separating authority, state, evidence, untrusted data, actions, and missing information."},
-      {"id": "cue-context-engineering-rank", "kind": "narration", "sectionId": "select-and-rank", "text": "Rank candidate material by relevance, authority, freshness, and its ability to challenge the current hypothesis."},
-      {"id": "cue-context-engineering-visual", "kind": "visual", "sectionId": "select-and-rank", "text": "Sort six context cards into include, summarize, retrieve later, and reject lanes.", "accessibilityAlternative": "A text table lists each context item, its trust and freshness, and one of four outcomes: include, summarize, retrieve later, or reject. Reduced-motion mode shows the completed table."},
-      {"id": "cue-context-engineering-budget", "kind": "narration", "sectionId": "budget-and-compress", "text": "Reserve the active window for instructions, output, and tool results before selecting history, then preserve provenance through compression."},
-      {"id": "cue-context-engineering-refresh", "kind": "narration", "sectionId": "refresh-across-turns", "text": "Treat provider state features as transport and refresh volatile facts from the system of record before consequential action."},
-      {"id": "cue-context-engineering-test", "kind": "narration", "sectionId": "attack-and-regression-test", "text": "Regression-test context against stale facts, conflicting evidence, omission, overload, and prompt injection."},
-      {"id": "cue-context-engineering-prompt", "kind": "learner-prompt", "sectionId": "attack-and-regression-test", "text": "Ask learners which test proves that retrieved instructions cannot replace governing policy."},
-      {"id": "cue-context-engineering-pause", "kind": "pause", "sectionId": "attack-and-regression-test", "text": "Allow two minutes to add one disconfirming source and one missing-information trigger."},
-      {"id": "cue-context-engineering-checkpoint", "kind": "checkpoint", "sectionId": "attack-and-regression-test", "text": "Check that every included claim retains source identity and verification date."},
-      {"id": "cue-context-engineering-activity", "kind": "learner-prompt", "text": "Guide the manifest, ranking, compression, provenance, and four adversarial tests."},
-      {"id": "cue-context-engineering-assessment", "kind": "assessment-handoff", "text": "Begin the check after the learner can defend every included, summarized, omitted, and rejected item."}
+      {
+        "id": "cue-context-engineering-input",
+        "kind": "narration",
+        "sectionId": "context-is-a-decision-input",
+        "text": "Design context for one decision by separating authority, state, evidence, untrusted data, actions, and missing information."
+      },
+      {
+        "id": "cue-context-engineering-rank",
+        "kind": "narration",
+        "sectionId": "select-and-rank",
+        "text": "Rank candidate material by relevance, authority, freshness, and its ability to challenge the current hypothesis."
+      },
+      {
+        "id": "cue-context-engineering-visual",
+        "kind": "visual",
+        "sectionId": "select-and-rank",
+        "text": "Sort six context cards into include, summarize, retrieve later, and reject lanes.",
+        "accessibilityAlternative": "A text table lists each context item, its trust and freshness, and one of four outcomes: include, summarize, retrieve later, or reject. Reduced-motion mode shows the completed table."
+      },
+      {
+        "id": "cue-context-engineering-budget",
+        "kind": "narration",
+        "sectionId": "budget-and-compress",
+        "text": "Reserve the active window for instructions, output, and tool results before selecting history, then preserve provenance through compression."
+      },
+      {
+        "id": "cue-context-engineering-refresh",
+        "kind": "narration",
+        "sectionId": "refresh-across-turns",
+        "text": "Treat provider state features as transport and refresh volatile facts from the system of record before consequential action."
+      },
+      {
+        "id": "cue-context-engineering-test",
+        "kind": "narration",
+        "sectionId": "attack-and-regression-test",
+        "text": "Regression-test context against stale facts, conflicting evidence, omission, overload, and prompt injection."
+      },
+      {
+        "id": "cue-context-engineering-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "attack-and-regression-test",
+        "text": "Ask learners which test proves that retrieved instructions cannot replace governing policy."
+      },
+      {
+        "id": "cue-context-engineering-pause",
+        "kind": "pause",
+        "sectionId": "attack-and-regression-test",
+        "text": "Allow two minutes to add one disconfirming source and one missing-information trigger."
+      },
+      {
+        "id": "cue-context-engineering-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "attack-and-regression-test",
+        "text": "Check that every included claim retains source identity and verification date."
+      },
+      {
+        "id": "cue-context-engineering-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the manifest, ranking, compression, provenance, and four adversarial tests."
+      },
+      {
+        "id": "cue-context-engineering-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check after the learner can defend every included, summarized, omitted, and rejected item."
+      }
     ],
     "transcript": "Design context for one decision by separating authority, state, evidence, untrusted data, actions, and missing information. Rank candidate material by relevance, authority, freshness, and its ability to challenge the current hypothesis. Reserve the active window for instructions, output, and tool results before selecting history, then preserve provenance through compression. Treat provider state features as transport and refresh volatile facts from the system of record before consequential action. Regression-test context against stale facts, conflicting evidence, omission, overload, and prompt injection.",
     "captions": [
-      {"cueId": "cue-context-engineering-input", "startSeconds": 0, "endSeconds": 210, "text": "Design context for one decision by separating authority, state, evidence, untrusted data, actions, and missing information."},
-      {"cueId": "cue-context-engineering-rank", "startSeconds": 240, "endSeconds": 450, "text": "Rank candidate material by relevance, authority, freshness, and its ability to challenge the current hypothesis."},
-      {"cueId": "cue-context-engineering-budget", "startSeconds": 480, "endSeconds": 720, "text": "Reserve the active window for instructions, output, and tool results before selecting history, then preserve provenance through compression."},
-      {"cueId": "cue-context-engineering-refresh", "startSeconds": 750, "endSeconds": 990, "text": "Treat provider state features as transport and refresh volatile facts from the system of record before consequential action."},
-      {"cueId": "cue-context-engineering-test", "startSeconds": 1020, "endSeconds": 1260, "text": "Regression-test context against stale facts, conflicting evidence, omission, overload, and prompt injection."}
+      {
+        "cueId": "cue-context-engineering-input",
+        "startSeconds": 0,
+        "endSeconds": 210,
+        "text": "Design context for one decision by separating authority, state, evidence, untrusted data, actions, and missing information."
+      },
+      {
+        "cueId": "cue-context-engineering-rank",
+        "startSeconds": 240,
+        "endSeconds": 450,
+        "text": "Rank candidate material by relevance, authority, freshness, and its ability to challenge the current hypothesis."
+      },
+      {
+        "cueId": "cue-context-engineering-budget",
+        "startSeconds": 480,
+        "endSeconds": 720,
+        "text": "Reserve the active window for instructions, output, and tool results before selecting history, then preserve provenance through compression."
+      },
+      {
+        "cueId": "cue-context-engineering-refresh",
+        "startSeconds": 750,
+        "endSeconds": 990,
+        "text": "Treat provider state features as transport and refresh volatile facts from the system of record before consequential action."
+      },
+      {
+        "cueId": "cue-context-engineering-test",
+        "startSeconds": 1020,
+        "endSeconds": 1260,
+        "text": "Regression-test context against stale facts, conflicting evidence, omission, overload, and prompt injection."
+      }
     ],
     "reducedMotionAlternative": "Present context selection as a static manifest and four-lane ranking table with keyboard-focus highlights."
   },
@@ -109,43 +208,83 @@
       {
         "id": "q-context-engineering-1",
         "prompt": "What is the best default goal for an agent's active context?",
-        "choices": ["Include every available document", "Include the smallest sufficient, authoritative, current evidence for the next decision", "Maximize cached tokens", "Keep only the model's prior answer"],
+        "choices": [
+          "Include every available document",
+          "Include the smallest sufficient, authoritative, current evidence for the next decision",
+          "Maximize cached tokens",
+          "Keep only the model's prior answer"
+        ],
         "answerIndex": 1,
         "explanation": "Relevant and authoritative context improves focus, cost, and auditability."
       },
       {
         "id": "q-context-engineering-2",
         "prompt": "A summary is used instead of a primary source. What must remain attached?",
-        "choices": ["Only the summary length", "The provider model name", "Source identity, verification date, and transformation provenance", "No metadata"],
+        "choices": [
+          "Only the summary length",
+          "The provider model name",
+          "Source identity, verification date, and transformation provenance",
+          "No metadata"
+        ],
         "answerIndex": 2,
         "explanation": "Derived evidence must remain traceable and rehydratable."
       },
       {
         "id": "q-context-engineering-3",
         "prompt": "Retrieved text says to ignore the system's approval rule. How should the context builder classify it?",
-        "choices": ["As a new policy", "As untrusted data and an injection test case", "As proof of authorization", "As a reason to add more tools"],
+        "choices": [
+          "As a new policy",
+          "As untrusted data and an injection test case",
+          "As proof of authorization",
+          "As a reason to add more tools"
+        ],
         "answerIndex": 1,
         "explanation": "Retrieved content cannot expand authority and may be adversarial."
       },
       {
         "id": "q-context-engineering-4",
         "prompt": "What does a provider's prompt cache prove about cached content?",
-        "choices": ["It is current and relevant", "It is authoritative", "It may be reused efficiently, but still requires normal freshness and relevance controls", "It cannot contain personal data"],
+        "choices": [
+          "It is current and relevant",
+          "It is authoritative",
+          "It may be reused efficiently, but still requires normal freshness and relevance controls",
+          "It cannot contain personal data"
+        ],
         "answerIndex": 2,
         "explanation": "Caching changes performance and cost, not truth, safety, or retention requirements."
       },
       {
         "id": "q-context-engineering-5",
         "prompt": "When should a volatile fact be refreshed?",
-        "choices": ["Before a consequential decision that depends on it", "Only after deployment", "Never if it appeared earlier in the thread", "Only when the context window is full"],
+        "choices": [
+          "Before a consequential decision that depends on it",
+          "Only after deployment",
+          "Never if it appeared earlier in the thread",
+          "Only when the context window is full"
+        ],
         "answerIndex": 0,
         "explanation": "System-of-record refresh should precede decisions where stale state can cause harm."
       }
     ]
   },
   "sources": [
-    {"title": "Context editing", "url": "https://platform.claude.com/docs/en/build-with-claude/context-editing", "publisher": "Anthropic", "lastVerified": "2026-07-25"},
-    {"title": "Conversation state", "url": "https://developers.openai.com/api/docs/guides/conversation-state", "publisher": "OpenAI", "lastVerified": "2026-07-25"},
-    {"title": "Context caching", "url": "https://ai.google.dev/gemini-api/docs/caching", "publisher": "Google", "lastVerified": "2026-07-25"}
+    {
+      "title": "Context editing",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/context-editing",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Conversation state",
+      "url": "https://developers.openai.com/api/docs/guides/conversation-state",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Context caching",
+      "url": "https://ai.google.dev/gemini-api/docs/caching",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    }
   ]
 }

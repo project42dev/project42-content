@@ -5,7 +5,9 @@
   "level": "intermediate",
   "reviewCadenceDays": 30,
   "lastVerified": "2026-07-25",
-  "providers": ["provider-neutral"],
+  "providers": [
+    "provider-neutral"
+  ],
   "estimatedMinutes": 48,
   "objectives": [
     "Explain MCP host, client, and server responsibilities without collapsing their trust boundaries.",
@@ -13,14 +15,16 @@
     "Distinguish prompts, resources, and tools by who controls them and what risk they introduce.",
     "Design a narrow MCP tool contract with typed inputs, outputs, errors, and human-control points."
   ],
-  "prerequisites": ["memory-boundaries"],
+  "prerequisites": [
+    "memory-boundaries"
+  ],
   "sections": [
     {
       "id": "host-client-server",
       "title": "Start with three roles and one connection per server",
       "paragraphs": [
-        "An MCP host is the AI application that coordinates policy, consent, model access, and multiple connections. It creates an MCP client for each server. Each client maintains an isolated one-to-one session with its server and routes protocol messages.",
-        "An MCP server exposes focused capabilities. Local and remote servers can have very different deployment and credential risks, but neither becomes trusted merely because it speaks MCP. Keep the host responsible for aggregation and user decisions so one server cannot silently observe another server's data."
+        "An MCP host is the AI application that coordinates policy, consent, model access, and multiple connections. It creates an MCP client for each server. Each client maintains an isolated one-to-one session with its server and routes protocol messages. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "An MCP server exposes focused capabilities. Local and remote servers can have very different deployment and credential risks, but neither becomes trusted merely because it speaks MCP. Keep the host responsible for aggregation and user decisions so one server cannot silently observe another server's data. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
       "code": {
         "language": "text",
@@ -32,25 +36,33 @@
       "id": "lifecycle-and-negotiation",
       "title": "Negotiate before operating",
       "paragraphs": [
-        "The MCP lifecycle begins with initialization. Client and server agree on a protocol revision and advertise capabilities before normal operation. Each side must use only features that were successfully negotiated.",
-        "Treat capability state as runtime evidence. A configured tool name does not prove that a server currently exposes it, supports notifications, or implements the protocol revision your client expects. Fail closed or degrade deliberately when negotiation is incomplete."
-      ]
+        "The MCP lifecycle begins with initialization. Client and server agree on a protocol revision and advertise capabilities before normal operation. Each side must use only features that were successfully negotiated. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Treat capability state as runtime evidence. A configured tool name does not prove that a server currently exposes it, supports notifications, or implements the protocol revision your client expects. Fail closed or degrade deliberately when negotiation is incomplete. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "primitives-and-control",
       "title": "Prompts, resources, and tools have different control models",
       "paragraphs": [
-        "MCP describes prompts as user-controlled templates, resources as application-controlled context, and tools as model-controlled functions. This control hierarchy is a design aid, not an authorization system.",
-        "Resources and tool results remain untrusted input. Tool discovery tells a model what may be requested; the host still decides what is exposed, what requires confirmation, and what a trusted executor will authorize."
+        "MCP describes prompts as user-controlled templates, resources as application-controlled context, and tools as model-controlled functions. This control hierarchy is a design aid, not an authorization system. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Resources and tool results remain untrusted input. Tool discovery tells a model what may be requested; the host still decides what is exposed, what requires confirmation, and what a trusted executor will authorize. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
-      "callout": "Protocol compatibility enables communication. It does not grant permission or establish trust."
+      "callout": "Protocol compatibility enables communication. It does not grant permission or establish trust.",
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "tool-contract",
       "title": "Make tool contracts narrow and inspectable",
       "paragraphs": [
-        "A tool definition needs a stable name, a decision-oriented description, and a JSON input schema. Use precise types, required fields, enums, bounds, and descriptions that distinguish similar tools. Where supported, publish an output schema and return structured content that can be validated.",
-        "Document side effects, idempotency, error classes, approval policy, and the postcondition separately from the schema. An input schema constrains syntax; it cannot prove identity, ownership, authorization, or a successful real-world effect."
+        "A tool definition needs a stable name, a decision-oriented description, and a JSON input schema. Use precise types, required fields, enums, bounds, and descriptions that distinguish similar tools. Where supported, publish an output schema and return structured content that can be validated. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Document side effects, idempotency, error classes, approval policy, and the postcondition separately from the schema. An input schema constrains syntax; it cannot prove identity, ownership, authorization, or a successful real-world effect. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
       "code": {
         "language": "json",
@@ -62,9 +74,13 @@
       "id": "portable-provider-adapters",
       "title": "Separate the portable contract from provider adapters",
       "paragraphs": [
-        "Anthropic and OpenAI expose ways to connect remote MCP servers, while Google ADK documents MCP tools within its own agent framework. Their request shapes, supported transports, approval surfaces, and release maturity can differ.",
-        "Keep learning objectives and application policy provider-neutral: required capability, approved server identity, allowed tool set, data policy, approval rule, and expected result. Put provider-specific headers, SDK objects, connector identifiers, and limitations in replaceable adapters verified against current documentation."
-      ]
+        "Anthropic and OpenAI expose ways to connect remote MCP servers, while Google ADK documents MCP tools within its own agent framework. Their request shapes, supported transports, approval surfaces, and release maturity can differ. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Keep learning objectives and application policy provider-neutral: required capability, approved server identity, allowed tool set, data policy, approval rule, and expected result. Put provider-specific headers, SDK objects, connector identifiers, and limitations in replaceable adapters verified against current documentation. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     }
   ],
   "activity": {
@@ -86,25 +102,104 @@
     "schemaVersion": "1.1",
     "estimatedSeconds": 1440,
     "cues": [
-      {"id": "cue-mcp-architecture-roles", "kind": "narration", "sectionId": "host-client-server", "text": "Separate the host that owns policy from one client session per focused MCP server."},
-      {"id": "cue-mcp-architecture-lifecycle", "kind": "narration", "sectionId": "lifecycle-and-negotiation", "text": "Negotiate protocol version and capabilities during initialization before using any optional feature."},
-      {"id": "cue-mcp-architecture-visual", "kind": "visual", "sectionId": "lifecycle-and-negotiation", "text": "Trace initialize, capability agreement, operation, and shutdown across the host, client, and server.", "accessibilityAlternative": "A static sequence table lists host, client, and server messages for initialize, capability agreement, operation, and shutdown. Reduced-motion mode shows the full table."},
-      {"id": "cue-mcp-architecture-primitives", "kind": "narration", "sectionId": "primitives-and-control", "text": "Distinguish user-controlled prompts, application-controlled resources, and model-controlled tools without treating control as authorization."},
-      {"id": "cue-mcp-architecture-contract", "kind": "narration", "sectionId": "tool-contract", "text": "Specify narrow typed tool inputs and outputs while enforcing identity, approval, and postconditions outside the schema."},
-      {"id": "cue-mcp-architecture-portability", "kind": "narration", "sectionId": "portable-provider-adapters", "text": "Keep policy portable and isolate Anthropic, OpenAI, and Google implementation details in verified adapters."},
-      {"id": "cue-mcp-architecture-prompt", "kind": "learner-prompt", "sectionId": "portable-provider-adapters", "text": "Ask learners what must happen when a configured server does not negotiate a required capability."},
-      {"id": "cue-mcp-architecture-pause", "kind": "pause", "sectionId": "tool-contract", "text": "Allow three minutes to remove one unnecessary field and add one explicit error to each tool contract."},
-      {"id": "cue-mcp-architecture-checkpoint", "kind": "checkpoint", "sectionId": "tool-contract", "text": "Check that no schema field is being mistaken for authorization or proof of success."},
-      {"id": "cue-mcp-architecture-activity", "kind": "learner-prompt", "text": "Guide the architecture map, negotiation record, two tool contracts, and provider-adapter comparison."},
-      {"id": "cue-mcp-architecture-assessment", "kind": "assessment-handoff", "text": "Begin the check after the learner can trace every boundary and negotiated capability."}
+      {
+        "id": "cue-mcp-architecture-roles",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "Separate the host that owns policy from one client session per focused MCP server."
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "Negotiate protocol version and capabilities during initialization before using any optional feature."
+      },
+      {
+        "id": "cue-mcp-architecture-visual",
+        "kind": "visual",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "Trace initialize, capability agreement, operation, and shutdown across the host, client, and server.",
+        "accessibilityAlternative": "A static sequence table lists host, client, and server messages for initialize, capability agreement, operation, and shutdown. Reduced-motion mode shows the full table."
+      },
+      {
+        "id": "cue-mcp-architecture-primitives",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "Distinguish user-controlled prompts, application-controlled resources, and model-controlled tools without treating control as authorization."
+      },
+      {
+        "id": "cue-mcp-architecture-contract",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "Specify narrow typed tool inputs and outputs while enforcing identity, approval, and postconditions outside the schema."
+      },
+      {
+        "id": "cue-mcp-architecture-portability",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "Keep policy portable and isolate Anthropic, OpenAI, and Google implementation details in verified adapters."
+      },
+      {
+        "id": "cue-mcp-architecture-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "portable-provider-adapters",
+        "text": "Ask learners what must happen when a configured server does not negotiate a required capability."
+      },
+      {
+        "id": "cue-mcp-architecture-pause",
+        "kind": "pause",
+        "sectionId": "tool-contract",
+        "text": "Allow three minutes to remove one unnecessary field and add one explicit error to each tool contract."
+      },
+      {
+        "id": "cue-mcp-architecture-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "tool-contract",
+        "text": "Check that no schema field is being mistaken for authorization or proof of success."
+      },
+      {
+        "id": "cue-mcp-architecture-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the architecture map, negotiation record, two tool contracts, and provider-adapter comparison."
+      },
+      {
+        "id": "cue-mcp-architecture-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check after the learner can trace every boundary and negotiated capability."
+      }
     ],
     "transcript": "Separate the host that owns policy from one client session per focused MCP server. Negotiate protocol version and capabilities during initialization before using any optional feature. Distinguish user-controlled prompts, application-controlled resources, and model-controlled tools without treating control as authorization. Specify narrow typed tool inputs and outputs while enforcing identity, approval, and postconditions outside the schema. Keep policy portable and isolate Anthropic, OpenAI, and Google implementation details in verified adapters.",
     "captions": [
-      {"cueId": "cue-mcp-architecture-roles", "startSeconds": 0, "endSeconds": 240, "text": "Separate the host that owns policy from one client session per focused MCP server."},
-      {"cueId": "cue-mcp-architecture-lifecycle", "startSeconds": 270, "endSeconds": 510, "text": "Negotiate protocol version and capabilities during initialization before using any optional feature."},
-      {"cueId": "cue-mcp-architecture-primitives", "startSeconds": 540, "endSeconds": 810, "text": "Distinguish user-controlled prompts, application-controlled resources, and model-controlled tools without treating control as authorization."},
-      {"cueId": "cue-mcp-architecture-contract", "startSeconds": 840, "endSeconds": 1110, "text": "Specify narrow typed tool inputs and outputs while enforcing identity, approval, and postconditions outside the schema."},
-      {"cueId": "cue-mcp-architecture-portability", "startSeconds": 1140, "endSeconds": 1380, "text": "Keep policy portable and isolate Anthropic, OpenAI, and Google implementation details in verified adapters."}
+      {
+        "cueId": "cue-mcp-architecture-roles",
+        "startSeconds": 0,
+        "endSeconds": 240,
+        "text": "Separate the host that owns policy from one client session per focused MCP server."
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle",
+        "startSeconds": 270,
+        "endSeconds": 510,
+        "text": "Negotiate protocol version and capabilities during initialization before using any optional feature."
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives",
+        "startSeconds": 540,
+        "endSeconds": 810,
+        "text": "Distinguish user-controlled prompts, application-controlled resources, and model-controlled tools without treating control as authorization."
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract",
+        "startSeconds": 840,
+        "endSeconds": 1110,
+        "text": "Specify narrow typed tool inputs and outputs while enforcing identity, approval, and postconditions outside the schema."
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability",
+        "startSeconds": 1140,
+        "endSeconds": 1380,
+        "text": "Keep policy portable and isolate Anthropic, OpenAI, and Google implementation details in verified adapters."
+      }
     ],
     "reducedMotionAlternative": "Use a static role-and-lifecycle matrix with keyboard-focus highlights and no animated message flow."
   },
@@ -114,43 +209,83 @@
       {
         "id": "q-mcp-architecture-1",
         "prompt": "Which component should own user consent and coordinate policy across MCP connections?",
-        "choices": ["Any remote server", "The host application", "The tool result", "The JSON schema"],
+        "choices": [
+          "Any remote server",
+          "The host application",
+          "The tool result",
+          "The JSON schema"
+        ],
         "answerIndex": 1,
         "explanation": "The host coordinates users, policy, model integration, and separate client connections."
       },
       {
         "id": "q-mcp-architecture-2",
         "prompt": "A server is configured but did not advertise the tools capability during initialization. What should the client do?",
-        "choices": ["Call tools anyway", "Treat configuration as permission", "Do not use tool operations and follow the defined fallback", "Invent the missing capability"],
+        "choices": [
+          "Call tools anyway",
+          "Treat configuration as permission",
+          "Do not use tool operations and follow the defined fallback",
+          "Invent the missing capability"
+        ],
         "answerIndex": 2,
         "explanation": "Operation must respect the capabilities actually negotiated for that session."
       },
       {
         "id": "q-mcp-architecture-3",
         "prompt": "What does a valid MCP input schema prove?",
-        "choices": ["Arguments have the expected structure", "The caller owns the target", "The action is approved", "The side effect succeeded"],
+        "choices": [
+          "Arguments have the expected structure",
+          "The caller owns the target",
+          "The action is approved",
+          "The side effect succeeded"
+        ],
         "answerIndex": 0,
         "explanation": "Schema validation is necessary but separate from authorization, approval, and postcondition evidence."
       },
       {
         "id": "q-mcp-architecture-4",
         "prompt": "Why should a host normally create a separate client for each server?",
-        "choices": ["To increase prompt length", "To remove lifecycle state", "To preserve isolated sessions and security boundaries", "To let servers share credentials automatically"],
+        "choices": [
+          "To increase prompt length",
+          "To remove lifecycle state",
+          "To preserve isolated sessions and security boundaries",
+          "To let servers share credentials automatically"
+        ],
         "answerIndex": 2,
         "explanation": "The one-client-per-server relationship isolates capability and session state."
       },
       {
         "id": "q-mcp-architecture-5",
         "prompt": "What is the most portable way to support several providers?",
-        "choices": ["Assume every provider supports identical transports", "Put policy and capability requirements in a neutral contract and isolate provider details", "Copy one provider request everywhere", "Avoid recording unsupported behavior"],
+        "choices": [
+          "Assume every provider supports identical transports",
+          "Put policy and capability requirements in a neutral contract and isolate provider details",
+          "Copy one provider request everywhere",
+          "Avoid recording unsupported behavior"
+        ],
         "answerIndex": 1,
         "explanation": "A neutral contract preserves intent while adapters contain changing provider-specific behavior."
       }
     ]
   },
   "sources": [
-    {"title": "MCP architecture", "url": "https://modelcontextprotocol.io/specification/2025-11-25/architecture", "publisher": "Model Context Protocol", "lastVerified": "2026-07-25"},
-    {"title": "MCP lifecycle", "url": "https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle", "publisher": "Model Context Protocol", "lastVerified": "2026-07-25"},
-    {"title": "MCP tools", "url": "https://modelcontextprotocol.io/specification/2025-11-25/server/tools", "publisher": "Model Context Protocol", "lastVerified": "2026-07-25"}
+    {
+      "title": "MCP architecture",
+      "url": "https://modelcontextprotocol.io/specification/2025-11-25/architecture",
+      "publisher": "Model Context Protocol",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "MCP lifecycle",
+      "url": "https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle",
+      "publisher": "Model Context Protocol",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "MCP tools",
+      "url": "https://modelcontextprotocol.io/specification/2025-11-25/server/tools",
+      "publisher": "Model Context Protocol",
+      "lastVerified": "2026-07-25"
+    }
   ]
 }

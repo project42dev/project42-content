@@ -5,7 +5,9 @@
   "level": "intermediate",
   "reviewCadenceDays": 30,
   "lastVerified": "2026-07-25",
-  "providers": ["anthropic"],
+  "providers": [
+    "anthropic"
+  ],
   "estimatedMinutes": 54,
   "objectives": [
     "Explain the Messages API request, response, content-block, and conversation-state contracts.",
@@ -13,23 +15,29 @@
     "Validate outputs and handle stop reasons, rate limits, timeouts, and uncertain outcomes explicitly.",
     "Record safe operational evidence without logging secrets or sensitive prompt content."
   ],
-  "prerequisites": ["claude-prompting-in-practice"],
+  "prerequisites": [
+    "claude-prompting-in-practice"
+  ],
   "sections": [
     {
       "id": "messages-are-structured-and-stateless",
       "title": "Messages are structured and application-managed",
       "paragraphs": [
-        "A Messages API request identifies a model, output budget, prior user and assistant turns, and optional system instructions, tools, or other controls. Responses contain typed content blocks, usage, and a stop reason. Do not assume that every response is one prose string.",
-        "The application owns conversational state. For a continued exchange, preserve the required prior turns and send them again according to the current API contract. Define retention, truncation, summarization, privacy, and deletion behavior as application policies rather than accidental side effects."
+        "A Messages API request identifies a model, output budget, prior user and assistant turns, and optional system instructions, tools, or other controls. Responses contain typed content blocks, usage, and a stop reason. Do not assume that every response is one prose string. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "The application owns conversational state. For a continued exchange, preserve the required prior turns and send them again according to the current API contract. Define retention, truncation, summarization, privacy, and deletion behavior as application policies rather than accidental side effects. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
-      "callout": "The system instruction is a top-level request field in the Messages API, not a system-role item in the messages array."
+      "callout": "The system instruction is a top-level request field in the Messages API, not a system-role item in the messages array.",
+      "code": {
+        "language": "typescript",
+        "content": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+      }
     },
     {
       "id": "credentials-and-configuration",
       "title": "Keep credentials and volatile choices in configuration",
       "paragraphs": [
-        "Load the API key from the runtime environment or a managed secret store. Fail closed when it is unavailable, keep it out of prompts and logs, scope access to the workload, and use an operational process for rotation and revocation.",
-        "Treat model identifiers, output budgets, timeouts, retry policy, and region or deployment choices as reviewed configuration. Verify currently supported values from official documentation and avoid baking an unverified model name into reusable learning code."
+        "Load the API key from the runtime environment or a managed secret store. Fail closed when it is unavailable, keep it out of prompts and logs, scope access to the workload, and use an operational process for rotation and revocation. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Treat model identifiers, output budgets, timeouts, retry policy, and region or deployment choices as reviewed configuration. Verify currently supported values from official documentation and avoid baking an unverified model name into reusable learning code. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
       "code": {
         "language": "typescript",
@@ -41,25 +49,37 @@
       "id": "validate-the-response-contract",
       "title": "Validate the response contract",
       "paragraphs": [
-        "Inspect content-block types and stop reasons before consuming output. A normal end turn, output-budget stop, tool request, refusal, pause, and transport failure imply different next actions. Never concatenate unknown blocks into trusted application data.",
-        "Validate required fields, allowed values, lengths, citations, and business rules at the application boundary. When downstream code needs structured intent, use an explicit structured interface and schema rather than recovering a decision from free-form prose."
-      ]
+        "Inspect content-block types and stop reasons before consuming output. A normal end turn, output-budget stop, tool request, refusal, pause, and transport failure imply different next actions. Never concatenate unknown blocks into trusted application data. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Validate required fields, allowed values, lengths, citations, and business rules at the application boundary. When downstream code needs structured intent, use an explicit structured interface and schema rather than recovering a decision from free-form prose. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "typescript",
+        "content": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+      }
     },
     {
       "id": "recover-with-bounds",
       "title": "Recover with bounds and reconciliation",
       "paragraphs": [
-        "Classify failures before retrying. A transient availability or rate-limit response may be retried with provider guidance, jitter, a maximum attempt count, and an end-to-end deadline. Authentication, authorization, malformed requests, and validation failures require correction rather than unchanged retry.",
-        "A timed-out read-only request can often be retried safely. A timeout surrounding an external side effect has an unknown outcome until the system of record is reconciled. Use idempotency or operation identifiers in your own workflow and verify postconditions before repeating an action."
-      ]
+        "Classify failures before retrying. A transient availability or rate-limit response may be retried with provider guidance, jitter, a maximum attempt count, and an end-to-end deadline. Authentication, authorization, malformed requests, and validation failures require correction rather than unchanged retry. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "A timed-out read-only request can often be retried safely. A timeout surrounding an external side effect has an unknown outcome until the system of record is reconciled. Use idempotency or operation identifiers in your own workflow and verify postconditions before repeating an action. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "typescript",
+        "content": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+      }
     },
     {
       "id": "observe-without-leaking",
       "title": "Observe the workflow without leaking data",
       "paragraphs": [
-        "Record a request or trace identifier, application and prompt version, configured model reference, latency, usage, stop reason, retry count, validation result, and final workflow state. These fields support evaluation, cost analysis, incident response, and rollback decisions.",
-        "Do not log API keys, authorization headers, raw secrets, or unrestricted prompt and response bodies. Use data classification, redaction, access control, retention limits, and sampled or derived metrics appropriate to the workload."
-      ]
+        "Record a request or trace identifier, application and prompt version, configured model reference, latency, usage, stop reason, retry count, validation result, and final workflow state. These fields support evaluation, cost analysis, incident response, and rollback decisions. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Do not log API keys, authorization headers, raw secrets, or unrestricted prompt and response bodies. Use data classification, redaction, access control, retention limits, and sampled or derived metrics appropriate to the workload. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "typescript",
+        "content": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+      }
     }
   ],
   "activity": {

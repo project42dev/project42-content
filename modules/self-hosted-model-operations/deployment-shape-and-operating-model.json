@@ -5,7 +5,9 @@
   "level": "advanced",
   "reviewCadenceDays": 60,
   "lastVerified": "2026-07-27",
-  "providers": ["provider-neutral"],
+  "providers": [
+    "provider-neutral"
+  ],
   "estimatedMinutes": 46,
   "objectives": [
     "Translate a model-serving idea into a bounded workload, service objective, data boundary, and failure budget.",
@@ -13,49 +15,71 @@
     "Assign identity, security, platform, model, data, evaluation, capacity, incident, and recovery ownership.",
     "Select a reversible initial shape with explicit evidence, constraints, review triggers, and an exit path."
   ],
-  "prerequisites": ["ai-foundations-capstone"],
+  "prerequisites": [
+    "ai-foundations-capstone"
+  ],
   "sections": [
     {
       "id": "define-workload-before-platform",
       "title": "Define the workload before choosing a platform",
       "paragraphs": [
-        "Write the users, tasks, model class, input and output modalities, sensitivity, concurrency, arrival pattern, context size, output length, latency objective, availability target, geographic boundary, disconnected requirement, retention rule, and recovery objective. Separate an experiment from a shared internal service and a production dependency.",
-        "Record what happens when the endpoint is slow, unavailable, overloaded, wrong, unsafe, or unable to process a request. A deployment shape is suitable only when the team can operate its normal path and its failure path."
+        "Write the users, tasks, model class, input and output modalities, sensitivity, concurrency, arrival pattern, context size, output length, latency objective, availability target, geographic boundary, disconnected requirement, retention rule, and recovery objective. Separate an experiment from a shared internal service and a production dependency. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Record what happens when the endpoint is slow, unavailable, overloaded, wrong, unsafe, or unable to process a request. A deployment shape is suitable only when the team can operate its normal path and its failure path. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
       ],
-      "callout": "Start with the service contract and failure consequences, not the hardware catalog."
+      "callout": "Start with the service contract and failure consequences, not the hardware catalog.",
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "compare-five-shapes",
       "title": "Compare five useful deployment shapes",
       "paragraphs": [
-        "A workstation can support individual learning, offline experiments, and low-concurrency development, but user sessions, sleep, local privilege, thermal limits, and unmanaged changes make it a weak default for a shared service. A container adds a reproducible process boundary and packaging contract; it does not by itself add strong isolation, authentication, backups, high availability, or resource limits.",
-        "On-premises infrastructure can align with local data, connectivity, and hardware-control requirements while transferring capacity, patching, power, cooling, spare-parts, and incident ownership to the operator. Edge deployments reduce distance or support intermittent connectivity but constrain power, memory, update bandwidth, physical security, and repair.",
-        "Cloud compute can provide faster provisioning, managed infrastructure options, and elastic capacity, but it still requires verified region, identity, networking, encryption, quotas, cost controls, observability, backup, and exit planning. Hybrid designs add routing and consistency choices. None of these labels proves privacy, cost efficiency, performance, or resilience."
-      ]
+        "A workstation can support individual learning, offline experiments, and low-concurrency development, but user sessions, sleep, local privilege, thermal limits, and unmanaged changes make it a weak default for a shared service. A container adds a reproducible process boundary and packaging contract; it does not by itself add strong isolation, authentication, backups, high availability, or resource limits. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "On-premises infrastructure can align with local data, connectivity, and hardware-control requirements while transferring capacity, patching, power, cooling, spare-parts, and incident ownership to the operator. Edge deployments reduce distance or support intermittent connectivity but constrain power, memory, update bandwidth, physical security, and repair. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Cloud compute can provide faster provisioning, managed infrastructure options, and elastic capacity, but it still requires verified region, identity, networking, encryption, quotas, cost controls, observability, backup, and exit planning. Hybrid designs add routing and consistency choices. None of these labels proves privacy, cost efficiency, performance, or resilience. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "separate-failure-domains",
       "title": "Separate process, host, site, and control-plane failure domains",
       "paragraphs": [
-        "List the process, container, device, host, accelerator, storage, network, identity provider, scheduler, site, region, registry, and management-plane dependencies. Decide which failures should restart a process, replace a replica, move to another node, fail over to another site, shed load, or stop safely.",
-        "Do not claim high availability because multiple replicas exist on one host or because an orchestrator can restart a broken process. Test the actual failure domain and confirm that state, secrets, model artifacts, queues, and routing remain recoverable."
-      ]
+        "List the process, container, device, host, accelerator, storage, network, identity provider, scheduler, site, region, registry, and management-plane dependencies. Decide which failures should restart a process, replace a replica, move to another node, fail over to another site, shed load, or stop safely. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Do not claim high availability because multiple replicas exist on one host or because an orchestrator can restart a broken process. Test the actual failure domain and confirm that state, secrets, model artifacts, queues, and routing remain recoverable. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "assign-operating-ownership",
       "title": "Assign operating ownership before deployment",
       "paragraphs": [
-        "Name accountable owners for model and license review, artifact integrity, host and accelerator lifecycle, runtime, identity and access, secrets, network policy, data handling, evaluation, capacity, cost, telemetry, vulnerability response, abuse handling, incident command, backup, restore, rollback, and end-of-life.",
-        "For each role, record decision authority, on-call expectation, evidence produced, escalation path, and substitute. A technically successful endpoint without owned updates and recovery is an unmanaged liability."
-      ]
+        "Name accountable owners for model and license review, artifact integrity, host and accelerator lifecycle, runtime, identity and access, secrets, network policy, data handling, evaluation, capacity, cost, telemetry, vulnerability response, abuse handling, incident command, backup, restore, rollback, and end-of-life. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "For each role, record decision authority, on-call expectation, evidence produced, escalation path, and substitute. A technically successful endpoint without owned updates and recovery is an unmanaged liability. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     },
     {
       "id": "choose-reversible-first-shape",
       "title": "Choose the smallest reversible shape that proves the next claim",
       "paragraphs": [
-        "Select the initial shape that can safely answer the next decision: whether the exact artifact and runtime work, whether representative quality passes, whether one host meets capacity, or whether a shared service meets reliability. Avoid building multi-site orchestration before a bounded single-endpoint contract is evaluated.",
-        "Record the chosen and rejected shapes, assumptions, evidence, unresolved risks, cost and capacity envelope, required controls, stop conditions, migration path, and review date. Trigger re-evaluation when workload, data class, users, geography, model, runtime, demand, service objective, incident history, or ownership changes."
-      ]
+        "Select the initial shape that can safely answer the next decision: whether the exact artifact and runtime work, whether representative quality passes, whether one host meets capacity, or whether a shared service meets reliability. Avoid building multi-site orchestration before a bounded single-endpoint contract is evaluated. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
+        "Record the chosen and rejected shapes, assumptions, evidence, unresolved risks, cost and capacity envelope, required controls, stop conditions, migration path, and review date. Trigger re-evaluation when workload, data class, users, geography, model, runtime, demand, service objective, incident history, or ownership changes. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+      ],
+      "code": {
+        "language": "json",
+        "content": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+      }
     }
   ],
   "activity": {
@@ -79,43 +103,208 @@
     "schemaVersion": "1.1",
     "estimatedSeconds": 1380,
     "cues": [
-      {"id": "cue-deployment-shape-workload", "kind": "narration", "sectionId": "define-workload-before-platform", "text": "Define users, data, demand, latency, availability, disconnection, retention, and recovery before naming a platform."},
-      {"id": "cue-deployment-shape-visual", "kind": "visual", "sectionId": "compare-five-shapes", "text": "Compare workstation, container, on-premises, edge, cloud, and hybrid shapes in one evidence matrix.", "accessibilityAlternative": "A static table compares each shape across control, capacity, connectivity, physical exposure, scaling, operations, cost, and recovery."},
-      {"id": "cue-deployment-shape-compare", "kind": "narration", "sectionId": "compare-five-shapes", "text": "Explain that workstation, container, on-premises, edge, cloud, and hybrid labels do not prove privacy, cost, performance, or resilience."},
-      {"id": "cue-deployment-shape-failures", "kind": "narration", "sectionId": "separate-failure-domains", "text": "Separate process, host, accelerator, storage, network, identity, scheduler, site, registry, and management-plane failures."},
-      {"id": "cue-deployment-shape-checkpoint", "kind": "checkpoint", "sectionId": "separate-failure-domains", "text": "Ask why two replicas on one host do not establish site or host availability."},
-      {"id": "cue-deployment-shape-owners", "kind": "narration", "sectionId": "assign-operating-ownership", "text": "Assign accountable owners for every control, lifecycle, evidence, incident, and recovery responsibility."},
-      {"id": "cue-deployment-shape-reversible", "kind": "narration", "sectionId": "choose-reversible-first-shape", "text": "Choose the smallest reversible deployment that can safely prove the next operational claim."},
-      {"id": "cue-deployment-shape-activity", "kind": "learner-prompt", "text": "Guide the workload contract, shape matrix, failure map, ownership matrix, decision, and exit path."},
-      {"id": "cue-deployment-shape-assessment", "kind": "assessment-handoff", "text": "Begin the check after the learner can defend the chosen shape and its failure and ownership boundaries."}
+      {
+        "id": "cue-deployment-shape-workload",
+        "kind": "narration",
+        "sectionId": "define-workload-before-platform",
+        "text": "Define users, data, demand, latency, availability, disconnection, retention, and recovery before naming a platform."
+      },
+      {
+        "id": "cue-deployment-shape-visual",
+        "kind": "visual",
+        "sectionId": "compare-five-shapes",
+        "text": "Compare workstation, container, on-premises, edge, cloud, and hybrid shapes in one evidence matrix.",
+        "accessibilityAlternative": "A static table compares each shape across control, capacity, connectivity, physical exposure, scaling, operations, cost, and recovery."
+      },
+      {
+        "id": "cue-deployment-shape-compare",
+        "kind": "narration",
+        "sectionId": "compare-five-shapes",
+        "text": "Explain that workstation, container, on-premises, edge, cloud, and hybrid labels do not prove privacy, cost, performance, or resilience."
+      },
+      {
+        "id": "cue-deployment-shape-failures",
+        "kind": "narration",
+        "sectionId": "separate-failure-domains",
+        "text": "Separate process, host, accelerator, storage, network, identity, scheduler, site, registry, and management-plane failures."
+      },
+      {
+        "id": "cue-deployment-shape-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "separate-failure-domains",
+        "text": "Ask why two replicas on one host do not establish site or host availability."
+      },
+      {
+        "id": "cue-deployment-shape-owners",
+        "kind": "narration",
+        "sectionId": "assign-operating-ownership",
+        "text": "Assign accountable owners for every control, lifecycle, evidence, incident, and recovery responsibility."
+      },
+      {
+        "id": "cue-deployment-shape-reversible",
+        "kind": "narration",
+        "sectionId": "choose-reversible-first-shape",
+        "text": "Choose the smallest reversible deployment that can safely prove the next operational claim."
+      },
+      {
+        "id": "cue-deployment-shape-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the workload contract, shape matrix, failure map, ownership matrix, decision, and exit path."
+      },
+      {
+        "id": "cue-deployment-shape-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check after the learner can defend the chosen shape and its failure and ownership boundaries."
+      }
     ],
     "transcript": "Define users, data, demand, latency, availability, disconnection, retention, and recovery before naming a platform. Describe normal requests and what must happen when the service is slow, unavailable, overloaded, wrong, or unsafe. Explain that workstation, container, on-premises, edge, cloud, and hybrid labels do not prove privacy, cost, performance, or resilience. A workstation may fit individual experiments; a container improves packaging but does not create authentication, resource limits, backup, or availability; on-premises, edge, and cloud each transfer different responsibilities rather than removing them. Separate process, host, accelerator, storage, network, identity, scheduler, site, registry, and management-plane failures. Test the failure domain actually claimed. Assign accountable owners for every control, lifecycle, evidence, incident, and recovery responsibility. Record authority, escalation, evidence, and substitutes. Choose the smallest reversible deployment that can safely prove the next operational claim. Preserve rejected alternatives, stop conditions, a migration path, and triggers that force the decision to be reviewed again.",
     "captions": [
-      {"cueId": "cue-deployment-shape-workload", "startSeconds": 0, "endSeconds": 240, "text": "Define users, data, demand, latency, availability, disconnection, retention, and recovery before naming a platform."},
-      {"cueId": "cue-deployment-shape-compare", "startSeconds": 240, "endSeconds": 540, "text": "Explain that workstation, container, on-premises, edge, cloud, and hybrid labels do not prove privacy, cost, performance, or resilience."},
-      {"cueId": "cue-deployment-shape-failures", "startSeconds": 540, "endSeconds": 780, "text": "Separate process, host, accelerator, storage, network, identity, scheduler, site, registry, and management-plane failures."},
-      {"cueId": "cue-deployment-shape-owners", "startSeconds": 780, "endSeconds": 1020, "text": "Assign accountable owners for every control, lifecycle, evidence, incident, and recovery responsibility."},
-      {"cueId": "cue-deployment-shape-reversible", "startSeconds": 1020, "endSeconds": 1200, "text": "Choose the smallest reversible deployment that can safely prove the next operational claim."},
-      {"cueId": "cue-deployment-shape-activity", "startSeconds": 1200, "endSeconds": 1350, "text": "Guide the workload contract, shape matrix, failure map, ownership matrix, decision, and exit path."},
-      {"cueId": "cue-deployment-shape-assessment", "startSeconds": 1350, "endSeconds": 1380, "text": "Begin the check after the learner can defend the chosen shape and its failure and ownership boundaries."}
+      {
+        "cueId": "cue-deployment-shape-workload",
+        "startSeconds": 0,
+        "endSeconds": 240,
+        "text": "Define users, data, demand, latency, availability, disconnection, retention, and recovery before naming a platform."
+      },
+      {
+        "cueId": "cue-deployment-shape-compare",
+        "startSeconds": 240,
+        "endSeconds": 540,
+        "text": "Explain that workstation, container, on-premises, edge, cloud, and hybrid labels do not prove privacy, cost, performance, or resilience."
+      },
+      {
+        "cueId": "cue-deployment-shape-failures",
+        "startSeconds": 540,
+        "endSeconds": 780,
+        "text": "Separate process, host, accelerator, storage, network, identity, scheduler, site, registry, and management-plane failures."
+      },
+      {
+        "cueId": "cue-deployment-shape-owners",
+        "startSeconds": 780,
+        "endSeconds": 1020,
+        "text": "Assign accountable owners for every control, lifecycle, evidence, incident, and recovery responsibility."
+      },
+      {
+        "cueId": "cue-deployment-shape-reversible",
+        "startSeconds": 1020,
+        "endSeconds": 1200,
+        "text": "Choose the smallest reversible deployment that can safely prove the next operational claim."
+      },
+      {
+        "cueId": "cue-deployment-shape-activity",
+        "startSeconds": 1200,
+        "endSeconds": 1350,
+        "text": "Guide the workload contract, shape matrix, failure map, ownership matrix, decision, and exit path."
+      },
+      {
+        "cueId": "cue-deployment-shape-assessment",
+        "startSeconds": 1350,
+        "endSeconds": 1380,
+        "text": "Begin the check after the learner can defend the chosen shape and its failure and ownership boundaries."
+      }
     ],
     "reducedMotionAlternative": "Use static workload, shape-comparison, failure-domain, and ownership tables. Number the decision flow without animated topology changes."
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
-      {"id": "q-deployment-shape-1", "prompt": "What should be defined before choosing hardware or cloud services?", "choices": ["The provider logo", "Users, workload, data, demand, service objectives, failures, and recovery", "Only the model parameter count", "A multi-region topology"], "answerIndex": 1, "explanation": "The service and failure contract determines what infrastructure evidence is relevant."},
-      {"id": "q-deployment-shape-2", "prompt": "What does putting a model server in a container establish by itself?", "choices": ["Reproducible packaging and a process boundary, subject to the actual configuration", "High availability", "Strong multi-tenant isolation", "Automatic backups"], "answerIndex": 0, "explanation": "Containers help package and bound processes but do not automatically provide the other controls."},
-      {"id": "q-deployment-shape-3", "prompt": "Why are two replicas on one host insufficient evidence for host availability?", "choices": ["Replicas never work", "The model name changes", "Both replicas share the same host failure domain", "Containers cannot restart"], "answerIndex": 2, "explanation": "Redundancy inside a shared failure domain does not survive loss of that domain."},
-      {"id": "q-deployment-shape-4", "prompt": "Which statement about local deployment is accurate?", "choices": ["It is automatically private", "It is always cheaper", "It needs no patching", "It changes the control and operating boundary but still requires verified privacy, security, cost, and recovery"], "answerIndex": 3, "explanation": "Locality is a design fact, not proof of every desired property."},
-      {"id": "q-deployment-shape-5", "prompt": "What makes an ownership assignment operationally useful?", "choices": ["A team name only", "Authority, evidence, escalation, on-call expectation, and a substitute", "A future hiring plan", "A vendor brochure"], "answerIndex": 1, "explanation": "Ownership must connect responsibility to authority, evidence, availability, and escalation."},
-      {"id": "q-deployment-shape-6", "prompt": "What is the safest first deployment shape?", "choices": ["The most complex available", "The cheapest advertised", "The smallest reversible shape that safely proves the next claim", "Always a workstation"], "answerIndex": 2, "explanation": "A bounded reversible step produces decision evidence without unnecessary operational scope."}
+      {
+        "id": "q-deployment-shape-1",
+        "prompt": "What should be defined before choosing hardware or cloud services?",
+        "choices": [
+          "The provider logo",
+          "Users, workload, data, demand, service objectives, failures, and recovery",
+          "Only the model parameter count",
+          "A multi-region topology"
+        ],
+        "answerIndex": 1,
+        "explanation": "The service and failure contract determines what infrastructure evidence is relevant."
+      },
+      {
+        "id": "q-deployment-shape-2",
+        "prompt": "What does putting a model server in a container establish by itself?",
+        "choices": [
+          "Reproducible packaging and a process boundary, subject to the actual configuration",
+          "High availability",
+          "Strong multi-tenant isolation",
+          "Automatic backups"
+        ],
+        "answerIndex": 0,
+        "explanation": "Containers help package and bound processes but do not automatically provide the other controls."
+      },
+      {
+        "id": "q-deployment-shape-3",
+        "prompt": "Why are two replicas on one host insufficient evidence for host availability?",
+        "choices": [
+          "Replicas never work",
+          "The model name changes",
+          "Both replicas share the same host failure domain",
+          "Containers cannot restart"
+        ],
+        "answerIndex": 2,
+        "explanation": "Redundancy inside a shared failure domain does not survive loss of that domain."
+      },
+      {
+        "id": "q-deployment-shape-4",
+        "prompt": "Which statement about local deployment is accurate?",
+        "choices": [
+          "It is automatically private",
+          "It is always cheaper",
+          "It needs no patching",
+          "It changes the control and operating boundary but still requires verified privacy, security, cost, and recovery"
+        ],
+        "answerIndex": 3,
+        "explanation": "Locality is a design fact, not proof of every desired property."
+      },
+      {
+        "id": "q-deployment-shape-5",
+        "prompt": "What makes an ownership assignment operationally useful?",
+        "choices": [
+          "A team name only",
+          "Authority, evidence, escalation, on-call expectation, and a substitute",
+          "A future hiring plan",
+          "A vendor brochure"
+        ],
+        "answerIndex": 1,
+        "explanation": "Ownership must connect responsibility to authority, evidence, availability, and escalation."
+      },
+      {
+        "id": "q-deployment-shape-6",
+        "prompt": "What is the safest first deployment shape?",
+        "choices": [
+          "The most complex available",
+          "The cheapest advertised",
+          "The smallest reversible shape that safely proves the next claim",
+          "Always a workstation"
+        ],
+        "answerIndex": 2,
+        "explanation": "A bounded reversible step produces decision evidence without unnecessary operational scope."
+      }
     ]
   },
   "sources": [
-    {"title": "Resource constraints", "url": "https://docs.docker.com/engine/containers/resource_constraints/", "publisher": "Docker", "lastVerified": "2026-07-27"},
-    {"title": "Resource Management for Pods and Containers", "url": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/", "publisher": "Kubernetes", "lastVerified": "2026-07-27"},
-    {"title": "Execution Providers", "url": "https://onnxruntime.ai/docs/execution-providers/", "publisher": "ONNX Runtime", "lastVerified": "2026-07-27"},
-    {"title": "Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile", "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence", "publisher": "NIST", "lastVerified": "2026-07-27"}
+    {
+      "title": "Resource constraints",
+      "url": "https://docs.docker.com/engine/containers/resource_constraints/",
+      "publisher": "Docker",
+      "lastVerified": "2026-07-27"
+    },
+    {
+      "title": "Resource Management for Pods and Containers",
+      "url": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+      "publisher": "Kubernetes",
+      "lastVerified": "2026-07-27"
+    },
+    {
+      "title": "Execution Providers",
+      "url": "https://onnxruntime.ai/docs/execution-providers/",
+      "publisher": "ONNX Runtime",
+      "lastVerified": "2026-07-27"
+    },
+    {
+      "title": "Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile",
+      "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
+      "publisher": "NIST",
+      "lastVerified": "2026-07-27"
+    }
   ]
 }
