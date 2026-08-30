@@ -23,8 +23,8 @@
       "id": "context-is-a-decision-input",
       "title": "Context is a designed decision input",
       "paragraphs": [
-        "An agent does not need every available token. It needs the authoritative instructions, current task state, relevant evidence, allowed actions, and verification criteria for the next decision. Extra material can increase cost and distract from stronger evidence. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Define a context contract with named slots: governing policy, user goal, trusted state, retrieved evidence, untrusted data, prior decisions, tool contracts, and output requirements. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "An agent does not need every available token. It needs the authoritative instructions, current task state, relevant evidence, allowed actions, and verification criteria for the next decision. Extra material can increase cost and distract from stronger evidence.",
+        "Define a context contract with named slots: governing policy, user goal, trusted state, retrieved evidence, untrusted data, prior decisions, tool contracts, and output requirements."
       ],
       "code": {
         "language": "text",
@@ -36,54 +36,34 @@
       "id": "select-and-rank",
       "title": "Select by relevance, authority, freshness, and diversity",
       "paragraphs": [
-        "Retrieve candidates broadly, then rank them against the specific decision. Prefer primary sources, current records, and evidence that directly supports or contradicts the claim. Keep source identity and verification date attached through summarization. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Include disconfirming evidence and unresolved disagreement. A context pack that contains only material supporting the first hypothesis encourages confident but brittle decisions. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ],
-      "code": {
-        "language": "json",
-        "label": "Select by relevance, authority, freshness, and diversity (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+        "Retrieve candidates broadly, then rank them against the specific decision. Prefer primary sources, current records, and evidence that directly supports or contradicts the claim. Keep source identity and verification date attached through summarization.",
+        "Include disconfirming evidence and unresolved disagreement. A context pack that contains only material supporting the first hypothesis encourages confident but brittle decisions."
+      ]
     },
     {
       "id": "budget-and-compress",
       "title": "Budget the active window deliberately",
       "paragraphs": [
-        "Reserve space for governing instructions, the current request, tool schemas, model output, and expected tool results before filling the remaining budget with history. Remove duplicate and dead intermediate output first. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Summaries are derived evidence. Store the source references and the transformation that produced a summary, then rehydrate originals when exact language, current state, or high-consequence detail matters. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "Reserve space for governing instructions, the current request, tool schemas, model output, and expected tool results before filling the remaining budget with history. Remove duplicate and dead intermediate output first.",
+        "Summaries are derived evidence. Store the source references and the transformation that produced a summary, then rehydrate originals when exact language, current state, or high-consequence detail matters."
       ],
-      "callout": "Prompt or context caching may reduce cost; it does not make stale or irrelevant content safer.",
-      "code": {
-        "language": "json",
-        "label": "Budget the active window deliberately (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+      "callout": "Prompt or context caching may reduce cost; it does not make stale or irrelevant content safer."
     },
     {
       "id": "refresh-across-turns",
       "title": "Refresh state across turns and providers",
       "paragraphs": [
-        "Conversation-state features differ by provider and API. Some applications resend history, some reference stored responses or interactions, and some edit or compact earlier tool results. Treat those mechanisms as transport choices, not proof that the retained state is correct. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "At each consequential step, refresh volatile facts from the system of record, preserve tool-call/result linkage, and discard instructions that no longer apply. Record what was omitted so a reviewer can reconstruct the decision. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ],
-      "code": {
-        "language": "json",
-        "label": "Refresh state across turns and providers (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+        "Conversation-state features differ by provider and API. Some applications resend history, some reference stored responses or interactions, and some edit or compact earlier tool results. Treat those mechanisms as transport choices, not proof that the retained state is correct.",
+        "At each consequential step, refresh volatile facts from the system of record, preserve tool-call/result linkage, and discard instructions that no longer apply. Record what was omitted so a reviewer can reconstruct the decision."
+      ]
     },
     {
       "id": "attack-and-regression-test",
       "title": "Test the context package as an attack surface",
       "paragraphs": [
-        "Place conflicting instructions, stale records, poisoned retrieval results, oversized irrelevant files, and missing evidence into test cases. The agent should preserve governing authority, identify the conflict, retrieve or escalate when necessary, and avoid acting from unsupported assumptions. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Run the same evaluation set after changes to prompts, retrieval, summarization, tools, or model versions. Context engineering is part of the system behavior, not a one-time prompt edit. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ],
-      "code": {
-        "language": "json",
-        "label": "Test the context package as an attack surface (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+        "Place conflicting instructions, stale records, poisoned retrieval results, oversized irrelevant files, and missing evidence into test cases. The agent should preserve governing authority, identify the conflict, retrieve or escalate when necessary, and avoid acting from unsupported assumptions.",
+        "Run the same evaluation set after changes to prompts, retrieval, summarization, tools, or model versions. Context engineering is part of the system behavior, not a one-time prompt edit."
+      ]
     }
   ],
   "activity": {

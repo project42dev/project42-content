@@ -23,8 +23,8 @@
       "id": "host-client-server",
       "title": "Start with three roles and one connection per server",
       "paragraphs": [
-        "An MCP host is the AI application that coordinates policy, consent, model access, and multiple connections. It creates an MCP client for each server. Each client maintains an isolated one-to-one session with its server and routes protocol messages. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "An MCP server exposes focused capabilities. Local and remote servers can have very different deployment and credential risks, but neither becomes trusted merely because it speaks MCP. Keep the host responsible for aggregation and user decisions so one server cannot silently observe another server's data. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "An MCP host is the AI application that coordinates policy, consent, model access, and multiple connections. It creates an MCP client for each server. Each client maintains an isolated one-to-one session with its server and routes protocol messages.",
+        "An MCP server exposes focused capabilities. Local and remote servers can have very different deployment and credential risks, but neither becomes trusted merely because it speaks MCP. Keep the host responsible for aggregation and user decisions so one server cannot silently observe another server's data."
       ],
       "code": {
         "language": "text",
@@ -36,35 +36,25 @@
       "id": "lifecycle-and-negotiation",
       "title": "Negotiate before operating",
       "paragraphs": [
-        "The MCP lifecycle begins with initialization. Client and server agree on a protocol revision and advertise capabilities before normal operation. Each side must use only features that were successfully negotiated. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Treat capability state as runtime evidence. A configured tool name does not prove that a server currently exposes it, supports notifications, or implements the protocol revision your client expects. Fail closed or degrade deliberately when negotiation is incomplete. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ],
-      "code": {
-        "language": "json",
-        "label": "Negotiate before operating (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+        "The MCP lifecycle begins with initialization. Client and server agree on a protocol revision and advertise capabilities before normal operation. Each side must use only features that were successfully negotiated.",
+        "Treat capability state as runtime evidence. A configured tool name does not prove that a server currently exposes it, supports notifications, or implements the protocol revision your client expects. Fail closed or degrade deliberately when negotiation is incomplete."
+      ]
     },
     {
       "id": "primitives-and-control",
       "title": "Prompts, resources, and tools have different control models",
       "paragraphs": [
-        "MCP describes prompts as user-controlled templates, resources as application-controlled context, and tools as model-controlled functions. This control hierarchy is a design aid, not an authorization system. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Resources and tool results remain untrusted input. Tool discovery tells a model what may be requested; the host still decides what is exposed, what requires confirmation, and what a trusted executor will authorize. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "MCP describes prompts as user-controlled templates, resources as application-controlled context, and tools as model-controlled functions. This control hierarchy is a design aid, not an authorization system.",
+        "Resources and tool results remain untrusted input. Tool discovery tells a model what may be requested; the host still decides what is exposed, what requires confirmation, and what a trusted executor will authorize."
       ],
-      "callout": "Protocol compatibility enables communication. It does not grant permission or establish trust.",
-      "code": {
-        "language": "json",
-        "label": "Prompts, resources, and tools have different control models (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+      "callout": "Protocol compatibility enables communication. It does not grant permission or establish trust."
     },
     {
       "id": "tool-contract",
       "title": "Make tool contracts narrow and inspectable",
       "paragraphs": [
-        "A tool definition needs a stable name, a decision-oriented description, and a JSON input schema. Use precise types, required fields, enums, bounds, and descriptions that distinguish similar tools. Where supported, publish an output schema and return structured content that can be validated. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Document side effects, idempotency, error classes, approval policy, and the postcondition separately from the schema. An input schema constrains syntax; it cannot prove identity, ownership, authorization, or a successful real-world effect. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "A tool definition needs a stable name, a decision-oriented description, and a JSON input schema. Use precise types, required fields, enums, bounds, and descriptions that distinguish similar tools. Where supported, publish an output schema and return structured content that can be validated.",
+        "Document side effects, idempotency, error classes, approval policy, and the postcondition separately from the schema. An input schema constrains syntax; it cannot prove identity, ownership, authorization, or a successful real-world effect."
       ],
       "code": {
         "language": "json",
@@ -76,14 +66,9 @@
       "id": "portable-provider-adapters",
       "title": "Separate the portable contract from provider adapters",
       "paragraphs": [
-        "Anthropic and OpenAI expose ways to connect remote MCP servers, while Google ADK documents MCP tools within its own agent framework. Their request shapes, supported transports, approval surfaces, and release maturity can differ. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Keep learning objectives and application policy provider-neutral: required capability, approved server identity, allowed tool set, data policy, approval rule, and expected result. Put provider-specific headers, SDK objects, connector identifiers, and limitations in replaceable adapters verified against current documentation. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ],
-      "code": {
-        "language": "json",
-        "label": "Separate the portable contract from provider adapters (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+        "Anthropic and OpenAI expose ways to connect remote MCP servers, while Google ADK documents MCP tools within its own agent framework. Their request shapes, supported transports, approval surfaces, and release maturity can differ.",
+        "Keep learning objectives and application policy provider-neutral: required capability, approved server identity, allowed tool set, data policy, approval rule, and expected result. Put provider-specific headers, SDK objects, connector identifiers, and limitations in replaceable adapters verified against current documentation."
+      ]
     }
   ],
   "activity": {

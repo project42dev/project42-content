@@ -23,8 +23,8 @@
       "id": "agents-prepare",
       "title": "Choose the simplest sufficient system",
       "paragraphs": [
-        "A model call produces an output. A deterministic workflow follows code-defined steps. An agentic loop lets a model choose among tools or actions, observe results, update state, and continue toward a goal. Products such as chat assistants and copilots may contain agentic features, but a product name alone does not prove that every interaction is agentic. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Use an agent only when model-directed adaptation adds value beyond a fixed workflow. Define the user goal, permitted scope, observable completion criteria, unavailable actions, maximum turns, time and cost budgets, and conditions that return control to a person. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "A model call produces an output. A deterministic workflow follows code-defined steps. An agentic loop lets a model choose among tools or actions, observe results, update state, and continue toward a goal. Products such as chat assistants and copilots may contain agentic features, but a product name alone does not prove that every interaction is agentic.",
+        "Use an agent only when model-directed adaptation adds value beyond a fixed workflow. Define the user goal, permitted scope, observable completion criteria, unavailable actions, maximum turns, time and cost budgets, and conditions that return control to a person."
       ],
       "code": {
         "language": "text",
@@ -36,37 +36,32 @@
       "id": "agents-execute",
       "title": "Run a visible observe, decide, act, and check loop",
       "paragraphs": [
-        "Each step should expose the current goal, relevant state, selected tool, resolved target, expected effect, and next stopping test. The surrounding application validates tool calls and permissions before execution; the model does not grant itself authority. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Start with one agent and the smallest useful tool set. Add routing, specialist agents, or handoffs only when measured failures show that a simpler design cannot reliably handle the task. Every handoff needs a versioned state contract and a clear owner of the next decision. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ],
-      "code": {
-        "language": "json",
-        "label": "Run a visible observe, decide, act, and check loop (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+        "Each step should expose the current goal, relevant state, selected tool, resolved target, expected effect, and next stopping test. The surrounding application validates tool calls and permissions before execution; the model does not grant itself authority.",
+        "Start with one agent and the smallest useful tool set. Add routing, specialist agents, or handoffs only when measured failures show that a simpler design cannot reliably handle the task. Every handoff needs a versioned state contract and a clear owner of the next decision."
+      ]
     },
     {
       "id": "agents-verify",
       "title": "Evaluate trajectories and final outcomes",
       "paragraphs": [
-        "A plausible final answer can hide unsafe or wasteful steps. Review the trajectory: tool selection, targets, arguments, state changes, approvals, retries, handoffs, and stop decisions. Verify final postconditions in the affected system. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Build evaluations from representative success, boundary, adversarial, and recovery cases. Measure task completion, policy compliance, tool accuracy, duplicate effects, unnecessary steps, latency, cost, escalation quality, and whether the evidence supports the agent's claimed result. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "A plausible final answer can hide unsafe or wasteful steps. Review the trajectory: tool selection, targets, arguments, state changes, approvals, retries, handoffs, and stop decisions. Verify final postconditions in the affected system.",
+        "Build evaluations from representative success, boundary, adversarial, and recovery cases. Measure task completion, policy compliance, tool accuracy, duplicate effects, unnecessary steps, latency, cost, escalation quality, and whether the evidence supports the agent's claimed result."
       ]
     },
     {
       "id": "agents-recover",
       "title": "Stop and recover from drift or partial execution",
       "paragraphs": [
-        "Bounded agents stop on achieved goals, denied authority, invalid state, repeated non-progress, exceeded budgets, unsafe requests, uncertain outcomes, or failed checks. Continuing is not success when the loop has lost a reliable path to the goal. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Persist a resumable checkpoint without secrets, reconcile real side effects, and classify completed, failed, unknown, and unattempted steps. Resume only from verified state. Compensate, roll back, disable a tool, or transfer control when recovery requires different authority. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "Bounded agents stop on achieved goals, denied authority, invalid state, repeated non-progress, exceeded budgets, unsafe requests, uncertain outcomes, or failed checks. Continuing is not success when the loop has lost a reliable path to the goal.",
+        "Persist a resumable checkpoint without secrets, reconcile real side effects, and classify completed, failed, unknown, and unattempted steps. Resume only from verified state. Compensate, roll back, disable a tool, or transfer control when recovery requires different authority."
       ]
     },
     {
       "id": "agents-safety",
       "title": "Enforce guardrails outside the model",
       "paragraphs": [
-        "Use scoped credentials, tool allowlists, typed validation, exact-target approval, data minimization, content and policy checks, rate and cost limits, sandboxing, audit records, postcondition verification, and human handoffs. Treat retrieved content and inter-agent messages as untrusted data. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Layer guardrails because no single prompt, classifier, model, or reviewer covers every failure. Test bypass attempts and fail closed when identity, target, permission, or outcome is uncertain. Guardrails should make safe completion easier while stopping consequences outside the run contract. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "Use scoped credentials, tool allowlists, typed validation, exact-target approval, data minimization, content and policy checks, rate and cost limits, sandboxing, audit records, postcondition verification, and human handoffs. Treat retrieved content and inter-agent messages as untrusted data.",
+        "Layer guardrails because no single prompt, classifier, model, or reviewer covers every failure. Test bypass attempts and fail closed when identity, target, permission, or outcome is uncertain. Guardrails should make safe completion easier while stopping consequences outside the run contract."
       ],
       "callout": "The model can recommend a safeguard; the surrounding system must enforce it."
     }

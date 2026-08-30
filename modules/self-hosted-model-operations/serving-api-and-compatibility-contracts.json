@@ -24,66 +24,41 @@
       "title": "Separate runtime, server, gateway, and application contracts",
       "paragraphs": [
         "The model runtime loads and executes the artifact. An inference server turns runtime operations into a network protocol. A gateway can enforce identity, authorization, limits, routing, policy, audit, and stable external names. An application adapter maps product-owned requests and outcomes to the selected serving protocol. Keep these layers explicit so a runtime replacement does not silently rewrite policy or learner-facing behavior.",
-        "Bind the served model name to the immutable model and runtime bundle behind it. A friendly alias can support controlled replacement, but responses, telemetry, evaluation, and rollback evidence must retain the exact underlying identity. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ],
-      "code": {
-        "language": "json",
-        "label": "Separate runtime, server, gateway, and application contracts (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+        "Bind the served model name to the immutable model and runtime bundle behind it. A friendly alias can support controlled replacement, but responses, telemetry, evaluation, and rollback evidence must retain the exact underlying identity."
+      ]
     },
     {
       "id": "define-health-and-identity",
       "title": "Define liveness, readiness, and model identity separately",
       "paragraphs": [
-        "Liveness asks whether the server process can respond and should not require every downstream dependency to be healthy. Readiness asks whether this instance should receive inference traffic. Model readiness confirms that the intended model and version are loaded and able to serve. Model metadata should identify the served contract without exposing secrets, internal paths, or unnecessary infrastructure details. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "KServe's Open Inference Protocol V2 defines distinct server liveness, server readiness, model readiness, model metadata, and inference endpoints. Whether using that protocol or another, test transition behavior during startup, load, unload, pressure, failed dependencies, update, and rollback. A process that returns HTTP 200 while the wrong model is loaded is not ready. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ],
-      "code": {
-        "language": "json",
-        "label": "Define liveness, readiness, and model identity separately (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+        "Liveness asks whether the server process can respond and should not require every downstream dependency to be healthy. Readiness asks whether this instance should receive inference traffic. Model readiness confirms that the intended model and version are loaded and able to serve. Model metadata should identify the served contract without exposing secrets, internal paths, or unnecessary infrastructure details.",
+        "KServe's Open Inference Protocol V2 defines distinct server liveness, server readiness, model readiness, model metadata, and inference endpoints. Whether using that protocol or another, test transition behavior during startup, load, unload, pressure, failed dependencies, update, and rollback. A process that returns HTTP 200 while the wrong model is loaded is not ready."
+      ]
     },
     {
       "id": "own-inference-contract",
       "title": "Own the inference and failure contract",
       "paragraphs": [
-        "Version the allowed request fields, roles or input parts, modalities, encoding, context and output limits, sampling controls, stop rules, tools if any, response schema, model identity, usage accounting, finish reasons, safety or policy outcomes, and extension fields. Reject unsupported or ambiguous inputs instead of silently ignoring them. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Define authentication and authorization outside model prompts. Specify request identifiers, idempotency expectations, maximum body size, timeouts, cancellation, streaming event order, disconnect behavior, queue and rate limits, overload responses, retryability, error codes, observability identifiers, and redaction. Bound retries so one overloaded request does not multiply load. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ],
-      "code": {
-        "language": "json",
-        "label": "Own the inference and failure contract (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+        "Version the allowed request fields, roles or input parts, modalities, encoding, context and output limits, sampling controls, stop rules, tools if any, response schema, model identity, usage accounting, finish reasons, safety or policy outcomes, and extension fields. Reject unsupported or ambiguous inputs instead of silently ignoring them.",
+        "Define authentication and authorization outside model prompts. Specify request identifiers, idempotency expectations, maximum body size, timeouts, cancellation, streaming event order, disconnect behavior, queue and rate limits, overload responses, retryability, error codes, observability identifiers, and redaction. Bound retries so one overloaded request does not multiply load."
+      ]
     },
     {
       "id": "test-compatibility-subset",
       "title": "Treat compatibility as a tested subset",
       "paragraphs": [
-        "An OpenAI-compatible server may implement selected paths and fields while differing in model discovery, roles, tools, structured output, streaming chunks, token accounting, errors, limits, extensions, or unsupported parameters. vLLM documents an OpenAI-compatible server, but application compatibility still depends on the exact version, endpoint, model, configuration, and features used. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Write a conformance matrix for the application-owned subset. Include positive, boundary, invalid, unauthorized, overloaded, timeout, cancellation, streaming, and restart cases. Record required, transformed, ignored, emulated, rejected, and unavailable behavior. Never infer full protocol or behavioral equivalence from one successful chat request. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "An OpenAI-compatible server may implement selected paths and fields while differing in model discovery, roles, tools, structured output, streaming chunks, token accounting, errors, limits, extensions, or unsupported parameters. vLLM documents an OpenAI-compatible server, but application compatibility still depends on the exact version, endpoint, model, configuration, and features used.",
+        "Write a conformance matrix for the application-owned subset. Include positive, boundary, invalid, unauthorized, overloaded, timeout, cancellation, streaming, and restart cases. Record required, transformed, ignored, emulated, rejected, and unavailable behavior. Never infer full protocol or behavioral equivalence from one successful chat request."
       ],
-      "callout": "Compatible with a named subset is testable. Drop-in replacement without a versioned suite is an assumption.",
-      "code": {
-        "language": "json",
-        "label": "Treat compatibility as a tested subset (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+      "callout": "Compatible with a named subset is testable. Drop-in replacement without a versioned suite is an assumption."
     },
     {
       "id": "preserve-portable-adapter",
       "title": "Preserve a portable adapter and reversible cutover",
       "paragraphs": [
-        "Keep user outcomes, application schemas, authorization policy, evaluation cases, trace fields, postconditions, error categories, and recovery rules above the runtime adapter. Put protocol-specific field names, streaming events, tool formats, and server extensions behind the adapter. Avoid a lowest-common-denominator contract that hides capabilities or safety differences. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "For a runtime change, run the same conformance and evaluation suites against baseline and candidate, compare performance and failure behavior, canary a bounded route, preserve exact telemetry, and retain the last verified adapter and serving bundle. Roll back on critical contract, quality, security, latency, capacity, or observability regression. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ],
-      "code": {
-        "language": "json",
-        "label": "Preserve a portable adapter and reversible cutover (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
-      }
+        "Keep user outcomes, application schemas, authorization policy, evaluation cases, trace fields, postconditions, error categories, and recovery rules above the runtime adapter. Put protocol-specific field names, streaming events, tool formats, and server extensions behind the adapter. Avoid a lowest-common-denominator contract that hides capabilities or safety differences.",
+        "For a runtime change, run the same conformance and evaluation suites against baseline and candidate, compare performance and failure behavior, canary a bounded route, preserve exact telemetry, and retain the last verified adapter and serving bundle. Roll back on critical contract, quality, security, latency, capacity, or observability regression."
+      ]
     }
   ],
   "activity": {
