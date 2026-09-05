@@ -1,4 +1,4 @@
-# What AI Does-and Does Not Do
+# What AI Does—and Does Not Do
 
 Package: `what-ai-does-class` 1.0.0
 

@@ -1,4 +1,4 @@
-# What AI Does-and Does Not Do: text-only class
+# What AI Does—and Does Not Do: text-only class
 
 This route contains the complete teaching content, learner actions, feedback,
 and assessment handoff without requiring audio, video, or animation.

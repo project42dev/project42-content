@@ -1,4 +1,4 @@
-# What AI Does-and Does Not Do: reduced-motion presentation
+# What AI Does—and Does Not Do: reduced-motion presentation
 
 Present every visual as a complete static composition. Do not make completion
 depend on animation timing, autoplay, or pointer gestures.
