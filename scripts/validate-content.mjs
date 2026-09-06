@@ -65,6 +65,16 @@ export async function validateContentRepository(root = process.cwd()) {
   }
 
   const renderings = await validateInstructorRenderings(root, allModules, errors);
+  const resourceFiles = await findJsonFiles(resolve(root, 'resources'));
+  const allResources = await Promise.all(
+    resourceFiles.map(async (file) => ({
+      item: JSON.parse(await readFile(file, 'utf8')),
+      where: relative(root, file).split(sep).join('/'),
+    }))
+  );
+  for (const { module, where } of allModules) validateCurrencyShape(module, where, errors);
+  for (const { item, where } of allResources) validateCurrencyShape(item, where, errors);
+  for (const item of catalog.resources ?? []) validateCurrencyShape(item, 'catalog.json', errors);
 
   const diagramCatalogPath = resolve(root, 'diagrams/catalogue.json');
   const diagramCatalog = JSON.parse(await readFile(diagramCatalogPath, 'utf8'));
@@ -85,6 +95,46 @@ export async function validateContentRepository(root = process.cwd()) {
     instructorScriptCount: declared.length,
     instructorRenderingCount: renderings.length,
   };
+}
+
+// There is exactly one way for this repository to say nobody has reviewed
+// something: leave lastVerified out. A null, an empty string, or a free-text
+// placeholder is a malformed record, and freshness tooling cannot tell one
+// apart from a date it failed to parse -- which is exactly how an unverified
+// citation used to pass the platform's gate looking fresh. So the shape is
+// enforced here: a real YYYY-MM-DD calendar date, or absent. Nothing between.
+//
+// A recorded date must also be supportable. The only evidence this repository
+// can offer is its own history, so a date may not be in the future: nothing
+// can have been reviewed on a day that has not happened yet. That rule alone
+// would have caught the bulk bump this file's history now records, which set
+// 84 resources and 66 modules to 2026-08-23 in a commit authored 2026-08-22.
+export function validateCurrencyShape(item, where, errors, asOf = new Date()) {
+  const at = `${item.id ?? where} (${where})`;
+  const check = (value, label) => {
+    if (value === undefined) return;
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      errors.push(
+        `${at}: ${label} must be a YYYY-MM-DD date or absent, got ${JSON.stringify(value)}. ` +
+          'Absent is how an unreviewed item says so; null and placeholders are malformed.'
+      );
+      return;
+    }
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.valueOf()) || !parsed.toISOString().startsWith(value)) {
+      errors.push(`${at}: ${label} is not a real calendar date: ${value}`);
+      return;
+    }
+    if (parsed.valueOf() > asOf.valueOf()) {
+      errors.push(
+        `${at}: ${label} ${value} is in the future; a review cannot be dated after the day it happened`
+      );
+    }
+  };
+  check(item.lastVerified, 'lastVerified');
+  for (const source of item.sources ?? []) {
+    check(source.lastVerified, `source ${source.url ?? source.title} lastVerified`);
+  }
 }
 
 // Mirrors validateInstructorScript in project42-platform src/schema.ts. The
