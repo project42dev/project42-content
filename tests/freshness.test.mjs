@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -157,10 +157,27 @@ test('the gate fails on stale and reports-without-failing on unverified', async 
   }
 });
 
-// Guards the correction in this commit's history: nothing in the shipped
-// curriculum may carry a review date later than the day it could have happened,
-// and nothing may carry the 2026-08-23 stamp the bulk bump wrote a day early.
-test('the shipped curriculum records no future or bulk-bumped review date', async () => {
+async function findJson(target) {
+  const { stat, readdir } = await import('node:fs/promises');
+  let info;
+  try {
+    info = await stat(target);
+  } catch {
+    return [];
+  }
+  if (info.isFile()) return target.endsWith('.json') ? [target] : [];
+  const found = [];
+  for (const entry of await readdir(target, { withFileTypes: true })) {
+    found.push(...(await findJson(resolve(target, entry.name))));
+  }
+  return found;
+}
+
+// Guards the correction this repository's history now records: every review
+// claim resolves to a registered source, lands in exactly one of the four
+// states, and nothing carries the 2026-08-23 stamp the bulk bump wrote a day
+// before the date it set.
+test('every review claim in the shipped curriculum resolves and lands in one state', async () => {
   const root = resolve(import.meta.dirname, '..');
   const result = await checkFreshness(root, AS_OF);
   assert.equal(
@@ -169,6 +186,17 @@ test('the shipped curriculum records no future or bulk-bumped review date', asyn
     'every citation resolves to a registered source'
   );
   assert.ok(result.references > 700, 'the whole catalogue is covered, not a sample');
+
+  // The bulk bump wrote 2026-08-23 in a commit authored 2026-08-22. Not one
+  // record may carry that stamp again.
+  const bumped = [];
+  for (const dir of ['catalog.json', 'modules', 'resources', 'reference', 'resource-packs', 'training']) {
+    for (const file of await findJson(resolve(root, dir))) {
+      if ((await readFile(file, 'utf8')).includes('"lastVerified": "2026-08-23"')) bumped.push(file);
+    }
+  }
+  assert.deepEqual(bumped, [], 'no file carries the bulk-bumped review date');
+
   assert.ok(
     result.counts.current + result.counts['review-due'] + result.counts.stale + result.counts.unverified ===
       result.references,
