@@ -1,74 +1,317 @@
 {
   "id": "graph-rag-and-knowledge-graphs",
   "title": "GraphRAG & Multi-Hop Entity Reasoning",
-  "summary": "Extracting knowledge graphs for multi-document relational query synthesis.",
+  "summary": "How GraphRAG turns a corpus into an entity graph and a hierarchy of community summaries, which query mode -- global, local, DRIFT, or basic -- fits which question, why multi-hop answers depend on entity resolution, and what the index costs and how its reported gains were actually measured.",
   "level": "advanced",
+  "reviewCadenceDays": 60,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 45,
+  "estimatedMinutes": 50,
   "objectives": [
-    "Master the architectural principles and core mechanisms of GraphRAG & Multi-Hop Entity Reasoning.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Distinguish the question shapes baseline vector RAG handles poorly -- connecting facts through shared entities, and corpus-wide sensemaking -- from the ones it handles well.",
+    "Trace the GraphRAG indexing pipeline from text units through entity and relationship extraction, hierarchical Leiden community detection, and community reports, naming what each stage produces.",
+    "Choose among global, local, DRIFT, and basic search for a given question, justified by the context each mode assembles.",
+    "Identify where a graph index breaks multi-hop reasoning -- entity matching, chunk size, untuned prompts -- and design checks for each.",
+    "Critique a GraphRAG evaluation that uses an LLM judge, including the role of a control criterion and the limits of what was measured."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "where-baseline-rag-breaks",
+      "title": "Two question shapes baseline RAG handles poorly",
       "paragraphs": [
-        "Extracting knowledge graphs for multi-document relational query synthesis.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for GraphRAG & Multi-Hop Entity Reasoning.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "The GraphRAG project calls the common approach -- retrieve text snippets by vector similarity and put them in the prompt -- baseline RAG, and names two situations where it performs very poorly. First, it struggles to connect the dots: when an answer requires traversing disparate pieces of information through their shared attributes to produce a synthesized insight. Second, it performs poorly when asked to holistically understand summarized concepts over a large collection, or even over a single large document.",
+        "The GraphRAG paper (Edge et al.) sharpens the second case. A global question such as 'What are the main themes in the dataset?' is a query-focused summarization task rather than an explicit retrieval task, so there is no single passage for similarity search to find; and earlier query-focused summarization methods do not scale to the volume of text a RAG system indexes. The project's own documentation puts it bluntly: for a 'top 5 themes' question there is nothing in the query to direct vector search to the correct information.",
+        "The paper also names the risk this creates for decision-making: without a global method, questions of a global nature might otherwise be answered by samples of retrieved facts falsely presented as global summaries. That is a failure a user cannot see from the answer alone."
+      ],
+      "callout": "Top-k retrieval answers 'which passages look like this question?' A themes question, or an answer that needs two linked facts from two documents, is not answered by any one passage that looks like it."
+    },
+    {
+      "id": "building-the-graph-index",
+      "title": "Building the index: text units, entities, communities, reports",
+      "paragraphs": [
+        "Indexing starts by slicing the corpus into TextUnits. The default chunk size is 1,200 tokens and is configurable; the documentation notes that larger chunks give lower-fidelity output and less meaningful reference texts, but process much faster. TextUnits matter beyond extraction: extracted knowledge items reference the TextUnits they came from, which is what gives answers provenance back to the source text.",
+        "An LLM then reads each TextUnit and extracts entities (each with a title, type, and description) and relationships (each with a source, target, and description), producing one subgraph per TextUnit. Subgraphs are merged: entities with the same title and type become one node, relationships with the same source and target become one edge, and the LLM summarizes each node's and edge's accumulated descriptions into one. In the paper, the number of duplicate instances of a relationship becomes its edge weight. Claim extraction -- time-bounded factual statements stored as covariates -- is optional and off by default, because it generally needs prompt tuning to be useful.",
+        "The graph is then clustered with the hierarchical Leiden algorithm, applied recursively until communities reach a size threshold. The paper explains why a hierarchy helps: each level partitions the nodes in a mutually exclusive, collectively exhaustive way, which enables divide-and-conquer summarization. An LLM writes a report for every community -- a top-level community's report covers the whole graph, a lower-level one covers a local cluster -- and a final step embeds entity descriptions, text-unit text, and community-report text into a vector store."
+      ],
+      "code": {
+        "language": "text",
+        "label": "The default indexing dataflow, stage by stage",
+        "code": "Documents\n  -> TextUnits            chunk size default 1200 tokens; provenance anchor\n  -> extract_graph        entities      {title, type, description}\n                          relationships {source, target, description}\n  -> merge                same (title, type)    => one entity node\n                          same (source, target) => one relationship edge\n  -> summarize            LLM condenses each node's / edge's descriptions\n  -> extract_claims       optional, OFF by default -> Covariates\n  -> hierarchical Leiden  -> Communities at multiple levels\n  -> community reports    one LLM-written report per community\n  -> embeddings           entity descriptions, text units, community reports"
+      }
+    },
+    {
+      "id": "query-modes",
+      "title": "Four query modes, four kinds of context",
+      "paragraphs": [
+        "Global search answers holistic questions from community reports in a map-reduce pattern. In the map step, reports from a chosen level of the hierarchy are split into chunks, and each chunk produces an intermediate response: a list of points, each with a numerical importance rating. In the reduce step, the most important points are filtered, aggregated, and used as the context for the final answer. The documentation notes that the chosen level strongly affects quality: lower levels, with more detailed reports, tend to give more thorough answers but cost more time and LLM calls. An allow_general_knowledge option lets the model add knowledge from outside the dataset; it is off by default, and the documentation warns it may increase hallucinations.",
+        "Local search answers questions about specific entities. It identifies entities in the graph that are semantically related to the query and uses them as entry points, then pulls in connected entities, relationships, covariates, and community reports, plus the raw text chunks associated with those entities. The candidates are prioritized and filtered to fit a single context window of predefined size.",
+        "DRIFT search combines the two. It first compares the query with the top-K most semantically relevant community reports to produce a broad initial answer and follow-up questions, then uses local search to answer the follow-ups, and returns a hierarchy of questions and answers ranked by relevance. Basic search is plain top-k vector search, kept for the queries that are best answered by baseline RAG."
+      ],
+      "callout": "Routing is part of the design: a specific-entity question sent to global search pays for a map-reduce over reports it does not need; a themes question sent to local search sees only one neighbourhood of the graph."
+    },
+    {
+      "id": "multi-hop-and-entity-resolution",
+      "title": "Multi-hop answers live or die on entity resolution",
+      "paragraphs": [
+        "In a graph index, a reasoning hop is an edge. Local search can only reach a fact two relationships away from the query's entry entity if extraction linked both facts to the same nodes. That makes entity resolution -- deciding that two extracted names refer to the same thing -- the load-bearing step. The paper's analysis used exact string matching for entity matching, noting that softer matching approaches can be used with minor adjustments to prompts or code; the default dataflow merges entities that share the same title and type. A company extracted once as 'Quantum Systems' and once as 'Quantum Systems Inc.', or typed differently in two chunks, can end up as two nodes, and the path between them does not exist.",
+        "The paper observes that GraphRAG is generally resilient to duplicate entities because duplicates tend to be clustered together for summarization -- a mitigation that works at the community level. For an entity-anchored question, the only reliable check is to look for the specific edges the answer needs in the extracted relationship table.",
+        "Chunk size is the second lever. The paper reports that longer chunks need fewer LLM calls but degrade recall of information that appears early in a chunk; on a HotPotQA sample, GPT-4 extracted almost twice as many entity references from 600-token chunks as from 2,400-token chunks. Its countermeasure is self-reflection, or 'gleaning': the extracted entities are fed back and the model is asked whether any were missed, with follow-up extraction repeated up to a set maximum, which lets larger chunks be used without the drop in quality. The documentation adds that out-of-the-box prompts may not give the best results on your data and strongly recommends prompt tuning."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "cost-and-evaluation",
+      "title": "What the index costs, and what its reported gains measured",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
-      ]
+        "The index is expensive to build and must be rebuilt deliberately. The paper reports that indexing its roughly one-million-token podcast dataset with a 600-token window took 281 minutes on the virtual machine and gpt-4-turbo endpoint it describes. At query time, community summaries are the efficient path: compared with summarizing source text directly, root-level community summaries required over 97% fewer context tokens and low-level summaries 26 to 33% fewer. Operationally, the project advises re-running graphrag init with --force between minor version bumps, which overwrites configuration and prompts, so back them up.",
+        "The paper's evaluation is a head-to-head comparison scored by an LLM judge. The judge sees a question and two answers and picks a winner or a tie on comprehensiveness, diversity, and empowerment -- plus a control criterion, directness. Because directness is in tension with comprehensiveness and diversity, no method should win all four; the authors used it as a validity test, and it confirmed that vector RAG produced the most direct answers in every comparison. Each comparison was run with multiple replicates and averaged. On global sensemaking questions over two corpora of about one million tokens each, the global approaches significantly outperformed vector RAG on comprehensiveness and diversity.",
+        "Read those results for what they cover. They are about global sensemaking questions; the paper did not measure multi-hop question-answering accuracy, and the authors state that more work is needed to understand how performance generalizes to other domains and use cases. For your own deployment, evaluate on your own question classes, keep a control criterion the baseline should win, and treat a new system that wins every criterion as a sign the judge needs checking."
+      ],
+      "callout": "An evaluation with no criterion the baseline is expected to win cannot tell you whether the judge is working."
     }
   ],
   "activity": {
     "id": "graph-rag-and-knowledge-graphs-activity",
-    "title": "GraphRAG & Multi-Hop Entity Reasoning Hands-On Lab",
+    "title": "Route, audit, and judge a GraphRAG index",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Choose a corpus you know well -- a few dozen documents such as design records, public reports, or meeting notes -- and write eight questions: three corpus-wide theme questions, three specific-entity questions whose answers need two linked facts (A relates to B, B relates to C), and two single-fact lookups.",
+      "For each question, choose global, local, DRIFT, or basic search and write one sentence describing the context that mode would assemble for it.",
+      "Index the corpus (or inspect an existing index). For each two-hop question, list the entities and relationships the answer depends on, then check the extracted entity and relationship tables for every hop. Record any hop that is missing and the name or type variants responsible.",
+      "For the three theme questions, compare a GraphRAG answer with a basic-search answer using an LLM judge on comprehensiveness, diversity, and directness, running each comparison several times and averaging, as the GraphRAG evaluation did."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A routing table: question, question class, chosen mode, and the one-sentence justification.",
+      "An entity-resolution audit for each two-hop question naming every missing hop and the variant names or types that caused it, or confirming all hops are present.",
+      "A judgment table with per-criterion results and a note on whether the directness control behaved as expected."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "If you could afford to rebuild your index only once, which setting -- chunk size, gleaning iterations, or entity-matching strictness -- would you spend that rebuild on, and which of your eight questions drove the choice?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-graph-rag-and-knowledge-graphs-1",
-        "prompt": "What is the primary architectural goal of GraphRAG & Multi-Hop Entity Reasoning?",
+        "prompt": "A user asks, 'What are the main themes across these 5,000 incident reports?' Which GraphRAG query mode is designed for this question?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "Basic search, because vector similarity finds the most representative report",
+          "Global search, which map-reduces over community reports",
+          "Local search, starting from the entity 'incident'",
+          "None; GraphRAG cannot answer corpus-wide questions"
         ],
-        "answerIndex": 0,
-        "explanation": "GraphRAG & Multi-Hop Entity Reasoning enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 1,
+        "explanation": "Global search uses LLM-generated community reports from a chosen hierarchy level as context in a map-reduce process, which is what corpus-wide theme questions need; the documentation notes there is nothing in such a query to direct plain vector search."
+      },
+      {
+        "id": "q-graph-rag-and-knowledge-graphs-2",
+        "prompt": "In GraphRAG's default indexing dataflow, when are two extracted entities merged into one node?",
+        "choices": [
+          "When their embeddings exceed a cosine-similarity threshold",
+          "When they share the same title and type",
+          "When they appear in the same TextUnit",
+          "Never; every extraction becomes its own node"
+        ],
+        "answerIndex": 1,
+        "explanation": "The dataflow merges entities with the same title and type, and the paper's analysis used exact string matching for entity matching, so name or type variants can split one real-world entity into two nodes and break a multi-hop path."
+      },
+      {
+        "id": "q-graph-rag-and-knowledge-graphs-3",
+        "prompt": "The GraphRAG paper found that larger chunks extracted fewer entity references. What technique did it use to allow larger chunks without that loss?",
+        "choices": [
+          "Doubling the embedding dimension",
+          "Self-reflection ('gleaning'): prompting the model to check for and extract missed entities, repeated up to a maximum",
+          "Switching entity extraction to exact keyword matching",
+          "Skipping community detection"
+        ],
+        "answerIndex": 1,
+        "explanation": "After an extraction pass, the extracted entities are fed back and the model is asked whether any were missed; follow-up extraction runs up to a set number of times, which the paper reports allows larger chunks without a drop in quality."
+      },
+      {
+        "id": "q-graph-rag-and-knowledge-graphs-4",
+        "prompt": "Why did the GraphRAG evaluation include 'directness' as a criterion?",
+        "choices": [
+          "It was the primary measure of multi-hop accuracy",
+          "As a control: directness is in tension with comprehensiveness and diversity, so the baseline was expected to win it, which checks that the judge is working",
+          "Because GraphRAG was expected to win all four criteria",
+          "To measure token cost"
+        ],
+        "answerIndex": 1,
+        "explanation": "The authors describe directness as a control criterion and validity test; vector RAG produced the most direct answers across all comparisons, as expected."
+      },
+      {
+        "id": "q-graph-rag-and-knowledge-graphs-5",
+        "prompt": "How does GraphRAG local search assemble the context for a question about a specific entity?",
+        "choices": [
+          "It map-reduces over every community report at the root level",
+          "It uses semantically related entities as entry points, then gathers connected entities, relationships, covariates, community reports, and associated text chunks, prioritized to fit one context window",
+          "It returns the top-k text chunks by vector similarity only",
+          "It generates follow-up questions from the top-K community reports"
+        ],
+        "answerIndex": 1,
+        "explanation": "Local search fans out from entry entities to their neighbours and associated data and filters the candidates to a predefined context size; generating follow-up questions from community reports is DRIFT's primer step."
+      },
+      {
+        "id": "q-graph-rag-and-knowledge-graphs-6",
+        "prompt": "Which statement about the GraphRAG paper's reported gains is accurate?",
+        "choices": [
+          "They show GraphRAG improves multi-hop question-answering accuracy on every dataset",
+          "They are head-to-head LLM-judged wins on global sensemaking questions over two roughly one-million-token corpora, and the authors say generalization to other domains needs more work",
+          "They were measured with exact-match accuracy against gold answers",
+          "They show vector RAG loses on every criterion, including directness"
+        ],
+        "answerIndex": 1,
+        "explanation": "The evaluation targeted global sensemaking questions on two corpora of about one million tokens each; it did not measure multi-hop QA accuracy, vector RAG won directness, and the authors flag generalization as future work."
       }
     ]
   },
   "sources": [
     {
-      "title": "Create AI knowledge graphs using Azure Cosmos DB with retrieval-augmented generation",
-      "url": "https://learn.microsoft.com/azure/cosmos-db/gen-ai/cosmos-ai-graph",
+      "title": "From Local to Global: A Graph RAG Approach to Query-Focused Summarization",
+      "url": "https://arxiv.org/abs/2404.16130",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GraphRAG documentation: Welcome",
+      "url": "https://microsoft.github.io/graphrag/",
       "publisher": "Microsoft",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GraphRAG indexing dataflow",
+      "url": "https://microsoft.github.io/graphrag/index/default_dataflow/",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GraphRAG global search",
+      "url": "https://microsoft.github.io/graphrag/query/global_search/",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GraphRAG local search",
+      "url": "https://microsoft.github.io/graphrag/query/local_search/",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GraphRAG DRIFT search",
+      "url": "https://microsoft.github.io/graphrag/query/drift_search/",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 3000,
+    "cues": [
+      {
+        "id": "cue-graphrag-baseline-narration",
+        "kind": "narration",
+        "sectionId": "where-baseline-rag-breaks",
+        "text": "Baseline RAG retrieves passages that look like the question. It struggles when the answer needs facts linked across documents, or a summary of the whole corpus that no single passage contains."
+      },
+      {
+        "id": "cue-graphrag-baseline-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "where-baseline-rag-breaks",
+        "text": "Ask learners for one question from their own work that no single document answers, and whether it is a linked-facts question or a whole-corpus question."
+      },
+      {
+        "id": "cue-graphrag-index-narration",
+        "kind": "narration",
+        "sectionId": "building-the-graph-index",
+        "text": "Indexing chunks the corpus into text units, extracts entities and relationships, merges them into a graph, clusters it into a hierarchy of communities, and writes a report for each community."
+      },
+      {
+        "id": "cue-graphrag-index-visual",
+        "kind": "visual",
+        "sectionId": "building-the-graph-index",
+        "text": "Show the indexing dataflow as a pipeline: text units feeding per-chunk subgraphs, subgraphs merging into one graph, the graph splitting into nested communities, and each community producing a report.",
+        "accessibilityAlternative": "A static numbered list describes each indexing stage in order -- text units, extraction, merge, description summarization, optional claims, hierarchical Leiden communities, community reports, embeddings -- with the artifact each stage outputs. Reduced-motion mode shows the list without animation."
+      },
+      {
+        "id": "cue-graphrag-modes-narration",
+        "kind": "narration",
+        "sectionId": "query-modes",
+        "text": "Global search map-reduces over community reports for whole-corpus questions; local search fans out from matching entities; DRIFT starts global and refines locally; basic search is plain vector retrieval."
+      },
+      {
+        "id": "cue-graphrag-modes-pause",
+        "kind": "pause",
+        "sectionId": "query-modes",
+        "text": "Allow three minutes for learners to route four sample questions to a query mode and write down why."
+      },
+      {
+        "id": "cue-graphrag-entities-narration",
+        "kind": "narration",
+        "sectionId": "multi-hop-and-entity-resolution",
+        "text": "A reasoning hop is an edge in the graph. If extraction records one entity under two names or two types, the edge between facts never exists, and no query mode can traverse it."
+      },
+      {
+        "id": "cue-graphrag-entities-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "multi-hop-and-entity-resolution",
+        "text": "Check that learners can explain how exact title-and-type merging can break a two-hop answer, and name the table they would inspect to confirm it."
+      },
+      {
+        "id": "cue-graphrag-eval-narration",
+        "kind": "narration",
+        "sectionId": "cost-and-evaluation",
+        "text": "The paper's gains are judged wins on whole-corpus sensemaking questions, checked with a directness control the baseline should win. They are not a measurement of multi-hop accuracy."
+      },
+      {
+        "id": "cue-graphrag-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the routing table, the entity-resolution audit of every two-hop question, and the judged comparison with its directness control."
+      },
+      {
+        "id": "cue-graphrag-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can route a question to a query mode and explain how entity merging decides whether a multi-hop path exists."
+      }
+    ],
+    "transcript": "Baseline RAG retrieves passages that look like the question. It struggles when the answer needs facts linked across documents, or a summary of the whole corpus that no single passage contains. Indexing chunks the corpus into text units, extracts entities and relationships, merges them into a graph, clusters it into a hierarchy of communities, and writes a report for each community. Global search map-reduces over community reports for whole-corpus questions; local search fans out from matching entities; DRIFT starts global and refines locally; basic search is plain vector retrieval. A reasoning hop is an edge in the graph. If extraction records one entity under two names or two types, the edge between facts never exists, and no query mode can traverse it. The paper's gains are judged wins on whole-corpus sensemaking questions, checked with a directness control the baseline should win. They are not a measurement of multi-hop accuracy.",
+    "captions": [
+      {
+        "cueId": "cue-graphrag-baseline-narration",
+        "startSeconds": 0,
+        "endSeconds": 510,
+        "text": "Baseline RAG retrieves passages that look like the question. It struggles when the answer needs facts linked across documents, or a summary of the whole corpus that no single passage contains."
+      },
+      {
+        "cueId": "cue-graphrag-index-narration",
+        "startSeconds": 540,
+        "endSeconds": 1050,
+        "text": "Indexing chunks the corpus into text units, extracts entities and relationships, merges them into a graph, clusters it into a hierarchy of communities, and writes a report for each community."
+      },
+      {
+        "cueId": "cue-graphrag-modes-narration",
+        "startSeconds": 1080,
+        "endSeconds": 1590,
+        "text": "Global search map-reduces over community reports for whole-corpus questions; local search fans out from matching entities; DRIFT starts global and refines locally; basic search is plain vector retrieval."
+      },
+      {
+        "cueId": "cue-graphrag-entities-narration",
+        "startSeconds": 1620,
+        "endSeconds": 2130,
+        "text": "A reasoning hop is an edge in the graph. If extraction records one entity under two names or two types, the edge between facts never exists, and no query mode can traverse it."
+      },
+      {
+        "cueId": "cue-graphrag-eval-narration",
+        "startSeconds": 2160,
+        "endSeconds": 2670,
+        "text": "The paper's gains are judged wins on whole-corpus sensemaking questions, checked with a directness control the baseline should win. They are not a measurement of multi-hop accuracy."
+      },
+      {
+        "cueId": "cue-graphrag-assessment",
+        "startSeconds": 2700,
+        "endSeconds": 3000,
+        "text": "Begin the check once learners can route a question to a query mode and explain how entity merging decides whether a multi-hop path exists."
+      }
+    ],
+    "reducedMotionAlternative": "Present the indexing dataflow, the query-mode comparison, and the entity-resolution example as static tables and lists with focus-based highlighting instead of animated sequences."
+  }
 }

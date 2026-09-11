@@ -1,74 +1,316 @@
 {
   "id": "lora-qlora-fine-tuning",
   "title": "Instruction Fine-Tuning with LoRA & QLoRA",
-  "summary": "Low-rank adapters, 4-bit quantization, parameter-efficient fine-tuning, and loss curves.",
+  "summary": "How LoRA's low-rank update and QLoRA's 4-bit storage change what fine-tuning costs, which choices the evidence says actually matter -- adapter placement, loss masking, dataset suitability -- and how to ship adapters merged or swappable without losing track of the base model they depend on.",
   "level": "advanced",
+  "reviewCadenceDays": 60,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
   "estimatedMinutes": 50,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Instruction Fine-Tuning with LoRA & QLoRA.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Explain LoRA's reparameterization -- a frozen weight matrix plus a trainable low-rank update scaled by alpha over r -- and why a merged adapter adds no inference latency.",
+    "Explain QLoRA's split between a 4-bit storage data type and a 16-bit computation data type, and what NF4, double quantization, and paged optimizers each contribute.",
+    "Choose adapter placement, rank, and alpha from the evidence reported in the LoRA and QLoRA papers rather than from habit.",
+    "Configure instruction-tuning loss masking and chat templates so the model is trained on responses rather than prompts.",
+    "Decide whether to merge an adapter or serve it separately, given batching, task-switching, and quantization-backend constraints."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "low-rank-update",
+      "title": "The low-rank update: freeze W0, train BA",
       "paragraphs": [
-        "Low-rank adapters, 4-bit quantization, parameter-efficient fine-tuning, and loss curves.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Instruction Fine-Tuning with LoRA & QLoRA.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
-      ]
+        "Full fine-tuning retrains every parameter, and the LoRA paper (Hu et al.) uses GPT-3 175B to show why that stops scaling: deploying an independent fine-tuned instance per task, each with 175B parameters, is prohibitively expensive. LoRA freezes the pre-trained weights and injects trainable rank-decomposition matrices into the Transformer's layers. The motivating hypothesis is that the change in weights during adaptation has a low 'intrinsic rank', so it can be represented by two small matrices instead of a full-size update.",
+        "Concretely, for a frozen weight matrix W0 the forward pass becomes h = W0x + BAx, where B and A are the only trained parameters. The paper initializes A with random Gaussian values and B with zeros, so the update BA is zero at the start and training begins exactly at the base model's behaviour. The update is scaled by alpha / r; the authors set alpha to the first r they tried and did not tune it, because the scaling reduces the need to retune hyperparameters when r changes. Hugging Face PEFT's default, which it describes as matching the reference implementation, initializes A with Kaiming-uniform values rather than the Gaussian described in the paper's text (B is still zero); a Gaussian option is available, and use_rslora=True switches the scale to alpha / sqrt(r).",
+        "The paper reports that, against GPT-3 175B fine-tuned with Adam, LoRA reduced trainable parameters by 10,000 times and GPU memory by 3 times, while performing on par with or better than full fine-tuning on RoBERTa, DeBERTa, GPT-2, and GPT-3. Those are the paper's measurements on its tasks -- a reason to try LoRA, not a guarantee for yours."
+      ],
+      "callout": "Because B starts at zero, a LoRA run that has not learned anything yet is the base model. Any behaviour change you see is, by construction, the adapter."
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "where-adapters-go",
+      "title": "Where adapters go matters more than how big they are",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "The LoRA paper limited its study to attention weights and froze the MLP modules for simplicity. Under a fixed parameter budget on GPT-3, adapting both the query and value projections gave the best overall performance, putting the whole budget into the query or key projection alone was significantly worse, and a rank as small as 1 was enough for query-plus-value on WikiSQL and MultiNLI while adapting the query projection alone needed a larger rank. The authors conclude that it is preferable to adapt more weight matrices than to adapt a single type of weight with a larger rank.",
+        "The QLoRA paper (Dettmers et al.) reached a compatible conclusion on instruction tuning with a different model family. For LLaMA 7B on Alpaca, it found the most critical LoRA hyperparameter was how many adapters are used in total: LoRA on all linear transformer-block layers was required to match full fine-tuning performance, while other hyperparameters such as the rank r did not affect performance. Its reported settings were r = 64, alpha = 16, with adapters on all linear layers.",
+        "The PEFT conceptual guide still describes applying LoRA to attention blocks only as the typical choice, while the QLoRA-style recipe in PEFT's quantization guide sets target_modules to 'all-linear'. The shared lesson from both papers is that spreading adapters across more of the model's matrices mattered more than raising the rank on a few of them. Treat that as the first hypothesis to test on your task, not as a setting to copy."
+      ],
+      "code": {
+        "language": "python",
+        "label": "A LoRA configuration using the QLoRA paper's reported settings",
+        "code": "from peft import LoraConfig, get_peft_model\n\nconfig = LoraConfig(\n    r=64,                        # QLoRA paper setting\n    lora_alpha=16,               # scale = lora_alpha / r = 0.25\n    lora_dropout=0.1,            # paper: 0.1 up to 13B, 0.05 for 33B/65B\n    target_modules=\"all-linear\", # adapters on every linear layer\n    bias=\"none\",\n)\nmodel = get_peft_model(base_model, config)"
+      }
+    },
+    {
+      "id": "qlora-memory",
+      "title": "QLoRA: 4-bit storage, 16-bit computation",
+      "paragraphs": [
+        "QLoRA backpropagates gradients through a frozen, 4-bit quantized model into LoRA adapters, and the paper reports that this cut memory enough to fine-tune a 65B-parameter model on a single 48 GB GPU while preserving full 16-bit fine-tuning task performance. The mechanism is a split between data types: weights are stored in a low-precision storage type, usually 4-bit NormalFloat (NF4), and dequantized to a computation type, usually BFloat16, whenever they are used in a matrix multiplication. Weight gradients are computed only for the LoRA parameters.",
+        "Three techniques carry the memory savings. NF4 is a 4-bit data type the paper describes as information-theoretically optimal for normally distributed weights; in its experiments NF4 with double quantization matched 16-bit LoRA on MMLU, while 4-bit float lagged by about one percentage point. Double quantization quantizes the quantization constants themselves: at a block size of 64, it reduces their overhead from 0.5 bits per parameter to about 0.127, a saving of roughly 0.373 bits per parameter. Paged optimizers use NVIDIA unified memory to evict optimizer state to CPU RAM when the GPU runs out of memory and page it back for the update step, so that memory spikes during gradient checkpointing do not cause out-of-memory errors.",
+        "In PEFT, the QLoRA recipe is a BitsAndBytesConfig with load_in_4bit, the nf4 quant type, double quantization, and a bfloat16 compute dtype, followed by prepare_model_for_kbit_training before the adapter is attached. PEFT also offers LoftQ initialization, which starts the LoRA weights so as to minimize quantization error; it requires loading the base model unquantized for initialization, and PEFT recommends targeting as many layers as possible when using it."
+      ],
+      "code": {
+        "language": "python",
+        "label": "Loading a base model for QLoRA-style training with PEFT",
+        "code": "import torch\nfrom transformers import AutoModelForCausalLM, BitsAndBytesConfig\nfrom peft import prepare_model_for_kbit_training\n\nbnb_config = BitsAndBytesConfig(\n    load_in_4bit=True,\n    bnb_4bit_quant_type=\"nf4\",              # storage data type\n    bnb_4bit_use_double_quant=True,         # quantize the quantization constants\n    bnb_4bit_compute_dtype=torch.bfloat16,  # computation data type\n)\nmodel = AutoModelForCausalLM.from_pretrained(MODEL_ID, quantization_config=bnb_config)\nmodel = prepare_model_for_kbit_training(model)\n# then attach the LoraConfig from the previous section with get_peft_model"
+      }
+    },
+    {
+      "id": "instruction-data-and-loss",
+      "title": "Instruction data: train on the response, not the prompt",
+      "paragraphs": [
+        "Supervised fine-tuning minimizes the negative log-likelihood of target tokens, and the practical question is which tokens count as targets. In Hugging Face TRL's SFTTrainer, a prompt-completion dataset computes loss on the completion tokens only by default (completion_only_loss); a conversational dataset can be restricted to assistant turns with assistant_only_loss=True, which needs a chat template containing generation markers -- TRL patches the template automatically for known model families. Padding tokens are always excluded through an ignore index. For conversational data the trainer applies the chat template itself; for base models that already ship a chat template, TRL notes the EOS token must be aligned with that template so responses terminate correctly.",
+        "The QLoRA paper provides evidence for masking. Across four instruction datasets with a 7B model and 52,000 examples, training only on the target response was beneficial to MMLU compared with also training on the instruction; the authors note they did not measure the effect on chatbot benchmarks. The same paper found dataset suitability mattered more than dataset size: growing a dataset or training for more epochs moved MMLU only marginally, while the differences between datasets were far larger. It also observed that benchmark results likely depend on how similar the fine-tuning data is to the benchmark -- FLAN v2 did well on MMLU and worst on the Vicuna chatbot benchmark.",
+        "TRL logs loss, mean_token_accuracy, entropy, and grad_norm during training, and notes that adapter training typically uses a higher learning rate (around 1e-4) because only the new parameters are being learned. A falling training loss tells you the model is fitting your targets. Whether that is the behaviour you wanted is a question only a held-out evaluation from your target task can answer."
+      ],
+      "callout": "Your dataset chooses what the model learns; the loss mask chooses which of its tokens are allowed to teach. Get both wrong and a clean loss curve still describes the wrong model."
+    },
+    {
+      "id": "shipping-adapters",
+      "title": "Shipping: merge, swap, or keep separate",
+      "paragraphs": [
+        "LoRA's linear form allows the update to be folded into the base weights for deployment -- W = W0 + BA -- so a merged model runs with no additional inference latency, which the paper contrasts with adapter layers. Switching tasks means subtracting BA and adding a different B'A', a quick operation with little memory overhead. The paper's storage example is stark: with r = 4 on only the query and value projections, the GPT-3 checkpoint shrank from about 350 GB to 35 MB, which is what makes keeping many task adapters around a single base model practical.",
+        "Merging has a cost the paper names directly: once A and B are absorbed into W, it is no longer straightforward to batch inputs for different tasks, each needing different A and B, in one forward pass. Leaving adapters unmerged and choosing them per sample remains possible where latency is not critical. PEFT exposes both paths: merge_and_unload() produces a standalone merged model, merge_adapter() and unmerge_adapter() toggle merging while keeping the PeftModel, unload() recovers the base model, and add_weighted_adapter() combines several LoRAs into a new one.",
+        "The quantization backend can decide for you. PEFT documents that adapters trained on AQLM-quantized models must be saved separately because merging with AQLM weights is not possible, and that merge() and unmerge() are not supported for INC-quantized models. Before promising a merged artifact, confirm the backend supports it -- and in every case record the exact base model and quantization configuration alongside the adapter, because an adapter is an update to one specific set of frozen weights."
       ]
     }
   ],
   "activity": {
     "id": "lora-qlora-fine-tuning-activity",
-    "title": "Instruction Fine-Tuning with LoRA & QLoRA Hands-On Lab",
+    "title": "Run a QLoRA experiment you can defend",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Choose a small open base model and an instruction dataset of a few thousand examples in prompt-completion or conversational format. Record the base model identifier and its exact revision.",
+      "Configure 4-bit NF4 storage with double quantization and a bfloat16 compute dtype, and a LoRA adapter on all linear layers. Record r, alpha, and the resulting scale.",
+      "Train two variants that differ in exactly one factor: either loss masking on (completion-only or assistant-only) versus off, or adapters on attention projections only versus all linear layers.",
+      "Evaluate both variants on a held-out set drawn from your target task, plus a small general-capability check, and keep the training-loss, mean-token-accuracy, and grad-norm curves for both runs.",
+      "Decide whether to deploy each adapter merged or separately, based on how you expect to serve it: one task per endpoint, many tasks sharing one base model, or a quantization backend that constrains merging."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A configuration record: base model and revision, quantization settings, LoRA r, alpha, and target modules, loss-masking setting, and learning rate.",
+      "Training curves for both variants with a note on where, if anywhere, they diverge.",
+      "A held-out comparison table and a one-paragraph merge-or-separate decision naming the serving constraint that drove it."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "One of your two variants probably reached a lower training loss. What evidence convinced you whether it is actually the better model, and what about your held-out data could have reversed that answer?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-lora-qlora-fine-tuning-1",
-        "prompt": "What is the primary architectural goal of Instruction Fine-Tuning with LoRA & QLoRA?",
+        "prompt": "Why does a freshly initialized LoRA adapter leave the model's behaviour exactly equal to the base model's?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "Because A is initialized to the identity matrix",
+          "Because B is initialized to zero, so the update BA is zero at the start of training",
+          "Because the base weights are copied into A and B",
+          "Because alpha is set to zero until training starts"
         ],
-        "answerIndex": 0,
-        "explanation": "Instruction Fine-Tuning with LoRA & QLoRA enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 1,
+        "explanation": "The LoRA paper initializes A randomly and B to zero, so the update BA starts at zero; PEFT's default also initializes B to zero, producing an identity transform."
+      },
+      {
+        "id": "q-lora-qlora-fine-tuning-2",
+        "prompt": "In QLoRA, which statement correctly describes the data types used?",
+        "choices": [
+          "All weights and gradients are kept in 4-bit precision throughout training",
+          "Weights are stored in 4-bit NF4 and dequantized to BFloat16 for computation; weight gradients are computed only for the LoRA parameters",
+          "Weights are stored in BFloat16 and computed in 4-bit",
+          "Only the LoRA adapters are quantized to 4-bit"
+        ],
+        "answerIndex": 1,
+        "explanation": "QLoRA uses one storage data type (usually 4-bit NormalFloat) and one computation data type (usually BFloat16), dequantizing for each forward and backward pass while computing weight gradients only for the adapters."
+      },
+      {
+        "id": "q-lora-qlora-fine-tuning-3",
+        "prompt": "According to the QLoRA paper's LLaMA 7B experiments, which LoRA choice was most critical to matching full fine-tuning performance?",
+        "choices": [
+          "Using the largest possible rank r",
+          "Applying LoRA to all linear transformer-block layers, which sets how many adapters are used in total",
+          "Tuning alpha independently for every layer",
+          "Adapting only the query projection"
+        ],
+        "answerIndex": 1,
+        "explanation": "The paper reports that the total number of adapters was the most critical hyperparameter and that LoRA on all linear layers was required to match full fine-tuning, while r did not affect performance in that setting."
+      },
+      {
+        "id": "q-lora-qlora-fine-tuning-4",
+        "prompt": "You train TRL's SFTTrainer on a prompt-completion dataset without changing any loss settings. Which tokens contribute to the loss?",
+        "choices": [
+          "Every token, prompt and completion alike",
+          "Only the completion tokens, because completion_only_loss is the default for prompt-completion data",
+          "Only the prompt tokens",
+          "Only the final token of each example"
+        ],
+        "answerIndex": 1,
+        "explanation": "For prompt-completion datasets TRL computes the loss on completion tokens by default; set completion_only_loss=False to train on the full sequence. Padding is always excluded."
+      },
+      {
+        "id": "q-lora-qlora-fine-tuning-5",
+        "prompt": "You serve twenty task-specific adapters from one base model, and a single batch mixes requests for different tasks. Why is merging each adapter into the base weights a poor fit?",
+        "choices": [
+          "Merged adapters add inference latency",
+          "Once A and B are absorbed into W, batching inputs that need different adapters in one forward pass is no longer straightforward",
+          "Merging is impossible for LoRA",
+          "Merged models cannot be saved to disk"
+        ],
+        "answerIndex": 1,
+        "explanation": "The LoRA paper names this limitation: merging removes latency but makes mixed-task batching difficult; keeping adapters unmerged and selecting them per sample remains possible where latency is not critical."
+      },
+      {
+        "id": "q-lora-qlora-fine-tuning-6",
+        "prompt": "What does QLoRA's double quantization quantize, and roughly what does it save?",
+        "choices": [
+          "The activations; about 4 bits per parameter",
+          "The quantization constants; about 0.373 bits per parameter at a block size of 64",
+          "The LoRA adapters; about half their size",
+          "The optimizer states; all of their memory"
+        ],
+        "answerIndex": 1,
+        "explanation": "Double quantization quantizes the constants used by the first quantization, cutting their overhead from 0.5 to about 0.127 bits per parameter at block size 64 -- a saving of about 0.373 bits per parameter."
       }
     ]
   },
   "sources": [
     {
-      "title": "Hugging Face PEFT documentation",
-      "url": "https://huggingface.co/docs/peft/en/index",
+      "title": "LoRA: Low-Rank Adaptation of Large Language Models",
+      "url": "https://arxiv.org/abs/2106.09685",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "QLoRA: Efficient Finetuning of Quantized LLMs",
+      "url": "https://arxiv.org/abs/2305.14314",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "PEFT conceptual guide: LoRA",
+      "url": "https://huggingface.co/docs/peft/main/en/conceptual_guides/lora",
       "publisher": "Hugging Face",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "PEFT developer guide: Quantization",
+      "url": "https://huggingface.co/docs/peft/en/developer_guides/quantization",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "TRL: SFT Trainer",
+      "url": "https://huggingface.co/docs/trl/en/sft_trainer",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 3000,
+    "cues": [
+      {
+        "id": "cue-lora-update-narration",
+        "kind": "narration",
+        "sectionId": "low-rank-update",
+        "text": "LoRA freezes the base weights and trains a low-rank update, B times A, scaled by alpha over r. B starts at zero, so training begins exactly at the base model."
+      },
+      {
+        "id": "cue-lora-update-visual",
+        "kind": "visual",
+        "sectionId": "low-rank-update",
+        "text": "Show a large frozen weight matrix beside two thin trainable matrices A and B, their product forming a full-size update, and the sum of the frozen and update paths producing the layer output.",
+        "accessibilityAlternative": "A static diagram description lists the frozen matrix W0, the trainable matrices A (r rows) and B (r columns), the update BA with the same shape as W0, and the output h = W0x + BAx, with a note that BA is zero at initialization. Reduced-motion mode shows the diagram without animation."
+      },
+      {
+        "id": "cue-lora-placement-narration",
+        "kind": "narration",
+        "sectionId": "where-adapters-go",
+        "text": "Both papers found that spreading adapters across more of the model's matrices mattered more than raising the rank on a few of them."
+      },
+      {
+        "id": "cue-lora-placement-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "where-adapters-go",
+        "text": "Ask learners which single experiment they would run first to test adapter placement on their own task, and what result would change their plan."
+      },
+      {
+        "id": "cue-lora-qlora-narration",
+        "kind": "narration",
+        "sectionId": "qlora-memory",
+        "text": "QLoRA stores the frozen weights in 4-bit NormalFloat, computes in 16-bit, and adds double quantization and paged optimizers to keep memory within a single GPU."
+      },
+      {
+        "id": "cue-lora-data-narration",
+        "kind": "narration",
+        "sectionId": "instruction-data-and-loss",
+        "text": "Train on responses, not prompts, and choose data for suitability over volume. A clean loss curve says the model fits your targets, not that the targets were right."
+      },
+      {
+        "id": "cue-lora-data-pause",
+        "kind": "pause",
+        "sectionId": "instruction-data-and-loss",
+        "text": "Allow two minutes for learners to identify which tokens in a sample chat transcript should contribute to the loss."
+      },
+      {
+        "id": "cue-lora-ship-narration",
+        "kind": "narration",
+        "sectionId": "shipping-adapters",
+        "text": "Merging removes inference latency but makes mixed-task batching hard; keeping adapters separate keeps them swappable. The quantization backend may decide for you."
+      },
+      {
+        "id": "cue-lora-ship-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "shipping-adapters",
+        "text": "Check that learners can choose merged or separate deployment for a given serving pattern and name what must be recorded alongside every adapter."
+      },
+      {
+        "id": "cue-lora-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the two-variant QLoRA experiment, the held-out comparison, and the merge-or-separate decision."
+      },
+      {
+        "id": "cue-lora-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can explain why B starts at zero and what QLoRA stores in 4-bit versus computes in 16-bit."
+      }
+    ],
+    "transcript": "LoRA freezes the base weights and trains a low-rank update, B times A, scaled by alpha over r. B starts at zero, so training begins exactly at the base model. Both papers found that spreading adapters across more of the model's matrices mattered more than raising the rank on a few of them. QLoRA stores the frozen weights in 4-bit NormalFloat, computes in 16-bit, and adds double quantization and paged optimizers to keep memory within a single GPU. Train on responses, not prompts, and choose data for suitability over volume. A clean loss curve says the model fits your targets, not that the targets were right. Merging removes inference latency but makes mixed-task batching hard; keeping adapters separate keeps them swappable. The quantization backend may decide for you.",
+    "captions": [
+      {
+        "cueId": "cue-lora-update-narration",
+        "startSeconds": 0,
+        "endSeconds": 510,
+        "text": "LoRA freezes the base weights and trains a low-rank update, B times A, scaled by alpha over r. B starts at zero, so training begins exactly at the base model."
+      },
+      {
+        "cueId": "cue-lora-placement-narration",
+        "startSeconds": 540,
+        "endSeconds": 1050,
+        "text": "Both papers found that spreading adapters across more of the model's matrices mattered more than raising the rank on a few of them."
+      },
+      {
+        "cueId": "cue-lora-qlora-narration",
+        "startSeconds": 1080,
+        "endSeconds": 1590,
+        "text": "QLoRA stores the frozen weights in 4-bit NormalFloat, computes in 16-bit, and adds double quantization and paged optimizers to keep memory within a single GPU."
+      },
+      {
+        "cueId": "cue-lora-data-narration",
+        "startSeconds": 1620,
+        "endSeconds": 2130,
+        "text": "Train on responses, not prompts, and choose data for suitability over volume. A clean loss curve says the model fits your targets, not that the targets were right."
+      },
+      {
+        "cueId": "cue-lora-ship-narration",
+        "startSeconds": 2160,
+        "endSeconds": 2670,
+        "text": "Merging removes inference latency but makes mixed-task batching hard; keeping adapters separate keeps them swappable. The quantization backend may decide for you."
+      },
+      {
+        "cueId": "cue-lora-assessment",
+        "startSeconds": 2700,
+        "endSeconds": 3000,
+        "text": "Begin the check once learners can explain why B starts at zero and what QLoRA stores in 4-bit versus computes in 16-bit."
+      }
+    ],
+    "reducedMotionAlternative": "Present the low-rank update, the QLoRA data-type split, and the merge-versus-separate comparison as static diagrams and tables with focus-based highlighting instead of animated sequences."
+  }
 }
