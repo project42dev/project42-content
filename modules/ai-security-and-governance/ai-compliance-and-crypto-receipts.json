@@ -1,74 +1,321 @@
 {
   "id": "ai-compliance-and-crypto-receipts",
   "title": "EU AI Act, NIST AI RMF & Deletion Receipts",
-  "summary": "Regulatory risk classification, audit logging, and cryptographic learner deletion receipts.",
+  "summary": "Map the EU AI Act, as amended by the 2026 Digital Omnibus, and the voluntary NIST AI RMF to engineering artifacts -- risk tiers, log retention, decommissioning -- then design signed deletion receipts as an evidence practice, kept clearly separate from what any regulation requires.",
   "level": "advanced",
+  "reviewCadenceDays": 60,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 35,
+  "estimatedMinutes": 55,
   "objectives": [
-    "Master the architectural principles and core mechanisms of EU AI Act, NIST AI RMF & Deletion Receipts.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "State the EU AI Act's application dates as amended by Regulation (EU) 2026/1744, and identify which article governs a system in the prohibited, high-risk, or transparency tier.",
+    "Reconcile the AI Act's log-retention floor (Articles 12, 19, 26(6)) with GDPR storage limitation and the right to erasure in one retention design.",
+    "Use the NIST AI RMF functions and the Generative AI Profile's decommissioning and deletion-tracking actions as an operating model, recognising the framework is voluntary.",
+    "Design a signed deletion receipt modelled on NIST's certificate of sanitization, and label precisely which of its fields answer a legal obligation and which are engineering practice."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "eu-ai-act-timeline",
+      "title": "What the EU AI Act says, and when, after the Digital Omnibus",
       "paragraphs": [
-        "Regulatory risk classification, audit logging, and cryptographic learner deletion receipts.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for EU AI Act, NIST AI RMF & Deletion Receipts.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "This module explains regulatory text for engineers. It is not legal advice, and whether a particular system falls into a given category is a legal determination this module does not make. Regulation (EU) 2024/1689, the Artificial Intelligence Act, sets its timing in Article 113: it entered into force on the twentieth day after publication in the Official Journal and applies from 2 August 2026, with exceptions. As adopted, Chapters I and II applied from 2 February 2025; Chapter III Section 4, Chapter V, Chapter VII, Chapter XII, and Article 78 from 2 August 2025 (except Article 101); and Article 6(1) with its corresponding obligations from 2 August 2027.",
+        "Those dates have since changed. Regulation (EU) 2026/1744 of 8 July 2026 -- the Digital Omnibus on AI, published in the Official Journal on 24 July 2026 and in force from the third day after publication -- rewrote parts of Article 113's third paragraph. Chapter III Sections 1, 2, and 3 (the high-risk classification rules, requirements, and provider and deployer obligations), except Article 6(5), now apply from 2 December 2027 for systems classified high-risk under Article 6(2) and Annex III, and from 2 August 2028 for systems classified under Article 6(1) and Annex I. Chapters I and II keep 2 February 2025, except the new prohibitions in Article 5(1), points (ba) and (bb), and Article 5(1a) and (1b), which apply from 2 December 2026; a new point (d) applies Articles 102 to 110 from 27 July 2026. Point (b), covering Chapter V and the other 2 August 2025 provisions, was not amended. The Omnibus's recitals give the reason for the high-risk delay: standards, common specifications, guidance, and national competent authorities were not ready in time.",
+        "The tiers each have a governing article. Article 5 lists prohibited practices; the Omnibus added (ba), AI systems that generate or manipulate realistic images, video, audio, or similar material depicting an identifiable person's intimate parts or sexually explicit activity without that person's explicit consent, and (bb), systems that generate or manipulate material or performances within the meaning of Article 2, points (c) and (e), of Directive 2011/93/EU on combating the sexual abuse and sexual exploitation of children. Breaching Article 5 carries fines under Article 99(3) of up to EUR 35 000 000 or 7% of total worldwide annual turnover, whichever is higher. Article 6 defines high-risk: under 6(1), safety components of products covered by the Union legislation in Annex I that require third-party conformity assessment; under 6(2), the use cases in Annex III. Article 6(3) lets an Annex III system escape the high-risk label if it poses no significant risk -- for example, it performs a narrow procedural task or a preparatory task -- but a system that profiles natural persons is always high-risk, and under 6(4) a provider relying on the derogation must document that assessment before placing the system on the market.",
+        "Annex III point 3 deserves attention from anyone building learning technology. It lists AI systems intended to determine access or admission to educational and vocational training institutions, to evaluate learning outcomes -- including when those outcomes are used to steer the learning process -- in such institutions at all levels, to assess the level of education a person will receive or can access, and to monitor prohibited behaviour during tests. Separately, Article 50 sets transparency duties that do not depend on the high-risk tier: 50(1) requires that people be informed they are interacting with an AI system unless that is obvious, and 50(2) requires providers of systems generating synthetic audio, image, video, or text to mark outputs in a machine-readable, detectable format. The Omnibus added Article 111(4): generative systems placed on the market before 2 August 2026 must comply with Article 50(2) by 2 December 2026."
+      ],
+      "callout": "Cite Article 113 as amended by Regulation (EU) 2026/1744. A compliance plan written against the 2024 text alone still shows high-risk obligations starting on 2 August 2026."
+    },
+    {
+      "id": "logs-versus-erasure",
+      "title": "Logs are required, and so is forgetting",
+      "paragraphs": [
+        "Article 12(1) requires high-risk AI systems to technically allow the automatic recording of events (logs) over the lifetime of the system. Article 12(2) says what the logging is for: identifying situations that may present a risk or a substantial modification, facilitating post-market monitoring under Article 72, and monitoring operation as Article 26(5) requires of deployers. For remote biometric identification systems in Annex III point 1(a), Article 12(3) sets a minimum field list, including the start and end of each use and the reference database checked.",
+        "Retention has a floor. Article 19(1) requires providers to keep the automatically generated logs under their control for a period appropriate to the system's intended purpose, of at least six months, unless applicable Union or national law -- in particular Union law on the protection of personal data -- provides otherwise. Article 26(6) places the same duty on deployers. Article 12 sits in Chapter III Section 2 and Articles 19 and 26 in Section 3, so under amended Article 113 these duties apply from 2 December 2027 for Annex III systems and 2 August 2028 for Annex I systems -- building the logging now is cheaper than retrofitting it. Non-compliance with deployer obligations under Article 26 is among the infringements Article 99(4) fines at up to EUR 15 000 000 or 3% of worldwide annual turnover, whichever is higher.",
+        "GDPR pulls the other way. Article 5(1)(c) requires personal data to be limited to what is necessary (data minimisation), and Article 5(1)(e) requires it to be kept in identifiable form no longer than necessary (storage limitation). Article 17(1) gives data subjects the right to erasure without undue delay on stated grounds, among them that the data are no longer necessary, consent is withdrawn, or the processing was unlawful; Article 17(3) lists exceptions, including processing necessary for compliance with a legal obligation and for legal claims. Article 12(3) requires the controller to tell the data subject what action was taken within one month of the request, extendable by two further months where necessary, and Article 19 requires the controller to communicate any erasure to each recipient to whom the data were disclosed, unless that proves impossible or involves disproportionate effort.",
+        "The Omnibus adds a deletion rule inside the AI Act itself. The new Article 4a lets providers exceptionally process special categories of personal data where strictly necessary for bias detection and correction in high-risk systems, under conditions that include documented access controls and, in 4a(1)(e), deletion once the bias has been corrected or the data reach the end of their retention period, whichever comes first. The engineering consequence of all of this is one design, not two: a log store needs a stated retention period tied to its purpose, personal data in logs kept to what that purpose needs, and a way to find which records concern which person. Whether a retention duty displaces a particular erasure request is a legal question; making both answerable is an engineering one."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "nist-ai-rmf-operating-model",
+      "title": "The NIST AI RMF as an operating model",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "NIST released the AI Risk Management Framework (AI RMF 1.0, NIST AI 100-1) on 26 January 2023, and states that it is intended for voluntary use. NIST's framework page also notes that AI RMF 1.0 is being revised as part of the White House AI Action Plan. Nothing in it is a legal requirement; its value here is as an operating model that turns obligations like those above into owned, repeatable work.",
+        "The Core has four functions: GOVERN, MAP, MEASURE, and MANAGE. GOVERN is cross-cutting and applies to all stages of an organisation's AI risk management; MAP, MEASURE, and MANAGE apply in system-specific contexts and at specific lifecycle stages. The framework says its actions are not a checklist or an ordered set of steps, that organisations may select among categories and subcategories, and that after establishing GOVERN most users start with MAP.",
+        "Several subcategories map directly onto the artifacts this module builds. GOVERN 1.1: legal and regulatory requirements involving AI are understood, managed, and documented -- the amended Article 113 timeline lives here. GOVERN 1.6: mechanisms are in place to inventory AI systems. GOVERN 1.7: processes exist for decommissioning and phasing out AI systems safely. MANAGE 2.4: mechanisms exist to supersede, disengage, or deactivate systems whose performance or outcomes are inconsistent with intended use. MANAGE 4.1: post-deployment monitoring plans include input capture, appeal and override, decommissioning, incident response, recovery, and change management.",
+        "The Generative AI Profile, NIST AI 600-1 (26 July 2024), adds suggested actions for generative systems across twelve risks, including Data Privacy, Information Security, and Value Chain and Component Integration. Under GOVERN 1.7, GV-1.7-002 asks organisations to consider, when decommissioning generative systems, data retention requirements, data security, data leakage after decommissioning, and dependencies between upstream and downstream systems. Under MANAGE 4.1, MG-4.1-006 suggests tracking dataset modifications for provenance by monitoring data deletions, rectification requests, and other changes that may affect the verifiability of content origins. GV-1.5-003 suggests a document retention policy that keeps the history of testing, evaluation, validation, and verification. Together they describe a deletion practice that leaves evidence -- which is where receipts come in."
       ]
+    },
+    {
+      "id": "deletion-receipts-as-engineering-practice",
+      "title": "Deletion receipts: an engineering practice, not a legal mandate",
+      "paragraphs": [
+        "Be exact about what the law asks for. None of the texts read for this module -- AI Act Articles 4a, 12, 19, and 26, and GDPR Articles 5, 12, 17, and 19 -- prescribes a cryptographic deletion receipt. What they require is erasure on the stated grounds (GDPR Article 17, AI Act Article 4a(1)(e) for bias-correction data), communicating erasure to recipients (GDPR Article 19), telling the data subject what action was taken within the deadline (GDPR Article 12(3)), and being responsible for, and able to demonstrate, compliance with the processing principles (GDPR Article 5(2)). A signed receipt is one way an engineering team can make that demonstration verifiable. It is a design choice, and it should be described internally as one.",
+        "The closest published precedent is NIST SP 800-88 Revision 2, Guidelines for Media Sanitization (September 2025). Its section 4.6 says a certificate of sanitization should be completed for each piece of sanitized media and may be a physical or an electronic record. It lists what the certificate records, including the sanitization method (clear, purge, or destroy), the technique, the tool used including its version, the verification method, and the name, title, date, location, contact information, and signature of the people performing verification and validation. SP 800-88 governs storage media, not individual database records; adapting the certificate's shape to per-record deletion is this module's extrapolation, not NIST guidance.",
+        "Signing makes the receipt tamper-evident. FIPS 186-5, the Digital Signature Standard, states that digital signatures detect unauthorized modifications to data and authenticate the identity of the signatory, and that a recipient can use a signature to show a third party it was generated by the claimed signatory -- non-repudiation. It approves three techniques: RSA, ECDSA, and EdDSA. A workable receipt signs a canonical serialisation of fields such as: a request reference; a keyed or salted reference to the data subject rather than raw identifiers; the grounds; each store the data reached -- primary database, search or vector index, caches, analytics, backups, logs, evaluation datasets -- with its state (deleted, scheduled with a date, or retained with a stated basis); the verification method for each store; the tool and version; recipients notified; and timestamps.",
+        "A receipt is a claim, and it is only as true as what stands behind it. SP 800-88r2 notes that when lifecycle tracking breaks down, sanitization records show only that specific media were sanitized, not whether all media were -- the per-record equivalent is that a receipt proves deletion from the stores you listed, not from the ones you forgot, which is why the data inventory matters as much as the signature. A receipt that contains the deleted personal data defeats its own purpose. For backups, SP 800-88r2 describes cryptographic erase as sanitizing the keys that encrypt the data, and it attaches conditions: all copies of the target keys must be able to be sanitized, CE cannot sanitize sensitive data that was previously stored on the media in plaintext, and CE should not be trusted on backed-up or escrowed media without high confidence in how the keys were managed. Per-subject key destruction for backups borrows that idea; if you use it, carry those conditions into the design and mark backups 'scheduled' until the keys and copies are verifiably gone."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Illustrative signed deletion receipt (engineering practice; no regulation read for this module prescribes this format)",
+        "code": "{\n  \"receiptId\": \"dr-2026-09-11-000417\",\n  \"requestReceived\": \"2026-09-02T14:05:00Z\",\n  \"completedAt\": \"2026-09-09T03:12:44Z\",\n  \"subjectRef\": \"hmac-sha256:<keyed reference, not the learner id>\",\n  \"grounds\": \"GDPR Art. 17(1)(b): consent withdrawn\",\n  \"stores\": [\n    { \"store\": \"learner-profile-db\", \"state\": \"deleted\", \"verification\": \"post-delete lookup by subjectRef returned 0 rows\" },\n    { \"store\": \"submission-vector-index\", \"state\": \"deleted\", \"verification\": \"index rebuilt; query by document ids returned 0 hits\" },\n    { \"store\": \"nightly-backups\", \"state\": \"scheduled\", \"until\": \"2026-10-09\", \"verification\": \"rotation job id recorded; re-verify after date\" },\n    { \"store\": \"grading-event-logs\", \"state\": \"retained\", \"basis\": \"documented retention period; legal review ref LR-112\" }\n  ],\n  \"recipientsNotified\": [\"email-delivery-processor\"],\n  \"tool\": \"erasure-worker 2.3.1\",\n  \"signature\": { \"alg\": \"EdDSA\", \"keyId\": \"receipts-2026\", \"value\": \"<base64 signature over the canonical form>\" }\n}"
+      }
     }
   ],
   "activity": {
     "id": "ai-compliance-and-crypto-receipts-activity",
-    "title": "EU AI Act, NIST AI RMF & Deletion Receipts Hands-On Lab",
+    "title": "Write a retention map and a deletion receipt for one AI feature",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Choose one AI feature that processes personal data -- for example, AI-assisted feedback on learner submissions -- and list every store its data reaches, including logs, vector indexes, caches, backups, and evaluation datasets.",
+      "For each store, record the retention period and the purpose that justifies it, and cite what drives it: an AI Act log-retention floor (Articles 12, 19, 26(6)), a GDPR principle (Article 5(1)(c) or 5(1)(e)), or 'needs legal review'. Do not decide open legal questions; mark them.",
+      "Draft the tier analysis: which AI Act article governs the feature (Article 5, Article 6 with Annex III, Article 50, or none identified), which date in Article 113 as amended by Regulation (EU) 2026/1744 would apply, and what is left for legal review.",
+      "Design a signed deletion receipt for a GDPR Article 17 request against this feature: the fields, a state for every store (deleted, scheduled with a date, or retained with a basis), a verification method per store, and a FIPS 186-5 signature algorithm.",
+      "Annotate every receipt field as either 'answers a requirement in text read' (with the article) or 'engineering practice'."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A retention map with columns for store, data held, retention period, purpose, and the governing article or 'legal review'.",
+      "A sample signed receipt with each field annotated as obligation or practice, a verification method for every store, and a note of which stores the receipt cannot cover and why."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which store in your map would a regulator, an auditor, or the learner be least able to verify from your receipt alone, and what evidence would close that gap?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-ai-compliance-and-crypto-receipts-1",
-        "prompt": "What is the primary architectural goal of EU AI Act, NIST AI RMF & Deletion Receipts?",
+        "prompt": "Under Article 113 of the AI Act as amended by Regulation (EU) 2026/1744, from when do Chapter III Sections 1-3 apply to systems classified high-risk under Article 6(2) and Annex III?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "2 August 2026",
+          "2 August 2027",
+          "2 December 2027",
+          "2 August 2028"
+        ],
+        "answerIndex": 2,
+        "explanation": "The Omnibus set 2 December 2027 for Annex III high-risk systems and 2 August 2028 for Annex I systems under Article 6(1); the general application date of 2 August 2026 is unchanged."
+      },
+      {
+        "id": "q-ai-compliance-and-crypto-receipts-2",
+        "prompt": "What does Article 26(6) of the AI Act require of deployers of high-risk systems regarding automatically generated logs under their control?",
+        "choices": [
+          "Delete them after 30 days",
+          "Keep them for a period appropriate to the intended purpose, of at least six months, unless Union or national law provides otherwise",
+          "Keep them permanently",
+          "Publish them to the market surveillance authority monthly"
+        ],
+        "answerIndex": 1,
+        "explanation": "Article 26(6), like Article 19(1) for providers, sets a six-month minimum and defers to other Union or national law, in particular personal data protection law."
+      },
+      {
+        "id": "q-ai-compliance-and-crypto-receipts-3",
+        "prompt": "Which statement about cryptographic deletion receipts is supported by the regulatory texts covered in this module?",
+        "choices": [
+          "GDPR Article 17 requires controllers to issue signed deletion receipts",
+          "AI Act Article 12 requires cryptographic proof of deletion",
+          "None of them prescribes cryptographic receipts; they require erasure, notification, and demonstrable compliance, and a signed receipt is one engineering way to evidence that",
+          "NIST SP 800-88 makes deletion receipts legally mandatory in the EU"
+        ],
+        "answerIndex": 2,
+        "explanation": "GDPR Articles 5(2), 12(3), 17, and 19 and AI Act Article 4a(1)(e) require erasure and accountability, not a receipt format; SP 800-88 is NIST guidance for media sanitization, not EU law."
+      },
+      {
+        "id": "q-ai-compliance-and-crypto-receipts-4",
+        "prompt": "An Annex III system would otherwise qualify for the Article 6(3) derogation. Which characteristic means it is always considered high-risk?",
+        "choices": [
+          "It performs profiling of natural persons",
+          "It was trained on more than one dataset",
+          "It is offered free of charge",
+          "It runs on the provider's own infrastructure"
         ],
         "answerIndex": 0,
-        "explanation": "EU AI Act, NIST AI RMF & Deletion Receipts enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "explanation": "Article 6(3) states that an Annex III system that performs profiling of natural persons shall always be considered high-risk, whatever the derogation conditions."
+      },
+      {
+        "id": "q-ai-compliance-and-crypto-receipts-5",
+        "prompt": "What is the legal status of the NIST AI Risk Management Framework?",
+        "choices": [
+          "Mandatory for all AI providers selling in the United States",
+          "Intended for voluntary use",
+          "Mandatory only for high-risk systems",
+          "A harmonised standard under the EU AI Act"
+        ],
+        "answerIndex": 1,
+        "explanation": "NIST states the AI RMF is intended for voluntary use; it is an operating model, and NIST notes AI RMF 1.0 is being revised."
+      },
+      {
+        "id": "q-ai-compliance-and-crypto-receipts-6",
+        "prompt": "Which item should a deletion receipt NOT contain?",
+        "choices": [
+          "The verification method used for each store",
+          "The personal data that was deleted",
+          "Stores where deletion is scheduled, with the date",
+          "The signature algorithm and key identifier"
+        ],
+        "answerIndex": 1,
+        "explanation": "A receipt that carries the deleted data defeats its purpose and conflicts with data minimisation; use a keyed or salted reference to the subject instead."
+      },
+      {
+        "id": "q-ai-compliance-and-crypto-receipts-7",
+        "prompt": "According to NIST SP 800-88r2, when should cryptographic erase not be trusted without further assurance?",
+        "choices": [
+          "When the media uses AES",
+          "When the data or keys have been backed up or escrowed and the organisation lacks high confidence in how the keys were stored and managed",
+          "When the media is a self-encrypting drive",
+          "When the verification is automated"
+        ],
+        "answerIndex": 1,
+        "explanation": "SP 800-88r2 says CE should not be trusted on backed-up or escrowed media without high confidence in key storage and management, and that all copies of the target keys must be able to be sanitized."
       }
     ]
   },
   "sources": [
     {
-      "title": "NIST AI Risk Management Framework",
+      "title": "Regulation (EU) 2024/1689 (Artificial Intelligence Act), Official Journal text",
+      "url": "https://eur-lex.europa.eu/eli/reg/2024/1689/oj/eng",
+      "publisher": "European Union",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Regulation (EU) 2026/1744 (Digital Omnibus on AI), amending Regulation (EU) 2024/1689",
+      "url": "https://eur-lex.europa.eu/eli/reg/2026/1744/oj/eng",
+      "publisher": "European Union",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Regulation (EU) 2016/679 (General Data Protection Regulation)",
+      "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng",
+      "publisher": "European Union",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "AI Risk Management Framework",
       "url": "https://www.nist.gov/itl/ai-risk-management-framework",
       "publisher": "NIST",
-      "lastVerified": "2026-09-05"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "NIST AI 100-1: Artificial Intelligence Risk Management Framework (AI RMF 1.0)",
+      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf",
+      "publisher": "NIST",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "NIST AI 600-1: Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile",
+      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf",
+      "publisher": "NIST",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "NIST SP 800-88 Rev. 2: Guidelines for Media Sanitization",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-88r2.pdf",
+      "publisher": "NIST",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "FIPS 186-5: Digital Signature Standard (DSS)",
+      "url": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.186-5.pdf",
+      "publisher": "NIST",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 3300,
+    "cues": [
+      {
+        "id": "cue-compliance-receipts-timeline-narration",
+        "kind": "narration",
+        "sectionId": "eu-ai-act-timeline",
+        "text": "Read the AI Act's dates from Article 113 as amended by the 2026 Digital Omnibus, and find the article that governs each tier before deciding anything."
+      },
+      {
+        "id": "cue-compliance-receipts-timeline-visual",
+        "kind": "visual",
+        "sectionId": "eu-ai-act-timeline",
+        "text": "Draw two timelines one above the other: Article 113 as adopted in 2024, and Article 113 as amended by Regulation (EU) 2026/1744, with the high-risk dates visibly moving to December 2027 and August 2028.",
+        "accessibilityAlternative": "A static two-column table lists each provision group -- general application, Chapters I and II, the new Article 5 points, Chapter V and related provisions, Annex III high-risk, Annex I high-risk, Articles 102 to 110 -- with its date under the 2024 text and under the amended text. Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-compliance-receipts-annex-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "eu-ai-act-timeline",
+        "text": "Ask learners which words in Annex III point 3 they would need a lawyer to interpret before classifying an AI feedback tool on a learning platform."
+      },
+      {
+        "id": "cue-compliance-receipts-logs-narration",
+        "kind": "narration",
+        "sectionId": "logs-versus-erasure",
+        "text": "The AI Act sets a floor for keeping logs and GDPR limits how long personal data may live, so one retention design has to answer both."
+      },
+      {
+        "id": "cue-compliance-receipts-logs-pause",
+        "kind": "pause",
+        "sectionId": "logs-versus-erasure",
+        "text": "Allow three minutes for learners to name one log store in their own system and the purpose that justifies its retention period."
+      },
+      {
+        "id": "cue-compliance-receipts-rmf-narration",
+        "kind": "narration",
+        "sectionId": "nist-ai-rmf-operating-model",
+        "text": "The NIST AI RMF is voluntary, but its govern, map, measure, and manage functions turn obligations into owned, repeatable work, including decommissioning and deletion tracking."
+      },
+      {
+        "id": "cue-compliance-receipts-receipt-narration",
+        "kind": "narration",
+        "sectionId": "deletion-receipts-as-engineering-practice",
+        "text": "A signed deletion receipt is an engineering practice that makes accountability verifiable; no text in this module requires one, and it proves only what its verification covers."
+      },
+      {
+        "id": "cue-compliance-receipts-receipt-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "deletion-receipts-as-engineering-practice",
+        "text": "Check that every learner's receipt labels each field as a legal obligation with an article or as engineering practice, and lists a verification method for every store."
+      },
+      {
+        "id": "cue-compliance-receipts-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the retention map, the tier analysis, and the annotated receipt, and redirect any learner who treats a receipt as a legal requirement."
+      },
+      {
+        "id": "cue-compliance-receipts-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can state the amended high-risk dates and separate what the law requires from what the receipt adds."
+      }
+    ],
+    "transcript": "Read the AI Act's dates from Article 113 as amended by the 2026 Digital Omnibus, and find the article that governs each tier before deciding anything. The AI Act sets a floor for keeping logs and GDPR limits how long personal data may live, so one retention design has to answer both. The NIST AI RMF is voluntary, but its govern, map, measure, and manage functions turn obligations into owned, repeatable work, including decommissioning and deletion tracking. A signed deletion receipt is an engineering practice that makes accountability verifiable; no text in this module requires one, and it proves only what its verification covers.",
+    "captions": [
+      {
+        "cueId": "cue-compliance-receipts-timeline-narration",
+        "startSeconds": 0,
+        "endSeconds": 780,
+        "text": "Read the AI Act's dates from Article 113 as amended by the 2026 Digital Omnibus, and find the article that governs each tier before deciding anything."
+      },
+      {
+        "cueId": "cue-compliance-receipts-logs-narration",
+        "startSeconds": 810,
+        "endSeconds": 1560,
+        "text": "The AI Act sets a floor for keeping logs and GDPR limits how long personal data may live, so one retention design has to answer both."
+      },
+      {
+        "cueId": "cue-compliance-receipts-rmf-narration",
+        "startSeconds": 1590,
+        "endSeconds": 2250,
+        "text": "The NIST AI RMF is voluntary, but its govern, map, measure, and manage functions turn obligations into owned, repeatable work, including decommissioning and deletion tracking."
+      },
+      {
+        "cueId": "cue-compliance-receipts-receipt-narration",
+        "startSeconds": 2280,
+        "endSeconds": 3120,
+        "text": "A signed deletion receipt is an engineering practice that makes accountability verifiable; no text in this module requires one, and it proves only what its verification covers."
+      },
+      {
+        "cueId": "cue-compliance-receipts-assessment",
+        "startSeconds": 3150,
+        "endSeconds": 3300,
+        "text": "Begin the check once learners can state the amended high-risk dates and separate what the law requires from what the receipt adds."
+      }
+    ],
+    "reducedMotionAlternative": "Present the before-and-after Article 113 timeline, the retention map, and the receipt field annotations as static tables with focus-based highlighting instead of animated sequences."
+  }
 }
