@@ -1,74 +1,326 @@
 {
   "id": "multi-agent-orchestration",
   "title": "Multi-Agent Orchestration & Consensus",
-  "summary": "Hierarchical supervisor vs peer-to-peer agent patterns using LangGraph and CrewAI.",
+  "summary": "Decide when more agents are worth their token cost and how their outputs should be combined -- majority voting over sampled answers, multi-round debate, and orchestrator-worker joins -- then use a published failure taxonomy to see where multi-agent systems actually break.",
   "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
   "estimatedMinutes": 45,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Multi-Agent Orchestration & Consensus.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Explain, using published measurements, why multi-agent systems mostly buy capacity through token spend, and identify task shapes that suit or resist parallel agents.",
+    "Apply self-consistency voting to fixed-answer tasks and use the agreement rate as an accept-or-escalate signal rather than as proof of correctness.",
+    "Describe how multi-agent debate converges, what controls its length, and why a converged answer can still be confidently wrong.",
+    "Design an orchestrator-worker join that does not depend on result order or hidden shared state, and classify a failed run with the MAST failure taxonomy."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "capacity-not-wisdom",
+      "title": "Extra agents mostly buy capacity, and capacity is billed",
       "paragraphs": [
-        "Hierarchical supervisor vs peer-to-peer agent patterns using LangGraph and CrewAI.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Multi-Agent Orchestration & Consensus.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "Anthropic's account of its multi-agent research system is direct about the mechanism. In its analysis of the BrowseComp browsing evaluation, three factors explained 95% of the performance variance, and token usage alone explained 80%, with the number of tool calls and the choice of model as the other two. Subagents help mainly because each works in its own context window, exploring one part of the question in parallel and returning a condensed result to the lead agent.",
+        "The same write-up states the bill: in Anthropic's data, agents typically used about 4x the tokens of a chat interaction and multi-agent systems about 15x. The authors conclude the pattern suits valuable, breadth-first tasks that parallelize heavily, exceed a single context window, or involve many complex tools, and suits poorly the domains where every agent needs the same context or the agents depend on each other closely. They cite most coding tasks as having fewer truly parallelizable pieces than research.",
+        "Independent research points the same way. The MAST study of multi-agent frameworks opens by noting that multi-agent performance gains on popular benchmarks are often minimal compared with single-agent frameworks or simple best-of-N sampling. Before adding agents, name the subtasks that are genuinely independent and the value that justifies the token multiplier."
+      ],
+      "callout": "If the subtasks are not independent, extra agents add coordination cost without adding capacity."
+    },
+    {
+      "id": "voting-and-agreement",
+      "title": "Voting: agreement is a confidence signal, not a verdict",
+      "paragraphs": [
+        "The simplest consensus mechanism needs no second agent. Self-consistency (Wang et al.) samples several diverse reasoning paths from one model instead of taking the single greedy answer, then picks the final answer the most paths agree on. The hypothesis is that correct reasoning paths, even when they differ, agree on the final answer more often than incorrect ones do. With PaLM-540B or GPT-3 it improved chain-of-thought accuracy on the GSM8K math benchmark by 17.9 points absolute, with smaller gains on other arithmetic and commonsense benchmarks.",
+        "Two constraints come with it. Majority voting applies directly only when answers come from a fixed set that can be compared -- a number, a label, a multiple-choice option; the authors note open-ended text would first need a defined way to tell whether two answers agree. And every path is another model call; the authors suggest starting with 5 to 10 paths because gains usually saturate quickly.",
+        "The most useful operational finding is that the share of samples agreeing with the winning answer was highly correlated with accuracy, which the authors describe as the model gaining some ability to know when it doesn't know. That makes the agreement rate a routing signal: accept high-agreement answers and escalate or abstain on low agreement, with thresholds you set from your own evaluation data. Anthropic's workflow guidance applies the same idea to review tasks, running several prompts that vote on whether content is a problem, with vote thresholds chosen to balance false positives against false negatives."
+      ],
+      "code": {
+        "language": "json",
+        "label": "An illustrative voting join that reports agreement instead of hiding it",
+        "code": "{\n  \"question\": \"Is clause 7 an automatic-renewal clause?\",\n  \"answerSet\": [\"yes\", \"no\", \"unclear\"],\n  \"samples\": 7,\n  \"votes\": { \"yes\": 4, \"no\": 2, \"unclear\": 1 },\n  \"winner\": \"yes\",\n  \"agreement\": 0.57,\n  \"policy\": { \"acceptAtOrAbove\": 0.8, \"thresholdSource\": \"team eval set\" },\n  \"decision\": \"escalate-to-reviewer\"\n}"
+      }
+    },
+    {
+      "id": "debate-and-convergence",
+      "title": "Debate: agents that read each other can converge on the wrong answer",
+      "paragraphs": [
+        "Multi-agent debate (Du et al.) adds communication. Several model instances each answer independently; each then receives the others' answers and is asked to update its own; the round repeats. With three agents and two rounds, the authors report reasoning gains over single-agent, self-reflection, and majority-vote baselines, including cases where every agent started wrong and the group reached the correct answer. On factual tasks such as generated biographies, they omitted the majority-vote baseline because the individual responses could not be compared directly -- the same fixed-answer limitation that constrains self-consistency, and one place where debate applies and voting does not. Facts the agents were internally uncertain about tended to be disputed and dropped as the debate progressed.",
+        "Convergence is not guaranteed -- the paper treats debate as a multi-agent game -- and its length is a prompt choice. The models were relatively agreeable; prompts that made agents more stubborn about their own solutions produced longer debates and better final answers. On arithmetic, more agents and more rounds both helped, with little change beyond four rounds, and once many agents were involved, the other agents' responses had to be summarized to fit the context.",
+        "The limitations are the part to design around. Debate costs several generations per round. In long debates, models tended to focus on the most recent responses rather than the whole exchange. And debates that converged did not always converge on the truth: agents confidently affirmed incorrect shared answers. Consensus measures agreement among agents that may share blind spots; it does not replace a check against something outside them."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "orchestrator-worker-joins",
+      "title": "Orchestrator-worker joins: make the merge independent of timing",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "In Anthropic's research system a lead agent plans its approach, saves the plan to memory so it survives context truncation, spawns subagents to search in parallel, and synthesizes what they return; a separate citation agent attributes claims at the end. Early versions spawned 50 subagents for simple queries and duplicated work when task descriptions were vague, so the lead agent was taught to give each subagent an objective, an output format, guidance on tools and sources, and clear task boundaries -- and to scale effort to the query, from one agent with a handful of tool calls for a simple lookup to more than ten subagents only for complex research.",
+        "The join is where orchestration bugs hide. Google's Agent Development Kit documents that parallel sub-agents run in independent branches with no automatic sharing of conversation history or state, and that the order of their results may not be deterministic; any shared state needs explicit coordination such as locks, an external store, or post-processing after the branches finish. A join that takes whichever result arrives last, or reads a shared variable while branches are still running, can produce different answers from identical runs.",
+        "Anthropic also reports what keeping the join synchronous costs: the lead agent waits for each batch of subagents to finish, cannot steer them mid-task, and can be blocked by a single slow subagent -- simpler to coordinate, but a bottleneck. For fidelity, the authors suggest letting subagents write outputs to external storage and pass back lightweight references, instead of copying everything through the coordinator's context."
+      ]
+    },
+    {
+      "id": "diagnose-with-mast",
+      "title": "Diagnose failures by category before adding agents",
+      "paragraphs": [
+        "The MAST taxonomy (Cemri et al.) was built from more than 150 multi-agent execution traces with high inter-annotator agreement among expert annotators (kappa 0.88). It sorts 14 failure modes into three categories. System design issues: disobeying the task or role specification, step repetition, loss of conversation history, and not recognizing termination conditions. Inter-agent misalignment: conversation resets, failing to ask for clarification, task derailment, withholding information, ignoring other agents' input, and a mismatch between reasoning and action. Task verification: premature termination, missing or incomplete verification, and incorrect verification.",
+        "Two findings bear directly on consensus designs. First, verifiers often performed only superficial checks -- whether code compiled, whether TODO comments remained -- even when prompted to verify thoroughly; one generated chess program passed review and still violated the game's rules at runtime. Second, structural changes with the same model moved results: in the authors' case studies, improving agent role specifications raised ChatDev's task success rate by 9.4%, and adding a high-level task-objective verification step raised it by 15.6% on their ProgramDev benchmark.",
+        "Use the taxonomy the way you would use an incident classification. Label which failure mode ended the run, then change the structure responsible -- the role specification, the termination condition, what the verifier actually checks -- before reaching for more agents or more rounds of agreement."
       ]
     }
   ],
   "activity": {
     "id": "multi-agent-orchestration-activity",
-    "title": "Multi-Agent Orchestration & Consensus Hands-On Lab",
+    "title": "Choose and stress-test a consensus mechanism",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Pick a decision your team makes repeatedly that an agent system could support, and state whether its answers come from a fixed set (labels, numbers, options) or are open-ended.",
+      "Choose one mechanism -- a single agent, self-consistency voting, multi-round debate, or orchestrator-worker -- and justify it against the token multiplier and the independent subtasks you can actually name.",
+      "Write the join: how outputs are combined, what agreement or completeness threshold accepts a result, what sends a case to a person, and how the join behaves if results arrive in a different order or one worker never returns.",
+      "Name the external check that confirms the combined answer -- a test, a source lookup, a rule -- and show that it does not depend on the agents agreeing with each other.",
+      "Take one failed or hypothetical run, label it with the MAST failure mode that ended it, and name the structural change you would make first."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A one-page design record: answer type, chosen mechanism, named independent subtasks, join rule, escalation threshold, and an argument that the join is independent of result order.",
+      "A MAST-labelled failure with its structural fix and the external check that would have caught it."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Where in your design could every agent agree and still be wrong, and what outside the agents would catch it?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-multi-agent-orchestration-1",
-        "prompt": "What is the primary architectural goal of Multi-Agent Orchestration & Consensus?",
+        "prompt": "According to Anthropic's analysis of its multi-agent research system on the BrowseComp evaluation, what single factor explained most of the performance variance?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "The number of agents",
+          "The order in which subagents returned results",
+          "Token usage, which alone explained 80% of the variance",
+          "The length of the lead agent's system prompt"
+        ],
+        "answerIndex": 2,
+        "explanation": "Three factors explained 95% of the variance; token usage alone explained 80%, with the number of tool calls and model choice as the other two. Separate context windows let the system spend more tokens in parallel."
+      },
+      {
+        "id": "q-multi-agent-orchestration-2",
+        "prompt": "Which task is the weakest fit for a multi-agent design, according to the same write-up?",
+        "choices": [
+          "A task where every agent must share the same context and the agents depend closely on each other",
+          "Breadth-first research across many independent directions",
+          "A task whose information exceeds a single context window",
+          "A high-value task that uses many complex tools"
         ],
         "answerIndex": 0,
-        "explanation": "Multi-Agent Orchestration & Consensus enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "explanation": "The authors describe domains requiring shared context or many inter-agent dependencies as a poor fit today, and note that most coding tasks have fewer truly parallelizable pieces than research."
+      },
+      {
+        "id": "q-multi-agent-orchestration-3",
+        "prompt": "When can self-consistency majority voting be applied directly?",
+        "choices": [
+          "To any open-ended essay, without changes",
+          "When the answers come from a fixed set that can be compared",
+          "Only when a single sample is drawn",
+          "Only when a separately trained verifier scores each path"
+        ],
+        "answerIndex": 1,
+        "explanation": "The paper states self-consistency applies to problems whose final answer comes from a fixed answer set; open-ended generation would first need a defined consistency metric between answers."
+      },
+      {
+        "id": "q-multi-agent-orchestration-4",
+        "prompt": "Seven sampled answers split 4-2-1. What does the self-consistency research suggest about that agreement rate?",
+        "choices": [
+          "The majority answer should be treated as verified",
+          "The minority answers should be discarded and sampling repeated until the vote is unanimous",
+          "The answers should be averaged into a single response",
+          "Low agreement signals low confidence, so the case is a candidate for escalation or abstention"
+        ],
+        "answerIndex": 3,
+        "explanation": "The authors found the share of samples agreeing with the aggregated answer was highly correlated with accuracy, so low consistency can serve as an indicator that the model has low confidence."
+      },
+      {
+        "id": "q-multi-agent-orchestration-5",
+        "prompt": "In the multi-agent debate study, what did the authors observe about debates that converged?",
+        "choices": [
+          "Agents could converge on an incorrect answer and confidently affirm it",
+          "Converged answers were always correct",
+          "Debates never converged without a human moderator",
+          "Convergence required agents from different model providers"
+        ],
+        "answerIndex": 0,
+        "explanation": "The paper's limitations section reports that debates typically converged on a single answer, but that answer was not necessarily correct, and models confidently affirmed it."
+      },
+      {
+        "id": "q-multi-agent-orchestration-6",
+        "prompt": "Google ADK's parallel workflow agent runs sub-agents concurrently. What must a join over its results assume?",
+        "choices": [
+          "Results arrive in the order the sub-agents were listed",
+          "Branches share conversation history and state automatically",
+          "Result order may not be deterministic and state is not shared automatically, so combination must be explicit",
+          "Only the first result to arrive is meaningful"
+        ],
+        "answerIndex": 2,
+        "explanation": "ADK documents that each sub-agent runs in its own branch with no automatic sharing of history or state, and that result order may not be deterministic; shared state requires explicit coordination."
+      },
+      {
+        "id": "q-multi-agent-orchestration-7",
+        "prompt": "In the MAST case studies, what raised ChatDev's task success rate by 15.6% with the same underlying model?",
+        "choices": [
+          "Adding more agents to each phase",
+          "Adding a high-level task-objective verification step",
+          "Replacing the workflow with multi-round debate",
+          "Using a model with a larger context window"
+        ],
+        "answerIndex": 1,
+        "explanation": "The authors report a +15.6% improvement on ProgramDev from adding high-level objective verification, and +9.4% from improving role specifications, both without changing the model."
       }
     ]
   },
   "sources": [
     {
-      "title": "OpenAI Agents SDK documentation",
-      "url": "https://openai.github.io/openai-agents-js/",
-      "publisher": "OpenAI",
-      "lastVerified": "2026-09-05"
+      "title": "How we built our multi-agent research system",
+      "url": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Self-Consistency Improves Chain of Thought Reasoning in Language Models",
+      "url": "https://arxiv.org/abs/2203.11171",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Improving Factuality and Reasoning in Language Models through Multiagent Debate",
+      "url": "https://arxiv.org/abs/2305.14325",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Why Do Multi-Agent LLM Systems Fail?",
+      "url": "https://arxiv.org/abs/2503.13657",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Parallel template workflow agent",
+      "url": "https://adk.dev/agents/workflow-agents/parallel-agents/",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Building effective agents",
+      "url": "https://www.anthropic.com/engineering/building-effective-agents",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 2700,
+    "cues": [
+      {
+        "id": "cue-consensus-capacity-narration",
+        "kind": "narration",
+        "sectionId": "capacity-not-wisdom",
+        "text": "Extra agents mostly buy parallel capacity through token spend, so name the independent subtasks and the value that pays for them before adding any."
+      },
+      {
+        "id": "cue-consensus-capacity-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "capacity-not-wisdom",
+        "text": "Ask learners which of their current agent tasks has subtasks that are truly independent, and which only look parallel."
+      },
+      {
+        "id": "cue-consensus-voting-narration",
+        "kind": "narration",
+        "sectionId": "voting-and-agreement",
+        "text": "Self-consistency votes over sampled answers from a fixed set, and its agreement rate is a confidence signal you can route on."
+      },
+      {
+        "id": "cue-consensus-voting-visual",
+        "kind": "visual",
+        "sectionId": "voting-and-agreement",
+        "text": "Show seven sampled reasoning paths arriving at three different answers, with the vote tally, the winning answer, and the agreement rate computed beside them.",
+        "accessibilityAlternative": "A table lists seven sampled answers, the tally for each distinct answer, the winning answer, the agreement rate, and the resulting accept-or-escalate decision. Reduced-motion mode shows the completed table."
+      },
+      {
+        "id": "cue-consensus-debate-narration",
+        "kind": "narration",
+        "sectionId": "debate-and-convergence",
+        "text": "Debate lets agents read and revise each other's answers; it can converge, and it can converge confidently on the wrong answer."
+      },
+      {
+        "id": "cue-consensus-debate-pause",
+        "kind": "pause",
+        "sectionId": "debate-and-convergence",
+        "text": "Allow two minutes for learners to name the outside check that would catch a unanimous wrong answer in their design."
+      },
+      {
+        "id": "cue-consensus-join-narration",
+        "kind": "narration",
+        "sectionId": "orchestrator-worker-joins",
+        "text": "An orchestrator-worker join must not depend on arrival order or hidden shared state, and every worker needs an objective, a format, tools, and boundaries."
+      },
+      {
+        "id": "cue-consensus-mast-narration",
+        "kind": "narration",
+        "sectionId": "diagnose-with-mast",
+        "text": "Classify a failed run by its MAST category and fix the structure responsible before adding more agents or more rounds."
+      },
+      {
+        "id": "cue-consensus-mast-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "diagnose-with-mast",
+        "text": "Check that learners can separate an agreement mechanism from a verification mechanism and give one example of each."
+      },
+      {
+        "id": "cue-consensus-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the mechanism choice, the join rule, the external check, and the MAST-labelled failure."
+      },
+      {
+        "id": "cue-consensus-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can say what each consensus mechanism costs and what it cannot verify."
+      }
+    ],
+    "transcript": "Extra agents mostly buy parallel capacity through token spend, so name the independent subtasks and the value that pays for them before adding any. Self-consistency votes over sampled answers from a fixed set, and its agreement rate is a confidence signal you can route on. Debate lets agents read and revise each other's answers; it can converge, and it can converge confidently on the wrong answer. An orchestrator-worker join must not depend on arrival order or hidden shared state, and every worker needs an objective, a format, tools, and boundaries. Classify a failed run by its MAST category and fix the structure responsible before adding more agents or more rounds.",
+    "captions": [
+      {
+        "cueId": "cue-consensus-capacity-narration",
+        "startSeconds": 0,
+        "endSeconds": 450,
+        "text": "Extra agents mostly buy parallel capacity through token spend, so name the independent subtasks and the value that pays for them before adding any."
+      },
+      {
+        "cueId": "cue-consensus-voting-narration",
+        "startSeconds": 480,
+        "endSeconds": 930,
+        "text": "Self-consistency votes over sampled answers from a fixed set, and its agreement rate is a confidence signal you can route on."
+      },
+      {
+        "cueId": "cue-consensus-debate-narration",
+        "startSeconds": 960,
+        "endSeconds": 1410,
+        "text": "Debate lets agents read and revise each other's answers; it can converge, and it can converge confidently on the wrong answer."
+      },
+      {
+        "cueId": "cue-consensus-join-narration",
+        "startSeconds": 1440,
+        "endSeconds": 1890,
+        "text": "An orchestrator-worker join must not depend on arrival order or hidden shared state, and every worker needs an objective, a format, tools, and boundaries."
+      },
+      {
+        "cueId": "cue-consensus-mast-narration",
+        "startSeconds": 1920,
+        "endSeconds": 2370,
+        "text": "Classify a failed run by its MAST category and fix the structure responsible before adding more agents or more rounds."
+      },
+      {
+        "cueId": "cue-consensus-assessment",
+        "startSeconds": 2400,
+        "endSeconds": 2700,
+        "text": "Begin the check once learners can say what each consensus mechanism costs and what it cannot verify."
+      }
+    ],
+    "reducedMotionAlternative": "Present the vote tally, the debate rounds, and the MAST categories as static tables with focus-based highlighting instead of animated sequences."
+  }
 }

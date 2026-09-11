@@ -1,74 +1,338 @@
 {
   "id": "agent-safety-and-spend-brakes",
   "title": "Human-in-the-Loop & Spend Brake Safeguards",
-  "summary": "Interrupt handling, approval gates, recursion limiters, and cryptographic audit logs.",
+  "summary": "Build the runtime brakes that stop an agent loop -- approval interruptions that pause and resume, turn limits, per-run spend caps, and provider spend limits -- and learn what each one actually enforces, when it trips, and what it leaves uncovered.",
   "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 30,
+  "estimatedMinutes": 45,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Human-in-the-Loop & Spend Brake Safeguards.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Map the OWASP Excessive Agency and Unbounded Consumption risks to the brake that addresses each, and identify the root causes no brake can fix.",
+    "Compare in-process approval callbacks with serialize-and-resume interruptions, including what state is persisted and which calls never reach the approval gate.",
+    "Configure turn and spend limits with explicit at-limit behavior, knowing that framework defaults and what counts as a turn differ.",
+    "Layer a per-run budget under workspace and organization spend limits, and explain why client-side cost estimates and trailing budget checks cannot be the only spend control."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "what-brakes-answer-to",
+      "title": "Two risks, and the parts of them a brake can stop",
       "paragraphs": [
-        "Interrupt handling, approval gates, recursion limiters, and cryptographic audit logs.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Human-in-the-Loop & Spend Brake Safeguards.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "The OWASP Top 10 for LLM applications (2025) names the two risks this module's brakes answer to. Excessive Agency (LLM06) is damage done in response to unexpected, ambiguous, or manipulated model output, whatever caused the model to misbehave, and OWASP traces its root cause to excessive functionality, excessive permissions, or excessive autonomy. Unbounded Consumption (LLM10) is an application allowing excessive, uncontrolled inference, leading to denial of service, economic loss -- including Denial of Wallet attacks that exploit pay-per-use pricing -- model theft, and degraded service.",
+        "Brakes address only part of that list. Requiring a human to approve high-impact actions answers excessive autonomy. Rate limits and quotas, timeouts and throttling, and limits on queued and total actions answer unbounded consumption. Excessive functionality and excessive permissions are not brake problems at all: OWASP's first mitigations are to offer fewer extensions, give each one less functionality, avoid open-ended ones such as arbitrary shell commands, execute them in the user's own context with minimum privileges, and enforce authorization in downstream systems rather than relying on the model to decide whether an action is allowed.",
+        "OWASP is explicit that some controls only limit damage. Logging, monitoring, and rate limiting do not prevent Excessive Agency; they reduce how many undesirable actions happen before someone notices. Its mailbox example shows the layering: a mail extension that can only read, authenticated with a read-only scope, removes the ability to forward mail to an attacker; requiring the user to review and send each drafted message removes the autonomy; and a rate limit on sending only caps the damage if both of those are missing."
+      ],
+      "callout": "A brake slows or stops a loop. It does not shrink what the loop is allowed to do -- that is scoping, and it comes first."
+    },
+    {
+      "id": "approval-as-pause",
+      "title": "Approval is a pause, and a pause has to be stored somewhere",
+      "paragraphs": [
+        "An approval gate stops a specific tool call before it runs and holds the loop until someone decides. Frameworks implement that hold in two different ways, and the difference decides what your system has to keep alive. In the Claude Agent SDK, a tool call that needs permission invokes an in-process canUseTool callback, and execution stays paused until the callback returns. The callback can stay pending indefinitely, so either the process keeps running for as long as the human takes, or the application uses a PreToolUse hook that returns a defer decision, letting the process exit and resume later from the persisted session.",
+        "The OpenAI Agents SDK takes the serialize-and-resume route. A tool marked needsApproval -- always, or through a function over its parsed arguments -- does not execute; the run records an approval item, pauses at the end of the turn, and returns every pending interruption. Your code approves or rejects each one, optionally making the decision sticky for that tool for the rest of the run, and resumes by passing the state back to the runner. Because the state serializes to a string, it can wait in a database for as long as a reviewer needs. Malformed or non-object arguments fail closed: approval is requested without calling your approval function, and approving still does not run the tool.",
+        "Two details decide whether the gate is real. The first is what bypasses it: the Claude Agent SDK documents that canUseTool never fires for calls already approved by an allow rule or a permissive permission mode, and points to a PreToolUse hook for logic that must apply to every call. The second is what the pause persists: OpenAI's serialized run state carries your application context along with approvals and usage, so anything secret placed in that context travels with the stored state. And because a decision can arrive long after the request, OpenAI runs function-tool input guardrails after approval, immediately before execution -- and if you opt into running them before the approval prompt as well, they run again after approval in case the call became unsafe while it waited."
+      ],
+      "code": {
+        "language": "typescript",
+        "label": "Serialize-and-resume approval, abbreviated from the OpenAI Agents SDK guide",
+        "code": "const issueRefund = tool({\n  name: 'issueRefund',\n  description: 'Refund an order',\n  parameters: z.object({ orderId: z.string(), amount: z.number() }),\n  needsApproval: true, // money moves: always pause for a person\n  execute: async ({ orderId, amount }) => { /* payments API */ },\n});\n\nlet result = await run(agent, input);\nwhile (result.interruptions?.length > 0) {\n  // Persist the paused run; keep secrets out of the run context.\n  await store.save(runId, result.state.toString());\n  const stored = await store.load(runId); // minutes or days later\n  const state = await RunState.fromString(agent, stored);\n  for (const interruption of result.interruptions) {\n    const ok = await askReviewer(interruption.name, interruption.arguments);\n    if (ok) state.approve(interruption);\n    else state.reject(interruption, { message: 'Refund declined by reviewer.' });\n  }\n  result = await run(agent, state);\n}"
+      }
+    },
+    {
+      "id": "turn-limits",
+      "title": "Turn limits: know what is counted and what happens at the limit",
+      "paragraphs": [
+        "A turn limit is the simplest runaway brake, and the two SDKs used here define it differently. The OpenAI Agents SDK documents a default maxTurns of 10 that throws MaxTurnsExceededError when reached, unless you pass null to disable it; an errorHandlers.maxTurns handler can instead convert the stop into a final output. The Claude Agent SDK documents maxTurns as counting tool-use round trips only, with no limit by default, and reports a stop as a result with the subtype error_max_turns instead of success.",
+        "So 'the agent has a turn limit' is not yet a specification. For every loop, write down what one turn counts, the number, and the at-limit behavior: fail the run, return a clearly labelled partial result, or save state so a person can decide whether to continue. The Claude Agent SDK's own example handles error_max_turns by telling the operator to resume the session with a higher limit -- a human decision, not an automatic retry.",
+        "Check how the limit interacts with everything else that runs. The Claude Agent SDK notes that, with streaming input, a message still queued when a turn ends at the limit starts a new turn with the count reset, so a limit on one request is not automatically a limit on a whole session. Record documented defaults alongside the values you set, because defaults are the part most likely to change between releases."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "spend-brakes",
+      "title": "Spend brakes: estimates, trailing checks, and backstops",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "A per-run spend cap is the brake aimed most directly at Denial of Wallet, and its semantics are easy to overestimate. The Claude Agent SDK's maxBudgetUsd option stops the loop with an error_max_budget_usd result and counts subagents' spend toward the total; once the cap is reached, spawning another subagent fails and background subagents still running are stopped. But the cost it compares against is a client-side estimate computed from a price table bundled with the SDK. The documentation warns that the estimate can drift from actual billing -- when prices change or the installed version does not recognize a model -- and says not to bill end users or trigger financial decisions from it.",
+        "The check also trails the spend. The documented budget-stop result includes, in its total cost, the response that crossed the budget, so the cap is a trip point observed after a call has been paid for, not a reservation that prevents the call. And the running total the budget is compared against starts over when the application sends a conversation reset such as /clear: a budget scoped to a conversation is not a budget scoped to a user or to a day.",
+        "Provider spend limits sit underneath as a backstop with a coarser grain. Anthropic's API documents monthly spend limits for an organization, the option to set your own limit below the tier's cap, and custom spend and rate limits per workspace; when one is reached, requests fail until the limit is raised or the period resets. That stops runaway spend, but it stops every workload drawing on that workspace or organization, not just the loop that caused it -- which is why a per-run brake, a workspace limit, and an organization limit are three layers rather than three copies of the same control."
+      ]
+    },
+    {
+      "id": "brake-stack-evidence",
+      "title": "Assemble the brake stack and prove each brake trips",
+      "paragraphs": [
+        "Order the pieces by what they prevent. Scope first: the fewest tools, the narrowest functionality, the user's own minimum permissions, and authorization enforced by the downstream system. Then approval on the calls whose effects are high-impact or hard to reverse. Then per-run turn and spend limits with defined at-limit behavior. Then rate limits on consequential interfaces and provider spend limits as the backstop, with logging and monitoring to catch what gets through.",
+        "A brake that has never tripped is an assumption. For each layer, plant the condition in a test: a call that must be approved, an approval that is rejected, a loop that exceeds its turn limit, a run that exceeds its budget, a run resumed after a long pause. Record the terminal state each one produces -- the error or result type, what the model was told, what state was saved -- because a brake's value is the state it leaves behind, not only the fact that the loop stopped.",
+        "Finally, make rejection informative. Both SDKs let a denial carry a message back to the model -- the OpenAI SDK through a per-call rejection message or a tool error formatter, the Claude Agent SDK through the message on a deny result -- and the model typically adapts its approach or reports that it could not proceed. A rejection that says why, and what is allowed instead, turns a stop into a steer."
       ]
     }
   ],
   "activity": {
     "id": "agent-safety-and-spend-brakes-activity",
-    "title": "Human-in-the-Loop & Spend Brake Safeguards Hands-On Lab",
+    "title": "Build and trip a layered brake stack",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Take an agent that can perform at least one consequential action, such as sending a message, moving money, or deleting data. List its tools and, for each, remove functionality or permissions the task does not need before adding any brake.",
+      "Choose the approval mechanism -- an in-process callback or serialize-and-resume -- and write down where the paused state lives, how long it may wait, what it contains, and which calls could reach execution without passing the gate.",
+      "Set a turn limit and a per-run spend limit. For each, write what is counted, the value, the at-limit behavior, and the framework's documented default, so it is clear what you overrode.",
+      "Identify the workspace or organization spend limit beneath the run, and describe which other workloads would stop if it tripped.",
+      "Write five tests that trip the brakes -- required approval, rejected approval, turn limit, spend limit, and resume after a long pause -- and capture the terminal state each one produces."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A brake-stack table listing each layer, its mechanism, what it counts or gates, its value, its at-limit behavior, and what it leaves uncovered.",
+      "Five test results showing each brake tripping, with the error or result type, the message returned to the model, and the saved state."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which of your brakes fires only after the cost or damage has already happened, and which earlier layer would have prevented it instead?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-agent-safety-and-spend-brakes-1",
-        "prompt": "What is the primary architectural goal of Human-in-the-Loop & Spend Brake Safeguards?",
+        "prompt": "Under OWASP LLM06, which root cause of Excessive Agency does a human approval gate most directly address?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "Excessive functionality",
+          "Excessive permissions",
+          "Excessive autonomy",
+          "Improper output handling"
+        ],
+        "answerIndex": 2,
+        "explanation": "OWASP's human-approval mitigation targets actions taken without independent verification -- excessive autonomy. Functionality and permissions are reduced by scoping extensions and their privileges."
+      },
+      {
+        "id": "q-agent-safety-and-spend-brakes-2",
+        "prompt": "What role does OWASP assign to logging, monitoring, and rate limiting in its Excessive Agency guidance?",
+        "choices": [
+          "They prevent Excessive Agency on their own",
+          "They do not prevent it, but they limit the damage before someone responds",
+          "They replace least privilege for downstream systems",
+          "They apply only to model training environments"
+        ],
+        "answerIndex": 1,
+        "explanation": "OWASP lists these as options that will not prevent Excessive Agency but can limit the level of damage, for example by reducing how many undesirable actions occur before monitoring catches them."
+      },
+      {
+        "id": "q-agent-safety-and-spend-brakes-3",
+        "prompt": "An approval may take two days, and you cannot keep a process running that long. Which approach fits?",
+        "choices": [
+          "An in-process approval callback that stays pending",
+          "Raise the turn limit so the run does not end first",
+          "Auto-approve the call and review the log afterwards",
+          "Serialize the paused run state, store it, and resume from it after the decision"
+        ],
+        "answerIndex": 3,
+        "explanation": "The OpenAI Agents SDK serializes run state so a paused run can be resumed later without a live server; the Claude Agent SDK offers a defer decision from a PreToolUse hook for the same reason, because its canUseTool callback holds the process while it waits."
+      },
+      {
+        "id": "q-agent-safety-and-spend-brakes-4",
+        "prompt": "In the Claude Agent SDK, you put an approval check inside canUseTool but also listed the tool in allowed tools. What happens when the agent calls it?",
+        "choices": [
+          "The callback still runs for every call to that tool",
+          "The allow rule resolves the call first, so canUseTool never fires for it; logic that must apply to every call belongs in a PreToolUse hook",
+          "The call is always denied because the settings conflict",
+          "The SDK refuses to start with a configuration error"
+        ],
+        "answerIndex": 1,
+        "explanation": "The documentation states the callback never fires for auto-approved tools; approvals earlier in the permission flow resolve the call before canUseTool is consulted."
+      },
+      {
+        "id": "q-agent-safety-and-spend-brakes-5",
+        "prompt": "A team reports that its agent 'has a turn limit'. What is missing before that counts as a specification?",
+        "choices": [
+          "What one turn counts, the value, and the at-limit behavior -- because defaults and counting differ between frameworks",
+          "Nothing; any turn limit is equivalent to any other",
+          "The model name the limit applies to",
+          "A matching spend cap expressed in turns"
         ],
         "answerIndex": 0,
-        "explanation": "Human-in-the-Loop & Spend Brake Safeguards enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "explanation": "The OpenAI Agents SDK documents a default of 10 turns that throws an error, while the Claude Agent SDK counts tool-use round trips with no default limit and returns an error_max_turns result. The same words describe different brakes."
+      },
+      {
+        "id": "q-agent-safety-and-spend-brakes-6",
+        "prompt": "Why should an agent SDK's per-run budget cap not be your only spend control?",
+        "choices": [
+          "It is computed by the provider's billing system and is always exact",
+          "It counts only subagents' spend",
+          "It is a client-side estimate that can drift from billing, it trips after the crossing call is paid for, and its running total can reset with the conversation",
+          "It stops every workspace in the organization when it trips"
+        ],
+        "answerIndex": 2,
+        "explanation": "The Claude Agent SDK documents its cost fields as client-side estimates, includes the budget-crossing response in the total, and resets the running total on a conversation reset such as /clear."
+      },
+      {
+        "id": "q-agent-safety-and-spend-brakes-7",
+        "prompt": "An organization-level spend limit trips because one runaway agent loop overspent. What else is affected?",
+        "choices": [
+          "Only the loop that overspent",
+          "Only that loop's subagents",
+          "Nothing until the next calendar year",
+          "Every workload drawing on that organization's limit, until the limit is raised or the period resets"
+        ],
+        "answerIndex": 3,
+        "explanation": "Provider spend limits apply at the organization or workspace level, so reaching one blocks all requests under it -- which is why a per-run brake is needed above it."
       }
     ]
   },
   "sources": [
     {
-      "title": "OpenAI Agents SDK: human-in-the-loop approvals and interruptions",
+      "title": "LLM06:2025 Excessive Agency",
+      "url": "https://genai.owasp.org/llmrisk/llm062025-excessive-agency/",
+      "publisher": "OWASP",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "LLM10:2025 Unbounded Consumption",
+      "url": "https://genai.owasp.org/llmrisk/llm102025-unbounded-consumption/",
+      "publisher": "OWASP",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Human-in-the-loop",
       "url": "https://openai.github.io/openai-agents-js/guides/human-in-the-loop/",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Running Agents",
+      "url": "https://openai.github.io/openai-agents-js/guides/running-agents/",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "How the agent loop works",
+      "url": "https://code.claude.com/docs/en/agent-sdk/agent-loop",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Handle approvals and user input",
+      "url": "https://code.claude.com/docs/en/agent-sdk/user-input",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Track cost and usage",
+      "url": "https://code.claude.com/docs/en/agent-sdk/cost-tracking",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Rate limits",
+      "url": "https://platform.claude.com/docs/en/api/rate-limits",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 2700,
+    "cues": [
+      {
+        "id": "cue-brakes-risks-narration",
+        "kind": "narration",
+        "sectionId": "what-brakes-answer-to",
+        "text": "Brakes answer excessive autonomy and unbounded consumption; excessive functionality and permissions are fixed by scoping before any brake is added."
+      },
+      {
+        "id": "cue-brakes-risks-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "what-brakes-answer-to",
+        "text": "Ask learners to name one tool their agent holds whose functionality exceeds what the task needs."
+      },
+      {
+        "id": "cue-brakes-approval-narration",
+        "kind": "narration",
+        "sectionId": "approval-as-pause",
+        "text": "An approval gate is a pause; decide whether it lives in a running process or in stored state, and check which calls never reach it."
+      },
+      {
+        "id": "cue-brakes-approval-visual",
+        "kind": "visual",
+        "sectionId": "approval-as-pause",
+        "text": "Show one tool call moving through request, pause, stored state, human decision, guardrail re-check, and resume.",
+        "accessibilityAlternative": "A static sequence table lists each stage of an approval -- request, pause, persisted state and its contents, human decision, guardrail re-check, and resume -- with who acts and what is stored at each stage. Reduced-motion mode shows the full table."
+      },
+      {
+        "id": "cue-brakes-turns-narration",
+        "kind": "narration",
+        "sectionId": "turn-limits",
+        "text": "A turn limit becomes a specification only when it says what a turn counts, what the number is, and what happens at the limit."
+      },
+      {
+        "id": "cue-brakes-turns-pause",
+        "kind": "pause",
+        "sectionId": "turn-limits",
+        "text": "Allow two minutes for learners to write the at-limit behavior for one of their own agent loops."
+      },
+      {
+        "id": "cue-brakes-spend-narration",
+        "kind": "narration",
+        "sectionId": "spend-brakes",
+        "text": "A per-run spend cap is an estimate checked after the spend, so it sits above workspace and organization limits rather than replacing them."
+      },
+      {
+        "id": "cue-brakes-stack-narration",
+        "kind": "narration",
+        "sectionId": "brake-stack-evidence",
+        "text": "Scope first, then approval, then per-run limits, then provider backstops, and prove each layer by making it trip."
+      },
+      {
+        "id": "cue-brakes-stack-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "brake-stack-evidence",
+        "text": "Check that learners can say, for each brake, whether it prevents harm or only limits it after the fact."
+      },
+      {
+        "id": "cue-brakes-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the scoping pass, the approval design, the limits table, and the five tripping tests."
+      },
+      {
+        "id": "cue-brakes-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can describe what each brake counts, when it trips, and what it leaves uncovered."
+      }
+    ],
+    "transcript": "Brakes answer excessive autonomy and unbounded consumption; excessive functionality and permissions are fixed by scoping before any brake is added. An approval gate is a pause; decide whether it lives in a running process or in stored state, and check which calls never reach it. A turn limit becomes a specification only when it says what a turn counts, what the number is, and what happens at the limit. A per-run spend cap is an estimate checked after the spend, so it sits above workspace and organization limits rather than replacing them. Scope first, then approval, then per-run limits, then provider backstops, and prove each layer by making it trip.",
+    "captions": [
+      {
+        "cueId": "cue-brakes-risks-narration",
+        "startSeconds": 0,
+        "endSeconds": 450,
+        "text": "Brakes answer excessive autonomy and unbounded consumption; excessive functionality and permissions are fixed by scoping before any brake is added."
+      },
+      {
+        "cueId": "cue-brakes-approval-narration",
+        "startSeconds": 480,
+        "endSeconds": 930,
+        "text": "An approval gate is a pause; decide whether it lives in a running process or in stored state, and check which calls never reach it."
+      },
+      {
+        "cueId": "cue-brakes-turns-narration",
+        "startSeconds": 960,
+        "endSeconds": 1410,
+        "text": "A turn limit becomes a specification only when it says what a turn counts, what the number is, and what happens at the limit."
+      },
+      {
+        "cueId": "cue-brakes-spend-narration",
+        "startSeconds": 1440,
+        "endSeconds": 1890,
+        "text": "A per-run spend cap is an estimate checked after the spend, so it sits above workspace and organization limits rather than replacing them."
+      },
+      {
+        "cueId": "cue-brakes-stack-narration",
+        "startSeconds": 1920,
+        "endSeconds": 2370,
+        "text": "Scope first, then approval, then per-run limits, then provider backstops, and prove each layer by making it trip."
+      },
+      {
+        "cueId": "cue-brakes-assessment",
+        "startSeconds": 2400,
+        "endSeconds": 2700,
+        "text": "Begin the check once learners can describe what each brake counts, when it trips, and what it leaves uncovered."
+      }
+    ],
+    "reducedMotionAlternative": "Present the approval sequence, the turn and spend limit comparison, and the brake stack as static tables with focus-based highlighting instead of animated sequences."
+  }
 }
