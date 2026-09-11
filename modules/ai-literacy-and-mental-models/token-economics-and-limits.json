@@ -1,74 +1,326 @@
 {
   "id": "token-economics-and-limits",
   "title": "Token Economics, Context Windows & Limits",
-  "summary": "Tokenization math, pricing per 1M tokens, context caching, and avoiding hallucinations.",
+  "summary": "How token usage turns into cost, latency, and failure modes. Covers the asymmetry between input and output pricing, where unseen tokens come from, the separate limits a request can hit (context window, output cap, rate limits, and spend limits), and how prompt caching and batch processing change the bill. Figures are quoted from provider documentation as read on 2026-09-11 and are expected to change.",
   "level": "beginner",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 25,
+  "estimatedMinutes": 30,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Token Economics, Context Windows & Limits.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Read a response's usage fields and attribute tokens to uncached input, cached input, output, and thinking, including tokens the user never sees.",
+    "Estimate the cost of a workload from published pricing, accounting for the input and output price difference and for tokenizer differences between models.",
+    "Distinguish the context window, the output cap, rate limits, and spend limits, and name the signal each one produces.",
+    "Evaluate when prompt caching and batch processing reduce cost, and lay out a prompt so that caching can work."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "counting-what-you-pay-for",
+      "title": "Count the tokens you pay for, including the ones you never see",
       "paragraphs": [
-        "Tokenization math, pricing per 1M tokens, context caching, and avoiding hallucinations.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Token Economics, Context Windows & Limits.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
-      ]
+        "Hosted models meter work in tokens, and the unit is not stable across providers or even across models from one provider. Google's documentation gives a rule of thumb for Gemini: a token is \"about 4 characters,\" and \"100 tokens is equal to about 60-80 English words.\" Anthropic's pricing page notes that Claude 4.7 and later models use a newer tokenizer that \"produces approximately 30% more tokens for the same text,\" with the exact increase depending on content. The practical consequence is that a token count measured against one model does not transfer to another. Anthropic's token-counting guide tells developers to \"recount prompts against the model you plan to use rather than reusing counts measured against earlier models,\" and describes its counting endpoint as free to use but an estimate that can differ from actual usage \"by a small amount.\"",
+        "A request's bill also includes tokens nobody typed or read. Anthropic's context-window guide lists what counts: the system prompt, every message including tool results, images, and documents, the tool definitions, and the output generated for the turn, \"including its extended thinking.\" Thinking tokens \"are billed as output tokens,\" and Google documents the same for Gemini, where pricing \"is based on the full thought tokens the model needs to generate, despite only the summary being output from the API.\" The reliable instrument is the usage record that each response returns. Anthropic splits input into input_tokens, cache_read_input_tokens, and cache_creation_input_tokens; Gemini reports input, output, thinking, cached, and tool-use tokens separately. Log these for every request: they are the ground truth that estimates should be reconciled against."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Reading Anthropic's usage fields (the worked example from its prompt-caching guide)",
+        "code": "cache_read_input_tokens       100,000   prefix read from the cache\ncache_creation_input_tokens         0   nothing new written to the cache\ninput_tokens                       50   the user message after the cache breakpoint\n-------------------------------------------------\ntotal input tokens processed  100,050\n\ntotal_input_tokens = cache_read_input_tokens + cache_creation_input_tokens + input_tokens"
+      }
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "pricing-asymmetry",
+      "title": "Output costs more than input, and that shapes design",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
-      ]
+        "Price lists separate input from output, and output is the expensive side. In Anthropic's pricing table as read on 2026-09-11, every listed model's output rate is five times its input rate: for example, $5 per million input tokens and $25 per million output tokens for Claude Opus 5, and $1 and $5 for Claude Haiku 4.5. A workload that reads a long document and returns a short classification is dominated by input cost. One that generates long reports, or thinks at length before answering, is dominated by output cost, and because thinking tokens are billed as output, raising reasoning depth moves spend onto the expensive side of the ledger.",
+        "That gives a simple estimating habit: compute input tokens multiplied by the input rate and output tokens multiplied by the output rate separately, count thinking as output, and split the input side into cached and uncached parts when caching is on. Estimate with the tokenizer of the model you will actually use, then reconcile against logged usage after a pilot. Watch for modifiers that sit on top of base rates. Anthropic documents a 1.1x multiplier for US-only inference on Claude 4.6 and later models, and states that on its 1M-token-context models \"a 900k-token request is billed at the same per-token rate as a 9k-token request,\" so there a long context raises the bill in proportion to its length rather than through a surcharge. Treat every figure in this module as dated: prices change, and this module is reviewed on a 30-day cadence for that reason."
+      ],
+      "callout": "Estimate input and output separately. In the pricing read for this module, an output token costs five times an input token.",
+      "code": {
+        "language": "text",
+        "label": "Worked estimate for a hypothetical workload at Anthropic's published Claude Haiku 4.5 rates (read 2026-09-11)",
+        "code": "Rates: input $1.00 per million tokens, output $5.00 per million tokens\n\n10,000 requests x 3,000 input tokens  = 30,000,000 input tokens   ->  $30.00\n10,000 requests x   400 output tokens =  4,000,000 output tokens  ->  $20.00\n                                                          Total      $50.00\n\nSame workload, 2,000 output tokens per request (for example, long reasoning):\n10,000 requests x 2,000 output tokens = 20,000,000 output tokens  -> $100.00\n                                                          Total     $130.00"
+      }
+    },
+    {
+      "id": "the-limit-stack",
+      "title": "Four different limits, four different signals",
+      "paragraphs": [
+        "A request can be refused or cut short at several independent limits, and each produces a different signal. The context window is everything the model can reference \"including the response itself.\" Anthropic lists a 1M-token window for models such as Claude Opus 5 and Claude Sonnet 5, each able to generate up to 128k output tokens per request, and a 200k-token window for others such as Claude Sonnet 4.5. If the input alone exceeds the window, the API returns a 400 error (\"prompt is too long\"). If generation reaches the max_tokens you set, the response ends with stop_reason \"max_tokens\": a successful response that is nonetheless truncated. On Claude 4.5 and newer models, a response that fills the context window ends with \"model_context_window_exceeded,\" which the documentation says to treat as truncated. Google documents a trap specific to thinking models: max_output_tokens includes thought tokens, so a low cap can leave truncated or empty output while the thinking is still billed.",
+        "Throughput and spend limits are separate again. Anthropic measures requests per minute, input tokens per minute, and output tokens per minute for each model class; exceeding any of them returns HTTP 429 with a retry-after header. It uses a token-bucket algorithm, so capacity replenishes continuously and short bursts can trip a limit even when the per-minute average looks safe. Spend limits behave differently: when an organization reaches its tier's monthly cap, requests also return 429 but with no retry-after header, and retrying, including SDK automatic retries, \"fails until access resumes.\" An application that treats every 429 as \"wait and retry\" will spin uselessly against a spend cap. Finally, a larger window is not a free upgrade. Anthropic notes that \"as token count grows, accuracy and recall degrade, a phenomenon known as context rot,\" and that cached content still occupies the window: caching \"changes what you pay for those tokens, not whether they count.\""
+      ],
+      "callout": "Check stop_reason on every response. A successful response with stop_reason \"max_tokens\" is a truncated answer, not a complete one.",
+      "code": {
+        "language": "python",
+        "label": "Route each limit by its own signal (Anthropic Messages API values)",
+        "code": "if response.stop_reason in (\"max_tokens\", \"model_context_window_exceeded\"):\n    mark_truncated(response)       # never pass a cut-off answer downstream as complete\nelif response.stop_reason == \"end_turn\":\n    accept(response)\n\n# On an HTTP 429 error:\n#   retry-after header present -> rate limit: wait that long, then retry with backoff\n#   no retry-after header      -> possibly the monthly spend cap: stop retrying and alert a person"
+      }
+    },
+    {
+      "id": "caching-and-batching",
+      "title": "Caching and batching change the bill, if the prompt is built for them",
+      "paragraphs": [
+        "Prompt caching reuses the processed form of a repeated prompt prefix, and the economics look similar across providers. Anthropic prices a 5-minute cache write at 1.25x the base input price, a 1-hour write at 2x, and a cache read at 0.1x, so caching \"pays off after one cache read for the 5-minute duration (1.25x write), or after two cache reads for the 1-hour duration (2x write).\" OpenAI describes cached input as \"discounted up to 90%\"; for GPT-5.6 and later it prices writes at 1.25x and reads at 0.1x the uncached input rate, keeps a prefix eligible for reuse for 30 minutes after its last write or reuse, and requires at least 1,024 tokens before a prefix can be cached. Anthropic also documents that for most Claude models cache reads do not count toward the input-tokens-per-minute rate limit, so caching raises effective throughput as well as lowering cost.",
+        "Caching only works if the prompt is laid out for it. Both providers match on the prefix. Anthropic caches \"the entire prompt - tools, system, and messages (in that order)\" up to a cache breakpoint, and changing any block at or before the breakpoint produces a different hash on the next request. OpenAI advises putting \"stable developer instructions and shared reference material first\" and moving timestamps and user-specific content to the end. A timestamp on the first line of a system prompt defeats caching on every request. Prompts shorter than the model's minimum are processed without caching \"and no error is returned,\" so confirm caching in the usage fields rather than assuming it. For work that does not need an immediate answer, batch processing is the other lever: Anthropic documents a 50% discount on both input and output tokens for its Batch API, and OpenAI documents a 50% discount, a 24-hour completion window, and a separate pool of rate limits for its batches. Anthropic states that batch and caching discounts can be combined."
+      ],
+      "callout": "Stable content first, variable content last. The layout that lets caching work also keeps prompts easier to audit."
     }
   ],
   "activity": {
     "id": "token-economics-and-limits-activity",
-    "title": "Token Economics, Context Windows & Limits Hands-On Lab",
+    "title": "Build a token budget and limit plan for one workflow",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Step 1: Choose one workflow you run or plan to run through an AI API or tool, such as summarizing incoming support tickets, and write down its expected daily request volume.",
+      "Step 2: Take three representative inputs and count their tokens with the provider's counting tool for the exact model you will use, or run them once and read the usage fields in the responses. Record uncached input, cached input, output, and thinking tokens separately.",
+      "Step 3: Using the provider's current published rates, and recording the date you read them, compute the daily cost of the workflow with input and output priced separately.",
+      "Step 4: Mark which parts of the prompt are identical on every request and which vary. Reorder the prompt so the stable part comes first, and state whether that stable part meets the model's minimum cacheable length.",
+      "Step 5: For each of the four limits (context window, output cap, rate limit, spend limit), write the signal your application would receive and the action it should take."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A token table for three representative inputs showing uncached input, cached input, output, and thinking tokens, with the counting method named.",
+      "A daily cost estimate showing the formula, the rates used, and the date those rates were read.",
+      "A four-row limit table listing each limit, its signal (HTTP status, header, or stop_reason), and the action your application takes."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which single change (shorter outputs, less reasoning depth, caching, or batching) would move your estimate most, and what would it cost you in quality or latency?"
+  },
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 1800,
+    "cues": [
+      {
+        "id": "cue-token-economics-counting",
+        "kind": "narration",
+        "sectionId": "counting-what-you-pay-for",
+        "text": "Tokens are counted per tokenizer, so recount for the model you will use, and read the usage fields on every response, including thinking and cached tokens you never see."
+      },
+      {
+        "id": "cue-token-economics-usage-visual",
+        "kind": "visual",
+        "sectionId": "counting-what-you-pay-for",
+        "text": "Show one request as a stacked bar: cached input, newly cached input, uncached input, thinking, and visible output, each labeled with the usage field that reports it.",
+        "accessibilityAlternative": "A five-row table lists cached input, cache-write input, uncached input, thinking, and visible output, with the usage field that reports each and whether it is billed at the input or output rate. Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-token-economics-pricing",
+        "kind": "narration",
+        "sectionId": "pricing-asymmetry",
+        "text": "Price input and output separately; in the pricing read for this module, output costs five times input, and thinking is billed as output."
+      },
+      {
+        "id": "cue-token-economics-pricing-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "pricing-asymmetry",
+        "text": "Ask learners to compute the worked estimate again with output doubled, and say which side of the ledger now dominates."
+      },
+      {
+        "id": "cue-token-economics-limits",
+        "kind": "narration",
+        "sectionId": "the-limit-stack",
+        "text": "The context window, the output cap, rate limits, and spend limits are four separate limits with four separate signals, and a successful response can still be truncated."
+      },
+      {
+        "id": "cue-token-economics-limits-pause",
+        "kind": "pause",
+        "sectionId": "the-limit-stack",
+        "text": "Allow two minutes for learners to name what their application currently does when it receives a 429 without a retry-after header."
+      },
+      {
+        "id": "cue-token-economics-caching",
+        "kind": "narration",
+        "sectionId": "caching-and-batching",
+        "text": "Caching and batching can cut cost substantially, but only when stable content comes first and the work can wait."
+      },
+      {
+        "id": "cue-token-economics-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "caching-and-batching",
+        "text": "Check that learners can explain why a timestamp at the top of a system prompt prevents cache reads, and how they would confirm caching from the usage fields."
+      },
+      {
+        "id": "cue-token-economics-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the token budget, the dated cost estimate, and the four-row limit table."
+      },
+      {
+        "id": "cue-token-economics-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can price a workload with input and output separated and match each limit to the signal it produces."
+      }
+    ],
+    "transcript": "Tokens are counted per tokenizer, so recount for the model you will use, and read the usage fields on every response, including thinking and cached tokens you never see. Price input and output separately; in the pricing read for this module, output costs five times input, and thinking is billed as output. The context window, the output cap, rate limits, and spend limits are four separate limits with four separate signals, and a successful response can still be truncated. Caching and batching can cut cost substantially, but only when stable content comes first and the work can wait.",
+    "captions": [
+      {
+        "cueId": "cue-token-economics-counting",
+        "startSeconds": 0,
+        "endSeconds": 420,
+        "text": "Tokens are counted per tokenizer, so recount for the model you will use, and read the usage fields on every response, including thinking and cached tokens you never see."
+      },
+      {
+        "cueId": "cue-token-economics-pricing",
+        "startSeconds": 450,
+        "endSeconds": 870,
+        "text": "Price input and output separately; in the pricing read for this module, output costs five times input, and thinking is billed as output."
+      },
+      {
+        "cueId": "cue-token-economics-limits",
+        "startSeconds": 900,
+        "endSeconds": 1290,
+        "text": "The context window, the output cap, rate limits, and spend limits are four separate limits with four separate signals, and a successful response can still be truncated."
+      },
+      {
+        "cueId": "cue-token-economics-caching",
+        "startSeconds": 1320,
+        "endSeconds": 1620,
+        "text": "Caching and batching can cut cost substantially, but only when stable content comes first and the work can wait."
+      },
+      {
+        "cueId": "cue-token-economics-assessment",
+        "startSeconds": 1650,
+        "endSeconds": 1800,
+        "text": "Begin the check once learners can price a workload with input and output separated and match each limit to the signal it produces."
+      }
+    ],
+    "reducedMotionAlternative": "Present the token breakdown, the cost estimate, and the limit-to-signal mapping as static tables with focus-based highlighting instead of animated sequences."
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-token-economics-and-limits-1",
-        "prompt": "What is the primary architectural goal of Token Economics, Context Windows & Limits?",
+        "prompt": "A response arrives successfully with stop_reason \"max_tokens\". What should the application conclude?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "The answer is complete and safe to use",
+          "The answer was cut off at the output cap: raise max_tokens or continue the response, and do not treat it as complete",
+          "The request was rate limited and should be retried after the retry-after interval",
+          "The input exceeded the context window"
+        ],
+        "answerIndex": 1,
+        "explanation": "stop_reason \"max_tokens\" means generation reached the limit you set, so the response is truncated even though the request succeeded. Rate limiting returns an HTTP 429 error, and input that exceeds the context window returns a 400 error; neither produces a successful response."
+      },
+      {
+        "id": "q-token-economics-and-limits-2",
+        "prompt": "An application receives HTTP 429 from Anthropic's API with no retry-after header. What is a likely cause, and what should the application avoid?",
+        "choices": [
+          "A short burst exceeded requests per minute, so it should retry immediately in a tight loop",
+          "The prompt was longer than the context window",
+          "The organization may have reached its monthly spend cap; retries will keep failing until access resumes, so stop retrying and alert a person",
+          "The response reached max_tokens"
+        ],
+        "answerIndex": 2,
+        "explanation": "Anthropic documents that rate-limit 429s carry a retry-after header, while the 429 returned at a spend cap does not, and retries fail until access resumes. Tight retry loops never help. Context-window and max_tokens conditions produce a 400 error and a stop_reason respectively, not a 429."
+      },
+      {
+        "id": "q-token-economics-and-limits-3",
+        "prompt": "At $1 per million input tokens and $5 per million output tokens, which costs more: 1,000,000 input tokens with 100,000 output tokens, or 200,000 input tokens with 400,000 output tokens?",
+        "choices": [
+          "The first, because it uses more tokens in total",
+          "They cost the same",
+          "They cannot be compared without knowing the context window size",
+          "The second: $2.20 against $1.50, because output tokens cost five times as much"
+        ],
+        "answerIndex": 3,
+        "explanation": "First workload: $1.00 input plus $0.50 output is $1.50. Second: $0.20 input plus $2.00 output is $2.20. Total token count is misleading when input and output are priced differently, and the context window size does not affect the per-token price in this comparison."
+      },
+      {
+        "id": "q-token-economics-and-limits-4",
+        "prompt": "A team adds the current timestamp as the first line of a long, otherwise unchanging system prompt. What happens to prompt caching?",
+        "choices": [
+          "The prefix changes on every request, so there are no cache reads; stable content should come first and dynamic content last",
+          "Nothing, because caching ignores timestamps",
+          "Caching improves because every request is now unique",
+          "The API rejects the request with an error"
         ],
         "answerIndex": 0,
-        "explanation": "Token Economics, Context Windows & Limits enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "explanation": "Caching matches on the prompt prefix, and changing any block at or before a cache breakpoint produces a different hash. OpenAI and Anthropic both advise placing dynamic content such as timestamps at the end. The API does not error; it simply processes the prompt without a cache hit."
+      },
+      {
+        "id": "q-token-economics-and-limits-5",
+        "prompt": "Why should a token count measured on one model not be reused to budget for another model?",
+        "choices": [
+          "Token counts depend only on word count, so they are always identical",
+          "Tokenizers differ between models: Anthropic documents its newer tokenizer producing roughly 30% more tokens for the same text",
+          "Only output tokens are counted, so input counts do not matter",
+          "All providers share one tokenizer, so the counts are interchangeable"
+        ],
+        "answerIndex": 1,
+        "explanation": "Tokenization is model-specific, which is why Anthropic tells developers to recount prompts against the model they plan to use. Token counts are not word counts, input tokens are billed, and providers do not share a tokenizer."
+      },
+      {
+        "id": "q-token-economics-and-limits-6",
+        "prompt": "Which statement about thinking tokens is supported by both Anthropic and Google documentation?",
+        "choices": [
+          "They are free, because usually only a summary is shown",
+          "They count toward the context window but never toward cost",
+          "They are billed at the cached-input rate",
+          "They are billed as output, including thinking that is not shown in full"
+        ],
+        "answerIndex": 3,
+        "explanation": "Anthropic states that thinking tokens are billed as output tokens; Google states that pricing is based on the full thought tokens generated even though only a summary is returned. They are neither free nor billed at the cached-input rate."
       }
     ]
   },
   "sources": [
     {
-      "title": "Anthropic documentation",
-      "url": "https://docs.anthropic.com/",
+      "title": "Pricing",
+      "url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-05"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Context windows",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/context-windows",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Token counting",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/token-counting",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Rate limits",
+      "url": "https://platform.claude.com/docs/en/api/rate-limits",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Stop reasons and fallback",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Prompt caching",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Prompt caching",
+      "url": "https://developers.openai.com/api/docs/guides/prompt-caching",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Batch API",
+      "url": "https://developers.openai.com/api/docs/guides/batch",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Understand and count tokens",
+      "url": "https://ai.google.dev/gemini-api/docs/tokens",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Gemini thinking",
+      "url": "https://ai.google.dev/gemini-api/docs/thinking",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
     }
   ]
 }
