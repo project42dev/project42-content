@@ -1,74 +1,242 @@
 {
   "id": "model-context-protocol-mcp",
   "title": "Model Context Protocol (MCP) Architecture",
-  "summary": "Host-Client-Server JSON-RPC protocol, STDIO/SSE transports, and building MCP servers.",
+  "summary": "How a host application coordinates many MCP clients and servers safely: the data/transport split, JSON-RPC discovery and primitives, and the trust and scoping model an autonomous agent needs to operate a fleet of servers.",
   "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-10",
   "providers": [
     "provider-neutral"
   ],
   "estimatedMinutes": 45,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Model Context Protocol (MCP) Architecture.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Explain MCP's host/client/server participants and why a host runs one client per server rather than one shared connection.",
+    "Distinguish the data layer (JSON-RPC 2.0, discovery, primitives) from the transport layer (stdio, Streamable HTTP), and say what statelessness costs and buys a server.",
+    "Trace a capability-negotiation exchange through server/discover and explain what a deprecated primitive (sampling, logging) means for a server built today.",
+    "Design a scoping and trust policy for a host that connects many MCP servers at once, using approval, timeouts, and output limits rather than blanket trust."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "host-client-server-layers",
+      "title": "One host, many clients, one connection each",
       "paragraphs": [
-        "Host-Client-Server JSON-RPC protocol, STDIO/SSE transports, and building MCP servers.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Model Context Protocol (MCP) Architecture.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "An MCP host is the AI application itself; it creates a dedicated MCP client for every server it connects to, and each client holds exactly one connection. A local server reached over stdio typically serves one client; a remote server reached over Streamable HTTP typically serves many. Nothing is shared between clients -- a compromised or slow server cannot see another server's traffic.",
+        "MCP factors the protocol into two layers. The data layer is a JSON-RPC 2.0 exchange that defines discovery, the primitives a server exposes, and notifications. The transport layer is what carries those JSON-RPC messages -- stdio for local processes, Streamable HTTP for remote ones -- and it is where connection setup, framing, and authorization live. The same JSON-RPC message format crosses either transport unchanged, which is what lets a host treat a local filesystem server and a remote Sentry server through the same client interface."
+      ],
+      "callout": "A host with four connected servers is running four independent client connections, not one client juggling four endpoints."
+    },
+    {
+      "id": "primitives-and-discovery",
+      "title": "What a server can offer, and how a client finds out",
+      "paragraphs": [
+        "Servers expose three core primitives: tools (executable actions), resources (contextual data), and prompts (interaction templates). Each has list/get/call methods, and a client is expected to call tools/list before tools/call rather than assuming a tool exists -- the same server can add or remove tools between sessions.",
+        "MCP is stateless: every request carries its protocol version and capabilities in a `_meta` field, so a server can act on one request without remembering the last one. A client MAY send server/discover first to learn a server's supported protocol versions and capabilities in one round trip, but it is not required to -- any request already carries enough for the server to respond or reject a mismatched version.",
+        "Capability negotiation matters because MCP versions primitives, not just the protocol as a whole. As of protocol version 2026-07-28, the client-side sampling and logging primitives are deprecated: new servers should call an LLM provider directly instead of requesting a completion through the client, and should log to stderr or OpenTelemetry instead of the deprecated logging notifications. A server written against an older tutorial that still relies on sampling is building against a primitive the current spec no longer recommends."
+      ],
+      "code": {
+        "language": "json",
+        "label": "A capability the client must check before relying on it",
+        "code": "// From a real server/discover response\n{\n  \"capabilities\": {\n    \"tools\": { \"listChanged\": true },\n    \"resources\": {}\n  }\n}\n// This server exposes tools and resources, and will notify the\n// client when its tool list changes. It does not claim prompts."
+      }
+    },
+    {
+      "id": "transport-and-statelessness",
+      "title": "Two transports, one statelessness rule",
+      "paragraphs": [
+        "Stdio gives a local process direct standard-input/output framing with no network overhead -- the natural choice when the host and server run on the same machine and only one client will ever connect. Streamable HTTP uses HTTP POST for client-to-server messages with optional Server-Sent Events for server-to-client streaming, and it is the transport that lets one remote server serve many clients concurrently; it supports bearer tokens, API keys, and custom headers, and MCP recommends OAuth for obtaining them.",
+        "Statelessness is what makes the remote case work at all: because every request is self-describing, a load balancer can route two requests from the same client to two different server instances without either instance needing to have seen the first request. The cost is that nothing about a prior tool call is implicitly remembered -- a server that needs continuity across calls has to make that continuity part of its own data model (a resource, a stored ID), not rely on connection state MCP does not provide."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "operating-a-fleet-of-servers",
+      "title": "Running many servers safely is a scoping and trust problem",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "An autonomous agent that connects to a dozen servers is not one design decision, it is a fleet-management one. Claude Code's own configuration model is a working example of the shape that problem takes: servers are declared at local, project, or user scope, with an explicit precedence order when the same server name appears in more than one place, so a team-shared project server cannot silently be shadowed by a private local one without that being a defined, resolvable case rather than a race.",
+        "Trust is handled as approval, not as an on/off switch. A project-scoped server declared in version-controlled configuration prompts for approval on first use in an interactive session -- and is allowed to load without prompting in a non-interactive run, which is precisely the case an autonomous pipeline needs to reason about explicitly rather than assume away. The same model adds per-server timeouts and a default cap on how many tokens a single tool result may return, because a fleet of servers is also a fleet of things that can hang or flood a context window, and 'the server is trusted' is a different question from 'the server is bounded.'",
+        "The operational lesson generalizes past any one client: a host managing many servers needs three separate levers -- scope (who can see this server), trust (does this server run without a human confirming it first), and bound (how long it may run and how much it may return) -- and treating any one of them as a stand-in for the other two is how a single misbehaving server degrades an entire agent loop."
       ]
     }
   ],
   "activity": {
     "id": "model-context-protocol-mcp-activity",
-    "title": "Model Context Protocol (MCP) Architecture Hands-On Lab",
+    "title": "Design a multi-server trust and scoping policy",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Pick a real or hypothetical autonomous agent that needs four MCP servers: one read-only local filesystem server, one team-shared remote issue tracker, one server that can send external email, and one server pulled in ad hoc by a teammate for a one-off task.",
+      "For each server, assign a scope (local, project, or user) and justify it in terms of who else needs to see the declaration.",
+      "For each server, decide whether it should require interactive approval, and specify the timeout and maximum tool-output size you would set for it, with a one-sentence reason tied to what the server can do if it misbehaves.",
+      "Identify which one of the four servers is the highest-risk connection, and state the specific capability (not just 'it's risky') that makes it so."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A four-row policy table: server, scope, approval requirement, timeout, output cap, and the one-sentence justification for each.",
+      "A short written identification of the highest-risk server naming the specific capability responsible, not a generic risk label."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which of the three levers -- scope, trust, or bound -- would have been the weakest guard against the highest-risk server if the other two had been misconfigured?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-model-context-protocol-mcp-1",
-        "prompt": "What is the primary architectural goal of Model Context Protocol (MCP) Architecture?",
+        "prompt": "A host connects to three MCP servers. How many MCP client connections does it maintain?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "One shared client that multiplexes all three servers",
+          "Three -- one dedicated client per server",
+          "Zero; servers connect directly to each other",
+          "It depends only on which transport the servers use"
         ],
-        "answerIndex": 0,
-        "explanation": "Model Context Protocol (MCP) Architecture enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 1,
+        "explanation": "The host creates one dedicated MCP client per server it connects to, regardless of transport."
+      },
+      {
+        "id": "q-model-context-protocol-mcp-2",
+        "prompt": "A server built today relies on the client's sampling primitive to request LLM completions. What is true of that design, as of protocol version 2026-07-28?",
+        "choices": [
+          "It is the recommended pattern for staying provider-agnostic",
+          "Sampling is deprecated; new servers should call a provider's API directly instead",
+          "Sampling was never part of the MCP specification",
+          "It only works over the stdio transport"
+        ],
+        "answerIndex": 1,
+        "explanation": "Sampling and logging are deprecated client primitives as of 2026-07-28; new implementations should integrate directly with LLM provider APIs and log to stderr or OpenTelemetry."
+      },
+      {
+        "id": "q-model-context-protocol-mcp-3",
+        "prompt": "Why can a load balancer route two requests from the same MCP client to two different server instances without breaking the session?",
+        "choices": [
+          "MCP servers replicate their memory across instances automatically",
+          "MCP is a stateless protocol -- every request carries what the server needs to process it on its own",
+          "The client always retries on the same instance",
+          "Streamable HTTP guarantees a single instance per client"
+        ],
+        "answerIndex": 1,
+        "explanation": "Statelessness means each request is self-describing, so no server instance has to remember a prior request from that client."
+      },
+      {
+        "id": "q-model-context-protocol-mcp-4",
+        "prompt": "A project declares a shared MCP server in version-controlled configuration. In a non-interactive pipeline run, what happens to the approval prompt an interactive session would show?",
+        "choices": [
+          "The pipeline always fails until a human approves it manually",
+          "It is skipped -- non-interactive runs load configured servers without prompting, which the pipeline design must account for explicitly",
+          "Approval is automatically denied",
+          "Approval only applies to local-scope servers, never project scope"
+        ],
+        "answerIndex": 1,
+        "explanation": "Non-interactive runs load .mcp.json-declared servers without an approval prompt, which is exactly the gap an autonomous pipeline has to reason about rather than assume is covered."
       }
     ]
   },
   "sources": [
     {
-      "title": "Model Context Protocol specification",
-      "url": "https://modelcontextprotocol.io/",
+      "title": "Architecture overview",
+      "url": "https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture",
       "publisher": "Model Context Protocol",
-      "lastVerified": "2026-09-05"
+      "lastVerified": "2026-09-10"
+    },
+    {
+      "title": "Connect Claude Code to tools via MCP",
+      "url": "https://code.claude.com/docs/en/mcp",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-10"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 2700,
+    "cues": [
+      {
+        "id": "cue-mcp-host-client-server",
+        "kind": "narration",
+        "sectionId": "host-client-server-layers",
+        "text": "A host runs one dedicated MCP client per server it connects to; the data layer and transport layer are separate concerns."
+      },
+      {
+        "id": "cue-mcp-primitives-narration",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "A server exposes tools, resources, and prompts; a client should list before it calls, because MCP is stateless and nothing else tells it what still exists."
+      },
+      {
+        "id": "cue-mcp-primitives-visual",
+        "kind": "visual",
+        "sectionId": "primitives-and-discovery",
+        "text": "Show a server/discover exchange: the client's declared capabilities, the server's returned tools/resources capability object, and how a listChanged flag governs later notifications.",
+        "accessibilityAlternative": "A static two-column table shows the discover request's declared client capabilities on the left and the server's returned capabilities on the right, with the listChanged flag called out as the trigger for later tool-list-changed notifications. Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-mcp-deprecation-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "primitives-and-discovery",
+        "text": "Ask learners what changes in a server design that currently uses the sampling primitive, now that it is deprecated."
+      },
+      {
+        "id": "cue-mcp-transport-narration",
+        "kind": "narration",
+        "sectionId": "transport-and-statelessness",
+        "text": "Stdio suits one local client and no network hop; Streamable HTTP suits many remote clients and needs statelessness to scale."
+      },
+      {
+        "id": "cue-mcp-statelessness-pause",
+        "kind": "pause",
+        "sectionId": "transport-and-statelessness",
+        "text": "Allow two minutes for learners to name one thing a server must NOT assume is remembered between two calls from the same client."
+      },
+      {
+        "id": "cue-mcp-fleet-narration",
+        "kind": "narration",
+        "sectionId": "operating-a-fleet-of-servers",
+        "text": "Running many MCP servers safely means separating scope, trust, and bound -- not treating any one of them as a stand-in for the others."
+      },
+      {
+        "id": "cue-mcp-fleet-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "operating-a-fleet-of-servers",
+        "text": "Check that learners can name a scope, an approval requirement, and a timeout/output bound as three DIFFERENT levers, not one setting."
+      },
+      {
+        "id": "cue-mcp-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the four-server policy table and the highest-risk-server identification."
+      },
+      {
+        "id": "cue-mcp-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can distinguish the data layer from the transport layer and name what statelessness costs a server."
+      }
+    ],
+    "transcript": "A host runs one dedicated MCP client per server it connects to; the data layer and transport layer are separate concerns. Discovery lets a client learn a server's capabilities before relying on them, and as of protocol version 2026-07-28 the sampling and logging primitives are deprecated in favor of calling a provider directly and logging to stderr or OpenTelemetry. Stdio suits one local client with no network hop; Streamable HTTP suits many remote clients and needs statelessness to scale, because every request has to carry what the server needs on its own. Running many MCP servers safely means separating scope, trust, and bound -- not treating any one of them as a stand-in for the others.",
+    "captions": [
+      {
+        "cueId": "cue-mcp-host-client-server",
+        "startSeconds": 0,
+        "endSeconds": 360,
+        "text": "A host runs one dedicated MCP client per server it connects to; the data layer and transport layer are separate concerns."
+      },
+      {
+        "cueId": "cue-mcp-deprecation-prompt",
+        "startSeconds": 390,
+        "endSeconds": 810,
+        "text": "As of protocol version 2026-07-28, sampling and logging are deprecated in favor of calling a provider directly and logging to stderr or OpenTelemetry."
+      },
+      {
+        "cueId": "cue-mcp-transport-narration",
+        "startSeconds": 840,
+        "endSeconds": 1440,
+        "text": "Stdio suits one local client with no network hop; Streamable HTTP suits many remote clients and needs statelessness to scale."
+      },
+      {
+        "cueId": "cue-mcp-fleet-narration",
+        "startSeconds": 1470,
+        "endSeconds": 2340,
+        "text": "Running many MCP servers safely means separating scope, trust, and bound -- not treating any one of them as a stand-in for the others."
+      },
+      {
+        "cueId": "cue-mcp-assessment",
+        "startSeconds": 2370,
+        "endSeconds": 2700,
+        "text": "Begin the check once learners can distinguish the data layer from the transport layer and name what statelessness costs a server."
+      }
+    ],
+    "reducedMotionAlternative": "Present the discover exchange and the fleet-management levers as static tables with focus-based highlighting instead of animated sequences."
+  }
 }
