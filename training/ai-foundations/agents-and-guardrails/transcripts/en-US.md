@@ -17,7 +17,7 @@ Begin by classifying the system, not its brand. A single model call turns an inp
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 - <https://adk.dev/agents/>
 
 ## Demonstration: Simplest Design Demonstration
@@ -27,7 +27,7 @@ Suppose a team wants AI to reset customer passwords. A single model response can
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 
 ## Narration: Bounded Loop Explanation
 
@@ -36,7 +36,7 @@ When an agent is justified, define a run contract before execution. State one bo
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 - <https://adk.dev/agents/>
 
 ## Learner Prompt: Stop And Approval Prompt
@@ -47,7 +47,7 @@ Expected learner action: Define explicit completion, non-progress, budget, appro
 
 Sources:
 
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 
 ## Pause: Stop And Approval Work Time
 
@@ -58,7 +58,7 @@ Evaluate the trajectory as well as the final answer. A plausible response can hi
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 
 ## Checkpoint: Non Progress Loop Checkpoint
 
@@ -90,7 +90,7 @@ Recover from verified state, not from the agent's narrative. Stop on denied auth
 
 Sources:
 
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 - <https://adk.dev/agents/>
 
 ## Demonstration: Handoff Demonstration
@@ -99,7 +99,7 @@ Imagine a support agent may approve refunds below a policy threshold but finds c
 
 Sources:
 
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 
 ## Narration: Layered Guardrails Explanation
 
@@ -108,7 +108,7 @@ Place guardrails around the model because the model cannot enforce its own autho
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 - <https://adk.dev/agents/>
 
 ## Transition: Activity Transition

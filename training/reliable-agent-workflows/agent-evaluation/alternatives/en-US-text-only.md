@@ -27,8 +27,8 @@ Visual alternative: Four representative, two boundary, two adversarial, and two 
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
-- <https://platform.claude.com/docs/en/test-and-evaluate/eval-tool>
-- <https://google.github.io/adk-docs/evaluate/>
+- <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>
+- <https://adk.dev/evaluate/>
 
 ## Narration: Score Outcome And Trajectory
 
@@ -39,8 +39,8 @@ Visual alternative: Deterministic checks, blinded human review, and calibrated m
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
-- <https://platform.claude.com/docs/en/test-and-evaluate/eval-tool>
-- <https://google.github.io/adk-docs/evaluate/>
+- <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>
+- <https://adk.dev/evaluate/>
 
 ## Demonstration: Grader Demonstration
 
@@ -62,7 +62,7 @@ Visual alternative: Candidate improvements are accepted only when must-not-regre
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
-- <https://google.github.io/adk-docs/evaluate/>
+- <https://adk.dev/evaluate/>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Narration: Continuous Evaluation
@@ -74,7 +74,7 @@ Visual alternative: Incident evidence is minimized, reviewed, versioned, added t
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
-- <https://platform.claude.com/docs/en/test-and-evaluate/eval-tool>
+- <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Learner Prompt: Learner Evaluation Prompt

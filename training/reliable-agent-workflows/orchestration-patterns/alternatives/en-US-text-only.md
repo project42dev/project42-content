@@ -25,7 +25,7 @@ Visual alternative: Intake leads to classification, optional specialist work, ve
 
 Sources:
 
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Demonstration: Pattern Selection Demonstration
 
@@ -36,7 +36,7 @@ Visual alternative: The open loop can choose and repeat any step. The governed g
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Narration: Manager And Handoff
 
@@ -58,7 +58,7 @@ Visual alternative: Each branch has isolated scope and budget. The join checks r
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Narration: Observe And Limit
 
@@ -70,7 +70,7 @@ Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
 - <https://openai.github.io/openai-agents-js/guides/multi-agent/>
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Learner Prompt: Learner Pattern Prompt
 
@@ -103,7 +103,7 @@ If retrying: Check whether either branch depends on or mutates state used by the
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Transition: Activity Transition
 

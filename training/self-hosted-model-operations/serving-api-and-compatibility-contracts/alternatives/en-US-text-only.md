@@ -16,7 +16,7 @@ Visual alternative: The public contract sits above an application adapter, gatew
 Sources:
 
 - <https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol>
-- <https://docs.vllm.ai/en/latest/serving/openai_compatible_server/>
+- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 
 ## Demonstration: Layer Demonstration
 
@@ -26,7 +26,7 @@ Visual alternative: Both adapters preserve required application behavior; a runt
 
 Sources:
 
-- <https://docs.vllm.ai/en/latest/serving/openai_compatible_server/>
+- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 - <https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create>
 
 ## Narration: Health Identity Narration
@@ -84,7 +84,7 @@ Visual alternative: Paths, roles, tools, structured output, streaming, usage, er
 
 Sources:
 
-- <https://docs.vllm.ai/en/latest/serving/openai_compatible_server/>
+- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 - <https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create>
 
 ## Narration: Adapter Cutover Narration
@@ -95,7 +95,7 @@ Visual alternative: A bounded canary compares exact identities and stops on cont
 
 Sources:
 
-- <https://docs.vllm.ai/en/latest/serving/openai_compatible_server/>
+- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 - <https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol>
 
 ## Learner Prompt: Activity Transition
@@ -107,7 +107,7 @@ Learner action: Complete the endpoint and error contract, two-adapter matrix, de
 Sources:
 
 - <https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol>
-- <https://docs.vllm.ai/en/latest/serving/openai_compatible_server/>
+- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 
 ## Pause: Activity Work Time
 

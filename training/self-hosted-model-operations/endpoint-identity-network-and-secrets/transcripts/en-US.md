@@ -34,7 +34,7 @@ Authenticate people and workloads with evidence appropriate to the environment. 
 Sources:
 
 - <https://csrc.nist.gov/pubs/sp/800/207/final>
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 
 ## Checkpoint: Authorization Checkpoint
 
@@ -45,7 +45,7 @@ Expected learner action: Use the authenticated standard-user principal, deny una
 Sources:
 
 - <https://csrc.nist.gov/pubs/sp/800/207/final>
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 
 ## Pause: Authorization Response Time
 
@@ -60,7 +60,7 @@ Retry feedback: Do not let prompt text or model output establish identity, role,
 Sources:
 
 - <https://csrc.nist.gov/pubs/sp/800/207/final>
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 
 ## Narration: Network Management Narration
 
@@ -77,7 +77,7 @@ Keep secrets out of images, repositories, model packages, prompts, logs, traces,
 
 Sources:
 
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 - <https://docs.docker.com/engine/containers/resource_constraints/>
 - <https://kubernetes.io/docs/concepts/security/security-checklist/>
 
@@ -87,7 +87,7 @@ Prove the controls with negative cases. Test missing, expired, wrong-audience, f
 
 Sources:
 
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 - <https://kubernetes.io/docs/concepts/security/security-checklist/>
 - <https://csrc.nist.gov/pubs/sp/800/207/final>
 
@@ -100,7 +100,7 @@ Expected learner action: Complete the threat and data-flow model, control matrix
 Sources:
 
 - <https://csrc.nist.gov/pubs/sp/800/207/final>
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 - <https://docs.docker.com/engine/containers/resource_constraints/>
 - <https://kubernetes.io/docs/concepts/security/security-checklist/>
 

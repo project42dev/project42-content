@@ -37,7 +37,7 @@ Visual alternative: Prompts and model output are shown outside the trusted decis
 Sources:
 
 - <https://csrc.nist.gov/pubs/sp/800/207/final>
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 
 ## Checkpoint: Authorization Checkpoint
 
@@ -48,7 +48,7 @@ Learner action: Use the authenticated standard-user principal, deny unauthorized
 Sources:
 
 - <https://csrc.nist.gov/pubs/sp/800/207/final>
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 
 ## Pause: Authorization Response Time
 
@@ -63,7 +63,7 @@ If retrying: Do not let prompt text or model output establish identity, role, or
 Sources:
 
 - <https://csrc.nist.gov/pubs/sp/800/207/final>
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 
 ## Narration: Network Management Narration
 
@@ -84,7 +84,7 @@ Visual alternative: Secrets never enter prompts or artifacts. Body, context, out
 
 Sources:
 
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 - <https://docs.docker.com/engine/containers/resource_constraints/>
 - <https://kubernetes.io/docs/concepts/security/security-checklist/>
 
@@ -96,7 +96,7 @@ Visual alternative: Each negative case must deny safely, produce no unauthorized
 
 Sources:
 
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 - <https://kubernetes.io/docs/concepts/security/security-checklist/>
 - <https://csrc.nist.gov/pubs/sp/800/207/final>
 
@@ -109,7 +109,7 @@ Learner action: Complete the threat and data-flow model, control matrix, negativ
 Sources:
 
 - <https://csrc.nist.gov/pubs/sp/800/207/final>
-- <https://owasp.org/API-Security/>
+- <https://owasp.github.io/API-Security/editions/2023/en/0x11-t10/>
 - <https://docs.docker.com/engine/containers/resource_constraints/>
 - <https://kubernetes.io/docs/concepts/security/security-checklist/>
 

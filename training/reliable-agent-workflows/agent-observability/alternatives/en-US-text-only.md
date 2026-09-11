@@ -16,7 +16,7 @@ Visual alternative: Traces explain one run, metrics show trends, logs record eve
 Sources:
 
 - <https://openai.github.io/openai-agents-js/guides/tracing/>
-- <https://google.github.io/adk-docs/observability/>
+- <https://adk.dev/observability/>
 - <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
 
 ## Narration: Trace The Agent Graph
@@ -28,7 +28,7 @@ Visual alternative: Every span has trace, span, and parent identifiers plus oper
 Sources:
 
 - <https://openai.github.io/openai-agents-js/guides/tracing/>
-- <https://google.github.io/adk-docs/observability/>
+- <https://adk.dev/observability/>
 - <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
 
 ## Narration: Measure Service And Quality
@@ -39,7 +39,7 @@ Visual alternative: The catalog includes success, policy, correction, escalation
 
 Sources:
 
-- <https://google.github.io/adk-docs/observability/>
+- <https://adk.dev/observability/>
 - <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
@@ -64,7 +64,7 @@ Visual alternative: The visible failure occurs at completion, but stale retrieva
 Sources:
 
 - <https://openai.github.io/openai-agents-js/guides/tracing/>
-- <https://google.github.io/adk-docs/observability/>
+- <https://adk.dev/observability/>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Demonstration: Causal Review Demonstration
@@ -75,7 +75,7 @@ Visual alternative: The first wrong transition is the retrieval filter, followed
 
 Sources:
 
-- <https://google.github.io/adk-docs/observability/>
+- <https://adk.dev/observability/>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Learner Prompt: Learner Telemetry Prompt

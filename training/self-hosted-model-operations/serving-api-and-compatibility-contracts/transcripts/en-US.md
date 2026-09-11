@@ -17,7 +17,7 @@ Separate the layers and give each one a visible responsibility. The model runtim
 Sources:
 
 - <https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol>
-- <https://docs.vllm.ai/en/latest/serving/openai_compatible_server/>
+- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 
 ## Demonstration: Layer Demonstration
 
@@ -25,7 +25,7 @@ Consider an application that submits a document question and expects a structure
 
 Sources:
 
-- <https://docs.vllm.ai/en/latest/serving/openai_compatible_server/>
+- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 - <https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create>
 
 ## Narration: Health Identity Narration
@@ -77,7 +77,7 @@ Treat compatibility as a tested subset. A server described as OpenAI-compatible 
 
 Sources:
 
-- <https://docs.vllm.ai/en/latest/serving/openai_compatible_server/>
+- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 - <https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create>
 
 ## Narration: Adapter Cutover Narration
@@ -86,7 +86,7 @@ Keep user outcomes, application schemas, authorization policy, evaluation cases,
 
 Sources:
 
-- <https://docs.vllm.ai/en/latest/serving/openai_compatible_server/>
+- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 - <https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol>
 
 ## Learner Prompt: Activity Transition
@@ -98,7 +98,7 @@ Expected learner action: Complete the endpoint and error contract, two-adapter m
 Sources:
 
 - <https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol>
-- <https://docs.vllm.ai/en/latest/serving/openai_compatible_server/>
+- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 
 ## Pause: Activity Work Time
 

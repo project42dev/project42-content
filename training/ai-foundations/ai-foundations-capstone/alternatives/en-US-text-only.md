@@ -35,8 +35,8 @@ Visual alternative: The plan records instructions, trusted evidence, untrusted i
 
 Sources:
 
-- <https://platform.openai.com/docs/guides/prompt-engineering>
-- <https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview>
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview>
 
 ## Learner Prompt: First Stop Prompt
 
@@ -59,7 +59,7 @@ Visual alternative: Each row records a safe artifact reference, source or tool, 
 Sources:
 
 - <https://www.nist.gov/itl/ai-risk-management-framework>
-- <https://platform.openai.com/docs/guides/prompt-engineering>
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
 
 ## Narration: Verification And Recovery Explanation
 

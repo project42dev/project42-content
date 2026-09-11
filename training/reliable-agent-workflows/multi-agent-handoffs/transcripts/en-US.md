@@ -63,7 +63,7 @@ Sources:
 - <https://openai.github.io/openai-agents-js/guides/handoffs/>
 - <https://openai.github.io/openai-agents-js/guides/multi-agent/>
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Learner Prompt: Learner Handoff Prompt
 

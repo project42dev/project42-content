@@ -24,7 +24,7 @@ Consider a curriculum update. Intake validates the source record. Classification
 
 Sources:
 
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Demonstration: Pattern Selection Demonstration
 
@@ -33,7 +33,7 @@ Now compare two implementations. Design A lets an agent decide whether to resear
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Narration: Manager And Handoff
 
@@ -51,7 +51,7 @@ Parallelize only proven independence. Two branches are not independent when one 
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Narration: Observe And Limit
 
@@ -61,7 +61,7 @@ Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
 - <https://openai.github.io/openai-agents-js/guides/multi-agent/>
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Learner Prompt: Learner Pattern Prompt
 
@@ -94,7 +94,7 @@ Retry feedback: Check whether either branch depends on or mutates state used by 
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://google.github.io/adk-docs/agents/workflow-agents/>
+- <https://adk.dev/agents/workflow-agents/>
 
 ## Transition: Activity Transition
 

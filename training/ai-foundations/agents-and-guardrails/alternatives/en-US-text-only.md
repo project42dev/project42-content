@@ -16,7 +16,7 @@ Visual alternative: The comparison asks who controls the next step, whether tool
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 - <https://adk.dev/agents/>
 
 ## Demonstration: Simplest Design Demonstration
@@ -28,7 +28,7 @@ Visual alternative: Model advice explains the process. A deterministic flow vali
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 
 ## Narration: Bounded Loop Explanation
 
@@ -39,7 +39,7 @@ Visual alternative: The loop observes state, chooses an action, passes determini
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 - <https://adk.dev/agents/>
 
 ## Learner Prompt: Stop And Approval Prompt
@@ -50,7 +50,7 @@ Learner action: Define explicit completion, non-progress, budget, approval, and 
 
 Sources:
 
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 
 ## Pause: Stop And Approval Work Time
 
@@ -63,7 +63,7 @@ Visual alternative: Each step records state, tool, target, approval, result, pos
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 
 ## Checkpoint: Non Progress Loop Checkpoint
 
@@ -97,7 +97,7 @@ Visual alternative: The checkpoint records contract, state, approvals, results, 
 
 Sources:
 
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 - <https://adk.dev/agents/>
 
 ## Demonstration: Handoff Demonstration
@@ -108,7 +108,7 @@ Visual alternative: The handoff names the goal, conflicting records, completed c
 
 Sources:
 
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 
 ## Narration: Layered Guardrails Explanation
 
@@ -119,7 +119,7 @@ Visual alternative: Identity, minimum data, typed tools, exact action approval, 
 Sources:
 
 - <https://www.anthropic.com/engineering/building-effective-agents>
-- <https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/>
+- <https://openai.github.io/openai-agents-js/guides/running-agents/>
 - <https://adk.dev/agents/>
 
 ## Transition: Activity Transition

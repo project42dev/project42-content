@@ -32,8 +32,8 @@ Build a workflow plan another person can follow. Separate instructions, trusted 
 
 Sources:
 
-- <https://platform.openai.com/docs/guides/prompt-engineering>
-- <https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview>
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview>
 
 ## Learner Prompt: First Stop Prompt
 
@@ -54,7 +54,7 @@ Execute in small observable steps and keep an evidence log. Record the objective
 Sources:
 
 - <https://www.nist.gov/itl/ai-risk-management-framework>
-- <https://platform.openai.com/docs/guides/prompt-engineering>
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
 
 ## Narration: Verification And Recovery Explanation
 

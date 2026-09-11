@@ -26,8 +26,8 @@ Build a set that reflects the product, not merely what is easy to pass. Include 
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
-- <https://platform.claude.com/docs/en/test-and-evaluate/eval-tool>
-- <https://google.github.io/adk-docs/evaluate/>
+- <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>
+- <https://adk.dev/evaluate/>
 
 ## Narration: Score Outcome And Trajectory
 
@@ -36,8 +36,8 @@ Score both what happened and how it happened. Deterministic graders fit schemas,
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
-- <https://platform.claude.com/docs/en/test-and-evaluate/eval-tool>
-- <https://google.github.io/adk-docs/evaluate/>
+- <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>
+- <https://adk.dev/evaluate/>
 
 ## Demonstration: Grader Demonstration
 
@@ -55,7 +55,7 @@ Compare baseline and candidate on identical case versions, fixtures, environment
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
-- <https://google.github.io/adk-docs/evaluate/>
+- <https://adk.dev/evaluate/>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Narration: Continuous Evaluation
@@ -65,7 +65,7 @@ Make evaluation a controlled learning loop. Privacy-reviewed production traces, 
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
-- <https://platform.claude.com/docs/en/test-and-evaluate/eval-tool>
+- <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Learner Prompt: Learner Evaluation Prompt

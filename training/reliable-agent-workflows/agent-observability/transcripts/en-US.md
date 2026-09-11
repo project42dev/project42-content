@@ -17,7 +17,7 @@ Use traces, metrics, logs, and evaluations together because each answers a diffe
 Sources:
 
 - <https://openai.github.io/openai-agents-js/guides/tracing/>
-- <https://google.github.io/adk-docs/observability/>
+- <https://adk.dev/observability/>
 - <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
 
 ## Narration: Trace The Agent Graph
@@ -27,7 +27,7 @@ Preserve causal structure across the run. Assign the workflow a trace identifier
 Sources:
 
 - <https://openai.github.io/openai-agents-js/guides/tracing/>
-- <https://google.github.io/adk-docs/observability/>
+- <https://adk.dev/observability/>
 - <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
 
 ## Narration: Measure Service And Quality
@@ -36,7 +36,7 @@ Measure outcomes, not activity alone. Track task success and independently verif
 
 Sources:
 
-- <https://google.github.io/adk-docs/observability/>
+- <https://adk.dev/observability/>
 - <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
@@ -57,7 +57,7 @@ Diagnose from the visible failure backward to the first wrong transition. Compar
 Sources:
 
 - <https://openai.github.io/openai-agents-js/guides/tracing/>
-- <https://google.github.io/adk-docs/observability/>
+- <https://adk.dev/observability/>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Demonstration: Causal Review Demonstration
@@ -66,7 +66,7 @@ A support agent claims a policy exception. The final model span looks fluent and
 
 Sources:
 
-- <https://google.github.io/adk-docs/observability/>
+- <https://adk.dev/observability/>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Learner Prompt: Learner Telemetry Prompt
