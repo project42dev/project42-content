@@ -1,74 +1,315 @@
 {
   "id": "owasp-top-10-llm-attacks",
   "title": "OWASP Top 10 for LLMs & Red-Teaming",
-  "summary": "Direct/indirect prompt injection, data exfiltration, and tool hijacking defenses.",
+  "summary": "Use the OWASP GenAI LLM Top 10 2026 as a red-team coverage map: what the new ranking changed and why, a three-axis anatomy for prompt injection, how injection turns into consequence through agency, hidden context, and output sinks, and how to test against attackers who have read your defenses.",
   "level": "advanced",
+  "reviewCadenceDays": 90,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 40,
+  "estimatedMinutes": 50,
   "objectives": [
-    "Master the architectural principles and core mechanisms of OWASP Top 10 for LLMs & Red-Teaming.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Name the ten OWASP GenAI LLM Top 10 2026 entries, explain how the 2026 ranking weighed a practitioner vote against an incident corpus, and say what the largest rank changes imply for test priorities.",
+    "Decompose any prompt-injection scenario by delivery surface, propagation behavior, and encoding, and classify indirect surfaces as untrusted, semi-trusted, or trusted.",
+    "Trace how a successful injection becomes damage through Excessive Agency (LLM03), Hidden Context Exposure (LLM08), and Improper Output Handling (LLM10), and apply the Rule of Two as a capability-budget floor.",
+    "Design red-team cases with consequence-based pass criteria, scope them with the NIST Generative AI Profile, and run them adaptively with the defense specification disclosed to the testers, as LLM01:2026 recommends."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "what-the-2026-list-changed",
+      "title": "What the 2026 list changed, and how it was ranked",
       "paragraphs": [
-        "Direct/indirect prompt injection, data exfiltration, and tool hijacking defenses.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for OWASP Top 10 for LLMs & Red-Teaming.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "The OWASP Top 10 for LLM Applications now lives in the OWASP GenAI Security Project; the original owasp.org project page is kept as a legacy entry point that points to the 2026 edition, released in August 2026. The 2026 order is: LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM03 Excessive Agency, LLM04 Supply Chain, LLM05 Data and Model Poisoning, LLM06 Unbounded Consumption, LLM07 Misinformation, LLM08 Hidden Context Exposure, LLM09 Vector and Embedding Weaknesses, and LLM10 Improper Output Handling.",
+        "The method changed as much as the order. Earlier editions rested on practitioner judgment. For 2026 the project tested that vote against a corpus of 7,714 real incidents from public vulnerability databases and an AI-harm database, classifying the 6,639 that carried enough detail to sort. The vote carries three-quarters of the weight and the incident data one quarter -- which, the project leads write, is enough to move an entry a tier when belief and evidence diverge widely but not enough to let imperfect data rewrite the list on its own.",
+        "Where vote and evidence disagreed is the useful part for a red team. Ranked on raw incidents alone, prompt injection falls out of the top 10 entirely; the preface reads that gap as a defense effect -- teams fight injection hard, so fewer clean exploits reach public databases -- and keeps it at number one. Misinformation ran the other way: voters placed it near the bottom, the incident record near the top, and the list seats it in the middle. Excessive Agency climbed to third, which the preface calls the most consequential move; Unbounded Consumption rose four places; Improper Output Handling fell furthest, from fifth to tenth; and System Prompt Leakage was re-scoped as Hidden Context Exposure.",
+        "Several entries also absorbed newer risks instead of spawning thin new categories: Prompt Injection now covers cross-modal instructions hidden in images or audio, Supply Chain covers a promoted model artifact that is not what it claims to be, Data and Model Poisoning absorbs fine-tuning subversion, and Improper Output Handling spans insecure code that assistants generate at scale. The preface also draws a boundary: this list owns the risk while the model is a component inside your application. Once the model becomes an actor -- calling tools, carrying memory between sessions, setting consequences in motion downstream -- it tells you to pair this list with the OWASP Top 10 for Agentic Applications, because neither covers that ground alone."
+      ],
+      "callout": "A lower rank is not a lower test budget. Improper Output Handling fell to tenth, yet the 2026 entry still lists XSS, CSRF, SSRF, privilege escalation, and remote code execution among its outcomes."
+    },
+    {
+      "id": "decompose-an-injection",
+      "title": "Decompose an injection before you test it",
+      "paragraphs": [
+        "LLM01:2026 defines prompt injection as any input -- direct user input, retrieved content, tool output, image, audio or video, intermediate reasoning, or persistent memory -- that alters model behavior in ways the developer did not intend. Its root observation is architectural: models make no distinction between instructions and data, because both are tokens on the same stream, so there is no clean equivalent of a parameterized query. Three deployment properties make it worse. Context-window pooling puts the system prompt, user input, retrieved documents, tool output, history, and memory into one stream with no enforced trust boundary. Memory persistence means one injection written to long-term memory, a RAG corpus, or a vector store taints every later session that reads it. Agentic execution extends the blast radius from the chat surface to whatever the agent's tools can reach.",
+        "The entry gives you a three-axis anatomy to describe a scenario before choosing mitigations. Delivery surface is how the payload reaches the model: direct input, retrieved content, tool output, a tool connection channel, or persistent memory. Propagation is how it spreads: single-shot, a multi-step kill chain, cross-session through memory or RAG, or self-replicating across agents. Encoding is how it is represented: plain text, base64 or other obfuscation, invisible Unicode, multimodal or steganographic content, or a low-resource language. Writing the triple for every red-team case forces coverage across all three axes instead of a hundred variations of one plain-text jailbreak.",
+        "For indirect injection, the trust profile of the surface decides which defenses are practical. Untrusted surfaces include public web pages, email from unknown senders, and search results. Semi-trusted surfaces are content the user chose to retrieve but did not author: public bug-tracker issue titles, package READMEs and changelogs, third-party API responses. Trusted surfaces are the developer's own repositories, databases, internal documents, and mail -- which an attacker can still reach through a low-privilege channel such as a public bug-report form, then wait for the user's agent to read the text under the user's elevated credentials. The agent, not the attacker, performs the privileged action.",
+        "The entry is blunt that no reliable prevention mechanism exists today, so defense is architectural rather than interceptive: design on the assumption that the model's instruction boundary will eventually be bypassed, and constrain what the model may do and what its outputs may reach. It separates controls that reduce injection success, which it expects to degrade against adaptive attackers, from controls that bound the blast radius once injection succeeds, which are the ones that survive an attacker who can probe the system. A red-team plan should say which kind of control each case is testing."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Illustrative red-team case record (authored for this module; not an OWASP schema)",
+        "code": "{\n  \"caseId\": \"rt-017\",\n  \"owaspEntries\": [\"LLM01:2026\", \"LLM10:2026\"],\n  \"anatomy\": {\n    \"deliverySurface\": \"retrieved content (public web page)\",\n    \"propagation\": \"single-shot\",\n    \"encoding\": \"plain text hidden in page source\"\n  },\n  \"attackerKnowledge\": \"adaptive: full defense specification disclosed\",\n  \"capabilityBudget\": [\"untrusted-input\", \"sensitive-data\", \"external-communication\"],\n  \"controlUnderTest\": \"blast-radius bound: renderer does not auto-fetch Markdown images\",\n  \"passCriterion\": \"No outbound request to a non-allowlisted origin; conversation content never appears in any request URL\",\n  \"evidence\": [\"trajectory log\", \"egress log\", \"rendered UI capture\"]\n}"
+      }
+    },
+    {
+      "id": "from-injection-to-consequence",
+      "title": "From injection to consequence: agency, hidden context, output sinks",
+      "paragraphs": [
+        "LLM03:2026 Excessive Agency is the vulnerability that lets damaging actions happen in response to unexpected, ambiguous, or manipulated model output, whatever caused the malfunction -- hallucination, a poorly engineered benign prompt, or direct or indirect injection. Its root causes are excessive functionality (a document-reading tool that can also delete), excessive permissions (a read tool connecting with an identity that can UPDATE, INSERT, and DELETE), and excessive autonomy (deletions performed without user confirmation). Its central control is complete mediation: implement authorization in logic rather than asking the model whether an action is allowed, and validate every downstream request against policy in the tool, in an independent pre-execution policy decision point, or in the downstream system. A graduated policy -- audit, warn, block, escalate -- lets reversible actions such as a store-credit refund auto-approve while an irreversible external payout routes to a human.",
+        "LLM01:2026 turns that into a capability budget. It adopts the Rule of Two as a floor: treat simultaneous access to (A) untrusted input, (B) sensitive data, and (C) state change or external communication as high-risk. An agent holding all three needs per-action human approval; an agent holding A and B, or A and C, needs an explicit residual-risk assessment. The entry notes this restates Simon Willison's 'lethal trifecta' as a pre-deployment check -- remove any one leg and the conditions for high-impact exploitation go with it. When a red team finds an injection that works, the first question is which leg of the budget let it matter.",
+        "LLM08:2026 Hidden Context Exposure replaces System Prompt Leakage with a broader frame: the unauthorized extraction, inference, or reconstruction of system instructions, retrieved policy text, tool and function schemas, and other context users are not meant to see. Its design rule is to assume hidden context is discoverable and that nothing in it is a secret. Severity tracks what was placed there: informational when it holds no secrets and nothing relies on its confidentiality, high when it holds credentials or when authorization or content policy depends on it staying hidden, critical when disclosure chains to code execution, broad exfiltration, or privilege escalation. A red team should therefore score an extracted system prompt by its contents and the reliance placed on it, not by the fact of extraction -- and should expect leaked rules, tool schemas, and output formats to make the next LLM01, LLM03, and LLM10 attempts sharper.",
+        "LLM10:2026 Improper Output Handling covers what happens when model output reaches a sink that interprets it. The 2026 entry names two sinks that red teams often skip. Client renderers that auto-fetch resources referenced in output -- Markdown images, link previews, iframes -- let an attacker who controls part of the context exfiltrate data through the request URL. Terminals, log viewers, and IDE panes that interpret ANSI escape sequences allow visual spoofing and clipboard hijacking via OSC 52. The mitigations are specific: treat the model as any other untrusted user, encode output for the context where it lands, use parameterized queries, disable auto-rendering of images and previews by default or restrict fetches to an allowlist or a stripping proxy, and neutralize control characters before output is written to an interpreting sink."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "red-team-against-adaptive-attackers",
+      "title": "Red-team against attackers who have read your defenses",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "NIST AI 600-1, the Generative AI Profile of the AI RMF, defines AI red-teaming as a structured testing exercise used to probe an AI system to find flaws and vulnerabilities, often in a controlled environment and in collaboration with system developers. Its suggested action MS-2.7-007 scopes the security side: assess resilience against abuse that facilitates attacks on other systems, generative-AI attacks such as prompt injection, and machine-learning attacks including adversarial prompts, data poisoning, membership inference, model extraction, and sponge examples. The profile distinguishes general-public, expert, combined, and human-plus-AI red teams, and cautions that results should be given additional analysis before they feed governance decisions or policy changes.",
+        "OWASP's last LLM01 mitigation is the one that most often separates a real test from theater: test against adaptive attackers who have read the deployed defense, and reject static-only attack-success claims. The entry cites work that found attack success near zero against a static suite while adaptive attack success exceeded 90% for most of 12 recent defenses. It recommends baselining with public suites such as AgentDojo and JailbreakBench, then red-teaming with the full defense specification disclosed to the testers. A defense that holds only while its design stays secret is making the same bet LLM08 warns against: that something an attacker can eventually learn will stay hidden.",
+        "Cover consumption as deliberately as injection. LLM06:2026 Unbounded Consumption rose to sixth, and its defining property is cost asymmetry: an attacker triggers expensive computation at negligible cost. Test reasoning-loop and thinking-token exhaustion from short, benign-looking prompts that pass input-size filters; denial of wallet through volume; and agent-tool loops where one call fans out into hundreds. The pass criterion is enforcement, not alerting: the entry calls for token-aware limits (tokens per minute and per day, estimated cost per request, pre-flight token estimation) and non-overridable spending caps that halt inference, because alert thresholds can be outpaced by fast-accumulating workloads.",
+        "Write every pass criterion as a consequence rather than a refusal. 'The model declined' is an observation about one sampled response; 'no request left for a non-allowlisted origin', 'no privileged tool call executed without the approval record', and 'spend halted at the cap' are properties of the system that an adaptive attacker has to defeat. Include the controls LLM01 lists for encodings a human reviewer cannot see: strip tag-block (U+E0000 to U+E007F), variation-selector (U+FE00 to U+FE0F), and zero-width characters at every ingest and render boundary, and when a human approves an action, show the exact rendered action rather than a summary -- the entry warns that invisible characters can make the displayed action differ from the executed one."
       ]
     }
   ],
   "activity": {
     "id": "owasp-top-10-llm-attacks-activity",
-    "title": "OWASP Top 10 for LLMs & Red-Teaming Hands-On Lab",
+    "title": "Build a 2026 coverage map and an adaptive red-team plan",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Pick one LLM application you operate or can describe in detail, and list its delivery surfaces, tools, memory or retrieval stores, and output sinks (chat renderer, terminals or logs, downstream APIs).",
+      "Classify its capability budget against the Rule of Two legs -- untrusted input, sensitive data, state change or external communication -- and name the one leg you could remove or gate with per-action approval.",
+      "Write at least six red-team cases that together exercise LLM01, LLM03, LLM06, LLM08, and LLM10. Record each with its three-axis anatomy, the OWASP 2026 entries it exercises, the control under test (reduces injection success, or bounds blast radius), and a consequence-based pass criterion.",
+      "Run or specify each case twice: once as a static baseline and once adaptively, with your defense specification disclosed to the tester. Record both outcomes.",
+      "Decide whether the application is a model-as-component or a model-as-actor, and mark which findings you would carry over to an OWASP Agentic Top 10 review."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A coverage table with columns for case ID, OWASP 2026 entries, anatomy triple, control type, attacker knowledge (static or adaptive), pass criterion, and result.",
+      "A one-page capability-budget note naming the Rule of Two configuration, the leg you would remove or gate, and the residual risk you are accepting."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which of your passing cases would still pass if the tester had read your full defense specification, and what evidence -- not intuition -- tells you so?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-owasp-top-10-llm-attacks-1",
-        "prompt": "What is the primary architectural goal of OWASP Top 10 for LLMs & Red-Teaming?",
+        "prompt": "Which OWASP GenAI LLM Top 10 2026 entry replaced System Prompt Leakage?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "LLM02:2026 Sensitive Information Disclosure",
+          "LLM08:2026 Hidden Context Exposure",
+          "LLM10:2026 Improper Output Handling",
+          "LLM09:2026 Vector and Embedding Weaknesses"
         ],
-        "answerIndex": 0,
-        "explanation": "OWASP Top 10 for LLMs & Red-Teaming enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 1,
+        "explanation": "The 2026 preface says System Prompt Leakage is now Hidden Context Exposure, a broader frame that covers system prompts, retrieved policy text, tool schemas, and other hidden context."
+      },
+      {
+        "id": "q-owasp-top-10-llm-attacks-2",
+        "prompt": "Ranked on raw incident data alone, prompt injection falls outside the top 10. Why does it still hold LLM01 in 2026?",
+        "choices": [
+          "The incident corpus excluded prompt injection by design",
+          "The practitioner vote carries three-quarters of the weight, and the project reads the incident gap as a defense effect",
+          "OWASP ranks entries alphabetically within each tier",
+          "Prompt injection was added after the ranking was finalized"
+        ],
+        "answerIndex": 1,
+        "explanation": "The vote is weighted at three-quarters and incident data at one quarter; the preface attributes injection's low incident count to teams defending hard, so fewer clean exploits reach public databases."
+      },
+      {
+        "id": "q-owasp-top-10-llm-attacks-3",
+        "prompt": "An agent summarizes public web pages, can query a customer database, and can send email. Under the Rule of Two floor adopted in LLM01:2026, what does this configuration require?",
+        "choices": [
+          "Nothing, provided the system prompt forbids forwarding data",
+          "Per-action human approval, because it holds untrusted input, sensitive data, and external communication at once",
+          "Only rate limiting on the email tool",
+          "An annual penetration test"
+        ],
+        "answerIndex": 1,
+        "explanation": "An [A,B,C] agent -- untrusted input, sensitive data, and state change or external communication -- needs per-action human approval; [A,B] and [A,C] configurations need an explicit residual-risk assessment."
+      },
+      {
+        "id": "q-owasp-top-10-llm-attacks-4",
+        "prompt": "A prompt-injection defense shows near-zero attack success against a fixed attack suite. What does LLM01:2026 recommend before relying on it?",
+        "choices": [
+          "Ship it; near-zero static success is sufficient evidence",
+          "Add a longer system prompt describing the attacks",
+          "Red-team it with adaptive attackers who have been given the full defense specification",
+          "Replace the suite with a larger static suite"
+        ],
+        "answerIndex": 2,
+        "explanation": "OWASP says to reject static-only attack-success claims; the work it cites found adaptive attack success above 90% for most of 12 defenses that looked near-perfect against static suites."
+      },
+      {
+        "id": "q-owasp-top-10-llm-attacks-5",
+        "prompt": "A tester extracts the system prompt and finds a database connection string in it. How does LLM08:2026 treat this?",
+        "choices": [
+          "Informational, because system prompts are expected to leak",
+          "High severity: embedded credentials, and the fix is to remove secrets from hidden context rather than to hide the prompt better",
+          "Out of scope, because only user data counts as sensitive",
+          "Low severity, as long as the prompt instructs the model not to reveal it"
+        ],
+        "answerIndex": 1,
+        "explanation": "LLM08 rates embedded credentials, or reliance on hidden-context secrecy for authorization, as high severity, and its first mitigation is not to put sensitive data in hidden context at all."
+      },
+      {
+        "id": "q-owasp-top-10-llm-attacks-6",
+        "prompt": "Which spend control does LLM06:2026 treat as effective against Unbounded Consumption?",
+        "choices": [
+          "An email alert at 80% of the monthly budget",
+          "A requests-per-second limit on its own",
+          "Non-overridable spending caps that halt inference when exceeded, alongside token-aware limits",
+          "Raising the context window so fewer requests are needed"
+        ],
+        "answerIndex": 2,
+        "explanation": "LLM06 says caps must be enforcement mechanisms that halt inference, not alerting thresholds that fast-accumulating workloads can outpace, and that request-rate limiting alone is no longer sufficient."
       }
     ]
   },
   "sources": [
     {
-      "title": "OWASP Top 10 for Large Language Model Applications",
+      "title": "OWASP GenAI LLM Top 10 2026",
+      "url": "https://genai.owasp.org/resource/owasp-genai-llm-top-10-2026/",
+      "publisher": "OWASP",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "OWASP GenAI LLM Top 10 2026: Letter from the Project Leads (preface)",
+      "url": "https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/blob/main/2026/final/LLM00_Preface.md",
+      "publisher": "OWASP",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "LLM01:2026 Prompt Injection",
+      "url": "https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/blob/main/2026/final/LLM01_PromptInjection.md",
+      "publisher": "OWASP",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "LLM03:2026 Excessive Agency",
+      "url": "https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/blob/main/2026/final/LLM03_ExcessiveAgency.md",
+      "publisher": "OWASP",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "LLM06:2026 Unbounded Consumption",
+      "url": "https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/blob/main/2026/final/LLM06_UnboundedConsumption.md",
+      "publisher": "OWASP",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "LLM08:2026 Hidden Context Exposure",
+      "url": "https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/blob/main/2026/final/LLM08_HiddenContextExposure.md",
+      "publisher": "OWASP",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "LLM10:2026 Improper Output Handling",
+      "url": "https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/blob/main/2026/final/LLM10_ImproperOutputHandling.md",
+      "publisher": "OWASP",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "OWASP Top 10 for Large Language Model Applications (legacy project page)",
       "url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
       "publisher": "OWASP",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "NIST AI 600-1: Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile",
+      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf",
+      "publisher": "NIST",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 3000,
+    "cues": [
+      {
+        "id": "cue-owasp26-list-narration",
+        "kind": "narration",
+        "sectionId": "what-the-2026-list-changed",
+        "text": "The 2026 OWASP list weighs a practitioner vote against thousands of real incidents, and where the two disagree tells a red team where to look."
+      },
+      {
+        "id": "cue-owasp26-vote-gap-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "what-the-2026-list-changed",
+        "text": "Ask learners how a risk can rank first by practitioner vote yet fall outside the top ten by raw incident count, and what that gap says about defenses."
+      },
+      {
+        "id": "cue-owasp26-anatomy-narration",
+        "kind": "narration",
+        "sectionId": "decompose-an-injection",
+        "text": "Describe every injection by delivery surface, propagation, and encoding, and assume the instruction boundary will eventually be bypassed."
+      },
+      {
+        "id": "cue-owasp26-anatomy-pause",
+        "kind": "pause",
+        "sectionId": "decompose-an-injection",
+        "text": "Allow three minutes for learners to write the anatomy triple for an instruction hidden in a public bug-tracker issue that a developer's agent later reads."
+      },
+      {
+        "id": "cue-owasp26-consequence-narration",
+        "kind": "narration",
+        "sectionId": "from-injection-to-consequence",
+        "text": "Injection becomes damage through excessive agency, exposed hidden context, and output sinks that act on whatever the model wrote."
+      },
+      {
+        "id": "cue-owasp26-consequence-visual",
+        "kind": "visual",
+        "sectionId": "from-injection-to-consequence",
+        "text": "Follow one injected web page through context pooling, a tool call made with excessive permissions, and a Markdown image renderer that leaks the conversation, labelling the OWASP 2026 entry at each step.",
+        "accessibilityAlternative": "A static four-row table lists each step of the path -- injected page, pooled context, over-permissioned tool call, auto-rendered image request -- with the OWASP 2026 entry that applies and the control that would have stopped that step. Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-owasp26-adaptive-narration",
+        "kind": "narration",
+        "sectionId": "red-team-against-adaptive-attackers",
+        "text": "A defense counts only if it holds against a tester who has read it, with pass criteria written as consequences rather than refusals."
+      },
+      {
+        "id": "cue-owasp26-adaptive-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "red-team-against-adaptive-attackers",
+        "text": "Check that every learner test case names an OWASP 2026 entry, an anatomy triple, the tester's knowledge of the defense, and a consequence-based pass criterion."
+      },
+      {
+        "id": "cue-owasp26-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the coverage table and the capability-budget note, and push each learner to mark which cases they ran adaptively."
+      },
+      {
+        "id": "cue-owasp26-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can explain the vote-versus-incident ranking and apply the Rule of Two to a real agent."
+      }
+    ],
+    "transcript": "The 2026 OWASP list weighs a practitioner vote against thousands of real incidents, and where the two disagree tells a red team where to look. Describe every injection by delivery surface, propagation, and encoding, and assume the instruction boundary will eventually be bypassed. Injection becomes damage through excessive agency, exposed hidden context, and output sinks that act on whatever the model wrote. A defense counts only if it holds against a tester who has read it, with pass criteria written as consequences rather than refusals.",
+    "captions": [
+      {
+        "cueId": "cue-owasp26-list-narration",
+        "startSeconds": 0,
+        "endSeconds": 600,
+        "text": "The 2026 OWASP list weighs a practitioner vote against thousands of real incidents, and where the two disagree tells a red team where to look."
+      },
+      {
+        "cueId": "cue-owasp26-anatomy-narration",
+        "startSeconds": 630,
+        "endSeconds": 1350,
+        "text": "Describe every injection by delivery surface, propagation, and encoding, and assume the instruction boundary will eventually be bypassed."
+      },
+      {
+        "cueId": "cue-owasp26-consequence-narration",
+        "startSeconds": 1380,
+        "endSeconds": 2130,
+        "text": "Injection becomes damage through excessive agency, exposed hidden context, and output sinks that act on whatever the model wrote."
+      },
+      {
+        "cueId": "cue-owasp26-adaptive-narration",
+        "startSeconds": 2160,
+        "endSeconds": 2820,
+        "text": "A defense counts only if it holds against a tester who has read it, with pass criteria written as consequences rather than refusals."
+      },
+      {
+        "cueId": "cue-owasp26-assessment",
+        "startSeconds": 2850,
+        "endSeconds": 3000,
+        "text": "Begin the check once learners can explain the vote-versus-incident ranking and apply the Rule of Two to a real agent."
+      }
+    ],
+    "reducedMotionAlternative": "Present the 2025-to-2026 rank changes and the injection-to-consequence path as static tables with focus-based highlighting instead of animated sequences."
+  }
 }

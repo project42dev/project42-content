@@ -1,80 +1,316 @@
 {
   "id": "guardrails-and-sandboxing",
   "title": "Agent Guardrails, NeMo & Code Sandboxing",
-  "summary": "Llama Guard, input/output sanitization, and isolating code execution in WASM/MicroVMs.",
+  "summary": "Place policy checkpoints and containment boundaries where they actually work: NeMo Guardrails' five rail stages and its rules for tool integrations, then the isolation ladder from containers to gVisor to Firecracker microVMs for code a model wrote, and how the two layers cover for each other.",
   "level": "advanced",
+  "reviewCadenceDays": 90,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 40,
+  "estimatedMinutes": 50,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Agent Guardrails, NeMo & Code Sandboxing.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Map input, retrieval, dialog, execution, and output rails to the stage of an LLM interaction each inspects, and name the failure modes guardrails themselves introduce.",
+    "Apply NeMo Guardrails' integration guidelines -- model output treated as untrusted, calls made in the user's authorization context, credentials isolated from the model, allow-lists that fail closed -- to a tool-calling design.",
+    "Compare container, gVisor, and Firecracker isolation by what each places between untrusted code and the host kernel, and by what each still relies on the host to enforce.",
+    "Compose execution-time guardrails with a sandbox so that each layer catches what the other cannot, and test the composition with planted failures."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "rails-are-checkpoints",
+      "title": "Guardrails are checkpoints in a request flow",
       "paragraphs": [
-        "Llama Guard, input/output sanitization, and isolating code execution in WASM/MicroVMs.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Agent Guardrails, NeMo & Code Sandboxing.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "NVIDIA's NeMo Guardrails library is an open-source Python package for blocking, altering, or validating unsafe, off-topic, malicious, or policy-violating user inputs and model responses. It is built from rails, YAML configuration, Colang flows that define conversational and guardrail logic, custom Python actions, and runtime interfaces (a Python SDK and a guardrails server). The same YAML and Colang configuration runs in the library and in the NeMo Guardrails microservice, a container image deployed on Kubernetes with Helm, so a policy developed locally is the policy deployed.",
+        "The library sits between the application and the LLM, tools, and retrieval systems it uses, and evaluates each message in the configured order. Input rails inspect the user message before the application LLM is called and can allow, alter, or reject it. Retrieval rails filter or transform retrieved chunks before they enter the prompt. Dialog rails use Colang flows to steer the conversation and decide the next step. Execution rails validate custom actions and tools, including their inputs and outputs. Output rails inspect the generated response and can allow, edit, or block it before it reaches the user. The documentation notes that input and output rails are the most common, which makes the retrieval and execution stages the first places to look for an unguarded path in your own configuration.",
+        "What a rail decides with varies. The library supports LLM self-checking, NVIDIA safety models, community models such as LlamaGuard, third-party moderation APIs, heuristic jailbreak detection, and PII detection that either blocks content or masks entities before processing. Every one of these is a classifier or a flow with a decision attached. That makes a rail a policy checkpoint: it judges content that passes through it, and it constrains nothing that does not.",
+        "Guardrails bring their own failure modes, and NeMo's security guidelines name three from its adversarial testing. Over-aggressive moderation can block safe requests, more often when several guardrails are combined; the suggested remedy is flow logic that avoids unnecessary calls, such as running fact-checking only on factual questions. Canonical forms that guide behavior can overgeneralize, so rails miss examples or trigger unexpectedly. And model nondeterminism makes some behavior hard to reproduce, which is why the guidelines recommend thorough evaluation and regression-testing suites. Treat a guardrail as a model component with a false-positive rate and a false-negative rate, not as a switch."
+      ],
+      "code": {
+        "language": "python",
+        "label": "Sending messages through a guardrailed interface (from the NeMo Guardrails overview)",
+        "code": "from nemoguardrails import LLMRails, RailsConfig\n\nconfig = RailsConfig.from_path(\"./config\")\nrails = LLMRails(config)\n\nresponse = rails.generate(\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}]\n)"
+      }
+    },
+    {
+      "id": "integrate-tools-like-an-api-owner",
+      "title": "The golden rule for tool integrations",
+      "paragraphs": [
+        "NeMo's security guidelines open with a golden rule: consider the LLM to be, in effect, a web browser under the complete control of the user, and treat all content it generates as untrusted. Any service it invokes must be invoked in the context of the LLM user. The test the guidelines give for any internal API is a question: would you deliberately expose this resource, with this interface, directly to the internet? If not, rethink the integration.",
+        "The guidelines assume three components. The LLM produces text. A parsing and dispatch engine recognizes that an external call is needed, extracts parameters, calls the right internal API with the user's authentication and authorization information, and re-inserts the response into the prompt. Each internal API is a gateway to a single external resource, with hard-coded URLs, endpoints, and paths wherever possible; it verifies that the current user is authorized for the call, validates the input, calls the resource, and validates the response. Keeping the internal APIs separate from the dispatcher keeps validation and authorization next to the service they protect, keeps credentials isolated from the model, and limits the impact of an external API change.",
+        "The specific rules read like an API security checklist, because that is what the guidelines say this work is. Fail gracefully and secretly: when a call fails, including for lack of authorization, rewrite the error so the model's output does not reveal which API was called or why it failed -- a user should not be able to detect that an internal API exists. Parameterize and validate all inputs and outputs, and examine outputs for leaked keys and user information. Avoid persistent state changes unless the function requires them, and make any that are required through a strongly validated, parameterized interface tied to the requesting user. Prefer allow-lists and fail closed. Keep every key, password, and token out of the model's reach.",
+        "Log enough to reconstruct any action. At a minimum the guidelines list five records: the text that triggered the action, how that text was parsed into an internal API call and with what parameters, the authorization information presented (method and time, expiry, scope or role, user identifier), the call made from the internal API to the external API and its result, and how the result was re-inserted into the prompt. Execution rails are the guardrail stage built for this boundary -- the overview's agentic-security guidance is to isolate authentication from the LLM, validate and sanitize tool inputs, apply execution rails to tool calls, and monitor agent behavior. What an execution rail cannot do is constrain what a tool does after it starts running. That is the sandbox's job."
+      ],
+      "callout": "Would you deliberately expose this resource, with this interface, directly to the internet? If the answer is no, the model should not be able to reach it that way either."
+    },
+    {
+      "id": "choose-an-isolation-boundary",
+      "title": "Choosing an isolation boundary for model-written code",
+      "paragraphs": [
+        "A container is the baseline most teams start from. Docker's security documentation describes kernel namespaces as the first form of isolation -- processes in one container cannot see or affect processes in another or on the host -- plus a separate network stack per container, and control groups that account for and limit memory, CPU, and disk I/O. The same page is precise about limits: cgroups do not stop one container from reaching another's data, though they fend off some denial-of-service attacks. Docker starts containers with a restricted, allow-listed set of Linux capabilities so root inside a container has far less power than real root, but it also warns that the default capabilities and mounts may provide incomplete isolation, and that only trusted users should control the Docker daemon, which needs root unless rootless mode is used.",
+        "gVisor's documentation frames the alternatives. Machine-level virtualization such as KVM and Xen exposes virtualized hardware to a guest kernel through a virtual machine monitor: strong isolation, but for containers often a larger resource footprint and slower start-up. Rule-based execution such as seccomp, SELinux, and AppArmor enforces fine-grained policy through hooks in the host kernel, but a reliable policy for arbitrary, previously unknown applications is extremely difficult to define. gVisor takes a third approach: an application kernel, the Sentry, written in memory-safe Go, intercepts the application's system calls and services them itself. The Sentry does not pass system calls through to the host; file access beyond the sandbox goes to a separate Gofer process, and the Sentry runs under a restricted seccomp policy in an empty mount namespace. The documented trade-off is reduced application compatibility and higher per-system-call overhead. gVisor ships as an OCI runtime, runsc, that works with Docker and Kubernetes.",
+        "Firecracker takes the virtualization route with a minimal machine. It runs in user space and uses Linux KVM to create microVMs; the design document lists the guest-facing devices as VirtIO network and block devices, a serial console, and a partial keyboard controller used to signal a reset. Its threat model starts from the worst case: every guest vCPU thread is considered to be running malicious code from the moment it starts, and containment comes from nested trust zones separated by barriers. Firecracker installs seccomp filters by default that allow only the system calls it needs, and in production it should be started only through the jailer, which sets up cgroups and a chroot, drops privileges, and then executes Firecracker as an unprivileged process that can reach only what a privileged third party grants it. Per-device token-bucket rate limiters bound network and storage use.",
+        "Each boundary still depends on the host for something, and the documentation says so. gVisor relies on host cgroups to resist resource exhaustion and on the host and platform for defense against hardware side channels -- it does not in general protect against them. Firecracker performs no network traffic filtering; all guest egress is untrusted and has to be filtered at the host. gVisor's own security FAQ warns against assuming that the mere use of virtualization hardware makes a system more or less secure. Choose the boundary by the threat -- untrusted code written by a model, possibly under an attacker's influence -- and then write down, as named dependencies with owners, what the host must enforce around it."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "sandbox-is-not-architecture",
+      "title": "A sandbox is not a substitute for a secure architecture",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "gVisor's security model says it plainly: an attacker need not escalate privileges inside a container if there is an exploitable network-accessible service on the host or some other API path, and a sandbox is not a substitute for a secure architecture. A sandbox that holds perfectly around code which can still reach an over-privileged internal API over the network has contained nothing that mattered.",
+        "Compose the layers so each covers the other's blind spot. Before execution, an execution rail and the internal API check the proposed tool call against an allow-list, validate its parameters, and confirm the user is authorized -- this catches requests that should never run. During execution, the sandbox runs the code with no credentials in reach, egress filtered at the host, and cgroup or rate limits on resources -- this contains code that was allowed to run but misbehaves, whether through a model error or an injected instruction the rails did not recognize. After execution, output rails and output validation treat the results as untrusted before they reach a user or another tool. The five log records from NeMo's guidelines tie the three stages together so an incident can be reconstructed from the text that triggered it to the result that was re-inserted.",
+        "Keep the sandbox's own control plane out of reach. Docker's warning that only trusted users should control the daemon means a sandbox running model-written code must never be handed daemon access; Firecracker's jailer model -- the process can use only what a privileged party explicitly grants -- is the pattern to copy for files, sockets, and devices whatever the runtime. And because gVisor and Firecracker both leave egress, resource limits, and side-channel mitigation to the host, those host controls belong in the same change-review path as the sandbox configuration, not in someone else's backlog.",
+        "Prove the composition with planted failures rather than assuming it. Plant a case where a guardrail misses -- a request the rails allow that asks the code to reach the network -- and confirm the sandbox and host egress policy stop it. Plant a case where the sandbox is irrelevant -- an allowed tool that calls an internal service with more authority than the user has -- and confirm the internal API's authorization check stops it. If either planted failure succeeds, the gap is in the architecture, and no amount of rail tuning or sandbox hardening alone will close it."
       ]
     }
   ],
   "activity": {
     "id": "guardrails-and-sandboxing-activity",
-    "title": "Agent Guardrails, NeMo & Code Sandboxing Hands-On Lab",
+    "title": "Design a guarded execution path for a code-running agent",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Take an agent that writes and runs Python to answer questions over a customer dataset. Draw its request flow through input, retrieval, dialog, execution, and output rails, and name the check each rail performs -- or state explicitly that a stage has no rail.",
+      "Specify the internal API that runs code: its allow-listed operations, the user authorization context it enforces, where credentials live, how it fails secretly, and the five log records NeMo's guidelines call for.",
+      "Choose a container, gVisor, or Firecracker as the execution boundary and justify the choice by what sits between the generated code and the host kernel, citing the documented trade-offs.",
+      "List what your chosen boundary still relies on the host to enforce -- egress filtering, resource limits, side-channel mitigation, control-plane access -- and assign an owner to each.",
+      "Write two planted tests: one where a guardrail misses and the sandbox or host policy must contain the result, and one where the sandbox is bypassed through a non-sandbox path and the internal API's authorization must hold."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A layer table with columns for layer, what it inspects or contains, what it cannot stop, and which later layer catches that.",
+      "An isolation-boundary decision record naming the host-enforced dependencies and their owners.",
+      "Two planted-test write-ups with the expected outcome and the observed or predicted outcome for each."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "If your guardrail model were replaced tomorrow with one that missed twice as much, which layer of your design would have to absorb the difference, and is it ready to?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-guardrails-and-sandboxing-1",
-        "prompt": "What is the primary architectural goal of Agent Guardrails, NeMo & Code Sandboxing?",
+        "prompt": "In NeMo Guardrails, which rail type validates tool and action calls, including their inputs and outputs?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "Input rails",
+          "Dialog rails",
+          "Execution rails",
+          "Output rails"
+        ],
+        "answerIndex": 2,
+        "explanation": "Execution rails validate and control custom actions and tools, including their inputs and outputs; input and output rails inspect the user message and the model response."
+      },
+      {
+        "id": "q-guardrails-and-sandboxing-2",
+        "prompt": "NeMo's golden rule for LLM integrations says any service the model invokes must be invoked in which context?",
+        "choices": [
+          "The context of the LLM user",
+          "A shared service account with administrator rights, for reliability",
+          "The model provider's identity",
+          "An anonymous context, so no identity can leak"
         ],
         "answerIndex": 0,
-        "explanation": "Agent Guardrails, NeMo & Code Sandboxing enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "explanation": "The guidelines treat the model as a browser under the user's complete control and require every invoked service to run in the user's authorization context."
+      },
+      {
+        "id": "q-guardrails-and-sandboxing-3",
+        "prompt": "An internal API call fails because the user lacks authorization. According to NeMo's guidelines, what should the response to the model reveal?",
+        "choices": [
+          "The external API name and the exact authorization error, for debuggability",
+          "The missing role, so the user can request it",
+          "Nothing that identifies which API was called or why it failed",
+          "The full stack trace"
+        ],
+        "answerIndex": 2,
+        "explanation": "Fail gracefully and secretly: errors are trapped and rewritten so a user cannot detect that an internal API exists or learn why a call failed."
+      },
+      {
+        "id": "q-guardrails-and-sandboxing-4",
+        "prompt": "What happens when an application running in a gVisor sandbox makes a system call?",
+        "choices": [
+          "It is passed through to the host kernel after a seccomp check",
+          "The Sentry services it with its own implementation and does not pass it through to the host",
+          "It is translated into a hardware virtualization trap handled by a full guest OS",
+          "It is logged and allowed"
+        ],
+        "answerIndex": 1,
+        "explanation": "The Sentry is an application kernel that implements system calls itself; file operations beyond the sandbox go to the Gofer, and the Sentry's own host access is restricted."
+      },
+      {
+        "id": "q-guardrails-and-sandboxing-5",
+        "prompt": "Firecracker's design document says what about network traffic leaving a guest microVM?",
+        "choices": [
+          "Firecracker filters it against an allow-list by default",
+          "The jailer inspects every packet",
+          "Firecracker performs no traffic filtering; all guest egress is untrusted and should be filtered at the host",
+          "Egress is impossible because microVMs have no network device"
+        ],
+        "answerIndex": 2,
+        "explanation": "Firecracker applies I/O rate limiting but no network filtering, so egress control is a host responsibility the operator must own."
+      },
+      {
+        "id": "q-guardrails-and-sandboxing-6",
+        "prompt": "After combining several NeMo rails, a team sees safe requests blocked. What remedy do NeMo's guidelines suggest?",
+        "choices": [
+          "Remove all output rails",
+          "Use flow logic to avoid unnecessary calls, for example running fact-checking only on factual questions",
+          "Raise the model temperature",
+          "Move every check into the system prompt"
+        ],
+        "answerIndex": 1,
+        "explanation": "Over-aggressive moderation is more likely when guardrails are combined; the documented remedy is flow logic that reduces unnecessary rail calls, backed by evaluation and regression testing."
       }
     ]
   },
   "sources": [
     {
-      "title": "OpenAI Agents SDK: input and output guardrails",
-      "url": "https://openai.github.io/openai-agents-js/guides/guardrails/",
-      "publisher": "OpenAI",
-      "lastVerified": "2026-09-06"
+      "title": "NeMo Guardrails Library: Overview",
+      "url": "https://docs.nvidia.com/nemo/guardrails/about-nemo-guardrails-library/overview",
+      "publisher": "NVIDIA",
+      "lastVerified": "2026-09-11"
     },
     {
-      "title": "Docker Engine security and isolation",
+      "title": "NeMo Guardrails Library: Guardrail Types",
+      "url": "https://docs.nvidia.com/nemo/guardrails/about-nemo-guardrails-library/rail-types",
+      "publisher": "NVIDIA",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "NeMo Guardrails Library: Architecture Overview",
+      "url": "https://docs.nvidia.com/nemo/guardrails/about-nemo-guardrails-library/how-it-works",
+      "publisher": "NVIDIA",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "NeMo Guardrails Library: Security Guidelines for LLM Integrations",
+      "url": "https://docs.nvidia.com/nemo/guardrails/resources/guidelines",
+      "publisher": "NVIDIA",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "What is gVisor?",
+      "url": "https://gvisor.dev/docs/",
+      "publisher": "gVisor",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "gVisor Security Model",
+      "url": "https://gvisor.dev/docs/architecture_guide/security/",
+      "publisher": "gVisor",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Firecracker Design",
+      "url": "https://github.com/firecracker-microvm/firecracker/blob/main/docs/design.md",
+      "publisher": "Firecracker",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Firecracker: Secure and fast microVMs for serverless computing",
+      "url": "https://firecracker-microvm.github.io/",
+      "publisher": "Firecracker",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Docker Engine security",
       "url": "https://docs.docker.com/engine/security/",
       "publisher": "Docker",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 3000,
+    "cues": [
+      {
+        "id": "cue-guard-sandbox-rails-narration",
+        "kind": "narration",
+        "sectionId": "rails-are-checkpoints",
+        "text": "A guardrail is a checkpoint that judges what passes through one stage of the request flow; it constrains nothing that goes around it."
+      },
+      {
+        "id": "cue-guard-sandbox-rails-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "rails-are-checkpoints",
+        "text": "Ask learners which of the five rail stages their own application has no check at, and what currently flows through that gap."
+      },
+      {
+        "id": "cue-guard-sandbox-golden-narration",
+        "kind": "narration",
+        "sectionId": "integrate-tools-like-an-api-owner",
+        "text": "Treat the model like a browser the user fully controls: every tool runs in the user's authorization context, credentials stay out of reach, and failures stay silent."
+      },
+      {
+        "id": "cue-guard-sandbox-boundary-narration",
+        "kind": "narration",
+        "sectionId": "choose-an-isolation-boundary",
+        "text": "Containers, gVisor, and Firecracker put different things between model-written code and the host kernel, and each still leaves some enforcement to the host."
+      },
+      {
+        "id": "cue-guard-sandbox-boundary-visual",
+        "kind": "visual",
+        "sectionId": "choose-an-isolation-boundary",
+        "text": "Stack the three boundaries side by side: container namespaces and cgroups on the shared host kernel, the gVisor Sentry and Gofer in front of a restricted host interface, and a Firecracker microVM on KVM inside the jailer, with host-owned egress and resource controls drawn around all three.",
+        "accessibilityAlternative": "A static comparison table lists container, gVisor, and Firecracker in rows, with columns for what intercepts the workload's system calls, what the design documents say about compatibility or overhead, and which protections remain the host's job. Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-guard-sandbox-boundary-pause",
+        "kind": "pause",
+        "sectionId": "choose-an-isolation-boundary",
+        "text": "Allow three minutes for learners to list every host-side control their chosen boundary depends on and who owns each one today."
+      },
+      {
+        "id": "cue-guard-sandbox-architecture-narration",
+        "kind": "narration",
+        "sectionId": "sandbox-is-not-architecture",
+        "text": "A sandbox is not a secure architecture: compose rails before execution, containment during it, and untrusted handling after it, then prove it with planted failures."
+      },
+      {
+        "id": "cue-guard-sandbox-architecture-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "sandbox-is-not-architecture",
+        "text": "Check that each learner's design names what every layer cannot stop and which later layer catches it."
+      },
+      {
+        "id": "cue-guard-sandbox-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the layer table, the isolation-boundary decision record, and the two planted tests."
+      },
+      {
+        "id": "cue-guard-sandbox-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can place each rail stage, state the golden rule, and name one host dependency for gVisor and for Firecracker."
+      }
+    ],
+    "transcript": "A guardrail is a checkpoint that judges what passes through one stage of the request flow; it constrains nothing that goes around it. Treat the model like a browser the user fully controls: every tool runs in the user's authorization context, credentials stay out of reach, and failures stay silent. Containers, gVisor, and Firecracker put different things between model-written code and the host kernel, and each still leaves some enforcement to the host. A sandbox is not a secure architecture: compose rails before execution, containment during it, and untrusted handling after it, then prove it with planted failures.",
+    "captions": [
+      {
+        "cueId": "cue-guard-sandbox-rails-narration",
+        "startSeconds": 0,
+        "endSeconds": 660,
+        "text": "A guardrail is a checkpoint that judges what passes through one stage of the request flow; it constrains nothing that goes around it."
+      },
+      {
+        "cueId": "cue-guard-sandbox-golden-narration",
+        "startSeconds": 690,
+        "endSeconds": 1380,
+        "text": "Treat the model like a browser the user fully controls: every tool runs in the user's authorization context, credentials stay out of reach, and failures stay silent."
+      },
+      {
+        "cueId": "cue-guard-sandbox-boundary-narration",
+        "startSeconds": 1410,
+        "endSeconds": 2160,
+        "text": "Containers, gVisor, and Firecracker put different things between model-written code and the host kernel, and each still leaves some enforcement to the host."
+      },
+      {
+        "cueId": "cue-guard-sandbox-architecture-narration",
+        "startSeconds": 2190,
+        "endSeconds": 2820,
+        "text": "A sandbox is not a secure architecture: compose rails before execution, containment during it, and untrusted handling after it, then prove it with planted failures."
+      },
+      {
+        "cueId": "cue-guard-sandbox-assessment",
+        "startSeconds": 2850,
+        "endSeconds": 3000,
+        "text": "Begin the check once learners can place each rail stage, state the golden rule, and name one host dependency for gVisor and for Firecracker."
+      }
+    ],
+    "reducedMotionAlternative": "Present the rail request flow and the isolation-boundary comparison as static tables with focus-based highlighting instead of animated sequences."
+  }
 }
