@@ -28,8 +28,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Inventory before changing (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "A dependency inventory record",
+        "code": "interface DependencyRecord {\n  kind: \"model\" | \"endpoint\" | \"sdk\" | \"auth\" | \"content-block\" | \"tool-schema\" | \"prompt\";\n  reference: string;\n  owner: string;\n  evidenceUrl: string;\n}\n\nconst inventory: DependencyRecord[] = [\n  { kind: \"model\", reference: \"process.env.ANTHROPIC_MODEL\", owner: \"platform-team\", evidenceUrl: \"https://platform.claude.com/docs/en/about-claude/models/overview\" },\n  { kind: \"content-block\", reference: \"response.content[].type narrowing\", owner: \"platform-team\", evidenceUrl: \"https://platform.claude.com/docs/en/api/messages/create\" },\n];"
       }
     },
     {
@@ -41,8 +41,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Separate portable contracts from provider specifics (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "An adapter boundary around Claude specifics",
+        "code": "interface ChatAdapter {\n  send(input: PortableRequest): Promise<PortableResponse>;\n}\n\nclass ClaudeAdapter implements ChatAdapter {\n  async send(input: PortableRequest): Promise<PortableResponse> {\n    const model = process.env.ANTHROPIC_MODEL;\n    if (!model) throw new Error(\"ANTHROPIC_MODEL is not configured\");\n    const response = await client.messages.create({\n      model,\n      max_tokens: input.maxTokens,\n      system: input.systemInstruction, // Claude: a top-level field, not a messages-array role\n      messages: input.messages,\n    });\n    const text = response.content.find((b) => b.type === \"text\")?.text ?? \"\";\n    return { text, stopReason: response.stop_reason, raw: response };\n  }\n}"
       }
     },
     {
@@ -55,8 +55,8 @@
       "callout": "A one-field model change can compile while behavior, cost, safety, or tool trajectories regress.",
       "code": {
         "language": "typescript",
-        "label": "Read current migration and lifecycle evidence (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Verify the target id is active before switching",
+        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\n// https://platform.claude.com/docs/en/about-claude/model-deprecations\nconst models = await client.models.list();\nconst targetId = process.env.ANTHROPIC_MODEL;\nconst target = models.data.find((m) => m.id === targetId);\nif (!target) throw new Error(`${targetId} is not an available model id`);"
       }
     },
     {
@@ -68,8 +68,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Evaluate and canary the candidate (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Run baseline and candidate on the same input",
+        "code": "async function compareOnCase(input: string) {\n  const baselineModel = process.env.ANTHROPIC_BASELINE_MODEL;\n  const candidateModel = process.env.ANTHROPIC_CANDIDATE_MODEL;\n  if (!baselineModel || !candidateModel) throw new Error(\"Baseline and candidate models must be configured\");\n\n  const [baseline, candidate] = await Promise.all([\n    client.messages.create({ model: baselineModel, max_tokens: 512, messages: [{ role: \"user\", content: input }] }),\n    client.messages.create({ model: candidateModel, max_tokens: 512, messages: [{ role: \"user\", content: input }] }),\n  ]);\n  return { baseline, candidate };\n}"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Migrate reversibly and close deliberately (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Route traffic reversibly by configuration",
+        "code": "function resolveModelForRequest(): string {\n  const candidatePercent = Number(process.env.CANDIDATE_TRAFFIC_PERCENT ?? \"0\");\n  const useCandidate = Math.random() * 100 < candidatePercent;\n  const model = useCandidate ? process.env.ANTHROPIC_CANDIDATE_MODEL : process.env.ANTHROPIC_BASELINE_MODEL;\n  if (!model) throw new Error(\"Routing model is not configured\");\n  return model;\n}"
       }
     }
   ],

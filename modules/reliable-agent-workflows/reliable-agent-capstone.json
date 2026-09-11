@@ -34,8 +34,8 @@
       "callout": "A workflow is not ready to automate until a reviewer can say what it may change, how it stops, and how completion is proven.",
       "code": {
         "language": "typescript",
-        "label": "Choose a bounded mission (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Explicit workflow states and transitions",
+        "code": "type WorkflowState =\n  | \"intake\" | \"planning\" | \"authorization\" | \"execution\"\n  | \"verification\" | \"reconciliation\" | \"completed\" | \"failed\";\n\ninterface StateTransition {\n  from: WorkflowState;\n  to: WorkflowState;\n  evidence: string; // the durable record that proves the transition occurred\n}\n\nfunction assertKnownTransition(t: StateTransition, allowed: Set<string>) {\n  const key = `${t.from}->${t.to}`;\n  if (!allowed.has(key)) throw new Error(`Unmodeled transition: ${key}`);\n}"
       }
     },
     {
@@ -49,8 +49,8 @@
       "callout": "Model confidence never grants authority; only the trusted executor can authorize an effect.",
       "code": {
         "language": "typescript",
-        "label": "Inventory tools, authority, and trust boundaries (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "A tool permission matrix",
+        "code": "interface ToolPermission {\n  toolName: string;\n  allowedOperation: string;\n  deniedOperations: string[];\n  approvalRequired: boolean;\n  executionLimit: number;\n}\n\nconst permissions: ToolPermission[] = [\n  { toolName: \"read_case\", allowedOperation: \"read\", deniedOperations: [\"write\", \"delete\"], approvalRequired: false, executionLimit: 50 },\n  { toolName: \"send_reply\", allowedOperation: \"create-draft\", deniedOperations: [\"send-without-approval\"], approvalRequired: true, executionLimit: 1 },\n];"
       }
     },
     {
@@ -64,8 +64,8 @@
       "callout": "A handoff is a contract with evidence, not a conversational promise.",
       "code": {
         "language": "typescript",
-        "label": "Engineer context, memory, MCP, and handoffs (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Accept or reject a handoff packet",
+        "code": "interface HandoffPacket {\n  objective: string;\n  constraints: string[];\n  authoritativeEvidence: string[];\n  currentState: WorkflowState;\n  outputSchema: string;\n  escalationRule: string;\n}\n\nfunction acceptHandoff(packet: HandoffPacket): { accepted: boolean; reason?: string } {\n  if (!packet.authoritativeEvidence.length) return { accepted: false, reason: \"missing evidence\" };\n  if (!packet.escalationRule) return { accepted: false, reason: \"missing escalation rule\" };\n  return { accepted: true };\n}"
       }
     },
     {
@@ -79,8 +79,8 @@
       "callout": "A happy-path demo proves possibility; a failure test provides evidence of control.",
       "code": {
         "language": "typescript",
-        "label": "Evaluate success and exercise failure (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "A failure-injection test harness",
+        "code": "interface FailureTest {\n  id: string;\n  inject: \"tool-denial\" | \"malformed-output\" | \"timeout\" | \"partial-write\" | \"duplicate-request\";\n  expectedContainment: string;\n}\n\nasync function runFailureTest(test: FailureTest): Promise<{ passed: boolean; observed: string }> {\n  const observed = await simulateFailure(test.inject);\n  return { passed: observed === test.expectedContainment, observed };\n}"
       }
     },
     {
@@ -94,8 +94,8 @@
       "callout": "Useful telemetry answers what happened and what to do next without becoming a second data leak.",
       "code": {
         "language": "typescript",
-        "label": "Observe and operate without leaking (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Redacted operational trace",
+        "code": "interface OperationTrace {\n  caseId: string;\n  workflowState: WorkflowState;\n  model: string;\n  toolName?: string;\n  latencyMs: number;\n  errorClass?: string;\n}\n\nfunction emitTrace(trace: OperationTrace) {\n  // Redact ticket bodies, credentials, personal data, and full tool payloads before emitting.\n  telemetry.record(trace);\n}"
       }
     },
     {
@@ -109,8 +109,8 @@
       "callout": "Revision is part of the assessed workflow; do not overwrite the evidence of what changed.",
       "code": {
         "language": "typescript",
-        "label": "Assemble evidence, calibrate, and revise (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Validate that every criterion has evidence",
+        "code": "interface CriterionEvidence {\n  criterionId: string;\n  pointsAwarded: number;\n  evidenceRefs: string[];\n}\n\nfunction validateEvidenceMap(scores: CriterionEvidence[]): string[] {\n  return scores.filter((s) => s.evidenceRefs.length === 0).map((s) => s.criterionId);\n}"
       }
     }
   ],
