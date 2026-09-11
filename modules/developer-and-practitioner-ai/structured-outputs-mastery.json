@@ -1,74 +1,319 @@
 {
   "id": "structured-outputs-mastery",
   "title": "Guaranteed Structured Outputs & Schemas",
-  "summary": "JSON schema mode, constrained decoding, and type-safe data parsing with Zod and Pydantic.",
+  "summary": "Write one JSON Schema that survives three constrained decoders: what OpenAI, Claude, and Gemini structured outputs actually guarantee, the schema subset all three accept, SDK helpers that rewrite your schema, and the refusal, truncation, and casing failures a guarantee does not cover.",
   "level": "intermediate",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
-    "provider-neutral"
+    "provider-neutral",
+    "anthropic",
+    "openai",
+    "google"
   ],
-  "estimatedMinutes": 30,
+  "estimatedMinutes": 50,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Guaranteed Structured Outputs & Schemas.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "State precisely what constrained decoding guarantees on each provider -- schema-shaped output -- and what it leaves to the application.",
+    "Design a schema inside the subset that OpenAI strict mode, Claude structured outputs, and Gemini structured output all accept, and enforce the constraints they drop with local validation.",
+    "Use Zod or Pydantic SDK helpers without letting the schema the model sees drift away from the schema your code enforces.",
+    "Detect and handle refusals, truncation, enum-casing drift, and inputs that cannot produce a valid answer."
   ],
-  "prerequisites": [],
+  "prerequisites": [
+    "provider-sdk-patterns"
+  ],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "what-the-guarantee-covers",
+      "title": "What 'guaranteed' actually guarantees",
       "paragraphs": [
-        "JSON schema mode, constrained decoding, and type-safe data parsing with Zod and Pydantic.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Guaranteed Structured Outputs & Schemas.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
-      ]
+        "All three providers can now constrain generation to a JSON Schema you supply. OpenAI Structured Outputs makes the response adhere to the schema, so the model cannot omit a required key or invent an enum value; in the Responses API it is enabled with a `text.format` of type `json_schema` and `strict: true`. OpenAI recommends it over the older JSON mode, which guarantees valid JSON but not schema adherence. Claude structured outputs use constrained decoding: `output_config.format` with type `json_schema` returns JSON matching your schema in the response's text block, and `strict: true` on a tool definition applies the same guarantee to tool inputs. Gemini produces responses that adhere to a supplied JSON Schema when you request `application/json` output with a schema.",
+        "The guarantee is about shape. OpenAI notes that Structured Outputs can still contain mistakes, and that the model will always try to fit the schema -- which can produce hallucinated values when the input has nothing to do with it. Google's best-practice list says the same thing more briefly: the output is syntactically correct JSON, so always validate the values in your application.",
+        "Two operational details follow from how Claude builds the guarantee. It compiles each schema into a grammar: the first request with a new schema pays compilation latency, compiled grammars stay cached for 24 hours from last use, and changing the schema's structure invalidates that cache while changing only names or descriptions does not. Anthropic also injects a system prompt describing the expected format, which costs input tokens. And because schemas are cached separately from message content, Anthropic states that PHI must not appear in schema property names, `enum` or `const` values, or `pattern` expressions."
+      ],
+      "callout": "Schema-valid is a statement about syntax and types. Correct, grounded, and authorized are still your job.",
+      "code": {
+        "language": "typescript",
+        "label": "One schema, three request shapes",
+        "code": "const schema = { type: \"object\", properties: { /* ... */ }, required: [/* ... */], additionalProperties: false };\n\n// OpenAI Responses API\nconst openaiRequest = {\n  model, input,\n  text: { format: { type: \"json_schema\", name: \"ticket\", strict: true, schema } },\n};\n\n// Claude Messages API\nconst claudeRequest = {\n  model, max_tokens: 1024, messages,\n  output_config: { format: { type: \"json_schema\", schema } },\n};\n\n// Gemini Interactions API. (Google's migration guide shows generateContent using\n// responseMimeType and responseSchema inside config for the same purpose.)\nconst geminiRequest = {\n  model, input,\n  response_format: { type: \"text\", mime_type: \"application/json\", schema },\n};\n\n// model comes from configuration -- see the provider SDK patterns module."
+      }
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "portable-schema-subset",
+      "title": "The schema subset all three will accept",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
-      ]
+        "Each provider accepts a different subset of JSON Schema, and the differences are not cosmetic. OpenAI strict mode requires every property to appear in `required` (emulate an optional field with a type union such as `[\"string\", \"null\"]`), requires `additionalProperties: false` on every object, forbids a root-level `anyOf`, and supports `$defs` and recursive schemas as well as `pattern`, `format`, `minimum`/`maximum`, and `minItems`/`maxItems`. It does not support `allOf`, `not`, or `if`/`then`/`else`, and it caps a schema at 5,000 object properties and 10 levels of nesting.",
+        "Claude structured outputs allow optional properties but count them: at most 24 optional parameters and 16 union-typed parameters across all strict schemas in one request, and at most 20 strict tools. `additionalProperties` must be `false`; recursive schemas, numeric constraints such as `minimum` and `maximum`, string length constraints, and array constraints beyond a `minItems` of 0 or 1 are not supported and return a 400. Property order follows the schema except that required properties come first. Gemini documents `enum`, `format`, `minimum`/`maximum`, `minItems`/`maxItems`, `prefixItems`, and nullable type arrays, lets `additionalProperties` be a boolean or a schema, and warns that very large or deeply nested schemas may be rejected.",
+        "The portable core is therefore narrow and predictable: an object at the root; every property required, with `null` in a type union where a value may be absent; `additionalProperties: false` on every object; string enums; `$defs` only where reuse needs it, and no recursion; and no numeric or length constraints in the schema you send. Keep those constraints -- they are real business rules -- but enforce them in a local validation step after the response arrives. Making every property required also settles ordering: OpenAI emits keys in schema order and Claude emits required keys first, so an all-required schema comes back in one order from both."
+      ],
+      "code": {
+        "language": "json",
+        "label": "A schema inside the portable subset",
+        "code": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": { \"type\": \"string\", \"enum\": [\"billing\", \"access\", \"bug\", \"other\"] },\n    \"priority\": { \"type\": \"string\", \"enum\": [\"low\", \"normal\", \"urgent\"] },\n    \"customer_email\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"The sender's email address, or null when the message contains none.\"\n    },\n    \"summary\": { \"type\": \"string\", \"description\": \"One sentence, under 200 characters.\" },\n    \"needs_human\": { \"type\": \"boolean\" }\n  },\n  \"required\": [\"category\", \"priority\", \"customer_email\", \"summary\", \"needs_human\"],\n  \"additionalProperties\": false\n}"
+      }
+    },
+    {
+      "id": "sdk-helpers-and-local-validation",
+      "title": "SDK helpers rewrite your schema -- validate against the original",
+      "paragraphs": [
+        "Hand-maintained JSON Schema drifts away from the types your code actually uses. OpenAI strongly recommends the SDKs' native Pydantic (Python) and Zod (JavaScript) support, or a CI step that regenerates the schema from the types or the other way round. The helpers look alike across providers: OpenAI's JavaScript SDK pairs `responses.parse` with `zodTextFormat` and returns `output_parsed`; Anthropic's TypeScript SDK pairs `messages.parse` with `zodOutputFormat` (or `jsonSchemaOutputFormat` without Zod) and returns `parsed_output`; Google's structured output guide shows the same pattern with Pydantic in Python and Zod in JavaScript, parsing the returned text locally.",
+        "Read what a helper does before trusting it. Anthropic documents that its Python, TypeScript, Ruby, and PHP SDKs transform a schema that uses unsupported features: they remove constraints such as `minimum` and `maxLength`, append each removed constraint to the field description, add `additionalProperties: false` to every object, filter string formats to the supported list, and then validate the response against your original schema. The model sees the relaxed schema; your code still enforces the strict one. OpenAI takes the opposite approach with `strict: true` and rejects an unsupported schema with an error -- which is why a Zod discriminated union, which produces a root-level `anyOf`, fails there.",
+        "Your own validator needs the same scrutiny. In JSON Schema 2020-12, `format` is an annotation by default: the specification requires implementations that can assert formats to keep that behavior disabled unless it is switched on, so a local validator may accept `\"not-an-email\"` for `format: \"email\"` without complaint. Omitting `additionalProperties` allows any extra property, and `required` asserts only that the named keys are present. Decide explicitly which of these your local check enforces, then prove it with a deliberately bad payload."
+      ],
+      "code": {
+        "language": "typescript",
+        "label": "One source of truth, enforced after the response",
+        "code": "import { z } from \"zod\";\n\n// The API receives a relaxed JSON Schema; this object still enforces\n// the rules the API could not (email format, 200-character summary).\nconst Ticket = z.object({\n  category: z.enum([\"billing\", \"access\", \"bug\", \"other\"]),\n  priority: z.enum([\"low\", \"normal\", \"urgent\"]),\n  customer_email: z.nullable(z.email()),\n  summary: z.string().max(200),\n  needs_human: z.boolean(),\n});\n\n// OpenAI:    client.responses.parse({ ..., text: { format: zodTextFormat(Ticket, \"ticket\") } })\n//            -> response.output_parsed\n// Anthropic: client.messages.parse({ ..., output_config: { format: zodOutputFormat(Ticket) } })\n//            -> response.parsed_output\n// Gemini:    send the JSON Schema, then parse the returned text yourself:\nconst ticket = Ticket.parse(JSON.parse(outputText));"
+      }
+    },
+    {
+      "id": "failures-the-guarantee-leaves",
+      "title": "Refusals, truncation, and casing: what still reaches your code",
+      "paragraphs": [
+        "Constrained decoding cannot stop the model from refusing or from running out of tokens, and either one produces output that does not match your schema. Claude signals a safety refusal with `stop_reason: \"refusal\"` and HTTP 200, bills the tokens it generated, and lets the refusal message take precedence over the schema; a cut-off response has `stop_reason: \"max_tokens\"` and may be incomplete, and Anthropic's remedy is to retry with a higher `max_tokens`. OpenAI returns a `refusal` content item in place of schema output, and marks truncation with `status: \"incomplete\"` and an `incomplete_details.reason` of `max_output_tokens`. Check these signals before you parse, not after the parser throws.",
+        "Some drift is quieter. Anthropic documents that structured outputs do not guarantee the capitalization of string `enum` and `const` values: the model may return a value that differs from the schema only in case -- typically the first letter of a word after a space -- with no error and no special stop reason. Compare enum values case-insensitively and never define two values that differ only by case. Anthropic also lists structured outputs as incompatible with citations (a 400) and with message prefilling.",
+        "Finally, give the model a legitimate way out. Because the model always tries to satisfy the schema, OpenAI advises telling it in the prompt what to return when the input cannot produce a valid response. Build that answer into the schema itself -- an `\"other\"` category, a null field, a `needs_human` flag -- so that 'this email is not a support ticket' does not come back as a confidently filled-in ticket."
+      ],
+      "callout": "Look at stop_reason, status, and refusal items first. JSON.parse is the last step, not the error handler.",
+      "code": {
+        "language": "typescript",
+        "label": "Check the stop signal, then parse, then validate",
+        "code": "type Read<T> =\n  | { ok: true; value: T }\n  | { ok: false; reason: \"refused\" | \"truncated\" | \"invalid\"; detail: string };\n\n// Claude Messages: inspect stop_reason before touching the text block.\nfunction readClaude(msg: { stop_reason: string | null; content: { type: string; text?: string }[] }): Read<unknown> {\n  if (msg.stop_reason === \"refusal\") return { ok: false, reason: \"refused\", detail: \"stop_reason refusal\" };\n  if (msg.stop_reason === \"max_tokens\") return { ok: false, reason: \"truncated\", detail: \"raise max_tokens and retry\" };\n  const text = msg.content.find((b) => b.type === \"text\")?.text ?? \"\";\n  return validate(JSON.parse(text));\n}\n\n// OpenAI Responses: an incomplete status or a refusal item is not schema output.\nfunction readResponses(r: { status: string; incomplete_details?: { reason?: string }; output: any[] }): Read<unknown> {\n  if (r.status === \"incomplete\") return { ok: false, reason: \"truncated\", detail: r.incomplete_details?.reason ?? \"unknown\" };\n  const part = r.output.find((i) => i.type === \"message\")?.content?.[0];\n  if (part?.type === \"refusal\") return { ok: false, reason: \"refused\", detail: part.refusal };\n  return validate(JSON.parse(part?.text ?? \"\"));\n}\n\n// validate(): run the full local schema, and compare enum values\n// case-insensitively before accepting them."
+      }
     }
   ],
   "activity": {
     "id": "structured-outputs-mastery-activity",
-    "title": "Guaranteed Structured Outputs & Schemas Hands-On Lab",
+    "title": "Port one extraction schema across three providers",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Take one real extraction task and write its schema once, inside the portable subset: object root, every field required with null unions for absent values, additionalProperties false, string enums, and no numeric or length constraints.",
+      "Move every dropped constraint (lengths, ranges, formats) into a local validator generated from the same source of truth, and prove that it rejects a payload with a malformed email, an over-length summary, and an extra property.",
+      "Send the schema through OpenAI strict mode, Claude output_config.format, and Gemini structured output. Record every 400 error and the schema change that fixed it.",
+      "Force each failure path in a test: a request that should be refused, a max-token limit too low to finish, an input unrelated to the schema, and an enum value returned in the wrong case."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "The single-source schema, the relaxed schema actually sent to each provider, and the local validator, with the three rejected test payloads.",
+      "A failure-path table listing provider, induced failure, the exact signal observed (stop_reason, status, refusal item, or casing), and how the code handled it."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which constraint in your schema was the model never shown, and what would have reached your database if your local validator had not enforced it?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
-        "id": "q-structured-outputs-mastery-1",
-        "prompt": "What is the primary architectural goal of Guaranteed Structured Outputs & Schemas?",
+        "id": "q-dev-so-1",
+        "prompt": "What does OpenAI Structured Outputs with strict: true guarantee that JSON mode does not?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "Valid JSON syntax",
+          "Adherence to the supplied schema, such as required keys and enum values",
+          "Factually correct values",
+          "Lower latency"
         ],
-        "answerIndex": 0,
-        "explanation": "Guaranteed Structured Outputs & Schemas enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 1,
+        "explanation": "Both produce valid JSON; only Structured Outputs ensures schema adherence. Neither guarantees that the values are correct."
+      },
+      {
+        "id": "q-dev-so-2",
+        "prompt": "A schema uses maxLength on a string and minimum on an integer. What happens when Anthropic's TypeScript SDK sends it through zodOutputFormat?",
+        "choices": [
+          "The API enforces both constraints during decoding",
+          "The SDK removes the unsupported constraints from the sent schema, notes them in the descriptions, and validates the response against the original schema",
+          "The constraints are ignored everywhere",
+          "The SDK falls back to JSON mode"
+        ],
+        "answerIndex": 1,
+        "explanation": "Anthropic documents this transformation for its Python, TypeScript, Ruby, and PHP SDKs: the model sees a relaxed schema while the SDK still enforces the original constraints."
+      },
+      {
+        "id": "q-dev-so-3",
+        "prompt": "Which schema pattern is portable to OpenAI strict mode, Claude structured outputs, and Gemini structured output?",
+        "choices": [
+          "Optional properties left out of required",
+          "A root-level anyOf discriminated union",
+          "Every property required, with null in a type union for values that may be absent, and additionalProperties false",
+          "A recursive schema that references the root"
+        ],
+        "answerIndex": 2,
+        "explanation": "OpenAI requires every property to be required and forbids a root anyOf, and Claude does not support recursion. The required-plus-nullable pattern is accepted by all three."
+      },
+      {
+        "id": "q-dev-so-4",
+        "prompt": "Claude returns stop_reason \"refusal\" with HTTP 200 on a structured-output request. What is true?",
+        "choices": [
+          "The text block is still guaranteed to match the schema",
+          "The output may not match the schema, the generated tokens are billed, and the application must handle the refusal before parsing",
+          "The request was not billed",
+          "Retrying with a higher max_tokens fixes it"
+        ],
+        "answerIndex": 1,
+        "explanation": "The refusal message takes precedence over schema constraints. A higher max_tokens addresses max_tokens truncation, not a refusal."
+      },
+      {
+        "id": "q-dev-so-5",
+        "prompt": "Your local JSON Schema validator accepts \"not-an-email\" for a field declared with format: \"email\". Why can that be correct behavior?",
+        "choices": [
+          "format is always an assertion in JSON Schema",
+          "In JSON Schema 2020-12, format is an annotation by default and assertion has to be enabled explicitly",
+          "email is not a defined format",
+          "Validators never check strings"
+        ],
+        "answerIndex": 1,
+        "explanation": "The validation specification requires format-assertion behavior to be disabled by default, so enable it or check the format in code."
+      },
+      {
+        "id": "q-dev-so-6",
+        "prompt": "Claude returns \"Access\" for a string enum declared as [\"billing\", \"access\", \"bug\", \"other\"]. What does Anthropic advise?",
+        "choices": [
+          "Treat it as a schema violation and retry until the case matches",
+          "Compare enum values case-insensitively, and avoid enum values that differ only by case",
+          "Switch the field to free text",
+          "Add a pattern to force lower case"
+        ],
+        "answerIndex": 1,
+        "explanation": "Structured outputs do not guarantee the capitalization of enum and const values, and the response completes normally with no error or special stop reason."
       }
     ]
   },
   "sources": [
     {
-      "title": "OpenAI Platform documentation",
-      "url": "https://platform.openai.com/docs/",
+      "title": "Structured outputs",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/structured-outputs",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Structured model outputs",
+      "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-05"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Structured output",
+      "url": "https://ai.google.dev/gemini-api/docs/structured-output",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Migrate to the Interactions API",
+      "url": "https://ai.google.dev/gemini-api/docs/migrate-to-interactions",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "JSON Schema Validation: A Vocabulary for Structural Validation of JSON (2020-12)",
+      "url": "https://json-schema.org/draft/2020-12/json-schema-validation",
+      "publisher": "JSON Schema",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "JSON Schema: A Media Type for Describing JSON Documents (2020-12)",
+      "url": "https://json-schema.org/draft/2020-12/json-schema-core",
+      "publisher": "JSON Schema",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Defining schemas",
+      "url": "https://zod.dev/api",
+      "publisher": "Zod",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 3000,
+    "cues": [
+      {
+        "id": "cue-dev-so-guarantee",
+        "kind": "narration",
+        "sectionId": "what-the-guarantee-covers",
+        "text": "Constrained decoding guarantees the shape of the output, not its truth; OpenAI, Claude, and Gemini all tell you to keep validating values in your own code."
+      },
+      {
+        "id": "cue-dev-so-guarantee-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "what-the-guarantee-covers",
+        "text": "Ask learners for one field in their own schemas that could be schema-valid and still wrong."
+      },
+      {
+        "id": "cue-dev-so-subset",
+        "kind": "narration",
+        "sectionId": "portable-schema-subset",
+        "text": "Write schemas in the portable subset -- an object root, every field required with null unions, additionalProperties false, string enums -- and enforce numeric and length rules locally."
+      },
+      {
+        "id": "cue-dev-so-subset-visual",
+        "kind": "visual",
+        "sectionId": "portable-schema-subset",
+        "text": "Show a three-column table of schema features -- required-ness, additionalProperties, recursion, numeric and length constraints, root anyOf, key order -- with each provider's documented support, and highlight the rows that form the portable core.",
+        "accessibilityAlternative": "A static table lists each schema feature in a row with OpenAI, Claude, and Gemini support in three columns; the rows that belong to the portable core are marked with the word \"portable\". Reduced-motion mode shows the table without highlighting animation."
+      },
+      {
+        "id": "cue-dev-so-helpers",
+        "kind": "narration",
+        "sectionId": "sdk-helpers-and-local-validation",
+        "text": "SDK helpers rewrite your schema before sending it, so keep one source of truth and validate the response against the original, remembering that format is only an annotation by default."
+      },
+      {
+        "id": "cue-dev-so-helpers-pause",
+        "kind": "pause",
+        "sectionId": "sdk-helpers-and-local-validation",
+        "text": "Allow two minutes for learners to find one constraint in their schema that their provider would drop."
+      },
+      {
+        "id": "cue-dev-so-failures",
+        "kind": "narration",
+        "sectionId": "failures-the-guarantee-leaves",
+        "text": "Refusals, truncation, and enum casing still produce output that breaks the schema, so check the stop signal before parsing and give the model a legitimate way to say the input does not fit."
+      },
+      {
+        "id": "cue-dev-so-failures-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "failures-the-guarantee-leaves",
+        "text": "Check that learners' parsing code inspects the refusal and truncation signals before it calls JSON.parse."
+      },
+      {
+        "id": "cue-dev-so-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the single-source schema, the local validator, the three provider runs, and the forced failure paths."
+      },
+      {
+        "id": "cue-dev-so-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can name the portable schema subset and the signals that precede a parse."
+      }
+    ],
+    "transcript": "Constrained decoding guarantees the shape of the output, not its truth; OpenAI, Claude, and Gemini all tell you to keep validating values in your own code. Write schemas in the portable subset -- an object root, every field required with null unions, additionalProperties false, string enums -- and enforce numeric and length rules locally. SDK helpers rewrite your schema before sending it, so keep one source of truth and validate the response against the original, remembering that format is only an annotation by default. Refusals, truncation, and enum casing still produce output that breaks the schema, so check the stop signal before parsing and give the model a legitimate way to say the input does not fit.",
+    "captions": [
+      {
+        "cueId": "cue-dev-so-guarantee",
+        "startSeconds": 0,
+        "endSeconds": 637,
+        "text": "Constrained decoding guarantees the shape of the output, not its truth; OpenAI, Claude, and Gemini all tell you to keep validating values in your own code."
+      },
+      {
+        "cueId": "cue-dev-so-subset",
+        "startSeconds": 667,
+        "endSeconds": 1304,
+        "text": "Write schemas in the portable subset -- an object root, every field required with null unions, additionalProperties false, string enums -- and enforce numeric and length rules locally."
+      },
+      {
+        "cueId": "cue-dev-so-helpers",
+        "startSeconds": 1334,
+        "endSeconds": 1971,
+        "text": "SDK helpers rewrite your schema before sending it, so keep one source of truth and validate the response against the original, remembering that format is only an annotation by default."
+      },
+      {
+        "cueId": "cue-dev-so-failures",
+        "startSeconds": 2001,
+        "endSeconds": 2638,
+        "text": "Refusals, truncation, and enum casing still produce output that breaks the schema, so check the stop signal before parsing and give the model a legitimate way to say the input does not fit."
+      },
+      {
+        "cueId": "cue-dev-so-assessment",
+        "startSeconds": 2700,
+        "endSeconds": 3000,
+        "text": "Begin the check once learners can name the portable schema subset and the signals that precede a parse."
+      }
+    ],
+    "reducedMotionAlternative": "Present the provider schema-support comparison and the parse-order flow as static tables with focus highlighting instead of animated sequences."
+  }
 }

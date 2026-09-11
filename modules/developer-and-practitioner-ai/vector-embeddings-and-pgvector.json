@@ -1,74 +1,307 @@
 {
   "id": "vector-embeddings-and-pgvector",
   "title": "Semantic Embeddings & Vector Databases",
-  "summary": "Vector similarity math, chunking, distance indexing, and pgvector/Qdrant in production.",
+  "summary": "Treat an embedding model as a schema commitment and store its vectors in PostgreSQL with pgvector: dimensions, normalization, and query conventions for OpenAI, Gemini, and Voyage embeddings; HNSW versus IVFFlat and the 2,000-dimension index limit; and filtered, multi-tenant queries that keep their recall.",
   "level": "intermediate",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
-    "provider-neutral"
+    "provider-neutral",
+    "openai",
+    "google",
+    "anthropic"
   ],
-  "estimatedMinutes": 35,
+  "estimatedMinutes": 50,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Semantic Embeddings & Vector Databases.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Record the embedding model, dimension count, normalization, and query-document convention as part of the stored data, and plan a re-embed whenever one of them changes.",
+    "Create pgvector columns, distance queries, and indexes that the planner actually uses, choosing the operator that matches your embeddings.",
+    "Choose between HNSW and IVFFlat, and between vector, halfvec, and reduced dimensions, given pgvector's index limits and your recall target.",
+    "Keep recall and tenant isolation intact under WHERE-clause filtering with iterative scans, partial indexes, and partitioning."
   ],
-  "prerequisites": [],
+  "prerequisites": [
+    "provider-sdk-patterns"
+  ],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "embedding-model-is-a-schema",
+      "title": "An embedding model is a schema commitment",
       "paragraphs": [
-        "Vector similarity math, chunking, distance indexing, and pgvector/Qdrant in production.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Semantic Embeddings & Vector Databases.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
-      ]
+        "An embedding is a list of floating-point numbers whose distance to another list measures relatedness. What the numbers mean depends entirely on the model that produced them, and providers are explicit that you cannot mix models: Google states that the embedding spaces of `gemini-embedding-001` and `gemini-embedding-2` are incompatible and that upgrading means re-embedding all existing data. Treat the model id the way you treat a column type.",
+        "The ecosystems differ in ways that reach your table definition. OpenAI's `text-embedding-3-small` returns 1,536 dimensions by default and `text-embedding-3-large` returns 3,072; both accept a `dimensions` parameter that shortens the vector while keeping its concept-representing properties, and OpenAI's embeddings are normalized to length 1. Gemini's `gemini-embedding-001` and `gemini-embedding-2` both default to 3,072 dimensions and accept an `output_dimensionality` from 128 to 3,072, with 768, 1,536, and 3,072 recommended; `gemini-embedding-2` renormalizes truncated vectors automatically, while `gemini-embedding-001` vectors below 3,072 dimensions must be normalized by you. Anthropic does not offer an embedding model; its documentation points to Voyage AI, whose current general-purpose models default to 1,024 dimensions (256, 512, and 2,048 are also available) and return vectors normalized to length 1.",
+        "Queries and documents are not always embedded the same way. Voyage asks you to set `input_type` to `query` or `document` for retrieval and prepends a different instruction to each. `gemini-embedding-001` takes a `task_type` such as `RETRIEVAL_QUERY` or `RETRIEVAL_DOCUMENT`; `gemini-embedding-2` does not accept `task_type` and expects a task prefix in the text instead -- for example `task: search result | query: ...` for a query and `title: ... | text: ...` for a document. Store that convention with the vectors. A query embedded with the wrong convention still returns neighbors, just worse ones, and nothing raises an error.",
+        "Check the identifier on the day you pin it. On 2026-09-11 Google's embeddings guide lists `gemini-embedding-2` as the stable model code, while the table on Google's models overview shows `gemini-embedding-2-preview` as the endpoint. A configured id plus a one-call smoke test tells you which string your project accepts; a hardcoded constant does not."
+      ],
+      "callout": "Vectors from two different embedding models are not comparable, even at the same dimension count. The model id belongs in the key, not in a comment.",
+      "code": {
+        "language": "sql",
+        "label": "Keep the model and its conventions with every vector",
+        "code": "CREATE EXTENSION vector;\n\n-- One row per (document, embedding model), so two models can coexist during a migration.\nCREATE TABLE doc_embeddings (\n  doc_id      bigint NOT NULL,\n  model_id    text   NOT NULL,  -- e.g. 'text-embedding-3-small', from configuration\n  dims        int    NOT NULL,  -- what was requested, not what was assumed\n  convention  text   NOT NULL,  -- e.g. 'input_type=document' or 'title/text prefix'\n  embedding   vector NOT NULL,  -- no fixed size: different models, different dimensions\n  PRIMARY KEY (doc_id, model_id),\n  CHECK (vector_dims(embedding) = dims)\n);"
+      }
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "store-and-query-with-pgvector",
+      "title": "Storing and querying vectors in PostgreSQL",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
-      ]
+        "pgvector adds vector types and nearest-neighbor search to PostgreSQL, so vectors live next to the rows they describe, with the same transactions, joins, point-in-time recovery, and replication. A `vector` value stores single-precision elements at 4 * dimensions + 8 bytes and can have up to 16,000 dimensions; every element must be finite. `halfvec` stores half precision, `bit` stores binary vectors, and `sparsevec` stores sparse ones. A column declared as plain `vector`, without a size, can hold vectors of different dimensions -- but an index can only cover rows of one dimension, through an expression and a partial index.",
+        "Distance is an operator: `<->` for L2, `<#>` for negative inner product, `<=>` for cosine distance, and `<+>` for L1, with `<~>` (Hamming) and `<%>` (Jaccard) for binary vectors. Two details catch people out. `<#>` returns the negative inner product because PostgreSQL index scans only order ascending, so multiply by -1 to display it; and cosine similarity is 1 minus `<=>`. OpenAI and Voyage both return unit-length vectors, for which cosine similarity and Euclidean distance produce identical rankings, and pgvector's documentation recommends inner product for best performance when vectors are normalized to length 1.",
+        "Write queries the planner can index. An index is used only when the query has an `ORDER BY` on a distance operator in ascending order and a `LIMIT`; ordering by an expression such as `1 - (embedding <=> $1) DESC` falls back to scanning. Load data with `COPY` and build indexes after the initial load, create indexes with `CREATE INDEX CONCURRENTLY` in production so writes are not blocked, and check plans with `EXPLAIN (ANALYZE, BUFFERS)`."
+      ],
+      "code": {
+        "language": "sql",
+        "label": "Queries the planner can and cannot index",
+        "code": "-- Uses an index: ORDER BY a distance operator, ascending, with LIMIT.\n-- (The cast and the model filter let a per-model expression index apply; see the next section.)\nSELECT doc_id, embedding::vector(1536) <=> $1 AS distance\n  FROM doc_embeddings\n WHERE model_id = 'text-embedding-3-small'\n ORDER BY embedding::vector(1536) <=> $1\n LIMIT 10;\n\n-- Cannot use an index: ordering by an expression of the distance.\n--   ORDER BY 1 - (embedding <=> $1) DESC LIMIT 10\n\n-- Normalized vectors (OpenAI, Voyage): inner product ranks identically to cosine.\n-- <#> returns the NEGATIVE inner product, so flip the sign only for display:\n--   SELECT doc_id, (embedding::vector(1536) <#> $1) * -1 AS inner_product ..."
+      }
+    },
+    {
+      "id": "hnsw-ivfflat-and-dimension-limits",
+      "title": "HNSW, IVFFlat, and the 2,000-dimension ceiling",
+      "paragraphs": [
+        "Without an index, pgvector performs exact nearest-neighbor search with perfect recall. An approximate index trades some recall for speed, and pgvector warns that query results can change once one is added. HNSW builds a multilayer graph: a better speed-recall trade-off than IVFFlat, at the cost of slower builds and more memory, and it can be created on an empty table. Its build options are `m` (16 by default) and `ef_construction` (64 by default), and the query-time `hnsw.ef_search` (40 by default) sets the size of the candidate list. IVFFlat divides vectors into lists and searches the closest ones: faster to build and smaller, but it should be created after the table has data, with `lists` starting near rows / 1000 up to a million rows and sqrt(rows) beyond, and `ivfflat.probes` near sqrt(lists) at query time.",
+        "Both index types accept `vector` columns up to 2,000 dimensions, `halfvec` up to 4,000, and `bit` up to 64,000. That collides directly with provider defaults: `text-embedding-3-large`, `gemini-embedding-001`, and `gemini-embedding-2` all return 3,072 dimensions unless you ask for fewer. There are three documented ways through. Request fewer dimensions when embedding (`dimensions` on OpenAI, `output_dimensionality` on Gemini) -- OpenAI reports that a `text-embedding-3-large` vector shortened to 256 dimensions still outperformed an unshortened 1,536-dimension `text-embedding-ada-002` vector on the MTEB benchmark. Index a half-precision cast of the column, up to 4,000 dimensions. Or index a binary quantization of the vector and re-rank the candidates by the original vectors for recall.",
+        "Tune per query, not per server. `SET LOCAL hnsw.ef_search` or `SET LOCAL ivfflat.probes` inside a transaction changes one query's recall-speed trade-off without touching the rest of the session. HNSW builds run much faster when the graph fits in `maintenance_work_mem` -- pgvector prints a notice when it no longer does -- but do not set it so high that it exhausts the server's memory."
+      ],
+      "code": {
+        "language": "sql",
+        "label": "A per-model half-precision HNSW index for 3,072-dimension vectors",
+        "code": "-- 3,072 dimensions exceed the 2,000-dimension limit for indexing vector,\n-- so index a halfvec cast (indexable up to 4,000 dimensions), one partial index per model.\nCREATE INDEX CONCURRENTLY doc_emb_gemini001_hnsw\n  ON doc_embeddings\n  USING hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops)\n  WHERE (model_id = 'gemini-embedding-001');\n\nBEGIN;\nSET LOCAL hnsw.ef_search = 100;   -- more recall for this query only (default 40)\nSELECT doc_id\n  FROM doc_embeddings\n WHERE model_id = 'gemini-embedding-001'\n ORDER BY embedding::halfvec(3072) <=> $1::halfvec(3072)\n LIMIT 10;\nCOMMIT;"
+      }
+    },
+    {
+      "id": "filtering-tenancy-and-recall",
+      "title": "Filtering and tenants without losing recall",
+      "paragraphs": [
+        "Filters are where approximate search quietly under-delivers. With an approximate index, pgvector applies the WHERE clause after the index scan: if a condition matches 10% of rows and `hnsw.ef_search` is at its default of 40, only about 4 rows match on average, even though you asked for 10. Since pgvector 0.8.0, iterative index scans keep scanning until enough rows match or a limit is reached (`hnsw.max_scan_tuples`, 20,000 by default, or `ivfflat.max_probes`). `strict_order` keeps results in exact distance order; `relaxed_order` allows slight reordering in exchange for better recall, and a materialized CTE can restore strict order afterwards.",
+        "Pick the structure that matches the filter. For a condition that matches a small share of rows, an ordinary index on the filter column can give fast, exact search. For a few distinct filter values, use partial indexes -- the per-model index in the previous section is one. For many values, partition the table. Tenancy is the sharpest case: pgvector warns that sharing one approximate index between tenants lets one tenant's vectors affect another tenant's recall and speed, and recommends list partitioning or separate tables for tenant isolation. (pgvector also works alongside PostgreSQL full-text search for hybrid retrieval; combining the two rankings is the subject of the advanced RAG module.)",
+        "Know what never enters the index. NULL vectors are not indexed, and neither are zero vectors under cosine distance, so a failed embedding call that stored zeros becomes an unfindable row rather than an error -- reject such rows on write. HNSW results are also capped by `ef_search`, and an IVFFlat index built with too little data for its number of lists returns fewer results than expected; pgvector's advice is to drop it until the table has more data. Vacuuming an HNSW index can take a while, and reindexing it concurrently first speeds that up."
+      ],
+      "code": {
+        "language": "sql",
+        "label": "Per-tenant partitions and a filtered query that still meets its LIMIT",
+        "code": "-- Tenant isolation: list-partition by tenant so no approximate index is shared.\nCREATE TABLE tenant_chunks (\n  tenant_id  int          NOT NULL,\n  chunk_id   bigint       NOT NULL,\n  embedding  vector(1536) NOT NULL\n) PARTITION BY LIST (tenant_id);\n-- ...then create one partition per tenant and an HNSW index on each.\n\n-- A filtered query on a shared, HNSW-indexed table: the WHERE clause runs\n-- after the index scan, so enable an iterative scan to keep the LIMIT satisfied.\nBEGIN;\nSET LOCAL hnsw.iterative_scan = strict_order;\nSELECT chunk_id\n  FROM chunks\n WHERE category_id = $2\n ORDER BY embedding <=> $1\n LIMIT 10;\nCOMMIT;"
+      }
     }
   ],
   "activity": {
     "id": "vector-embeddings-and-pgvector-activity",
-    "title": "Semantic Embeddings & Vector Databases Hands-On Lab",
+    "title": "Size, index, and filter a real embedding table",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Choose one embedding model from OpenAI, Gemini, or Voyage for a real corpus. Record its id, the dimensions you request, whether its vectors arrive normalized, and its query-document convention, each with the documentation URL and the date you checked it.",
+      "Create the table and one HNSW index that the planner actually uses, proven with EXPLAIN (ANALYZE, BUFFERS). Choose vector, halfvec, or reduced dimensions and justify the choice against the 2,000-dimension index limit.",
+      "Measure recall@10 of the indexed query against exact search (a copy of the table with no index) on 50 held-out queries, at hnsw.ef_search 40 and 100.",
+      "Add a filter that matches roughly 10% of rows and report the number of rows returned with and without hnsw.iterative_scan. Then describe how you would isolate two tenants."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "An embedding-metadata record (model, dimensions, normalization, convention, source URL, date) and the table and index DDL.",
+      "A recall table (ef_search 40 versus 100; filtered with and without iterative scan) and the EXPLAIN output showing the index in use."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "If your embedding provider shipped a better model tomorrow, what in your schema would let old and new vectors run side by side, and what would force a full re-embed?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
-        "id": "q-vector-embeddings-and-pgvector-1",
-        "prompt": "What is the primary architectural goal of Semantic Embeddings & Vector Databases?",
+        "id": "q-dev-vec-1",
+        "prompt": "You upgrade from gemini-embedding-001 to gemini-embedding-2. What must happen to vectors already stored?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "Nothing, if the dimension count stays at 3,072",
+          "Re-embed all existing data, because the two embedding spaces are incompatible",
+          "Normalize them to length 1",
+          "Rebuild the HNSW index with a higher m"
         ],
-        "answerIndex": 0,
-        "explanation": "Semantic Embeddings & Vector Databases enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 1,
+        "explanation": "Google states that the two models' embedding spaces cannot be compared directly and that upgrading requires re-embedding existing data."
+      },
+      {
+        "id": "q-dev-vec-2",
+        "prompt": "Your text-embedding-3-large vectors have 3,072 dimensions. Which is a documented way to index them with pgvector?",
+        "choices": [
+          "Create an HNSW index directly on the vector(3072) column",
+          "Request fewer dimensions with the dimensions parameter, or index a halfvec cast, which supports up to 4,000 dimensions",
+          "Switch the index type to IVFFlat, which has no dimension limit",
+          "Store them as text"
+        ],
+        "answerIndex": 1,
+        "explanation": "HNSW and IVFFlat both index vector only up to 2,000 dimensions; halfvec indexes up to 4,000, and OpenAI's dimensions parameter shortens vectors while keeping their meaning."
+      },
+      {
+        "id": "q-dev-vec-3",
+        "prompt": "Which query shape can use a pgvector index?",
+        "choices": [
+          "ORDER BY 1 - (embedding <=> $1) DESC LIMIT 5",
+          "ORDER BY embedding <=> $1 LIMIT 5",
+          "WHERE embedding <=> $1 < 0.3, with no ORDER BY",
+          "SELECT AVG(embedding) FROM items"
+        ],
+        "answerIndex": 1,
+        "explanation": "The query needs ORDER BY on a distance operator in ascending order plus a LIMIT; ordering by an expression of the distance does not use the index."
+      },
+      {
+        "id": "q-dev-vec-4",
+        "prompt": "An HNSW query with a WHERE clause that matches 10% of rows returns about 4 rows for LIMIT 10. Why, and what helps?",
+        "choices": [
+          "The index is corrupt; rebuild it",
+          "Filtering is applied after the index scan and ef_search defaults to 40; enable iterative index scans",
+          "LIMIT is ignored when a WHERE clause is present",
+          "Cosine distance cannot be filtered"
+        ],
+        "answerIndex": 1,
+        "explanation": "With approximate indexes the filter runs after the scan; since 0.8.0, hnsw.iterative_scan keeps scanning until enough rows match or a limit is reached."
+      },
+      {
+        "id": "q-dev-vec-5",
+        "prompt": "Why does pgvector recommend list partitioning or separate tables for multi-tenant vector search?",
+        "choices": [
+          "Partitioned tables store vectors in less space",
+          "A shared approximate index lets one tenant's vectors affect other tenants' recall and speed",
+          "Row security does not work on tables with vector columns",
+          "HNSW cannot index more than one tenant"
+        ],
+        "answerIndex": 1,
+        "explanation": "Tenants sharing an approximate index influence each other's recall and performance; partitioning or separate tables isolates them."
+      },
+      {
+        "id": "q-dev-vec-6",
+        "prompt": "OpenAI and Voyage embeddings are normalized to length 1. Which pgvector choice follows?",
+        "choices": [
+          "Use L1 distance, because normalized vectors cannot use cosine",
+          "Inner product ranks identically to cosine and is recommended for performance -- remembering that <#> returns the negative inner product",
+          "Store them as bit vectors",
+          "Normalize them again before every query"
+        ],
+        "answerIndex": 1,
+        "explanation": "For unit-length vectors, cosine and Euclidean rankings are identical, and pgvector recommends inner product for best performance; <#> is negated because index scans only order ascending."
       }
     ]
   },
   "sources": [
     {
-      "title": "Google Machine Learning documentation",
-      "url": "https://developers.google.com/machine-learning/",
+      "title": "pgvector: Open-source vector similarity search for Postgres",
+      "url": "https://github.com/pgvector/pgvector",
+      "publisher": "pgvector",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Vector embeddings",
+      "url": "https://developers.openai.com/api/docs/guides/embeddings",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Embeddings",
+      "url": "https://ai.google.dev/gemini-api/docs/embeddings",
       "publisher": "Google",
-      "lastVerified": "2026-09-05"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Gemini models",
+      "url": "https://ai.google.dev/gemini-api/docs/models",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Embeddings",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/embeddings",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 3000,
+    "cues": [
+      {
+        "id": "cue-dev-vec-commitment",
+        "kind": "narration",
+        "sectionId": "embedding-model-is-a-schema",
+        "text": "An embedding model is a schema commitment: store the model id, dimensions, normalization, and query-document convention with every vector, and re-embed when any of them changes."
+      },
+      {
+        "id": "cue-dev-vec-commitment-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "embedding-model-is-a-schema",
+        "text": "Ask learners what in their current vector store records which model produced each vector."
+      },
+      {
+        "id": "cue-dev-vec-query",
+        "kind": "narration",
+        "sectionId": "store-and-query-with-pgvector",
+        "text": "In pgvector, distance is an operator, and an index is used only when the query orders ascending by that operator and has a LIMIT."
+      },
+      {
+        "id": "cue-dev-vec-query-pause",
+        "kind": "pause",
+        "sectionId": "store-and-query-with-pgvector",
+        "text": "Allow two minutes for learners to rewrite one similarity query so that it can use an index."
+      },
+      {
+        "id": "cue-dev-vec-limits",
+        "kind": "narration",
+        "sectionId": "hnsw-ivfflat-and-dimension-limits",
+        "text": "HNSW and IVFFlat index vector columns only up to 2,000 dimensions, so 3,072-dimension defaults need fewer requested dimensions, a halfvec index, or binary quantization with re-ranking."
+      },
+      {
+        "id": "cue-dev-vec-limits-visual",
+        "kind": "visual",
+        "sectionId": "hnsw-ivfflat-and-dimension-limits",
+        "text": "Show a decision table with embedding sizes as rows -- up to 2,000; 2,001 to 4,000; above 4,000 -- and the documented storage and index options for each.",
+        "accessibilityAlternative": "A static three-row table lists each dimension range with its documented options: index vector directly; request fewer dimensions or index a halfvec cast; request fewer dimensions or index a binary quantization and re-rank. Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-dev-vec-filtering",
+        "kind": "narration",
+        "sectionId": "filtering-tenancy-and-recall",
+        "text": "Approximate indexes filter after they scan, so use iterative scans, partial indexes, and per-tenant partitions to keep both recall and isolation."
+      },
+      {
+        "id": "cue-dev-vec-filtering-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "filtering-tenancy-and-recall",
+        "text": "Check that learners can explain why a filtered HNSW query returned fewer rows than its LIMIT, and name the setting that fixes it."
+      },
+      {
+        "id": "cue-dev-vec-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the embedding-metadata record, the index proof, the recall measurement, and the filtered-query comparison."
+      },
+      {
+        "id": "cue-dev-vec-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can size an index for a 3,072-dimension model and explain why filtered queries lose rows."
+      }
+    ],
+    "transcript": "An embedding model is a schema commitment: store the model id, dimensions, normalization, and query-document convention with every vector, and re-embed when any of them changes. In pgvector, distance is an operator, and an index is used only when the query orders ascending by that operator and has a LIMIT. HNSW and IVFFlat index vector columns only up to 2,000 dimensions, so 3,072-dimension defaults need fewer requested dimensions, a halfvec index, or binary quantization with re-ranking. Approximate indexes filter after they scan, so use iterative scans, partial indexes, and per-tenant partitions to keep both recall and isolation.",
+    "captions": [
+      {
+        "cueId": "cue-dev-vec-commitment",
+        "startSeconds": 0,
+        "endSeconds": 637,
+        "text": "An embedding model is a schema commitment: store the model id, dimensions, normalization, and query-document convention with every vector, and re-embed when any of them changes."
+      },
+      {
+        "cueId": "cue-dev-vec-query",
+        "startSeconds": 667,
+        "endSeconds": 1304,
+        "text": "In pgvector, distance is an operator, and an index is used only when the query orders ascending by that operator and has a LIMIT."
+      },
+      {
+        "cueId": "cue-dev-vec-limits",
+        "startSeconds": 1334,
+        "endSeconds": 1971,
+        "text": "HNSW and IVFFlat index vector columns only up to 2,000 dimensions, so 3,072-dimension defaults need fewer requested dimensions, a halfvec index, or binary quantization with re-ranking."
+      },
+      {
+        "cueId": "cue-dev-vec-filtering",
+        "startSeconds": 2001,
+        "endSeconds": 2638,
+        "text": "Approximate indexes filter after they scan, so use iterative scans, partial indexes, and per-tenant partitions to keep both recall and isolation."
+      },
+      {
+        "cueId": "cue-dev-vec-assessment",
+        "startSeconds": 2700,
+        "endSeconds": 3000,
+        "text": "Begin the check once learners can size an index for a 3,072-dimension model and explain why filtered queries lose rows."
+      }
+    ],
+    "reducedMotionAlternative": "Present the provider embedding comparison and the dimension-limit decision table as static tables with focus highlighting instead of animated sequences."
+  }
 }

@@ -1,74 +1,366 @@
 {
   "id": "function-calling-and-tools",
   "title": "Function Calling, SQL Tools & API Bridges",
-  "summary": "Declaring typed tool signatures, parameter validation, and safe query execution.",
-  "level": "intermediate",
+  "summary": "Bridge a model to databases and existing HTTP APIs safely: one tool contract expressed in three provider dialects, SQL tools built from parameterized templates behind a least-privilege role, API operations exposed as a small bounded surface, and results shaped for the next model turn.",
+  "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
-    "provider-neutral"
+    "provider-neutral",
+    "anthropic",
+    "openai",
+    "google"
   ],
-  "estimatedMinutes": 35,
+  "estimatedMinutes": 55,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Function Calling, SQL Tools & API Bridges.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Express one tool contract as OpenAI, Claude, and Gemini definitions, and match each call to its result with the identifier each API provides.",
+    "Build a SQL tool from fixed, parameterized query templates that run under a least-privilege database role, instead of letting the model write SQL.",
+    "Expose an existing HTTP API as a small set of bounded, service-prefixed functions whose credentials and caller identity never pass through model arguments.",
+    "Shape tool results and errors so the model can recover, and keep the tool surface small enough to stay accurate and affordable."
   ],
-  "prerequisites": [],
+  "prerequisites": [
+    "structured-outputs-mastery"
+  ],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "one-contract-three-dialects",
+      "title": "One tool contract, three dialects",
       "paragraphs": [
-        "Declaring typed tool signatures, parameter validation, and safe query execution.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Function Calling, SQL Tools & API Bridges.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
-      ]
+        "Every provider describes a function's arguments with JSON Schema, and every provider leaves execution to you: the model returns a structured request and your code runs it. (Loop control, approvals, and side-effect reconciliation are covered in the provider-specific tools modules; this module is about the bridge between the model and your systems.) The wrappers differ. An OpenAI Responses function tool has `type: \"function\"`, `name`, `description`, `parameters`, and `strict`. A Claude tool has a `name` that must match `^[a-zA-Z0-9_-]{1,128}$`, a `description`, an `input_schema`, and optional `input_examples` and `strict`. A Gemini function declaration has `type: \"function\"`, `name`, `description`, and `parameters`, and Google notes that only a subset of the OpenAPI schema is supported.",
+        "Calls and results are linked differently, and an adapter must preserve the link exactly. OpenAI returns `function_call` Items that carry a `call_id` and a JSON-encoded `arguments` string; you answer with a `function_call_output` that carries the same `call_id`, and OpenAI says to assume a response may contain several calls. Claude returns `tool_use` blocks with an `id` and an `input` object; you answer in a `user` message with `tool_result` blocks whose `tool_use_id` matches. Gemini's Interactions API returns a `function_call` step with an `id` and an `arguments` object, and you send back a `function_result` with that `call_id`; the older `generateContent` flow in Google's migration guide returns a `functionCall` part and takes back a `functionResponse` keyed by function name.",
+        "Forcing behavior is not uniform either. OpenAI's `tool_choice` accepts `auto`, `required`, a specific function, an `allowed_tools` subset, and `none`, and `parallel_tool_calls: false` limits a turn to zero or one call. Claude accepts `auto`, `any`, `tool`, and `none`, but documents that `any` and `tool` return a 400 on Claude Fable 5.1 and Claude Mythos 5.1 and are not supported with manually enabled extended thinking. Gemini offers `auto`, `any`, `none`, and `validated` modes. A bridge that assumes 'force this tool' works everywhere will break on some current models."
+      ],
+      "code": {
+        "language": "typescript",
+        "label": "The same tool in three dialects",
+        "code": "const params = {\n  type: \"object\",\n  properties: { order_number: { type: \"string\", description: \"4-6 digit order number as the customer wrote it.\" } },\n  required: [\"order_number\"],\n  additionalProperties: false,\n};\nconst description =\n  \"Look up the status of one order on the signed-in customer's account. Use when the customer asks where an order is. \" +\n  \"Returns status and last update time only; it cannot change, cancel, or refund an order. \" +\n  \"Orders on other accounts are never returned.\";\n\n// OpenAI Responses API -- result goes back as function_call_output with the same call_id\nconst openaiTool = { type: \"function\", name: \"orders_get_status\", description, parameters: params, strict: true };\n\n// Claude Messages API -- result goes back as a tool_result block with tool_use_id\nconst claudeTool = { name: \"orders_get_status\", description, input_schema: params, strict: true };\n\n// Gemini Interactions API -- result goes back as function_result with call_id\nconst geminiTool = { type: \"function\", name: \"orders_get_status\", description, parameters: params };"
+      }
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "sql-tools-from-templates",
+      "title": "SQL tools: templates and parameters, never model-written SQL",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
-      ]
+        "The tempting SQL tool is `run_sql(query: string)`. OWASP's LLM06:2025 Excessive Agency entry explains why not: it names excessive functionality, excessive permissions, and excessive autonomy as the root causes of damaging actions taken on a model's unexpected, ambiguous, or manipulated output, and it advises avoiding open-ended extensions. Its own example of excessive permissions is a feature meant only to read data that connects with an identity holding UPDATE, INSERT, and DELETE as well as SELECT.",
+        "Build the tool from fixed query templates instead. Each function maps to one statement an engineer wrote and reviewed; the model supplies only typed values, and those values reach the database as bound parameters rather than text spliced into SQL. PostgreSQL's libpq documentation gives the reason: sending parameter values separately from the command string avoids error-prone quoting and escaping, and the parameterized call accepts at most one SQL command per string, which the documentation calls an extra defense against SQL injection. Values that identify the caller -- tenant, user, account -- should not be arguments at all. OpenAI's function-calling guidance says not to make the model fill arguments you already know; pass them from the authenticated session in code.",
+        "Then make the database enforce what the template intends. Connect as a dedicated role granted SELECT on only the tables or columns the tools read. Do not treat a read-only transaction as the boundary: PostgreSQL calls read-only mode a high-level notion that does not prevent all writes to disk, and a transaction can override the session default with SET TRANSACTION. Row security policies add a per-role row filter and deny all rows when enabled with no policy, but superusers, roles with BYPASSRLS, and normally the table owner bypass them, so the tool role must be none of those. Finally, bound every call: `statement_timeout` aborts a statement that runs longer than the limit, PostgreSQL advises against setting it in postgresql.conf because that affects all sessions, and `ALTER ROLE ... SET` makes it the role's session default at login. A session default is a default, not a ceiling: it holds here because the model never writes SQL."
+      ],
+      "callout": "The model chooses which template and supplies typed values. It never supplies SQL text, a table name, or the identity the query runs as.",
+      "code": {
+        "language": "typescript",
+        "label": "A template-based SQL tool under a least-privilege role",
+        "code": "// One-time setup by an administrator -- never by the tool:\n//   CREATE ROLE support_tool LOGIN NOBYPASSRLS;\n//   GRANT SELECT (order_number, status, updated_at, account_id) ON orders TO support_tool;\n//   ALTER ROLE support_tool SET statement_timeout = '2s';\n\n// Any driver that sends parameters separately from the SQL text.\ninterface Db { query(sql: string, params: unknown[]): Promise<{ rows: Record<string, unknown>[] }>; }\ninterface Session { accountId: string }\n\nconst TEMPLATES = {\n  orders_get_status: {\n    sql: \"SELECT order_number, status, updated_at FROM orders \" +\n         \"WHERE account_id = $1 AND order_number = $2 LIMIT 1\",\n    // identity from the session; only order_number comes from the model\n    params: (s: Session, input: { order_number: string }) => [s.accountId, input.order_number],\n  },\n} as const;\n\nexport async function runSqlTool(db: Db, name: string, input: { order_number: string }, s: Session) {\n  const t = TEMPLATES[name as keyof typeof TEMPLATES];\n  if (!t) {\n    return { isError: true, text: `Unknown tool \"${name}\". Available: ${Object.keys(TEMPLATES).join(\", \")}.` };\n  }\n  const { rows } = await db.query(t.sql, t.params(s, input));   // bound parameters, one statement\n  return rows.length\n    ? { isError: false, text: JSON.stringify(rows[0]) }\n    : { isError: false, text: `No order ${input.order_number} on this account. Ask the customer to check the number.` };\n}"
+      }
+    },
+    {
+      "id": "api-bridges",
+      "title": "API bridges: a small surface with bounded actions",
+      "paragraphs": [
+        "Wrapping an existing HTTP API raises the same question. Resist generating one function per endpoint from an OpenAPI document and exposing all of them: Gemini supports only a subset of OpenAPI schema in declarations and suggests keeping the active set to 10 to 20 tools, OpenAI suggests aiming for fewer than 20 functions available at the start of a turn, and OpenAI notes that function definitions are injected into the system message and billed as input tokens. Choose the operations the task actually needs. Where a surface really is large, OpenAI's `tool_search` with `defer_loading` (supported on `gpt-5.4` and later) loads rarely used tools only when needed.",
+        "Providers pull in slightly different directions on granularity, and the difference is useful. Anthropic recommends consolidating related operations into fewer tools with an `action` parameter to reduce selection ambiguity, and prefixing tool names with the service, such as `github_list_prs`; OpenAI offers `namespace` groupings such as `crm` and `billing` for the same reason and advises enums and object structure that make invalid states impossible to express. OWASP, meanwhile, warns against open-ended extensions. The two fit together when the consolidated `action` is a closed enum of operations you chose -- one tool, a few allowed verbs -- rather than a free-form method and path. Anthropic calls detailed descriptions by far the most important factor in tool performance: what the tool does, when to use it and when not to, what each parameter means, and its limits, in at least three or four sentences.",
+        "The bridge, not the model, holds credentials and identity. OWASP recommends executing extensions in the user's context with the minimum privileges and scopes required, and implementing authorization in the downstream system rather than asking the model whether an action is allowed. In practice the bridge maps each allowed action to an HTTP method and path it builds itself, attaches the user's scoped token from the session, validates the arguments against the same schema it advertised, and never exposes a raw URL, header, or query-string parameter the model could steer somewhere else."
+      ],
+      "code": {
+        "language": "typescript",
+        "label": "One bounded tool; the bridge owns method, path, and token",
+        "code": "const helpdeskTool = {\n  type: \"function\",\n  name: \"helpdesk_tickets\",\n  description:\n    \"Read or comment on the signed-in user's helpdesk tickets. Use list_open to find tickets, get for one \" +\n    \"ticket's detail, and add_comment to reply on a ticket. It cannot close, reassign, or delete tickets. \" +\n    \"list_open returns at most 20 tickets, newest first; ticket_id and comment are null when not needed.\",\n  strict: true,\n  parameters: {\n    type: \"object\",\n    properties: {\n      action: { type: \"string\", enum: [\"list_open\", \"get\", \"add_comment\"] },\n      ticket_id: { type: [\"string\", \"null\"] },\n      comment: { type: [\"string\", \"null\"] },\n    },\n    required: [\"action\", \"ticket_id\", \"comment\"],\n    additionalProperties: false,\n  },\n};\n\ntype Args = { action: \"list_open\" | \"get\" | \"add_comment\"; ticket_id: string | null; comment: string | null };\n\nconst ROUTES = {\n  list_open: (_: Args) => ({ method: \"GET\", path: \"/tickets?status=open&limit=20\" }),\n  get: (a: Args) => ({ method: \"GET\", path: `/tickets/${encodeURIComponent(need(a.ticket_id))}` }),\n  add_comment: (a: Args) => ({\n    method: \"POST\",\n    path: `/tickets/${encodeURIComponent(need(a.ticket_id))}/comments`,\n    body: JSON.stringify({ text: need(a.comment) }),\n  }),\n};\n\nfunction need(v: string | null): string {\n  if (!v) throw new Error(\"This action needs ticket_id (and comment for add_comment).\");\n  return v;\n}\n\nexport async function runHelpdesk(args: Args, session: { userToken: string }, baseUrl: string) {\n  const r = ROUTES[args.action](args);          // enum-checked; no model-supplied URL\n  const res = await fetch(baseUrl + r.path, {\n    method: r.method,\n    headers: { Authorization: `Bearer ${session.userToken}`, \"Content-Type\": \"application/json\" },\n    body: \"body\" in r ? r.body : undefined,\n  });\n  return { isError: !res.ok, text: res.ok ? await res.text() : `Helpdesk returned ${res.status}.` };\n}"
+      }
+    },
+    {
+      "id": "results-errors-and-budgets",
+      "title": "Shape results and errors for the next model turn",
+      "paragraphs": [
+        "A tool result is input to the next model turn, so return only what the model needs. Anthropic recommends high-signal responses with stable, semantic identifiers such as slugs or UUIDs instead of opaque internal references, because bloated results waste context. OpenAI accepts a string result in whatever format you choose -- JSON, error codes, plain text -- and suggests returning a success or failure string even for functions with no return value. Cap rows and fields in the bridge: a query that could return ten thousand rows should return a count and the first page.",
+        "Errors should teach. Claude's `tool_result` accepts `is_error: true`, and Anthropic advises instructive messages that say what went wrong and what to try next -- 'Rate limit exceeded. Retry after 60 seconds.' rather than 'failed'. When a call is missing required parameters, Claude typically retries two or three times with corrections before apologizing to the user, and Anthropic points to strict tool use to eliminate invalid calls entirely. Keep stack traces, raw SQL errors that reveal your schema, and credentials out of result strings: everything you return goes straight into model context.",
+        "Budget the surface, not just the loop. Claude allows at most 20 strict tools and 24 optional parameters across all strict schemas in a request, and Anthropic suggests marking only the tools where schema violations cause real problems as strict if you reach those limits. On OpenAI, every callable function definition counts against context and is billed as input tokens on every request. And one model turn can request several of your functions at once -- OpenAI and Gemini both document parallel calls -- so if two bridge operations must not run concurrently, set `parallel_tool_calls: false` on OpenAI or serialize them in the bridge itself."
+      ],
+      "code": {
+        "language": "typescript",
+        "label": "The same outcome in each provider's result shape",
+        "code": "const outcome = {\n  isError: true,\n  text: \"Order 1042 was not found on this account. Ask the customer to confirm the number (4-6 digits).\",\n};\n\n// Claude: a tool_result block inside the next user message\nconst claudeReply = {\n  role: \"user\",\n  content: [{ type: \"tool_result\", tool_use_id: toolUse.id, content: outcome.text, is_error: outcome.isError }],\n};\n\n// OpenAI Responses: a function_call_output Item with the matching call_id\nconst openaiReply = { type: \"function_call_output\", call_id: call.call_id, output: JSON.stringify(outcome) };\n\n// Gemini Interactions: a function_result input with the matching call_id\nconst geminiReply = {\n  type: \"function_result\",\n  name: step.name,\n  call_id: step.id,\n  result: [{ type: \"text\", text: JSON.stringify(outcome) }],\n};"
+      }
     }
   ],
   "activity": {
     "id": "function-calling-and-tools-activity",
-    "title": "Function Calling, SQL Tools & API Bridges Hands-On Lab",
+    "title": "Bridge one database and one API, then try to break out",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Pick one read-only question your users ask about a database and one action they take in an existing HTTP API. Define at most four functions in total, each with a service-prefixed name, a description of at least three sentences, enum-constrained parameters, and no identity or credential arguments.",
+      "Implement the SQL function as a fixed parameterized template run by a dedicated role with column-level SELECT grants, a role-level statement_timeout, and no BYPASSRLS, ownership, or superuser attribute. Implement the API function as a bridge that builds the method and path itself and attaches the session's scoped token.",
+      "Express the same functions as OpenAI, Claude, and Gemini tool definitions, and show the field that links each call to its result (call_id, tool_use_id, or call_id).",
+      "Attack the bridge: ask the model to read another account's rows, to run a statement that is not a template, to call an API path you did not expose, and to return a 10,000-row result. Record what stopped each attempt -- the schema, the template, the grant, the row policy, the timeout, or the row cap."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "Four function definitions in three provider dialects, plus the SQL role setup (grants and timeout) and the bridge route table.",
+      "An attack log naming, for each attempt, the control that stopped it and whether that control lives in the prompt, the bridge code, or the database."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "If the model's arguments were fully attacker-controlled, which of your controls would still hold, and which worked only because the model behaved?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
-        "id": "q-function-calling-and-tools-1",
-        "prompt": "What is the primary architectural goal of Function Calling, SQL Tools & API Bridges?",
+        "id": "q-dev-tools-1",
+        "prompt": "Why should a SQL tool not accept a free-form query string from the model?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "Models cannot write SQL",
+          "It is an open-ended extension: any statement the connected role can run becomes reachable by a confused or manipulated model",
+          "PostgreSQL rejects queries that come from tools",
+          "It makes the tool description too long"
         ],
-        "answerIndex": 0,
-        "explanation": "Function Calling, SQL Tools & API Bridges enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 1,
+        "explanation": "OWASP LLM06:2025 names excessive functionality and excessive permissions as root causes of excessive agency and advises avoiding open-ended extensions."
+      },
+      {
+        "id": "q-dev-tools-2",
+        "prompt": "A tool needs the caller's account_id. Where should it come from?",
+        "choices": [
+          "A required argument the model fills in",
+          "The authenticated session, passed by the bridge code as a bound parameter",
+          "The system prompt",
+          "The tool description"
+        ],
+        "answerIndex": 1,
+        "explanation": "OpenAI advises not making the model fill arguments you already know. Passing identity in code keeps it out of model output an attacker can influence."
+      },
+      {
+        "id": "q-dev-tools-3",
+        "prompt": "The SQL tool connects with default_transaction_read_only on. Why is that not a sufficient boundary?",
+        "choices": [
+          "It is not a real PostgreSQL setting",
+          "It is only a default that SET TRANSACTION can override, and PostgreSQL calls read-only mode a high-level notion that does not prevent all writes; grants must do the enforcing",
+          "It makes every query slower",
+          "It disables row security"
+        ],
+        "answerIndex": 1,
+        "explanation": "Read-only is a transaction characteristic, not a privilege. Restricting the role to SELECT on specific tables or columns is what the database enforces."
+      },
+      {
+        "id": "q-dev-tools-4",
+        "prompt": "Row security is enabled on the orders table. Which connection would still see every row?",
+        "choices": [
+          "A role with only SELECT granted",
+          "The table owner, a superuser, or a role with BYPASSRLS",
+          "Any role that uses bound parameters",
+          "Any role with statement_timeout set"
+        ],
+        "answerIndex": 1,
+        "explanation": "PostgreSQL documents that superusers and BYPASSRLS roles always bypass row security, and table owners normally do unless FORCE ROW LEVEL SECURITY is set."
+      },
+      {
+        "id": "q-dev-tools-5",
+        "prompt": "An OpenAI response contains two function_call Items. How do you return the results?",
+        "choices": [
+          "One combined string for both calls",
+          "One function_call_output per call, each with its matching call_id, without relying on array position",
+          "Answer only the first call",
+          "Resend the tool list with no outputs"
+        ],
+        "answerIndex": 1,
+        "explanation": "OpenAI advises assuming several calls per response; call_id is what links each output to its request."
+      },
+      {
+        "id": "q-dev-tools-6",
+        "prompt": "You force a specific tool with tool_choice {\"type\": \"tool\", \"name\": \"...\"} on Claude Fable 5.1. What does Anthropic document?",
+        "choices": [
+          "It works on every current model",
+          "It returns a 400; use auto with strict tool use, or structured outputs, instead",
+          "It silently falls back to auto",
+          "It forces parallel tool calls"
+        ],
+        "answerIndex": 1,
+        "explanation": "Forced tool use (any or tool) is not supported on Claude Fable 5.1 and Claude Mythos 5.1; Anthropic suggests auto with strict tool use or structured outputs."
       }
     ]
   },
   "sources": [
     {
-      "title": "OpenAI Platform documentation",
-      "url": "https://platform.openai.com/docs/",
+      "title": "Function calling",
+      "url": "https://developers.openai.com/api/docs/guides/function-calling",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-05"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Define tools",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Handle tool calls",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Structured outputs",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/structured-outputs",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Function calling with the Gemini API",
+      "url": "https://ai.google.dev/gemini-api/docs/function-calling",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Migrate to the Interactions API",
+      "url": "https://ai.google.dev/gemini-api/docs/migrate-to-interactions",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "LLM06:2025 Excessive Agency",
+      "url": "https://genai.owasp.org/llmrisk/llm062025-excessive-agency/",
+      "publisher": "OWASP",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Command Execution Functions (libpq)",
+      "url": "https://www.postgresql.org/docs/current/libpq-exec.html",
+      "publisher": "PostgreSQL Global Development Group",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "PREPARE",
+      "url": "https://www.postgresql.org/docs/current/sql-prepare.html",
+      "publisher": "PostgreSQL Global Development Group",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Row Security Policies",
+      "url": "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
+      "publisher": "PostgreSQL Global Development Group",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "SET TRANSACTION",
+      "url": "https://www.postgresql.org/docs/current/sql-set-transaction.html",
+      "publisher": "PostgreSQL Global Development Group",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Client Connection Defaults",
+      "url": "https://www.postgresql.org/docs/current/runtime-config-client.html",
+      "publisher": "PostgreSQL Global Development Group",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "ALTER ROLE",
+      "url": "https://www.postgresql.org/docs/current/sql-alterrole.html",
+      "publisher": "PostgreSQL Global Development Group",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "CREATE ROLE",
+      "url": "https://www.postgresql.org/docs/current/sql-createrole.html",
+      "publisher": "PostgreSQL Global Development Group",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GRANT",
+      "url": "https://www.postgresql.org/docs/current/sql-grant.html",
+      "publisher": "PostgreSQL Global Development Group",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 3300,
+    "cues": [
+      {
+        "id": "cue-dev-tools-dialects",
+        "kind": "narration",
+        "sectionId": "one-contract-three-dialects",
+        "text": "One tool contract has three dialects -- parameters, input_schema, and function declarations -- and each API links a call to its result with a different identifier that your bridge must preserve."
+      },
+      {
+        "id": "cue-dev-tools-sql",
+        "kind": "narration",
+        "sectionId": "sql-tools-from-templates",
+        "text": "A SQL tool is a set of fixed parameterized templates run by a least-privilege role; identity comes from the session, and the database, not the prompt, enforces what the tool may touch."
+      },
+      {
+        "id": "cue-dev-tools-sql-visual",
+        "kind": "visual",
+        "sectionId": "sql-tools-from-templates",
+        "text": "Show one tool call passing through template lookup, session identity binding, parameterized execution under the tool role, the row policy, and the statement timeout, with each layer labeled by what it blocks.",
+        "accessibilityAlternative": "A static five-row table lists each layer in order -- template lookup, identity binding, bound parameters under the tool role, row policy, statement timeout -- with a second column naming the attack that layer stops. Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-dev-tools-sql-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "sql-tools-from-templates",
+        "text": "Ask learners which of their existing tools accepts a value the application already knows."
+      },
+      {
+        "id": "cue-dev-tools-api",
+        "kind": "narration",
+        "sectionId": "api-bridges",
+        "text": "An API bridge exposes a small, bounded set of actions, and the bridge -- not the model -- owns the method, the path, the credentials, and the authorization check."
+      },
+      {
+        "id": "cue-dev-tools-api-pause",
+        "kind": "pause",
+        "sectionId": "api-bridges",
+        "text": "Allow three minutes for learners to cut their tool list to the smallest set that still completes the task."
+      },
+      {
+        "id": "cue-dev-tools-results",
+        "kind": "narration",
+        "sectionId": "results-errors-and-budgets",
+        "text": "Tool results and errors are the model's next input, so return high-signal fields, instructive errors, and capped rows, and budget the tool surface as carefully as the loop."
+      },
+      {
+        "id": "cue-dev-tools-results-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "results-errors-and-budgets",
+        "text": "Check that no tool result in learners' designs carries a credential, a raw SQL error, or an uncapped row set."
+      },
+      {
+        "id": "cue-dev-tools-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the four function definitions, the SQL role setup, the API route table, and the break-out attempts."
+      },
+      {
+        "id": "cue-dev-tools-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can say which layer stops a model from reading another account and how each API links a call to its result."
+      }
+    ],
+    "transcript": "One tool contract has three dialects -- parameters, input_schema, and function declarations -- and each API links a call to its result with a different identifier that your bridge must preserve. A SQL tool is a set of fixed parameterized templates run by a least-privilege role; identity comes from the session, and the database, not the prompt, enforces what the tool may touch. An API bridge exposes a small, bounded set of actions, and the bridge -- not the model -- owns the method, the path, the credentials, and the authorization check. Tool results and errors are the model's next input, so return high-signal fields, instructive errors, and capped rows, and budget the tool surface as carefully as the loop.",
+    "captions": [
+      {
+        "cueId": "cue-dev-tools-dialects",
+        "startSeconds": 0,
+        "endSeconds": 712,
+        "text": "One tool contract has three dialects -- parameters, input_schema, and function declarations -- and each API links a call to its result with a different identifier that your bridge must preserve."
+      },
+      {
+        "cueId": "cue-dev-tools-sql",
+        "startSeconds": 742,
+        "endSeconds": 1454,
+        "text": "A SQL tool is a set of fixed parameterized templates run by a least-privilege role; identity comes from the session, and the database, not the prompt, enforces what the tool may touch."
+      },
+      {
+        "cueId": "cue-dev-tools-api",
+        "startSeconds": 1484,
+        "endSeconds": 2196,
+        "text": "An API bridge exposes a small, bounded set of actions, and the bridge -- not the model -- owns the method, the path, the credentials, and the authorization check."
+      },
+      {
+        "cueId": "cue-dev-tools-results",
+        "startSeconds": 2226,
+        "endSeconds": 2938,
+        "text": "Tool results and errors are the model's next input, so return high-signal fields, instructive errors, and capped rows, and budget the tool surface as carefully as the loop."
+      },
+      {
+        "cueId": "cue-dev-tools-assessment",
+        "startSeconds": 3000,
+        "endSeconds": 3300,
+        "text": "Begin the check once learners can say which layer stops a model from reading another account and how each API links a call to its result."
+      }
+    ],
+    "reducedMotionAlternative": "Present the three tool dialects and the SQL defense layers as static tables with focus highlighting instead of animated sequences."
+  }
 }
