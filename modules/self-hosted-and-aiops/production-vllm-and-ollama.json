@@ -1,74 +1,375 @@
 {
   "id": "production-vllm-and-ollama",
   "title": "High-Throughput Serving with vLLM & Ollama",
-  "summary": "PagedAttention, continuous batching, streaming token APIs, and air-gapped Docker hosting.",
+  "summary": "What happens underneath the API: iteration-level scheduling and PagedAttention, vLLM's prefill budget, prefix cache and preemption, Ollama's slot-reserved context, queue and residency model, and how to run either engine on a restricted network without trusting defaults you have not checked.",
   "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
   "estimatedMinutes": 45,
   "objectives": [
-    "Master the architectural principles and core mechanisms of High-Throughput Serving with vLLM & Ollama.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Explain how iteration-level scheduling and PagedAttention together raise serving throughput, and what an engine does when KV-cache blocks run out.",
+    "Tune vLLM's prefill token budget, prefix caching, and memory limits against time to first token and inter-token latency, and name the metrics that show the effect.",
+    "Predict Ollama's memory, queueing, and residency behaviour from OLLAMA_CONTEXT_LENGTH, OLLAMA_NUM_PARALLEL, OLLAMA_MAX_QUEUE, and keep_alive, and verify it on a running server with ollama ps.",
+    "Harden either engine for a restricted network: bind addresses, the endpoints an API key does not cover, non-root containers, and offline model loading."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "scheduling-and-paging",
+      "title": "A serving engine is a scheduler and a memory manager",
       "paragraphs": [
-        "PagedAttention, continuous batching, streaming token APIs, and air-gapped Docker hosting.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for High-Throughput Serving with vLLM & Ollama.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "Generating text is two different workloads. The PagedAttention paper describes the prompt (prefill) phase as parallel matrix-matrix work that uses the GPU efficiently, and the autoregressive generation (decode) phase as one-token-at-a-time matrix-vector work that is memory-bound and accounts for most of a single request's latency. Batching many requests amortizes the cost of moving the weights, but naive batching makes early requests wait for late ones and pads requests of different lengths. Iteration-level scheduling -- which the paper credits to Orca and cellular batching -- removes finished requests and admits new ones after every iteration, so a new request waits for one iteration rather than for a whole batch, and padding disappears.",
+        "Iteration-level scheduling does not remove the real limit: the number of requests that can be batched together is still constrained by the memory holding their KV caches, so throughput is memory-bound. PagedAttention attacks that limit by storing each request's KV cache in fixed-size blocks that need not be contiguous, allocated on demand like pages of virtual memory. Waste is confined to a request's last block, and blocks can be shared -- with copy-on-write -- between parallel samples or beam-search candidates. The paper reports 2-4x higher throughput than FasterTransformer and Orca at the same latency, with larger gains for longer sequences, larger models, and more complex decoding.",
+        "When memory runs out anyway, something has to give. The paper's scheduler is first-come-first-served and preempts the latest-arriving requests first, and it evicts all of a sequence's blocks or none, because a sequence's blocks are always accessed together. Evicted work is either swapped to CPU memory or recomputed later. Admit per iteration, allocate per block, and preempt whole sequences: those three rules are the mechanism behind every vLLM setting in the next section."
+      ],
+      "callout": "Throughput is bounded by KV-cache memory, not by how many requests you can accept. Paging is what lets the batch grow to the memory you actually have."
+    },
+    {
+      "id": "vllm-knobs",
+      "title": "vLLM's knobs: prefill budget, prefix cache, preemption",
+      "paragraphs": [
+        "In vLLM's V1 engine, chunked prefill is enabled by default whenever possible. The scheduler batches all pending decode requests first, then spends whatever remains of the max_num_batched_tokens budget on pending prefills, chunking any prefill that does not fit. The tuning guide spells out the trade-off: smaller budgets (for example 2048) give better inter-token latency because fewer prefills slow down decodes; larger budgets give better time to first token; and for throughput it recommends a budget above 8192, especially for smaller models on large GPUs.",
+        "Prefix caching is on by default in vLLM's cache configuration. Automatic prefix caching reuses the KV cache of an earlier request that shares a prefix, so the shared part is not recomputed -- the documented wins are repeated questions over one long document and multi-round conversations that resend their history. It reduces only prefill time, not decode time, so it does little when answers are long or requests share no prefix. The design hashes each full block together with its parent block's hash and extras such as LoRA IDs and multimodal input hashes; SHA-256 is the default hash, and an optional per-request cache_salt restricts reuse to requests carrying the same salt, which vLLM describes as protection against timing attacks that infer cached content from latency differences.",
+        "When KV space runs out, V1 preempts requests and recomputes them later by default, logging a warning that a sequence group was preempted because there is not enough KV cache space. vLLM's metrics make each mechanism observable, and its metrics design notes that server-level metrics help explain request-level ones: vllm:num_requests_running and vllm:num_requests_waiting for admission, vllm:kv_cache_usage_perc for block pressure, vllm:prefix_cache_queries and vllm:prefix_cache_hits for reuse, and the histograms vllm:time_to_first_token_seconds, vllm:inter_token_latency_seconds, and vllm:request_queue_time_seconds for what users feel."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "A vLLM launch with every capacity decision stated explicitly (example values)",
+        "code": "# Flags are defined in vllm/engine/arg_utils.py; defaults live in vllm/config.\n# --max-model-len          cap context at what the application needs\n# --max-num-seqs           cap concurrently scheduled sequences\n# --max-num-batched-tokens per-step token budget: lower favours inter-token latency,\n#                          higher favours time to first token\n# --gpu-memory-utilization 0.92 is the default; stating it makes the choice reviewable\n# --kv-cache-dtype         auto = model dtype; fp8 halves KV bytes per element\nvllm serve meta-llama/Llama-3.1-8B-Instruct \\\n  --max-model-len 32768 \\\n  --max-num-seqs 64 \\\n  --max-num-batched-tokens 8192 \\\n  --gpu-memory-utilization 0.92 \\\n  --kv-cache-dtype auto\n\n# Then watch: vllm:kv_cache_usage_perc, vllm:num_requests_waiting,\n# vllm:time_to_first_token_seconds, vllm:inter_token_latency_seconds"
+      }
+    },
+    {
+      "id": "ollama-operating-model",
+      "title": "Ollama: reserved slots, queues, and residency",
+      "paragraphs": [
+        "Ollama documents two levels of concurrency. Several models can be loaded at once if memory allows, up to OLLAMA_MAX_LOADED_MODELS (default three per GPU, or three for CPU inference); on GPUs a new model must fit entirely in VRAM to load alongside the others, otherwise new requests queue until idle models are unloaded to make room. Within one model, OLLAMA_NUM_PARALLEL (default 1) sets how many requests are processed at the same time, and the FAQ is explicit about the cost: parallel processing increases the context size by the number of parallel requests -- a 2K context with 4 parallel requests becomes an 8K context with additional memory -- and required memory scales with OLLAMA_NUM_PARALLEL x OLLAMA_CONTEXT_LENGTH. Past OLLAMA_MAX_QUEUE queued requests (default 512) the server answers with a 503 overloaded error.",
+        "Put numbers on it with the previous module's derivation. Llama 3.1 8B needs 128 KiB of KV cache per token at 16 bits, and Ollama's default KV cache type is f16. With OLLAMA_CONTEXT_LENGTH=8192 and OLLAMA_NUM_PARALLEL=4 the allocation covers 4 x 8,192 = 32,768 tokens, or 32,768 x 128 KiB = 4 GiB of KV cache for this model. Setting OLLAMA_KV_CACHE_TYPE=q8_0 uses approximately half the memory of f16 and q4_0 approximately a quarter, but only when Flash Attention is enabled; the setting is global to all models, and the FAQ warns that models with a high GQA count may lose more precision from cache quantization.",
+        "Check defaults on the running server rather than in the docs, because the docs disagree. As of this module's review, Ollama's FAQ says the default context window is 4096 tokens, while its context-length page lists VRAM-based defaults (4k below 24 GiB, 32k from 24 to 48 GiB, 256k at 48 GiB or more). ollama ps reports each loaded model's SIZE, PROCESSOR (100% GPU, 100% CPU, or a split such as 48%/52% CPU/GPU that means partial offload to system memory), CONTEXT, and UNTIL -- the residency clock. Models stay loaded for 5 minutes by default; keep_alive on /api/generate or /api/chat (a duration, seconds, a negative value to stay loaded, or 0 to unload) overrides OLLAMA_KEEP_ALIVE. Ollama's OpenAI-compatible endpoint has no way to set the context size, so a client on that API gets whatever the model or server default is unless you create a model with PARAMETER num_ctx in a Modelfile."
+      ],
+      "callout": "Ollama's KV allocation scales with configured slots x context length; vLLM's block usage tracks the tokens actually in flight. Size the two engines differently."
+    },
+    {
+      "id": "restricted-network-hardening",
+      "title": "Running either engine on a restricted network",
+      "paragraphs": [
+        "Ollama binds 127.0.0.1 on port 11434 by default and is exposed on a network only when OLLAMA_HOST changes the bind address. Its FAQ states that prompts and data are not seen by Ollama when models run locally, and that cloud features can be disabled -- setting OLLAMA_NO_CLOUD=1 or disable_ollama_cloud in ~/.ollama/server.json -- at the cost of losing cloud models and web search; the logs then show that cloud is disabled. The documented Docker command publishes port 11434 and mounts a named volume at /root/.ollama, so decide the published address and the volume's location deliberately rather than inheriting them.",
+        "vLLM's OpenAI-compatible server carries a warning worth copying into every runbook: the --api-key option (or VLLM_API_KEY) authenticates only endpoints under the /v1, /v2, and /inference prefixes. Other endpoints on the same server are not authenticated -- notably /invocations, which exposes the same inference capabilities as /v1 -- so vLLM tells operators not to rely on --api-key alone and to harden the deployment, for example behind a reverse proxy. The official vllm/vllm-openai CUDA image runs as root by default for backward compatibility, but is prepared to run as a built-in vllm user (UID 2000, GID 0); mount writable caches under /home/vllm when you do.",
+        "Disconnected hosts need models and compiled artifacts staged in advance. vLLM's Docker guide mounts the Hugging Face cache into the container so weights persist, and a named volume at VLLM_CACHE_ROOT so torch.compile artifacts are reused instead of rebuilt; VLLM_FORCE_AOT_LOAD=1 makes a cache miss fail loudly instead of silently recompiling. On the Hugging Face side, HF_HUB_OFFLINE=1 stops all HTTP calls to the Hub: only cached files are used, and a missing file raises an error instead of triggering a download. Test the disconnected start before you need it. The endpoint-identity-network-and-secrets module covers the full access design; these are the engine-specific defaults it has to override."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "choosing-by-mechanism",
+      "title": "Choose by mechanism, then prove it on the live system",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "The mechanisms point to different workloads. vLLM allocates KV cache per block on demand and admits work every iteration, so its memory tracks the tokens actually in flight -- the property that matters when many concurrent requests of varied length share one model. Ollama sizes a model's KV allocation from parallel slots times context length, keeps models resident on a keep_alive clock, swaps models when memory is short, and queues up to OLLAMA_MAX_QUEUE requests before refusing -- properties that suit a workstation, an edge box, or a small team switching among several models better than a single high-concurrency endpoint.",
+        "Whichever engine you run, write the operating contract in the same terms: the memory model (paged or slot-reserved), the admission limit and what happens past it (vLLM's waiting queue and preemption; Ollama's queue and then HTTP 503), the residency policy, and the metric or command that proves each one on the running system. The serving-api-and-compatibility-contracts module owns the API surface above either engine; this module is about what happens beneath it, and a contract that names only the API cannot explain a latency spike that starts in the scheduler."
       ]
     }
   ],
   "activity": {
     "id": "production-vllm-and-ollama-activity",
-    "title": "High-Throughput Serving with vLLM & Ollama Hands-On Lab",
+    "title": "Run one model on both engines and explain the difference",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Serve the same small instruct model with vLLM and with Ollama on the same host, recording engine versions, the exact model file or revision, and every non-default setting.",
+      "On Ollama, try two combinations of OLLAMA_CONTEXT_LENGTH and OLLAMA_NUM_PARALLEL. For each, record the SIZE, PROCESSOR, and CONTEXT columns of ollama ps, and compare the change in SIZE with the KV arithmetic from the previous module.",
+      "On vLLM, record the KV cache allocation logged at startup, then send a burst of concurrent requests that share a long system prompt. Capture vllm:kv_cache_usage_perc, vllm:num_requests_waiting, time to first token, inter-token latency, and the prefix-cache hit ratio (vllm:prefix_cache_hits divided by vllm:prefix_cache_queries).",
+      "Repeat the vLLM burst with two values of --max-num-batched-tokens and describe the time-to-first-token versus inter-token-latency trade-off you observe.",
+      "For both engines, list which endpoints are reachable from another host, which require authentication, and whether a model download is attempted when the network is disconnected."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A side-by-side table: engine, settings, observed memory, behaviour during the burst, and the command or metric that proved each value.",
+      "A short explanation, in terms of slot reservation versus paged allocation, of why the two engines' memory changed differently as concurrency rose.",
+      "An exposure list: endpoint, reachable from, authenticated (yes/no), and the control you would add in front of it."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "If this model had to serve fifty concurrent users tomorrow, which single observation from your burst test would you show to justify the engine you chose?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-production-vllm-and-ollama-1",
-        "prompt": "What is the primary architectural goal of High-Throughput Serving with vLLM & Ollama?",
+        "prompt": "What does iteration-level scheduling change compared with request-level batching?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "Requests are padded to the same length before batching",
+          "Finished requests leave and new ones join after every iteration, so a new request waits one iteration rather than a whole batch",
+          "The GPU processes one request at a time to avoid interference",
+          "Prefill and decode are never allowed in the same batch"
+        ],
+        "answerIndex": 1,
+        "explanation": "The PagedAttention paper describes iteration-level scheduling as removing completed requests and adding new ones after each iteration, which reduces queueing delay and eliminates padding."
+      },
+      {
+        "id": "q-production-vllm-and-ollama-2",
+        "prompt": "In vLLM V1 with chunked prefill enabled, what does lowering max_num_batched_tokens (for example to 2048) tend to improve?",
+        "choices": [
+          "Inter-token latency, because fewer prefills slow down decodes",
+          "Time to first token, because more prefill tokens run per step",
+          "Prefix-cache hit rate",
+          "The size of the KV cache"
         ],
         "answerIndex": 0,
-        "explanation": "High-Throughput Serving with vLLM & Ollama enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "explanation": "vLLM's tuning guide says smaller values achieve better inter-token latency, higher values better time to first token, and recommends more than 8192 for throughput."
+      },
+      {
+        "id": "q-production-vllm-and-ollama-3",
+        "prompt": "When does automatic prefix caching give little benefit?",
+        "choices": [
+          "When many requests share a long system prompt",
+          "When users repeatedly query the same long document",
+          "When most time is spent generating long answers, or requests share no prefix",
+          "When a multi-round conversation resends its history"
+        ],
+        "answerIndex": 2,
+        "explanation": "Prefix caching reduces only prefill time, not decode time, so it helps little when decoding dominates or when there is no shared prefix to reuse."
+      },
+      {
+        "id": "q-production-vllm-and-ollama-4",
+        "prompt": "Ollama runs Llama 3.1 8B with OLLAMA_CONTEXT_LENGTH=8192, OLLAMA_NUM_PARALLEL=4, and the default f16 KV cache. How much KV cache does the model's allocation cover?",
+        "choices": [
+          "8,192 tokens, about 1 GiB",
+          "32,768 tokens, about 4 GiB",
+          "4 tokens per slot, negligible",
+          "131,072 tokens, about 16 GiB"
+        ],
+        "answerIndex": 1,
+        "explanation": "Parallel processing multiplies the context by the number of parallel requests: 4 x 8,192 = 32,768 tokens, and at 128 KiB per token that is 4 GiB."
+      },
+      {
+        "id": "q-production-vllm-and-ollama-5",
+        "prompt": "A vLLM server is started with --api-key. Which statement matches vLLM's documentation?",
+        "choices": [
+          "Every endpoint on the server now requires the key",
+          "Only endpoints under /v1, /v2, and /inference are authenticated; others such as /invocations are not, so put an authenticating proxy in front",
+          "The key also encrypts traffic to the server",
+          "The key is ignored unless TLS is configured"
+        ],
+        "answerIndex": 1,
+        "explanation": "vLLM warns that --api-key protects only the /v1, /v2, and /inference prefixes, that /invocations exposes the same inference capability without authentication, and that --api-key alone is not a security boundary."
+      },
+      {
+        "id": "q-production-vllm-and-ollama-6",
+        "prompt": "Two Ollama documentation pages disagree about the default context length. What is the reliable way to know the context a running model was actually given?",
+        "choices": [
+          "Trust the FAQ, because it is older",
+          "Trust whichever page was updated most recently",
+          "Read the CONTEXT column of ollama ps on the running server",
+          "Assume the model's trained maximum context"
+        ],
+        "answerIndex": 2,
+        "explanation": "ollama ps reports the allocated CONTEXT alongside SIZE and PROCESSOR for each loaded model, which is evidence about the live system rather than a documented default."
+      },
+      {
+        "id": "q-production-vllm-and-ollama-7",
+        "prompt": "What does setting HF_HUB_OFFLINE=1 do on a disconnected serving host?",
+        "choices": [
+          "Routes Hub downloads through a proxy",
+          "Makes no HTTP calls to the Hub: only cached files are used, and a missing file raises an error",
+          "Disables the model's KV cache",
+          "Turns off vLLM's metrics endpoint"
+        ],
+        "answerIndex": 1,
+        "explanation": "huggingface_hub documents that with HF_HUB_OFFLINE set no HTTP calls are made; cached files are used, and an error is raised if the file is not cached."
       }
     ]
   },
   "sources": [
     {
-      "title": "vLLM documentation",
-      "url": "https://docs.vllm.ai/",
+      "title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+      "url": "https://arxiv.org/abs/2309.06180",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Optimization and Tuning (vLLM documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/configuration/optimization.md",
       "publisher": "vLLM",
-      "lastVerified": "2026-09-05"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Automatic Prefix Caching (vLLM feature documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/features/automatic_prefix_caching.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Automatic Prefix Caching (vLLM design documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/design/prefix_caching.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "vLLM cache configuration (vllm/config/cache.py)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/vllm/config/cache.py",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "vLLM engine argument definitions (vllm/engine/arg_utils.py)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/vllm/engine/arg_utils.py",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Metrics (vLLM design documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/design/metrics.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "OpenAI-Compatible Server (vLLM documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/serving/online_serving/openai_compatible_server.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Using Docker (vLLM documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/deployment/docker.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Ollama FAQ",
+      "url": "https://docs.ollama.com/faq",
+      "publisher": "Ollama",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Context length",
+      "url": "https://docs.ollama.com/context-length",
+      "publisher": "Ollama",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "OpenAI compatibility",
+      "url": "https://docs.ollama.com/api/openai-compatibility",
+      "publisher": "Ollama",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Ollama Docker",
+      "url": "https://docs.ollama.com/docker",
+      "publisher": "Ollama",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "huggingface_hub environment variables",
+      "url": "https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 2700,
+    "cues": [
+      {
+        "id": "cue-serve-scheduling-narration",
+        "kind": "narration",
+        "sectionId": "scheduling-and-paging",
+        "text": "Iteration-level scheduling decides who runs each step; PagedAttention decides how much memory each request really holds -- together they set throughput."
+      },
+      {
+        "id": "cue-serve-scheduling-visual",
+        "kind": "visual",
+        "sectionId": "scheduling-and-paging",
+        "text": "Animate two requests' KV blocks filling non-contiguous physical blocks, with a new request admitted at the next iteration boundary and a whole sequence evicted when blocks run out.",
+        "accessibilityAlternative": "A static block-table diagram shows logical blocks for two requests mapped to scattered physical blocks, a timeline marking where a third request joins at an iteration boundary, and a note that eviction removes all blocks of one sequence at once. Reduced-motion mode shows the three states side by side."
+      },
+      {
+        "id": "cue-serve-vllm-narration",
+        "kind": "narration",
+        "sectionId": "vllm-knobs",
+        "text": "In vLLM, the prefill budget trades time to first token against inter-token latency, prefix caching only shortens prefill, and preemption is the warning that KV blocks ran out."
+      },
+      {
+        "id": "cue-serve-vllm-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "vllm-knobs",
+        "text": "Ask learners which two vLLM metrics they would put on one graph to show that a latency spike was caused by KV-cache pressure rather than by traffic volume."
+      },
+      {
+        "id": "cue-serve-ollama-narration",
+        "kind": "narration",
+        "sectionId": "ollama-operating-model",
+        "text": "Ollama reserves context for every parallel slot, queues past its limit, and keeps models resident on a clock -- read ollama ps to see what it actually did."
+      },
+      {
+        "id": "cue-serve-ollama-pause",
+        "kind": "pause",
+        "sectionId": "ollama-operating-model",
+        "text": "Allow three minutes for learners to compute the KV allocation for OLLAMA_CONTEXT_LENGTH=16384 and OLLAMA_NUM_PARALLEL=2 on Llama 3.1 8B, first with f16 and then with q8_0."
+      },
+      {
+        "id": "cue-serve-hardening-narration",
+        "kind": "narration",
+        "sectionId": "restricted-network-hardening",
+        "text": "On a restricted network, check what each engine binds, which endpoints its API key does not cover, which user its container runs as, and whether it will try to download."
+      },
+      {
+        "id": "cue-serve-hardening-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "restricted-network-hardening",
+        "text": "Check that learners can name the vLLM endpoint that --api-key leaves unauthenticated and the Ollama setting that changes its default bind address."
+      },
+      {
+        "id": "cue-serve-choose-narration",
+        "kind": "narration",
+        "sectionId": "choosing-by-mechanism",
+        "text": "Choose the engine by its memory model and admission behaviour, then prove each property with a metric or command on the running system."
+      },
+      {
+        "id": "cue-serve-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the two-engine comparison, requiring a metric or command beside every observed value."
+      },
+      {
+        "id": "cue-serve-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can explain slot reservation versus paged allocation and name the unauthenticated vLLM endpoint."
+      }
+    ],
+    "transcript": "Iteration-level scheduling decides who runs each step; PagedAttention decides how much memory each request really holds -- together they set throughput. In vLLM, the prefill budget trades time to first token against inter-token latency, prefix caching only shortens prefill, and preemption is the warning that KV blocks ran out. Ollama reserves context for every parallel slot, queues past its limit, and keeps models resident on a clock -- read ollama ps to see what it actually did. On a restricted network, check what each engine binds, which endpoints its API key does not cover, which user its container runs as, and whether it will try to download. Choose the engine by its memory model and admission behaviour, then prove each property with a metric or command on the running system.",
+    "captions": [
+      {
+        "cueId": "cue-serve-scheduling-narration",
+        "startSeconds": 0,
+        "endSeconds": 480,
+        "text": "Iteration-level scheduling decides who runs each step; PagedAttention decides how much memory each request really holds -- together they set throughput."
+      },
+      {
+        "cueId": "cue-serve-vllm-narration",
+        "startSeconds": 510,
+        "endSeconds": 1080,
+        "text": "In vLLM, the prefill budget trades time to first token against inter-token latency, prefix caching only shortens prefill, and preemption is the warning that KV blocks ran out."
+      },
+      {
+        "cueId": "cue-serve-ollama-narration",
+        "startSeconds": 1110,
+        "endSeconds": 1680,
+        "text": "Ollama reserves context for every parallel slot, queues past its limit, and keeps models resident on a clock -- read ollama ps to see what it actually did."
+      },
+      {
+        "cueId": "cue-serve-hardening-narration",
+        "startSeconds": 1710,
+        "endSeconds": 2160,
+        "text": "On a restricted network, check what each engine binds, which endpoints its API key does not cover, which user its container runs as, and whether it will try to download."
+      },
+      {
+        "cueId": "cue-serve-choose-narration",
+        "startSeconds": 2190,
+        "endSeconds": 2490,
+        "text": "Choose the engine by its memory model and admission behaviour, then prove each property with a metric or command on the running system."
+      },
+      {
+        "cueId": "cue-serve-assessment",
+        "startSeconds": 2520,
+        "endSeconds": 2700,
+        "text": "Begin the check once learners can explain slot reservation versus paged allocation and name the unauthenticated vLLM endpoint."
+      }
+    ],
+    "reducedMotionAlternative": "Present the block-table, admission timeline, and eviction states as three static diagrams side by side, and the Ollama slot arithmetic as a static table, with focus-based highlighting instead of animation."
+  }
 }
