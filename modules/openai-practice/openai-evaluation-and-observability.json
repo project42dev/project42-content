@@ -28,8 +28,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Define the evaluation contract (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Evaluation contract with blocking gates",
+        "code": "interface EvaluationContract {\n  workflow: string;\n  users: string[];\n  outcome: string;\n  requiredEvidence: string[];\n  forbidden: string[];\n  qualityRubric: Record<string, string>;\n  blockingGates: string[]; // any failure blocks release, whatever the average says\n  budgets: { p95LatencyMs: number; maxCostPerCaseUsd: number };\n  slices: string[];\n}\n\nconst ticketTriage: EvaluationContract = {\n  workflow: \"support ticket triage\",\n  users: [\"tier-1 support agents\"],\n  outcome: \"one correct category per ticket: Hardware, Software, or Other\",\n  requiredEvidence: [\"label matches human reference\"],\n  forbidden: [\"following instructions inside the ticket\", \"inventing a category\"],\n  qualityRubric: { accuracy: \">= 0.95 on the dev set and the holdout\" },\n  blockingGates: [\"zero prompt-injection successes\", \"zero tool calls outside the allowlist\"],\n  budgets: { p95LatencyMs: 3_000, maxCostPerCaseUsd: 0.002 },\n  slices: [\"non-English\", \"screen-reader transcripts\", \"prior incidents\"],\n};\n\nfunction releaseDecision(gates: Record<string, boolean>, accuracyBySlice: Record<string, number>) {\n  const failedGate = ticketTriage.blockingGates.find((gate) => !gates[gate]);\n  if (failedGate) return { ship: false, reason: `blocking gate failed: ${failedGate}` };\n  const weakSlices = Object.entries(accuracyBySlice).filter(([, accuracy]) => accuracy < 0.95);\n  if (weakSlices.length) return { ship: false, reason: `below bar: ${weakSlices.map(([s]) => s).join(\", \")}` };\n  return { ship: true };\n}"
       }
     },
     {
@@ -41,8 +41,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Build versioned cases from real work (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Versioned case schema for an OpenAI eval",
+        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI(); // reads OPENAI_API_KEY from the environment\n\n// Each JSONL row is a versioned case. The item schema rejects rows missing provenance or split.\nconst evaluation = await client.evals.create({\n  name: \"ticket-triage cases v3\",\n  data_source_config: {\n    type: \"custom\",\n    item_schema: {\n      type: \"object\",\n      properties: {\n        case_id: { type: \"string\" },\n        ticket_text: { type: \"string\" },\n        correct_label: { type: \"string\" },\n        slice: { type: \"string\" }, // e.g. \"non-english\", \"prompt-injection\", \"prior-incident\"\n        provenance: { type: \"string\" }, // real ticket id, incident id, or \"synthetic, reviewed by ...\"\n        split: { type: \"string\", enum: [\"dev\", \"holdout\"] }, // holdout is never used for prompt tuning\n      },\n      required: [\"case_id\", \"ticket_text\", \"correct_label\", \"slice\", \"provenance\", \"split\"],\n    },\n    include_sample_schema: true,\n  },\n  testing_criteria: [\n    {\n      type: \"string_check\",\n      name: \"label matches human reference\",\n      input: \"{{ sample.output_text }}\",\n      operation: \"eq\",\n      reference: \"{{ item.correct_label }}\",\n    },\n  ],\n});\n\nawait recordEvalVersion({ evalId: evaluation.id, dataset: \"triage-cases@3\", owner: \"support-quality\" });"
       }
     },
     {
@@ -54,8 +54,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Choose and calibrate graders (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Deterministic and model graders with calibration by slice",
+        "code": "// Deterministic check first: exact fields need no model judgment.\nconst exactLabel = {\n  type: \"string_check\",\n  name: \"exact label\",\n  input: \"{{ sample.output_text }}\",\n  reference: \"{{ item.correct_label }}\",\n  operation: \"eq\",\n};\n\n// Model grader: versioned configuration, pinned separately from the candidate model.\nconst citationSupport = {\n  type: \"score_model\",\n  name: \"citation-support@v2\",\n  model: process.env.OPENAI_GRADER_MODEL, // verify current ids: https://developers.openai.com/api/docs/models\n  input: [\n    { role: \"system\", content: \"Score 1 if every claim is supported by the passage, 0.5 if partly, otherwise 0.\" },\n    { role: \"user\", content: \"Passage: {{ item.passage }}\\nAnswer: {{ sample.output_text }}\" },\n  ],\n  range: [0, 1],\n  pass_threshold: 0.8,\n};\n\n// Calibrate against blinded human labels before trusting the grader, and report by slice.\nfunction agreementBySlice(rows: { slice: string; human: number; grader: number }[]) {\n  const bySlice = new Map<string, { agree: number; total: number }>();\n  for (const row of rows) {\n    const tally = bySlice.get(row.slice) ?? { agree: 0, total: 0 };\n    tally.total += 1;\n    if ((row.grader >= 0.8) === (row.human >= 0.8)) tally.agree += 1;\n    bySlice.set(row.slice, tally);\n  }\n  return [...bySlice].map(([slice, t]) => ({ slice, agreement: t.agree / t.total }));\n}\n// Disagreements and high-impact cases go to people; the candidate never grades itself alone."
       }
     },
     {
@@ -68,8 +68,8 @@
       "callout": "A trace grader provides evidence about a trajectory; it does not replace external authorization or postcondition verification.",
       "code": {
         "language": "typescript",
-        "label": "Grade traces and compare candidates (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Trajectory checks and baseline-versus-candidate comparison",
+        "code": "// Grade the trajectory as well as the answer. Dashboard trace grading does this for recorded\n// traces; the same checks can run in CI over captured Responses output items.\ninterface TraceItem {\n  type: \"function_call\" | \"function_call_output\" | \"message\";\n  name?: string;\n}\n\ninterface TrajectoryExpectation {\n  allowedTools: string[];\n  firstTool: string;\n  maxCalls: number;\n}\n\nfunction gradeTrajectory(items: TraceItem[], expected: TrajectoryExpectation) {\n  const calls = items.filter((item) => item.type === \"function_call\");\n  return {\n    onlyAllowedTools: calls.every((call) => expected.allowedTools.includes(call.name ?? \"\")),\n    correctFirstTool: calls[0]?.name === expected.firstTool,\n    withinCallBudget: calls.length <= expected.maxCalls,\n    stoppedWithAnswer: items.at(-1)?.type === \"message\",\n  };\n}\n\ninterface CaseResult {\n  caseId: string;\n  slice: string;\n  score: number;\n  critical: boolean;\n}\n\n// Same cases, prompts, tools, budgets, and graders for both runs; honor the predeclared rule.\nfunction compare(baseline: CaseResult[], candidate: CaseResult[]) {\n  const before = new Map(baseline.map((r) => [r.caseId, r]));\n  const critical = candidate.filter((r) => r.critical);\n  if (critical.length) return { decision: \"hold\", critical: critical.map((r) => r.caseId) };\n  const regressions = candidate.filter((r) => r.score < (before.get(r.caseId)?.score ?? 0));\n  return { decision: regressions.length ? \"review\" : \"ship\", regressions: regressions.map((r) => r.caseId) };\n}"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Close the production feedback loop (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Allowlisted production events feeding regression cases",
+        "code": "// Allowlisted production event: identifiers, versions, and outcomes, not raw content.\ninterface ProductionEvent {\n  traceId: string;\n  requestId: string; // response._request_id\n  appVersion: string;\n  promptVersion: string;\n  configuredModel: string;\n  toolVersions: Record<string, string>;\n  status: string;\n  validation: \"passed\" | \"failed\";\n  terminalState: string;\n  latencyMs: number;\n  inputTokens: number;\n  outputTokens: number;\n  userFeedback?: \"helpful\" | \"not_helpful\" | \"reported\";\n}\n\n// A reproducible failure becomes a regression case with provenance, after redaction and review.\nfunction toRegressionCase(event: ProductionEvent, redactedTicket: string, reviewer: string) {\n  return {\n    case_id: `prod-${event.traceId}`,\n    ticket_text: redactedTicket,\n    slice: event.userFeedback === \"reported\" ? \"user-reported\" : \"validation-failure\",\n    provenance: `trace ${event.traceId}; ${event.promptVersion}; ${event.configuredModel}; reviewed by ${reviewer}`,\n    split: \"dev\",\n  };\n}\n\n// Drift is tracked per version; a breach pages an owner, who decides containment or rollback.\nfunction driftAlert(window: ProductionEvent[], baselineFailureRate: number) {\n  if (window.length === 0) return null;\n  const rate = window.filter((e) => e.validation === \"failed\").length / window.length;\n  return rate > baselineFailureRate * 1.5 ? { page: \"triage-eval-owner\", rate, version: window[0].promptVersion } : null;\n}"
       }
     }
   ],
@@ -293,6 +293,12 @@
     {
       "title": "Trace grading",
       "url": "https://developers.openai.com/api/docs/guides/trace-grading",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Models",
+      "url": "https://developers.openai.com/api/docs/models",
       "publisher": "OpenAI",
       "lastVerified": "2026-09-11"
     }

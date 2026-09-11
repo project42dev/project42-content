@@ -28,8 +28,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Inventory before changing (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Gemini dependency inventory seeded from code markers",
+        "code": "// Seed the inventory by searching for Gemini-specific usage. Each hit becomes an owned row.\nconst markers: Record<string, { pattern: RegExp; why: string }> = {\n  legacySdk: { pattern: /@google\\/generative-?ai/, why: \"legacy library, deprecated since 2025-11-30; move to @google/genai\" },\n  generateContent: { pattern: /models\\.generateContent|generateContentStream/, why: \"supported but legacy; Interactions API recommended\" },\n  interactionsOutputs: { pattern: /interaction\\.outputs/, why: \"May 2026 Interactions change: outputs became steps\" },\n  responseMimeType: { pattern: /response_mime_type|responseMimeType/, why: \"Interactions uses response_format\" },\n  thinkingBudget: { pattern: /thinking_budget|thinkingBudget/, why: \"newer models use thinking_level\" },\n  samplingParams: { pattern: /temperature|top_p|topP|top_k|topK/, why: \"removed for the newest Flash model per current guidance\" },\n  candidateCount: { pattern: /candidate_count|candidateCount/, why: \"unsupported in Gemini 3 and later\" },\n  safetySettings: { pattern: /safetySettings/, why: \"not yet available in the Interactions API\" },\n  modelLiteral: { pattern: /model:\\s*[\"'`]gemini-/, why: \"model ids belong in configuration\" },\n};\n\ninterface GeminiDependency {\n  id: string;\n  marker: keyof typeof markers | \"manual\";\n  location: string;\n  owner: string;\n  risk: \"low\" | \"medium\" | \"high\";\n  verification: string;\n}\n\nconst inventory: GeminiDependency[] = [\n  { id: \"g1\", marker: \"generateContent\", location: \"src/feedback.ts\", owner: \"feedback team\", risk: \"medium\", verification: \"replay 150 cases on Interactions\" },\n  { id: \"g2\", marker: \"safetySettings\", location: \"src/feedback.ts\", owner: \"trust and safety\", risk: \"high\", verification: \"keep generateContent for this path until parity is confirmed\" },\n  { id: \"g3\", marker: \"manual\", location: \"adk/agents/lab_support\", owner: \"agent team\", risk: \"medium\", verification: \"ADK eval set passes on the new model\" },\n  { id: \"g4\", marker: \"manual\", location: \"AI Studio saved prompt 'lab-feedback'\", owner: \"curriculum\", risk: \"low\", verification: \"exported into versioned config\" },\n];"
       }
     },
     {
@@ -41,8 +41,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Separate portable and Gemini-specific contracts (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Portable contract with a Gemini adapter",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\n\n// Portable contract in the application's own terms.\ninterface FeedbackResult {\n  text: string | null;\n  outcome: \"ok\" | \"blocked\" | \"incomplete\" | \"failed\";\n  providerDetail: string; // native reason kept for evidence, never silently dropped\n  totalTokens?: number;\n}\n\ninterface FeedbackProvider {\n  draftFeedback(report: string): Promise<FeedbackResult>;\n}\n\n// Gemini-specific adapter: Interactions status, steps, and usage stay behind this boundary.\nclass GeminiFeedback implements FeedbackProvider {\n  constructor(private ai: GoogleGenAI, private model: string, private systemInstruction: string) {}\n\n  async draftFeedback(report: string): Promise<FeedbackResult> {\n    const interaction = await this.ai.interactions.create({\n      model: this.model,\n      system_instruction: this.systemInstruction,\n      input: report,\n      store: false,\n    });\n    const totalTokens = interaction.usage?.total_tokens;\n    switch (interaction.status) {\n      case \"completed\":\n        return { text: interaction.output_text ?? null, outcome: \"ok\", providerDetail: \"completed\", totalTokens };\n      case \"incomplete\":\n        return { text: null, outcome: \"incomplete\", providerDetail: \"incomplete\", totalTokens };\n      default:\n        return { text: null, outcome: \"failed\", providerDetail: interaction.status, totalTokens };\n    }\n  }\n}\n\nconst model = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!model) throw new Error(\"GEMINI_MODEL is not configured\");\nconst provider: FeedbackProvider = new GeminiFeedback(\n  new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }),\n  model,\n  await loadVersionedPrompt(\"lab-feedback@3\"),\n);"
       }
     },
     {
@@ -55,8 +55,8 @@
       "callout": "A compiling SDK or model substitution can still regress state, safety, tools, output, latency, cost, or data handling.",
       "code": {
         "language": "typescript",
-        "label": "Use current lifecycle evidence (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "generateContent to Interactions with a lifecycle gate",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\nconst model = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!model) throw new Error(\"GEMINI_MODEL is not configured\");\n\n// Before (generateContent, older model settings):\n//   ai.models.generateContent({ model, contents, config: {\n//     systemInstruction, temperature: 0.2, thinkingConfig: { thinkingBudget: 1024 },\n//     responseMimeType: \"application/json\", responseSchema } })\n//   read response.candidates[0].content.parts\n// After (Interactions API): https://ai.google.dev/gemini-api/docs/migrate-to-interactions\n// Model settings: https://ai.google.dev/gemini-api/docs/latest-model (no temperature/top_p/top_k)\nconst interaction = await ai.interactions.create({\n  model,\n  system_instruction: systemInstruction,\n  input: reportText,\n  generation_config: { thinking_level: \"low\" }, // enum level replaces a token budget\n  response_format: { type: \"text\", mime_type: \"application/json\", schema: feedbackJsonSchema },\n  store: false, // interactions are stored by default; decide explicitly\n});\nif (interaction.status !== \"completed\") throw new Error(`Interaction ended as ${interaction.status}`);\nconst feedback = JSON.parse(interaction.output_text);\n\n// Lifecycle gate from the official deprecations page, kept as a reviewed snapshot with an owner.\n// Source: https://ai.google.dev/gemini-api/docs/deprecations\nconst shutdowns = await loadReviewedDeprecationSnapshot();\nconst entry = shutdowns.get(model);\nif (entry) throw new Error(`${model} shuts down ${entry.shutdownDate}; evaluate ${entry.replacement} now`);"
       }
     },
     {
@@ -68,8 +68,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Evaluate, shadow, and canary (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Normalize outcomes across APIs before a canary gate",
+        "code": "// Baseline (generateContent) and candidate (Interactions) report outcomes differently.\n// Normalize both before comparing, so \"blocked\" and \"incomplete\" are counted the same way.\ntype Normalized = \"ok\" | \"blocked\" | \"incomplete\" | \"failed\";\n\nfunction fromFinishReason(reason: string | undefined, promptBlocked: boolean): Normalized {\n  if (promptBlocked) return \"blocked\";\n  if (reason === \"STOP\") return \"ok\";\n  if (reason === \"MAX_TOKENS\") return \"incomplete\";\n  if (reason === \"SAFETY\" || reason === \"PROHIBITED_CONTENT\" || reason === \"SPII\" || reason === \"BLOCKLIST\") return \"blocked\";\n  return \"failed\";\n}\n\nfunction fromInteractionStatus(status: string): Normalized {\n  if (status === \"completed\") return \"ok\";\n  if (status === \"incomplete\") return \"incomplete\";\n  return \"failed\";\n}\n\ninterface ShadowComparison {\n  caseId: string;\n  slice: string;\n  modality: string;\n  baseline: { outcome: Normalized; rubricScore: number; latencyMs: number; totalTokens: number };\n  candidate: { outcome: Normalized; rubricScore: number; latencyMs: number; totalTokens: number };\n}\n\n// Thresholds are fixed before traffic moves; any critical slice regression holds the rollout.\nfunction canaryGate(rows: ShadowComparison[], criticalSlices: string[]) {\n  const regressed = rows.filter(\n    (r) => criticalSlices.includes(r.slice) && (r.candidate.rubricScore < r.baseline.rubricScore || r.candidate.outcome !== r.baseline.outcome),\n  );\n  const newBlocks = rows.filter((r) => r.candidate.outcome === \"blocked\" && r.baseline.outcome === \"ok\");\n  if (regressed.length) return { decision: \"rollback\", cases: regressed.map((r) => r.caseId) };\n  if (newBlocks.length) return { decision: \"hold\", reason: \"new safety blocks need review\", cases: newBlocks.map((r) => r.caseId) };\n  return { decision: \"promote\" };\n}"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Migrate reversibly and close deliberately (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Reversible API routing with explicit state and safety mappings",
+        "code": "// Routing is configuration: flipping FEEDBACK_API back is the rollback.\nconst api = process.env.FEEDBACK_API === \"interactions\" ? \"interactions\" : \"generateContent\";\n\n// State and safety mappings stay explicit until the observation window passes.\nconst mappings = {\n  state: {\n    generateContent: \"application stores Content[] history\",\n    interactions: \"application stores steps (store: false); no previous_interaction_id chain\",\n  },\n  safety: {\n    generateContent: \"custom safetySettings + finishReason SAFETY\",\n    interactions: \"default protections only; custom settings not yet supported, so blocked cases stay on generateContent\",\n  },\n};\n\n// Compatible records: new rows carry both shapes so either path can read them during dual-run.\ninterface FeedbackSessionRow {\n  id: string;\n  contents?: unknown[]; // generateContent history, retained until close\n  steps?: unknown[]; // Interactions history\n  api: \"generateContent\" | \"interactions\";\n}\n\nconst closeCriteria = {\n  productionGatesPassed: false,\n  rollbackRehearsed: false,\n  sideEffectsReconciled: false,\n  privacyAndSecurityReviewed: false,\n  docsAndRunbooksCurrent: false,\n  deprecatedUse: [{ usage: \"generateContent in the safety-sensitive path\", owner: \"trust and safety\", reviewBy: \"2026-12-01\" }],\n  residualRiskAcknowledgedBy: null as string | null,\n};\n// Drop FeedbackSessionRow.contents only after every criterion holds and the window has passed."
       }
     }
   ],
@@ -293,6 +293,12 @@
     {
       "title": "Using the latest Gemini models",
       "url": "https://ai.google.dev/gemini-api/docs/latest-model",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Migrating to the Interactions API",
+      "url": "https://ai.google.dev/gemini-api/docs/migrate-to-interactions",
       "publisher": "Google",
       "lastVerified": "2026-09-11"
     }
