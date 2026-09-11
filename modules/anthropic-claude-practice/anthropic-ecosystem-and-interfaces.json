@@ -29,8 +29,8 @@
       "callout": "A provider is not a single product surface. Name the surface whenever you describe a capability or control.",
       "code": {
         "language": "typescript",
-        "label": "One ecosystem has different operating surfaces (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "The API is one surface among several",
+        "code": "// The Claude API surface: your application owns state, tools, and validation.\n// (Compare with the Console for interactive prototyping, or claude.ai for supervised chat.)\nimport Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\n// Model id is configuration, not a hardcoded literal. verify current ids: https://platform.claude.com/docs/en/about-claude/models/overview\nconst model = process.env.ANTHROPIC_MODEL ?? \"claude-sonnet-5\";\n\nconst message = await client.messages.create({\n  model,\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Summarize this API surface's operating boundary.\" }],\n});\n\nconst block = message.content.find((b) => b.type === \"text\");\nif (block) console.log(block.text);"
       }
     },
     {
@@ -42,8 +42,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Match the surface to the work (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "The API surface enforces an explicit output contract",
+        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\nconst model = process.env.ANTHROPIC_MODEL; // verify current ids: https://platform.claude.com/docs/en/about-claude/models/overview\nif (!model) throw new Error(\"ANTHROPIC_MODEL is not configured\");\n\nconst message = await client.messages.create({\n  model,\n  max_tokens: 800,\n  system: \"Return only JSON matching { recommendation: string, risks: string[] }.\",\n  messages: [{ role: \"user\", content: userRequest }],\n});\n\nconst textBlock = message.content.find((b) => b.type === \"text\");\nif (!textBlock) throw new Error(\"Expected a text block in the response\");\nconst parsed = JSON.parse(textBlock.text);\nvalidateAgainstSchema(parsed);"
       }
     },
     {
@@ -68,8 +68,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Separate stable concepts from volatile facts (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Configuration holds the volatile fact, not the code",
+        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\n// Stable: authenticate, validate, observe. Volatile: this identifier.\n// Re-verify before relying on it: https://platform.claude.com/docs/en/about-claude/model-deprecations\nconst model = process.env.ANTHROPIC_MODEL;\nif (!model) {\n  throw new Error(\"Set ANTHROPIC_MODEL to a current model id verified against official docs\");\n}\n\nconst message = await client.messages.create({\n  model,\n  max_tokens: 512,\n  messages: [{ role: \"user\", content: \"State one fact you must reverify before this ships.\" }],\n});"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Build a surface map before implementation (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "A reviewable surface map",
+        "code": "interface SurfaceMapEntry {\n  outcome: string;\n  surface: \"workspace\" | \"console\" | \"api\" | \"coding-agent\";\n  actor: string;\n  credentialRef: string; // a reference, never a literal secret\n  toolsAndPermissions: string[];\n  validation: string;\n  humanReview: string;\n  evidenceUrl: string;\n  verifiedOn: string;\n}\n\nconst supportTriageMap: SurfaceMapEntry = {\n  outcome: \"Draft a support reply for human approval\",\n  surface: \"api\",\n  actor: \"support-triage-service\",\n  credentialRef: \"env:ANTHROPIC_API_KEY\",\n  toolsAndPermissions: [\"read_ticket\", \"propose_reply\"],\n  validation: \"schema and citation check before human review\",\n  humanReview: \"required before send\",\n  evidenceUrl: \"https://platform.claude.com/docs/en/get-started\",\n  verifiedOn: \"2026-09-11\",\n};"
       }
     }
   ],

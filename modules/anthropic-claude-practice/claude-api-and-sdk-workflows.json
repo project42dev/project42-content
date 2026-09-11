@@ -29,8 +29,8 @@
       "callout": "The system instruction is a top-level request field in the Messages API, not a system-role item in the messages array.",
       "code": {
         "language": "typescript",
-        "label": "Messages are structured and application-managed (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "The application resends state explicitly",
+        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\nconst model = process.env.ANTHROPIC_MODEL; // verify current ids: https://platform.claude.com/docs/en/about-claude/models/overview\nif (!model) throw new Error(\"ANTHROPIC_MODEL is not configured\");\n\nconst conversation = [\n  { role: \"user\" as const, content: \"What is the current stop-reason contract?\" },\n];\n\nconst response = await client.messages.create({ model, max_tokens: 1024, messages: conversation });\n\nfor (const block of response.content) {\n  if (block.type === \"text\") console.log(block.text);\n  else if (block.type === \"tool_use\") console.log(\"tool request:\", block.name, block.input);\n}\n\nconversation.push({ role: \"assistant\", content: response.content });"
       }
     },
     {
@@ -56,7 +56,7 @@
       "code": {
         "language": "typescript",
         "label": "Validate the response contract (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\nconst model = process.env.ANTHROPIC_MODEL; // verify current ids: https://platform.claude.com/docs/en/about-claude/models/overview\nif (!model) throw new Error(\"ANTHROPIC_MODEL is not configured\");\n\nconst response = await client.messages.create({\n  model,\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Return a JSON risk summary.\" }],\n});\n\nswitch (response.stop_reason) {\n  case \"end_turn\": {\n    const textBlock = response.content.find((b) => b.type === \"text\");\n    if (!textBlock) throw new Error(\"Expected a text block on end_turn\");\n    handleValidatedAnswer(JSON.parse(textBlock.text));\n    break;\n  }\n  case \"max_tokens\":\n    throw new Error(\"Truncated output: retry with a larger max_tokens or a shorter prompt\");\n  case \"tool_use\":\n    await handleAuthorizedToolRequests(response.content);\n    break;\n  case \"refusal\":\n    recordRefusal(response);\n    break;\n  default:\n    throw new Error(`Unhandled stop reason: ${response.stop_reason}`);\n}"
       }
     },
     {
@@ -69,7 +69,7 @@
       "code": {
         "language": "typescript",
         "label": "Recover with bounds and reconciliation (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\nconst model = process.env.ANTHROPIC_MODEL; // verify current ids: https://platform.claude.com/docs/en/about-claude/models/overview\nif (!model) throw new Error(\"ANTHROPIC_MODEL is not configured\");\n\nasync function createWithBoundedRetry(params: Anthropic.MessageCreateParams, maxAttempts = 3) {\n  for (let attempt = 1; attempt <= maxAttempts; attempt++) {\n    try {\n      return await client.messages.create(params);\n    } catch (error) {\n      const transient = error instanceof Anthropic.RateLimitError || error instanceof Anthropic.InternalServerError;\n      if (!transient || attempt === maxAttempts) throw error;\n      await sleep(2 ** attempt * 200); // bounded backoff; add jitter in production\n    }\n  }\n  throw new Error(\"Unreachable\");\n}\n\nconst response = await createWithBoundedRetry({\n  model,\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: userInput }],\n});"
       }
     },
     {
@@ -82,7 +82,7 @@
       "code": {
         "language": "typescript",
         "label": "Observe the workflow without leaking data (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\nconst model = process.env.ANTHROPIC_MODEL; // verify current ids: https://platform.claude.com/docs/en/about-claude/models/overview\nif (!model) throw new Error(\"ANTHROPIC_MODEL is not configured\");\n\nconst traceId = crypto.randomUUID();\nconst startedAt = Date.now();\n\nconst response = await client.messages.create({\n  model,\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: approvedInput }],\n});\n\nrecordTelemetry({\n  traceId,\n  model: response.model,\n  latencyMs: Date.now() - startedAt,\n  inputTokens: response.usage.input_tokens,\n  outputTokens: response.usage.output_tokens,\n  stopReason: response.stop_reason,\n  // Never log API keys, headers, or unrestricted prompt/response text.\n});"
       }
     }
   ],

@@ -29,8 +29,8 @@
       "callout": "A better-sounding response is not evidence of a better prompt. Compare both versions on the same cases and rubric.",
       "code": {
         "language": "typescript",
-        "label": "Define success before changing wording (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Success criteria before wording",
+        "code": "interface PromptSuccessCriteria {\n  requiredOutcome: string;\n  unacceptableBehavior: string[];\n  outputContract: string;\n  passThreshold: number;\n}\n\nconst criteria: PromptSuccessCriteria = {\n  requiredOutcome: \"A decision memo with a recommendation and cited tradeoffs\",\n  unacceptableBehavior: [\"unsupported claims\", \"missing risk section\"],\n  outputContract: \"Markdown with Recommendation, Tradeoffs, and Risks headings\",\n  passThreshold: 0.8,\n};"
       }
     },
     {
@@ -42,8 +42,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Be clear, direct, and explicit (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Explicit, numbered instructions",
+        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\nconst model = process.env.ANTHROPIC_MODEL; // verify current ids: https://platform.claude.com/docs/en/about-claude/models/overview\nif (!model) throw new Error(\"ANTHROPIC_MODEL is not configured\");\n\nconst response = await client.messages.create({\n  model,\n  max_tokens: 700,\n  system: [\n    \"You are drafting a decision memo for a non-technical stakeholder.\",\n    \"1. State the recommendation in one sentence.\",\n    \"2. List exactly three tradeoffs.\",\n    \"3. List every unresolved risk.\",\n    \"Do not invent facts that are not present in the supplied context.\",\n  ].join(\"\\n\"),\n  messages: [{ role: \"user\", content: approvedContext }],\n});"
       }
     },
     {
@@ -68,8 +68,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Use examples deliberately (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Relevant, diverse few-shot examples",
+        "code": "const fewShotMessages = [\n  { role: \"user\" as const, content: 'Classify: \"Invoice #45 is overdue.\"' },\n  { role: \"assistant\" as const, content: \"category: billing\" },\n  { role: \"user\" as const, content: 'Classify: \"App crashes on login.\"' },\n  { role: \"assistant\" as const, content: \"category: technical\" },\n  { role: \"user\" as const, content: realTicketText }, // an evaluated case, not shown during prompt design\n];\n\nconst response = await client.messages.create({ model, max_tokens: 50, messages: fewShotMessages });"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Iterate from failure evidence (Code Implementation)",
-        "code": "import Anthropic from \"@anthropic-ai/sdk\";\n\nconst client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });\n\nconst response = await client.messages.create({\n  model: \"claude-3-7-sonnet-20250219\",\n  max_tokens: 1024,\n  messages: [{ role: \"user\", content: \"Analyze the operational boundary and output constraints.\" }]\n});\nconsole.log(response.content[0].text);"
+        "label": "Classify failures before editing",
+        "code": "interface PromptRunResult {\n  caseId: string;\n  promptVersion: string;\n  output: string;\n  rubricScore: number;\n  failureClass?: \"ambiguous-instruction\" | \"missing-context\" | \"model-limitation\" | \"application-defect\";\n}\n\nfunction classifyFailure(result: PromptRunResult): string {\n  return result.failureClass ?? \"unclassified: investigate before editing the prompt\";\n}\n\nconst regressionCandidates = results.filter(\n  (r) => r.rubricScore < 0.8 && r.failureClass !== \"missing-context\"\n);"
       }
     }
   ],
