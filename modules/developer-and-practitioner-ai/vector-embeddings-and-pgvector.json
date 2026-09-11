@@ -63,7 +63,7 @@
       "code": {
         "language": "sql",
         "label": "A per-model half-precision HNSW index for 3,072-dimension vectors",
-        "code": "-- 3,072 dimensions exceed the 2,000-dimension limit for indexing vector,\n-- so index a halfvec cast (indexable up to 4,000 dimensions), one partial index per model.\nCREATE INDEX CONCURRENTLY doc_emb_gemini001_hnsw\n  ON doc_embeddings\n  USING hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops)\n  WHERE (model_id = 'gemini-embedding-001');\n\nBEGIN;\nSET LOCAL hnsw.ef_search = 100;   -- more recall for this query only (default 40)\nSELECT doc_id\n  FROM doc_embeddings\n WHERE model_id = 'gemini-embedding-001'\n ORDER BY embedding::halfvec(3072) <=> $1::halfvec(3072)\n LIMIT 10;\nCOMMIT;"
+        "code": "-- 3,072 dimensions exceed the 2,000-dimension limit for indexing vector,\n-- so index a halfvec cast (indexable up to 4,000 dimensions), one partial index per model.\n-- Operator class naming follows the README rule: use halfvec_l2_ops for halfvec,\n-- \"and similar with the other distance functions\" -- so halfvec_cosine_ops for <=>.\nCREATE INDEX CONCURRENTLY doc_emb_gemini001_hnsw\n  ON doc_embeddings\n  USING hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops)\n  WHERE (model_id = 'gemini-embedding-001');\n\nBEGIN;\nSET LOCAL hnsw.ef_search = 100;   -- more recall for this query only (default 40)\nSELECT doc_id\n  FROM doc_embeddings\n WHERE model_id = 'gemini-embedding-001'\n ORDER BY embedding::halfvec(3072) <=> $1::halfvec(3072)\n LIMIT 10;\nCOMMIT;"
       }
     },
     {
