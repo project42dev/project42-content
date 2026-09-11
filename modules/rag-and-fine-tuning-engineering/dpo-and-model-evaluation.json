@@ -1,74 +1,305 @@
 {
   "id": "dpo-and-model-evaluation",
   "title": "Direct Preference Optimization (DPO) & Eval",
-  "summary": "Synthetic instruction dataset curation, preference alignment, and LLM-as-a-Judge.",
+  "summary": "What DPO optimizes and what it tends to do to likelihoods along the way, how to choose its reference model, how to read its training metrics without mistaking them for quality, and how to evaluate a preference-tuned model with pairwise win rates from a judge whose biases you have controlled.",
   "level": "advanced",
+  "reviewCadenceDays": 60,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 40,
+  "estimatedMinutes": 50,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Direct Preference Optimization (DPO) & Eval.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Explain how DPO replaces RLHF's reward-model-plus-reinforcement-learning pipeline with a classification loss on chosen and rejected completions relative to a reference policy, and what beta controls.",
+    "Prepare a preference dataset in the formats a DPO trainer accepts, and choose a reference model that matches the distribution the preferences were sampled from.",
+    "Interpret DPO training metrics -- implicit rewards, margins, reward accuracy, and log-probabilities -- and recognize when a rising margin is not evidence of a better model.",
+    "Design a pairwise win-rate evaluation against a named baseline, with controls for judge position, verbosity, and self-preference bias.",
+    "Report a preference-tuning result with its trade-offs and failure checks rather than a single headline win rate."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "from-rlhf-to-dpo",
+      "title": "From RLHF's two stages to one classification loss",
       "paragraphs": [
-        "Synthetic instruction dataset curation, preference alignment, and LLM-as-a-Judge.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Direct Preference Optimization (DPO) & Eval.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "Reinforcement learning from human feedback first fits a reward model to human preference labels, then fine-tunes the language model with reinforcement learning to maximize that reward without drifting too far from the original model. The DPO paper (Rafailov et al.) calls this a complex and often unstable procedure. DPO introduces a new parameterization of the reward model under which the optimal policy can be extracted in closed form, so the same RLHF objective can be solved with a simple classification loss -- no separate reward model to train and no sampling from the model during fine-tuning.",
+        "The objective DPO optimizes is the familiar one: reward maximization under a KL-divergence constraint that keeps the policy close to a reference. The paper explains why that constraint matters -- it keeps the model near the distribution on which the reward is accurate, maintains generation diversity, and prevents collapse onto a single high-reward answer. In DPO the reward is implicit: it is beta times the log-ratio of the policy's and the reference model's probabilities for a completion.",
+        "Hugging Face TRL writes the loss as the negative log-sigmoid of beta times the difference between the chosen completion's log-ratio and the rejected completion's log-ratio, each measured against the reference model. Its DPOConfig sets beta to 0.1 by default and describes it as controlling deviation from the reference: a higher beta means less deviation. TRL also implements a family of alternative losses selected by loss_type -- among them a robust variant that models label noise through label smoothing, and a length-normalized variant aimed at the length bias of the original sigmoid loss."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Preference examples in the two formats TRL accepts",
+        "code": "// Standard format, explicit prompt\n{\"prompt\": \"The sky is\", \"chosen\": \" blue.\", \"rejected\": \" green.\"}\n\n// Conversational format, explicit prompt\n{\"prompt\":   [{\"role\": \"user\",      \"content\": \"What color is the sky?\"}],\n \"chosen\":   [{\"role\": \"assistant\", \"content\": \"It is blue.\"}],\n \"rejected\": [{\"role\": \"assistant\", \"content\": \"It is green.\"}]}"
+      }
+    },
+    {
+      "id": "reference-model-and-data",
+      "title": "The reference model has to match the data",
+      "paragraphs": [
+        "Every DPO quantity is measured relative to the reference model, so choosing it is a design decision, not a default. The DPO paper points out that public preference datasets were sampled from a particular supervised fine-tuned model, and initializes the reference to that SFT model whenever it is available. When it is not, the authors initialize the reference by maximizing the likelihood of the preferred completions -- a step they call Preferred-FT -- to reduce the distribution shift between the true reference distribution and the one DPO uses. They did exactly this for their single-turn dialogue experiments, where no standard SFT model existed.",
+        "In TRL, leaving ref_model unset makes the trainer use the model's own state before DPO training starts. Two options change the memory and behaviour of that reference: precompute_ref_log_probs computes the reference log-probabilities for the whole training set up front so the reference model need not stay in memory, and sync_ref_model periodically mixes the current policy into the reference (the TR-DPO approach), which TRL notes is not yet compatible with PEFT or with precomputed reference log-probabilities.",
+        "Each training example is a prompt with one chosen and one rejected completion to that same prompt, in either a standard or conversational format; for conversational data TRL applies the chat template automatically. Because the loss only sees the difference between the two completions, the pair teaches whatever distinguishes them. If the chosen answers are also systematically longer or more formatted than the rejected ones, that difference is part of what the model learns."
+      ],
+      "callout": "Before training, write down which model generated the preference data and which model is your reference. If they are not the same, you are relying on DPO to bridge a distribution shift."
+    },
+    {
+      "id": "reading-training-metrics",
+      "title": "Reading DPO metrics without fooling yourself",
+      "paragraphs": [
+        "TRL logs the quantities DPO is actually moving. rewards/chosen and rewards/rejected are the average implicit rewards -- beta times the policy-to-reference log-ratio -- for the chosen and rejected completions. rewards/margins is the average difference between them, and rewards/accuracies is the proportion of pairs in which the chosen completion's implicit reward exceeds the rejected one's. logps/chosen and logps/rejected report the average log-probabilities the model assigns to each.",
+        "TRL's own description of the method explains how those numbers usually move: DPO widens the margin between preferred and dispreferred log-likelihoods relative to the reference, and in practice this is typically achieved by suppressing the likelihood of dispreferred completions rather than by increasing the likelihood of preferred ones. So a climbing margin and a reward accuracy near 1 on training pairs say the model has learned to separate those pairs. They do not say its own generations on new prompts are better, and a growing margin says nothing on its own about whether the chosen answers became more likely -- watch logps/chosen and logps/rejected separately.",
+        "Because the implicit reward is measured against the reference, it is also a measure of how far the policy has moved. The DPO paper insists that comparisons account for both reward and divergence from the reference: slightly higher reward at much higher KL is not necessarily desirable. It also lists reward over-optimization in the DPO setting as an open question, asking whether a slight decrease in performance over the course of training in one of its own experiments is an instance of it. Treat training metrics as diagnostics, and decide quality with generations on held-out prompts."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "pairwise-win-rates",
+      "title": "Evaluating with pairwise win rates",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "When a ground-truth reward function exists, the paper evaluates DPO by its frontier of achieved reward against KL-divergence from the reference. For real tasks, where no ground-truth reward is known, it evaluates by win rate against a baseline, using GPT-4 as a proxy for human judgment: for summarization the baseline is the test set's reference summaries, and for dialogue it is the preferred response in the test data. Completions were sampled across temperatures from 0.0 to 1.0, and the paper reports DPO as more robust to sampling temperature than PPO.",
+        "The same paper shows why the judge is part of the experiment. Its human study found GPT-4's agreement with humans typically similar to or higher than agreement between human annotators -- but also that GPT-4, asked simply which summary was better, preferred longer and more repetitive summaries than humans did, so the authors added a prompt that also asked for concision, and they note that win rates are affected by the judge prompt. They also re-evaluated their summarization policies on news articles from a different dataset, to see how the policies behaved under a distribution shift.",
+        "A usable evaluation plan follows from that: name the baseline explicitly (usually the reference or SFT model you started from), fix and version the judge prompt, sample at more than one temperature, and hold out a prompt set from a different distribution than the training preferences."
       ]
+    },
+    {
+      "id": "controlling-the-judge",
+      "title": "Controlling the judge",
+      "paragraphs": [
+        "The MT-Bench and Chatbot Arena study (Zheng et al.) catalogues the judge's failure modes: position bias, verbosity bias, self-enhancement bias, and limited reasoning ability. In its position-bias test, built from pairs of very similar answers, most LLM judges favoured the answer shown first, and only GPT-4 gave consistent verdicts across swapped orders in more than 60% of cases. Verbosity bias is a preference for longer responses even when they are not clearer or more accurate. After controlling for these, the study found strong judges reached over 80% agreement with human preferences -- the same level as agreement between humans.",
+        "The study's conservative fix for position bias is simple: call the judge twice with the answers swapped, declare a win only when the same answer wins in both orders, and count an inconsistent pair as a tie. Randomizing positions is the more aggressive alternative, workable at scale. On self-enhancement bias -- a judge favouring answers generated by itself -- the study could not reach a conclusion from its limited data, while the QLoRA authors observed GPT-4 rating its own outputs markedly higher than human raters did, and also reported strong order effects and only weak sample-level agreement between GPT-4 and human annotators on their chatbot evaluation.",
+        "The QLoRA paper adds a caution about benchmarks as a complement to win rates: strong MMLU performance did not imply strong chatbot performance, and results appeared to depend on how similar the fine-tuning data was to each benchmark. For a preference-tuned model, report the swap-consistent win rate, a capability check the tuning should not have damaged, and a small human-labelled slice to calibrate the judge."
+      ],
+      "callout": "If you cannot say how often your judge changes its verdict when the answers swap places, you do not yet know what your win rate means."
     }
   ],
   "activity": {
     "id": "dpo-and-model-evaluation-activity",
-    "title": "Direct Preference Optimization (DPO) & Eval Hands-On Lab",
+    "title": "Train a small DPO run and evaluate it against its reference",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Start from an SFT model and record it as the reference. If no SFT model matches your preference data, first fine-tune on the chosen completions (the Preferred-FT approach) and use that as the reference.",
+      "Assemble a few hundred preference pairs in prompt/chosen/rejected format. Hold out a set of prompts from the same distribution and a smaller set from a deliberately different distribution for evaluation.",
+      "Train DPO at two beta values, logging rewards/chosen, rewards/rejected, rewards/margins, rewards/accuracies, and logps/chosen for each run.",
+      "Generate on the held-out prompts at two sampling temperatures and judge each policy against the reference pairwise, calling the judge in both answer orders and counting inconsistent verdicts as ties. Hand-label a small sample of the same comparisons yourself.",
+      "Report win, tie, and loss counts per beta, temperature, and prompt distribution, alongside the training curves."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "Training-metric curves for each beta, with a note on whether logps/chosen rose or fell while the margin grew.",
+      "A win/tie/loss table for in-distribution and shifted prompts at each temperature, including the judge's swap-consistency rate.",
+      "Judge-versus-human agreement on your hand-labelled sample, and the average length of winning versus losing answers as a verbosity check."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which of your two beta runs would you ship, and which piece of evidence beyond the headline win rate -- swap consistency, shifted-distribution results, or the length of winning answers -- changed or confirmed that choice?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-dpo-and-model-evaluation-1",
-        "prompt": "What is the primary architectural goal of Direct Preference Optimization (DPO) & Eval?",
+        "prompt": "Compared with RLHF, what does DPO remove from the preference-tuning pipeline?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "The need for preference data",
+          "A separately trained reward model and reinforcement-learning optimization with sampling during fine-tuning",
+          "The reference model",
+          "The KL-divergence constraint in the objective"
         ],
-        "answerIndex": 0,
-        "explanation": "Direct Preference Optimization (DPO) & Eval enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 1,
+        "explanation": "DPO reparameterizes the reward so the optimal policy has a closed form, solving the same KL-constrained objective with a classification loss on preference pairs; it still uses a reference model and preference data."
+      },
+      {
+        "id": "q-dpo-and-model-evaluation-2",
+        "prompt": "During DPO training, rewards/accuracies reaches 0.98 and rewards/margins keeps rising, while logps/chosen falls. What is the right conclusion?",
+        "choices": [
+          "The model's generations have clearly improved; ship it",
+          "Training has diverged and must be restarted",
+          "The model has learned to separate the training pairs, typically by suppressing rejected completions; generation quality still has to be measured on held-out prompts",
+          "The reference model is broken"
+        ],
+        "answerIndex": 2,
+        "explanation": "TRL notes DPO typically widens the margin by suppressing dispreferred completions rather than raising preferred ones; the metrics describe separation of training pairs, not quality on new prompts."
+      },
+      {
+        "id": "q-dpo-and-model-evaluation-3",
+        "prompt": "In TRL's DPOConfig, what does increasing beta do?",
+        "choices": [
+          "Allows the policy to deviate further from the reference model",
+          "Keeps the policy closer to the reference model",
+          "Increases the learning rate",
+          "Switches the loss to IPO"
+        ],
+        "answerIndex": 1,
+        "explanation": "TRL describes beta (default 0.1) as controlling deviation from the reference model, with a higher beta meaning less deviation."
+      },
+      {
+        "id": "q-dpo-and-model-evaluation-4",
+        "prompt": "Your preference dataset was generated by a model you do not have. What does the DPO paper do in that situation to choose a reference model?",
+        "choices": [
+          "Use the untuned base model unchanged",
+          "Initialize the reference by maximizing the likelihood of the preferred completions, to reduce distribution shift",
+          "Skip the reference model entirely",
+          "Use the largest available model as the reference"
+        ],
+        "answerIndex": 1,
+        "explanation": "The paper uses the SFT model that generated the data when available; otherwise it fine-tunes on the preferred completions (Preferred-FT) so the reference is closer to the data distribution."
+      },
+      {
+        "id": "q-dpo-and-model-evaluation-5",
+        "prompt": "Your judge prefers answer A when A is shown first and answer B when B is shown first. Under the conservative protocol from the MT-Bench study, how is this comparison scored?",
+        "choices": [
+          "A win for A, because it was evaluated first",
+          "A win for B, because it was evaluated last",
+          "A tie, because the verdict is inconsistent across swapped orders",
+          "It is discarded and the judge prompt is rewritten"
+        ],
+        "answerIndex": 2,
+        "explanation": "The conservative approach calls the judge in both orders and declares a win only when the same answer wins both times; inconsistent results count as a tie."
+      },
+      {
+        "id": "q-dpo-and-model-evaluation-6",
+        "prompt": "In the DPO paper's human study, GPT-4 given a simple prompt preferred longer, more repetitive summaries than humans did. What does this imply for your own win-rate evaluation?",
+        "choices": [
+          "LLM judges should never be used",
+          "Win rates depend on the judge prompt, so the prompt must be fixed, versioned, and checked for verbosity bias against human labels",
+          "Longer answers are genuinely better",
+          "Only temperature 0.0 samples should be judged"
+        ],
+        "answerIndex": 1,
+        "explanation": "The authors added a concision-aware prompt and note that GPT-4 win rates are affected by the prompt; the MT-Bench study likewise documents verbosity bias, so the judge setup is part of what a win rate measures."
       }
     ]
   },
   "sources": [
     {
-      "title": "Hugging Face TRL: DPO trainer",
+      "title": "Direct Preference Optimization: Your Language Model is Secretly a Reward Model",
+      "url": "https://arxiv.org/abs/2305.18290",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "TRL: DPO Trainer",
       "url": "https://huggingface.co/docs/trl/en/dpo_trainer",
       "publisher": "Hugging Face",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+      "url": "https://arxiv.org/abs/2306.05685",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "QLoRA: Efficient Finetuning of Quantized LLMs",
+      "url": "https://arxiv.org/abs/2305.14314",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 3000,
+    "cues": [
+      {
+        "id": "cue-dpo-objective-narration",
+        "kind": "narration",
+        "sectionId": "from-rlhf-to-dpo",
+        "text": "DPO solves the same KL-constrained preference objective as RLHF with a classification loss on chosen and rejected pairs. Beta sets how far the policy may move from the reference."
+      },
+      {
+        "id": "cue-dpo-objective-visual",
+        "kind": "visual",
+        "sectionId": "from-rlhf-to-dpo",
+        "text": "Show the RLHF pipeline -- reward model training, then reinforcement learning with sampling -- collapsing into a single DPO step that compares chosen and rejected log-ratios against a reference model.",
+        "accessibilityAlternative": "A static two-row table lists the RLHF stages (fit a reward model on preferences; optimize the policy with reinforcement learning under a KL constraint) beside the single DPO stage (minimize a classification loss on the difference between chosen and rejected log-ratios against the reference). Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-dpo-reference-narration",
+        "kind": "narration",
+        "sectionId": "reference-model-and-data",
+        "text": "Every DPO number is relative to the reference model. Use the model that generated the preference data, or fine-tune on the chosen answers first to close the distribution gap."
+      },
+      {
+        "id": "cue-dpo-reference-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "reference-model-and-data",
+        "text": "Ask learners what, other than the quality you intended, systematically differs between the chosen and rejected answers in a preference dataset they know."
+      },
+      {
+        "id": "cue-dpo-metrics-narration",
+        "kind": "narration",
+        "sectionId": "reading-training-metrics",
+        "text": "A rising margin and high reward accuracy mean the model separates its training pairs, usually by pushing rejected answers down. They do not show better generations on new prompts."
+      },
+      {
+        "id": "cue-dpo-metrics-pause",
+        "kind": "pause",
+        "sectionId": "reading-training-metrics",
+        "text": "Allow two minutes for learners to interpret a sample metric log in which the margin rises while the chosen log-probability falls."
+      },
+      {
+        "id": "cue-dpo-winrate-narration",
+        "kind": "narration",
+        "sectionId": "pairwise-win-rates",
+        "text": "Without a ground-truth reward, evaluate by win rate against a named baseline, across temperatures and on a shifted prompt set, with a fixed and versioned judge prompt."
+      },
+      {
+        "id": "cue-dpo-judge-narration",
+        "kind": "narration",
+        "sectionId": "controlling-the-judge",
+        "text": "LLM judges show position, verbosity, and self-preference biases. Judge in both answer orders, count inconsistent verdicts as ties, and calibrate against a human-labelled sample."
+      },
+      {
+        "id": "cue-dpo-judge-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "controlling-the-judge",
+        "text": "Check that learners can score a swapped-order disagreement as a tie and name two judge biases that could inflate a preference-tuned model's win rate."
+      },
+      {
+        "id": "cue-dpo-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the two-beta DPO run, the swap-order pairwise evaluation against the reference, and the human calibration sample."
+      },
+      {
+        "id": "cue-dpo-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can explain what rewards/accuracies does and does not show, and how a swap-consistent win rate is computed."
+      }
+    ],
+    "transcript": "DPO solves the same KL-constrained preference objective as RLHF with a classification loss on chosen and rejected pairs. Beta sets how far the policy may move from the reference. Every DPO number is relative to the reference model. Use the model that generated the preference data, or fine-tune on the chosen answers first to close the distribution gap. A rising margin and high reward accuracy mean the model separates its training pairs, usually by pushing rejected answers down. They do not show better generations on new prompts. Without a ground-truth reward, evaluate by win rate against a named baseline, across temperatures and on a shifted prompt set, with a fixed and versioned judge prompt. LLM judges show position, verbosity, and self-preference biases. Judge in both answer orders, count inconsistent verdicts as ties, and calibrate against a human-labelled sample.",
+    "captions": [
+      {
+        "cueId": "cue-dpo-objective-narration",
+        "startSeconds": 0,
+        "endSeconds": 510,
+        "text": "DPO solves the same KL-constrained preference objective as RLHF with a classification loss on chosen and rejected pairs. Beta sets how far the policy may move from the reference."
+      },
+      {
+        "cueId": "cue-dpo-reference-narration",
+        "startSeconds": 540,
+        "endSeconds": 1050,
+        "text": "Every DPO number is relative to the reference model. Use the model that generated the preference data, or fine-tune on the chosen answers first to close the distribution gap."
+      },
+      {
+        "cueId": "cue-dpo-metrics-narration",
+        "startSeconds": 1080,
+        "endSeconds": 1590,
+        "text": "A rising margin and high reward accuracy mean the model separates its training pairs, usually by pushing rejected answers down. They do not show better generations on new prompts."
+      },
+      {
+        "cueId": "cue-dpo-winrate-narration",
+        "startSeconds": 1620,
+        "endSeconds": 2130,
+        "text": "Without a ground-truth reward, evaluate by win rate against a named baseline, across temperatures and on a shifted prompt set, with a fixed and versioned judge prompt."
+      },
+      {
+        "cueId": "cue-dpo-judge-narration",
+        "startSeconds": 2160,
+        "endSeconds": 2670,
+        "text": "LLM judges show position, verbosity, and self-preference biases. Judge in both answer orders, count inconsistent verdicts as ties, and calibrate against a human-labelled sample."
+      },
+      {
+        "cueId": "cue-dpo-assessment",
+        "startSeconds": 2700,
+        "endSeconds": 3000,
+        "text": "Begin the check once learners can explain what rewards/accuracies does and does not show, and how a swap-consistent win rate is computed."
+      }
+    ],
+    "reducedMotionAlternative": "Present the RLHF-versus-DPO comparison, the metric definitions, and the swap-order judging protocol as static tables with focus-based highlighting instead of animated sequences."
+  }
 }
