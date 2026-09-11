@@ -1,74 +1,330 @@
 {
   "id": "advanced-rag-and-hybrid-search",
   "title": "Hybrid Search (BM25 + Dense) & Re-ranking",
-  "summary": "Combining sparse keyword search with dense embeddings and cross-encoder re-rankers.",
+  "summary": "Why lexical and dense retrievers miss different queries, how rank-based fusion (RRF) and score-based fusion combine them, where a cross-encoder re-ranker belongs in the pipeline and what it cannot recover, and how to tune the whole chain against relevance judgments instead of intuition.",
   "level": "advanced",
+  "reviewCadenceDays": 60,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 40,
+  "estimatedMinutes": 50,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Hybrid Search (BM25 + Dense) & Re-ranking.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Explain why BM25 full-text retrieval and dense vector retrieval fail on different kinds of queries, and name query types each one handles better.",
+    "Compute a reciprocal rank fusion (RRF) score by hand and predict how the rank constant and the per-list window change the fused ranking.",
+    "Choose between rank-based fusion (RRF) and score-based fusion (normalization plus weighted combination) for a retrieval stack, and justify the choice.",
+    "Place a cross-encoder re-ranker correctly in a multi-stage pipeline and state what it can and cannot recover.",
+    "Design a judgment-list experiment that selects fusion and re-ranking parameters from evidence rather than defaults."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "two-retrievers-two-blind-spots",
+      "title": "Two retrievers, two different ways to miss",
       "paragraphs": [
-        "Combining sparse keyword search with dense embeddings and cross-encoder re-rankers.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Hybrid Search (BM25 + Dense) & Re-ranking.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
-      ]
+        "Retrieval-augmented generation pairs a model's parametric memory with a non-parametric one. In the original RAG formulation (Lewis et al.), that non-parametric memory was a dense vector index of Wikipedia reached through a pre-trained neural retriever, and the authors framed provenance and updating a model's world knowledge as open problems retrieval helps with. Dense retrieval's strength is finding passages that are conceptually similar to the query even when they share no keywords with it.",
+        "Full-text search ranked by BM25 has the opposite profile: its strength is precision on exact matches. Microsoft's Azure AI Search guidance names the cases directly -- queries over product codes, highly specialized jargon, dates, and people's names perform better with keyword search because it can identify exact matches. A pipeline built on only one retriever silently fails the other one's queries. Hybrid search runs both against the same index in a single request and merges the results.",
+        "Merging is where the difficulty lives, because the two scores are not on the same scale. Azure documents its BM25 full-text score as having no upper limit, while its HNSW cosine similarity scores fall between 0.333 and 1.00. Add those numbers together and whichever retriever produces larger magnitudes dominates the result, regardless of which one was actually right for the query."
+      ],
+      "callout": "A hybrid pipeline is not 'vector search with a keyword fallback.' It is two retrievers with different blind spots, and the fusion step decides, query by query, whose blind spot wins."
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "reciprocal-rank-fusion",
+      "title": "Reciprocal rank fusion: combine positions, ignore scores",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "Reciprocal rank fusion sidesteps the scale problem by discarding scores entirely. For each document, it sums 1 / (k + rank) across every result list the document appears in, where rank starts at 1 and k is a constant. Elastic describes RRF as requiring no tuning, with the different relevance indicators not needing to be related to each other. Elastic's rank_constant defaults to 60 and must be at least 1; a higher value gives lower-ranked documents more influence over the final order. Azure applies the same formula and notes that it performs best with a small k such as 60 -- a k unrelated to the k that sets how many nearest neighbours a vector query returns.",
+        "Because each list contributes at most about 1/k to a document, an RRF score is a sort key, not a relevance probability. Azure notes that its upper limit is bounded by the number of queries being fused, so a query that fuses three result sets produces higher RRF scores than one that fuses two. Weighting is engine-specific: Elastic's RRF retriever gives every child retriever equal weight, while Azure lets you multiply a vector query's contribution (for example 0.5 or 2.0, default 1.0).",
+        "The parameter that decides what fusion can see at all is the per-list window. Elastic's rank_window_size sets how many results from each list enter fusion; a larger window improves relevance at a performance cost. Its own worked example shows the effect: two lists fused with a window of 5 produce the order [1, 4, 2, 3, 5], but with a window of 2 the fused list becomes [1, 5, 2, 4] -- document 3, ranked third in both lists, disappears completely, and paging past the window returns nothing. Anything below the window is invisible to fusion and to every stage after it."
+      ],
+      "code": {
+        "language": "text",
+        "label": "RRF by hand, using the lists from Elastic's worked example",
+        "code": "List A (lexical): [1, 2, 3, 4]      List B (dense): [5, 4, 3, 1, 2]\n\nk = 1, window = 5 (Elastic's example)\n  doc 1: 1/(1+1) + 1/(1+4) = 0.700\n  doc 4: 1/(1+4) + 1/(1+2) = 0.533\n  doc 2: 1/(1+2) + 1/(1+5) = 0.500\n  doc 3: 1/(1+3) + 1/(1+3) = 0.500\n  doc 5: 0       + 1/(1+1) = 0.500\n  fused: [1, 4, 2, 3, 5]\n\nk = 60, same lists and window\n  doc 1: 0.03202   doc 4: 0.03175   doc 3: 0.03175\n  doc 2: 0.03151   doc 5: 0.01639\n  -> doc 5 (first in only one list) falls to last;\n     appearing in both lists now matters more than\n     being first in one."
+      }
+    },
+    {
+      "id": "score-based-fusion",
+      "title": "When the score gap carries information: normalization and weighted combination",
+      "paragraphs": [
+        "OpenSearch exposes both families of fusion as search-pipeline processors and describes the difference precisely. Its normalization processor is score based: it converts each query clause's scores to a common scale, then combines them, preserving the margins between documents. OpenSearch recommends it when the difference between two documents' scores contains information the final ranking must reflect, or when you need fine-grained control through normalization techniques, combination techniques, and score bounds. Its score ranker processor is rank based, uses RRF, and ignores the scores; OpenSearch recommends it when you want a configuration that works without first measuring how your query clauses score documents.",
+        "The score-based path makes you choose. The OpenSearch hybrid example uses min_max normalization with an arithmetic_mean combination and a weights array assigning each clause a share; its tuning tooling also evaluates l2 and z_score normalization (z_score only with arithmetic_mean). Elastic offers the same choice as an RRF retriever or a linear retriever, and frames RRF's advantage as removing the need to work out the appropriate weighting for a linear combination.",
+        "Neither is correct by default. RRF throws the score gap away: a document that the dense retriever rated far above everything else and one it barely preferred are separated only by their positions. Min-max plus a weighted mean keeps that gap, but only after someone has chosen the normalization and the weights -- which is a measurement task, not a guess."
+      ],
+      "callout": "Choose rank-based fusion when you cannot yet measure your retrievers' scores; choose score-based fusion when you can, and when the size of a score gap should change the answer."
+    },
+    {
+      "id": "reranking-stage",
+      "title": "Re-ranking: a precise model on a short list",
+      "paragraphs": [
+        "A re-ranker is a second, more expensive model that reorders what retrieval already found. Elastic describes semantic re-ranking as using relatively large machine learning models in real time, which makes sense on a small top-k result set as one of the final steps in a pipeline, and notes it works on top of keyword, semantic, or hybrid retrieval, including RRF or linear fusion.",
+        "The model type matters. A cross-encoder takes the query and the document as a single concatenated input, so its representation of the document is query-aware; a bi-encoder embeds query and document separately and scores them afterwards with a dot product or cosine similarity. Elastic summarizes the trade-off as cross-encoders giving higher accuracy at higher cost, and adds a property that matters for RAG: cross-encoder scores are consistent across queries, so a single minimum-score threshold can be applied to all of them, whereas bi-encoder similarities are query-dependent and do not support a universal cut-off.",
+        "A re-ranker cannot rescue what the first stage missed. Azure's semantic ranker reranks only the top 50 results from a BM25 or RRF-ranked query and states that it cannot rerun the query over the entire corpus; Azure accordingly advises setting a vector query's k to 50 when the ranker is in use, to maximize its inputs. Two further limits apply. Many cross-encoders truncate input to their token window, which can cut off the relevant part of a long document -- Elastic's chunk_rescorer exists to control how much text is sent. And Azure warns that reranker score distributions can shift slightly with infrastructure conditions and model updates, so thresholds should not be set too finely."
+      ],
+      "callout": "Recall is decided by retrieval and the fusion window. The re-ranker only decides order inside that window."
+    },
+    {
+      "id": "tune-against-judgments",
+      "title": "Tune the chain against judgments, not intuition",
+      "paragraphs": [
+        "OpenSearch states the operating reality plainly: what works best for hybrid search depends heavily on your data, user behaviour, and domain, and there is no one-size-fits-all configuration. Its hybrid optimization runs search quality experiments that need three inputs -- a query set, judgments, and a search configuration -- and scores every combination of l2, min_max, and z_score normalization, plus RRF at rank constants of 1, 5, 10, 20, and 60, against the judgment list.",
+        "Build the query set to exercise both blind spots on purpose: include the exact-match query types Azure names (codes, jargon, dates, names) alongside paraphrased natural-language questions. Measure each retriever alone, then fused, then re-ranked, and break results down by query type. Elastic reports that RRF has been shown to give improved relevance over either query individually; your judgment list is what tells you whether that holds for your corpus and your queries.",
+        "When a result surprises you, decompose it before changing parameters. Azure's debug mode returns the subscores behind a hybrid score, which is how you find out whether a document ranked low because the lexical side missed it, the dense side missed it, or the window truncated it before fusion ever saw it."
       ]
     }
   ],
   "activity": {
     "id": "advanced-rag-and-hybrid-search-activity",
-    "title": "Hybrid Search (BM25 + Dense) & Re-ranking Hands-On Lab",
+    "title": "Fuse, re-rank, and measure a two-retriever pipeline",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Assemble five queries against an index you control or a public test collection: at least two exact-match queries (a product or error code, a person's name) and at least two paraphrased natural-language questions. For each query, capture the top ten document IDs and scores from a BM25 retriever and from a dense vector retriever.",
+      "Compute RRF for every query at k = 1 and k = 60 with a per-list window of 10, then repeat with a window of 3. Record which documents enter or leave the fused top five in each variant.",
+      "Normalize the raw scores with min-max, combine them with an arithmetic mean at weights 0.5/0.5 and 0.3/0.7 (lexical/dense), and compare the resulting orders with the RRF orders.",
+      "Label the relevance of every document that appears in any variant's top ten, producing a judgment list, and compute one ranking metric of your choice (for example precision at 5) per variant and per query type.",
+      "Choose a re-ranking depth and justify it from your data by naming any relevant document that sat below the fusion window, where no re-ranker could have reached it."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A table of fused top-five results for each variant and query, with your relevance labels and the metric per variant and query type.",
+      "A written configuration choice -- fusion method, rank constant or weights, window size, and re-rank depth -- with each value tied to a specific observed query.",
+      "One named example of a relevant document that fell outside the window, and the parameter change that recovered it, or an explicit statement that none did."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which of your queries could a re-ranker not have fixed no matter how accurate it was, and what does that tell you about where recall is actually decided in your pipeline?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-advanced-rag-and-hybrid-search-1",
-        "prompt": "What is the primary architectural goal of Hybrid Search (BM25 + Dense) & Re-ranking?",
+        "prompt": "A support search must find tickets by exact error codes such as E-4012 and also by paraphrased symptom descriptions. Which retriever does the hybrid-search guidance favour for the error-code queries?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "Dense vector retrieval, because embeddings generalize across spellings",
+          "Keyword (BM25) full-text retrieval, because it can identify exact matches",
+          "Neither; error codes must be handled by a re-ranker",
+          "Whichever retriever returns the higher raw score"
+        ],
+        "answerIndex": 1,
+        "explanation": "Azure AI Search's hybrid guidance lists product codes, specialized jargon, dates, and people's names as cases that perform better with keyword search because it identifies exact matches; dense retrieval's strength is conceptual similarity without keyword overlap."
+      },
+      {
+        "id": "q-advanced-rag-and-hybrid-search-2",
+        "prompt": "Using RRF with k = 60, document X is ranked 1st in the lexical list and absent from the dense list; document Y is ranked 3rd in both lists. Which ranks higher after fusion?",
+        "choices": [
+          "X, because a first-place rank always wins",
+          "Y, because 1/63 + 1/63 is about 0.0317, roughly double X's 1/61 (about 0.0164)",
+          "They tie, because RRF ignores list membership",
+          "It cannot be determined without the raw scores"
+        ],
+        "answerIndex": 1,
+        "explanation": "RRF sums 1/(k + rank) over every list a document appears in. Appearing in both lists at rank 3 contributes twice; a single first place contributes once. RRF never uses raw scores."
+      },
+      {
+        "id": "q-advanced-rag-and-hybrid-search-3",
+        "prompt": "In Elastic's worked example, reducing rank_window_size from 5 to 2 makes a document that was ranked 3rd in both lists vanish from the fused results. Why?",
+        "choices": [
+          "The rank constant changed when the window changed",
+          "Each list is cut to the window before fusion, so documents below it are never seen by RRF",
+          "RRF drops any document with a tied score",
+          "The window only affects pagination, so this cannot happen"
+        ],
+        "answerIndex": 1,
+        "explanation": "rank_window_size sets how many results from each list enter fusion. With a window of 2 the document's 3rd-place ranks are outside both windows, so it contributes nothing and cannot appear in the fused list or be reached by a later stage."
+      },
+      {
+        "id": "q-advanced-rag-and-hybrid-search-4",
+        "prompt": "When does OpenSearch recommend its score-based normalization processor over its rank-based (RRF) score ranker processor?",
+        "choices": [
+          "Whenever more than two query clauses are combined",
+          "When the difference between documents' scores carries information the final ranking must reflect, or you need fine-grained control over normalization and combination",
+          "When you have not yet measured how your query clauses score documents",
+          "Only for pure vector queries"
+        ],
+        "answerIndex": 1,
+        "explanation": "The normalization processor preserves score margins after putting scores on a common scale; the RRF-based score ranker ignores scores and is the choice when you want a configuration that works without first measuring clause scoring."
+      },
+      {
+        "id": "q-advanced-rag-and-hybrid-search-5",
+        "prompt": "A cross-encoder re-ranker is applied to the top 50 hybrid results. A relevant document sits at position 80 in the fused list. What happens to it?",
+        "choices": [
+          "The re-ranker scores the whole corpus and promotes it",
+          "It stays out of the re-ranked results; a re-ranker only reorders the result set it is given",
+          "It is promoted because cross-encoders are query-aware",
+          "It is merged in through RRF during re-ranking"
+        ],
+        "answerIndex": 1,
+        "explanation": "Azure states its semantic ranker reranks the existing top 50 and cannot rerun the query over the corpus; Elastic likewise positions re-ranking on a small top-k set. Recall must be secured by retrieval and the fusion window."
+      },
+      {
+        "id": "q-advanced-rag-and-hybrid-search-6",
+        "prompt": "Why can a single minimum-score cut-off be applied to cross-encoder re-ranker scores but not to bi-encoder similarity scores?",
+        "choices": [
+          "Cross-encoder scores are consistent across queries; bi-encoder similarities are query-dependent",
+          "Bi-encoder scores are always negative",
+          "Cross-encoders do not produce scores, only orderings",
+          "Bi-encoders cannot be used after RRF"
         ],
         "answerIndex": 0,
-        "explanation": "Hybrid Search (BM25 + Dense) & Re-ranking enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "explanation": "Elastic notes that cross-encoder scores are consistent across queries, enabling one threshold for all queries, which matters when results feed an LLM; bi-encoder similarities vary by query, so no universal cut-off exists."
       }
     ]
   },
   "sources": [
     {
-      "title": "Hugging Face documentation",
-      "url": "https://huggingface.co/docs/",
-      "publisher": "Hugging Face",
-      "lastVerified": "2026-09-05"
+      "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+      "url": "https://arxiv.org/abs/2005.11401",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Reciprocal rank fusion",
+      "url": "https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion",
+      "publisher": "Elastic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Semantic reranking",
+      "url": "https://www.elastic.co/docs/solutions/search/ranking/semantic-reranking",
+      "publisher": "Elastic",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Hybrid search",
+      "url": "https://docs.opensearch.org/latest/vector-search/ai-search/hybrid-search/index/",
+      "publisher": "OpenSearch",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Optimizing hybrid search",
+      "url": "https://docs.opensearch.org/latest/search-plugins/search-relevance/optimize-hybrid-search/",
+      "publisher": "OpenSearch",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Hybrid search overview - Azure AI Search",
+      "url": "https://learn.microsoft.com/en-us/azure/search/hybrid-search-overview",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF)",
+      "url": "https://learn.microsoft.com/en-us/azure/search/hybrid-search-ranking",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Semantic ranking overview - Azure AI Search",
+      "url": "https://learn.microsoft.com/en-us/azure/search/semantic-search-overview",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 3000,
+    "cues": [
+      {
+        "id": "cue-hybrid-blind-spots-narration",
+        "kind": "narration",
+        "sectionId": "two-retrievers-two-blind-spots",
+        "text": "BM25 is precise on exact matches like codes, dates, and names; dense retrieval finds conceptual matches with no shared keywords. Their scores live on different scales, so adding them raw lets one retriever dominate."
+      },
+      {
+        "id": "cue-hybrid-blind-spots-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "two-retrievers-two-blind-spots",
+        "text": "Ask learners to name one query from their own work that a dense-only retriever would miss, and one that a keyword-only retriever would miss."
+      },
+      {
+        "id": "cue-hybrid-rrf-narration",
+        "kind": "narration",
+        "sectionId": "reciprocal-rank-fusion",
+        "text": "Reciprocal rank fusion sums one over k plus rank across lists and ignores scores. The rank constant shifts influence toward consensus; the per-list window decides which documents fusion can see at all."
+      },
+      {
+        "id": "cue-hybrid-rrf-visual",
+        "kind": "visual",
+        "sectionId": "reciprocal-rank-fusion",
+        "text": "Show two ranked lists side by side, compute each document's reciprocal-rank contributions at k equals 1 and k equals 60, then shrink the window from 5 to 2 and show document 3 dropping out of the fused list.",
+        "accessibilityAlternative": "A static table lists each document's rank in the lexical and dense lists, its RRF contribution from each list at k = 1 and k = 60, and its fused position for a window of 5 and a window of 2, with the row for document 3 marked as absent in the window-2 column. Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-hybrid-rrf-pause",
+        "kind": "pause",
+        "sectionId": "reciprocal-rank-fusion",
+        "text": "Allow three minutes for learners to compute the fused order for the worked example at k equals 60 before revealing it."
+      },
+      {
+        "id": "cue-hybrid-score-fusion-narration",
+        "kind": "narration",
+        "sectionId": "score-based-fusion",
+        "text": "Score-based fusion normalizes each clause to a common scale and keeps the margins between documents; rank-based fusion throws the margins away but needs no measurement to configure."
+      },
+      {
+        "id": "cue-hybrid-rerank-narration",
+        "kind": "narration",
+        "sectionId": "reranking-stage",
+        "text": "A cross-encoder re-ranker reads query and document together and scores more precisely, but only over the short list it is handed. It reorders; it cannot recover what retrieval missed."
+      },
+      {
+        "id": "cue-hybrid-rerank-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "reranking-stage",
+        "text": "Check that learners can state which stage decides recall and which stage decides order, and explain why a relevant document at position 80 is lost to a top-50 re-ranker."
+      },
+      {
+        "id": "cue-hybrid-judgments-narration",
+        "kind": "narration",
+        "sectionId": "tune-against-judgments",
+        "text": "There is no universally best fusion setting. Tune rank constants, normalization, weights, and window size against a judgment list that deliberately includes both exact-match and paraphrase queries."
+      },
+      {
+        "id": "cue-hybrid-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the fusion-and-re-rank lab: two retrievers, RRF at two rank constants and two windows, min-max weighted fusion, a judgment list, and a justified re-rank depth."
+      },
+      {
+        "id": "cue-hybrid-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can compute an RRF score by hand and explain what the fusion window does to recall."
+      }
+    ],
+    "transcript": "BM25 is precise on exact matches like codes, dates, and names; dense retrieval finds conceptual matches with no shared keywords. Their scores live on different scales, so adding them raw lets one retriever dominate. Reciprocal rank fusion sums one over k plus rank across lists and ignores scores. The rank constant shifts influence toward consensus; the per-list window decides which documents fusion can see at all. Score-based fusion normalizes each clause to a common scale and keeps the margins between documents; rank-based fusion throws the margins away but needs no measurement to configure. A cross-encoder re-ranker reads query and document together and scores more precisely, but only over the short list it is handed. It reorders; it cannot recover what retrieval missed. There is no universally best fusion setting. Tune rank constants, normalization, weights, and window size against a judgment list that deliberately includes both exact-match and paraphrase queries.",
+    "captions": [
+      {
+        "cueId": "cue-hybrid-blind-spots-narration",
+        "startSeconds": 0,
+        "endSeconds": 510,
+        "text": "BM25 is precise on exact matches like codes, dates, and names; dense retrieval finds conceptual matches with no shared keywords. Their scores live on different scales, so adding them raw lets one retriever dominate."
+      },
+      {
+        "cueId": "cue-hybrid-rrf-narration",
+        "startSeconds": 540,
+        "endSeconds": 1050,
+        "text": "Reciprocal rank fusion sums one over k plus rank across lists and ignores scores. The rank constant shifts influence toward consensus; the per-list window decides which documents fusion can see at all."
+      },
+      {
+        "cueId": "cue-hybrid-score-fusion-narration",
+        "startSeconds": 1080,
+        "endSeconds": 1590,
+        "text": "Score-based fusion normalizes each clause to a common scale and keeps the margins between documents; rank-based fusion throws the margins away but needs no measurement to configure."
+      },
+      {
+        "cueId": "cue-hybrid-rerank-narration",
+        "startSeconds": 1620,
+        "endSeconds": 2130,
+        "text": "A cross-encoder re-ranker reads query and document together and scores more precisely, but only over the short list it is handed. It reorders; it cannot recover what retrieval missed."
+      },
+      {
+        "cueId": "cue-hybrid-judgments-narration",
+        "startSeconds": 2160,
+        "endSeconds": 2670,
+        "text": "There is no universally best fusion setting. Tune rank constants, normalization, weights, and window size against a judgment list that deliberately includes both exact-match and paraphrase queries."
+      },
+      {
+        "cueId": "cue-hybrid-assessment",
+        "startSeconds": 2700,
+        "endSeconds": 3000,
+        "text": "Begin the check once learners can compute an RRF score by hand and explain what the fusion window does to recall."
+      }
+    ],
+    "reducedMotionAlternative": "Present the ranked lists, RRF contributions, and window comparisons as static tables with focus-based highlighting instead of animated sequences."
+  }
 }
