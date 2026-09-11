@@ -1,74 +1,308 @@
 {
   "id": "agent-architecture-spectrum",
   "title": "The Agent Spectrum: ReAct to Autonomous Loops",
-  "summary": "Single-call tools vs ReAct planning loops, reflection, and state persistence.",
+  "summary": "Trace what each step up the agent spectrum adds and what it costs -- interleaved reasoning and acting, plan-then-execute, reflection across attempts, and loops that must persist across context windows -- using the research and runtime behavior that define each one.",
   "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 40,
+  "estimatedMinutes": 45,
   "objectives": [
-    "Master the architectural principles and core mechanisms of The Agent Spectrum: ReAct to Autonomous Loops.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Explain what ReAct changes about an agent's action space and name the failure modes the ReAct paper reports for interleaved reasoning and acting.",
+    "Contrast an observation-dependent loop with a plan-then-execute (ReWOO) design on token growth, behavior under tool failure, and the environments where upfront planning breaks down.",
+    "Describe how Reflexion turns a pass/fail signal into bounded episodic memory, and identify the trigger and trial limits that keep it from retrying without end.",
+    "Specify the termination rule, persistence artifacts, and start-of-session check a loop needs once it must survive a turn limit or a fresh context window."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "react-thoughts-as-actions",
+      "title": "ReAct: a thought is an action that touches nothing",
       "paragraphs": [
-        "Single-call tools vs ReAct planning loops, reflection, and state persistence.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for The Agent Spectrum: ReAct to Autonomous Loops.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "ReAct (Yao et al.) is the first rung above a single model call, and its central move is small: it adds language itself to the agent's action space. A thought is an action that does not affect the external environment and returns no observation; it only updates the context the next step conditions on. Interleaving thoughts with real actions -- search, lookup, and finish in the paper's simple Wikipedia API -- lets the model reason about what to retrieve next and use what it retrieves to revise its reasoning.",
+        "The paper uses thoughts at two densities. On knowledge tasks (HotpotQA question answering and FEVER fact verification) the trajectory alternates thought, action, and observation at every step. On long-horizon decision tasks (the ALFWorld text game and the WebShop shopping environment) the model decides for itself where sparse thoughts appear -- to decompose the goal, track which subgoals are done, and choose the next one. On those two decision benchmarks, one- or two-shot ReAct prompting outperformed imitation and reinforcement learning baselines by an absolute 34 and 10 points of success rate.",
+        "Grounding is not free, and the paper says so. In its human-labelled sample of HotpotQA trajectories, hallucination accounted for 56% of chain-of-thought failures and none of ReAct's, but reasoning errors made up 47% of ReAct's failures -- including a recurring pattern where the model repeats its previous thoughts and actions and cannot break out of the loop -- and non-informative search results caused 23% of its errors. ReAct scored slightly below chain-of-thought on HotpotQA (27.4 versus 29.4 exact match) while beating it on FEVER. The best prompting results combined the two: fall back from ReAct to self-consistent chain-of-thought when ReAct fails to answer within a fixed number of steps (7 for HotpotQA, 5 for FEVER)."
+      ],
+      "callout": "In ReAct's own evaluation, the step limit was not only a stop. It was the trigger for switching to a different strategy."
+    },
+    {
+      "id": "rewoo-plan-then-execute",
+      "title": "ReWOO: plan first, observe later",
+      "paragraphs": [
+        "An interleaved loop pays for its flexibility on every step. ReWOO's authors point out that a stateless model API has to be sent the whole history -- context prompt, exemplars, and every prior thought, action, and observation -- each time the loop resumes after a tool call, so input tokens grow roughly quadratically with the number of reasoning steps. ReWOO splits the loop into three modules: a Planner that writes a full blueprint of interdependent steps before any tool runs, Workers that execute the tool calls and fill in evidence placeholders, and a Solver that combines the plans and the evidence into an answer.",
+        "The paper reports 5x token efficiency and a 4-point accuracy gain on HotpotQA, and it is specific about why the observation-dependent baseline lost. In 100 sampled HotpotQA failures, a bad tool response often pushed ReAct into repetition -- tool A fails, it tries tool B, B fails, it returns to A -- until the token limit ended the run. When every tool was forced to return 'No evidence found', ReWOO degraded less than ReAct did.",
+        "The limit is just as concrete. When the environment reveals little before it is observed -- the paper's example is an ALFWorld room with dozens of drawers, shelves, and cabinets and a vase somewhere among them -- a planner that cannot look first must enumerate every possibility, and its plan becomes as long as the worst case of the observation-dependent loop it replaced. Plans can also be reasonable and still wrong: the authors show a plan that assumes a search result will contain a person's age when it does not."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Where each design spends tokens, and where each one breaks",
+        "code": "Interleaved (ReAct-style)\n  every model call resends: context + exemplars + question\n                            + all prior (thought, action, observation)\n  input tokens grow roughly quadratically with step count k\n  typical break: failing tool -> retry oscillation until a limit\n\nPlan-then-execute (ReWOO-style)\n  planner call:  context + exemplars + question -> plan with slots #E1..#Ek\n  workers:       run the tools, fill the #E slots\n  solver call:   question + plans + evidence -> answer\n  typical break: environment unknown until observed -> plan must cover every case"
+      }
+    },
+    {
+      "id": "reflexion-bounded-memory",
+      "title": "Reflexion: learning across attempts without new weights",
+      "paragraphs": [
+        "Reflexion (Shinn et al.) moves up a rung by wrapping a second loop around the first. An Actor -- the paper uses ReAct or chain-of-thought -- produces a trajectory. An Evaluator scores it, using exact-match grading, a hand-written heuristic, self-generated unit tests, or another model as judge. A Self-Reflection model turns that sparse score into a short verbal lesson, which is stored in episodic memory and given to the Actor on the next trial. Nothing is fine-tuned; the policy is the model plus its memory.",
+        "The bounds are part of the design, not an afterthought. Memory is capped at a small number of stored reflections (usually one to three) to stay inside the context window, and trials run up to a maximum count. In ALFWorld the paper triggers reflection with a plain heuristic: the same action producing the same observation for more than three cycles, or more than 30 actions in one environment. With that heuristic, ReAct plus Reflexion completed 130 of 134 ALFWorld tasks, while ReAct alone stopped improving between trials 6 and 7.",
+        "Reflexion is only as good as its evaluator and its search space. The authors note that it depends on the model's self-evaluation or on heuristics and carries no formal guarantee of success, and on WebShop they stopped after four trials because the agent's reflections were not producing improvement. Tasks that need diverse, creative exploration expose the local-minimum problem shared by any loop that optimizes a policy from its own experience."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "loops-that-outlive-context",
+      "title": "Autonomous loops: termination and persistence become the design",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "At the far end of the spectrum the loop runs long enough that its runtime rules matter more than its prompt. The OpenAI Agents SDK documents its loop plainly: call the current agent's model; if the output is final -- text of the desired type with no tool calls -- return it; on a handoff, switch agents and continue; on tool calls, execute them, append the results, and call the model again; and throw MaxTurnsExceededError when the turn limit is reached, unless the limit has been explicitly disabled. Every autonomous loop needs the same three answers: what counts as done, what counts as too long, and what happens in each case.",
+        "Anthropic's write-up on harnesses for long-running agents describes what breaks when work spans many context windows, even with context compaction: the agent tries to finish everything at once and runs out of context mid-feature; a later session sees partial progress and declares the job done; features get marked complete without end-to-end testing. The fix was environmental rather than a cleverer prompt. A first session writes an init script, a progress log, an initial git commit, and a JSON feature list with every feature marked failing. Every later session reads the log and the git history, runs a basic end-to-end check before starting, works on one feature at a time, and leaves a commit and a progress note behind. Coding sessions may change only a feature's pass status, and the authors chose JSON because the model was less likely to overwrite it inappropriately than a Markdown file.",
+        "The general lesson is that persistence belongs in artifacts the next session can verify, not in whatever survived summarization. A feature list whose only mutable field is pass or fail, a progress file, and version-control history give a fresh context window a ground truth to check itself against -- the same role the environment's observations play for a single ReAct step."
+      ]
+    },
+    {
+      "id": "choosing-a-rung",
+      "title": "Pick the lowest rung whose failure the task can afford",
+      "paragraphs": [
+        "Each rung buys something specific and charges for it. Interleaving buys grounding and traces a person can inspect, but it resends context on every step and can loop on bad observations. Plan-then-execute buys token efficiency and resilience to failing tools, but it needs an environment the planner can reason about before looking. Reflection buys improvement across attempts, but it needs an evaluator you trust and a task that can be reset and retried. Long-running persistence buys continuity across context windows, but it needs durable artifacts and a verification step that every session honors.",
+        "So the design question is not how autonomous the agent should be but which failure the task can afford. A task with a cheap, reliable checker and safe retries suits a reflection loop. A task whose steps are foreseeable and whose tools are unreliable suits a planner-worker-solver split. A task in an unfamiliar environment needs an observation at every step and a hard limit on how many steps it may take."
       ]
     }
   ],
   "activity": {
     "id": "agent-architecture-spectrum-activity",
-    "title": "The Agent Spectrum: ReAct to Autonomous Loops Hands-On Lab",
+    "title": "Place one task on the spectrum, then break it",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Choose a real multi-step task that uses at least two tools -- for example, answering a question from two internal systems, or fixing a failing test.",
+      "Sketch it three ways: an interleaved thought-action-observation loop, a plan-then-execute split with evidence slots, and the interleaved loop wrapped in a reflection loop. For each, write the termination rule, the step or trial limit, and what happens when the limit is reached.",
+      "Describe how the input sent to the model grows per step in the interleaved design compared with the planner-worker-solver design, and name one condition in your task under which the planner could not write a useful plan without observing first.",
+      "Simulate one tool that always returns an empty result. Trace each design for five steps and mark where it repeats, recovers, or stops.",
+      "If the task could span more than one context window, list the artifacts a fresh session would read first and the check it must run before starting new work."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "Three annotated designs, each with an explicit termination rule, limit, and at-limit behavior.",
+      "A five-step trace per design under the empty-tool fault, with each step marked as repetition, recovery, or stop.",
+      "A list of persistence artifacts and the start-of-session check, or a one-sentence justification for why the task cannot outlive a single context window."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which rung did your task actually need, and which failure reported in the source papers would have hit first if you had chosen the rung above it?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-agent-architecture-spectrum-1",
-        "prompt": "What is the primary architectural goal of The Agent Spectrum: ReAct to Autonomous Loops?",
+        "prompt": "In ReAct, what distinguishes a thought from an action such as search[entity]?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "A thought is executed by a separate, smaller model",
+          "A thought does not affect the environment and returns no observation; it only updates the context for later steps",
+          "A thought must always be followed by a finish action",
+          "A thought is removed from the trajectory before the next step"
+        ],
+        "answerIndex": 1,
+        "explanation": "ReAct augments the action space with language. A thought composes information over the current context and produces no observation feedback, while actions such as search and lookup interact with the Wikipedia API."
+      },
+      {
+        "id": "q-agent-architecture-spectrum-2",
+        "prompt": "In the ReAct paper's human-labelled HotpotQA sample, which failure pattern did the authors identify as specific to ReAct?",
+        "choices": [
+          "Hallucinated facts as the dominant failure mode",
+          "Refusing to answer when search results were empty",
+          "Repeating its previous thoughts and actions and failing to break out of the loop",
+          "Exceeding the context window on every question"
+        ],
+        "answerIndex": 2,
+        "explanation": "The paper reports a frequent ReAct-specific error in which the model repetitively generates previous thoughts and actions. Hallucination was the dominant chain-of-thought failure (56%) and accounted for none of ReAct's failures."
+      },
+      {
+        "id": "q-agent-architecture-spectrum-3",
+        "prompt": "Why do ReWOO's authors argue that interleaved reasoning-and-observation loops become expensive as tasks lengthen?",
+        "choices": [
+          "A stateless API must be resent the full history each time the loop resumes, so input tokens grow roughly quadratically with the number of steps",
+          "Tool providers charge more for each successive call",
+          "Thoughts are always longer than actions",
+          "Interleaved loops require fine-tuning before they can run"
         ],
         "answerIndex": 0,
-        "explanation": "The Agent Spectrum: ReAct to Autonomous Loops enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "explanation": "Each resumed call carries the context prompt, exemplars, and every prior thought, action, and observation. ReWOO avoids this by planning once and running the tools without feeding observations back into the planner."
+      },
+      {
+        "id": "q-agent-architecture-spectrum-4",
+        "prompt": "When does a plan-then-execute design like ReWOO lose its advantage over an observation-dependent loop?",
+        "choices": [
+          "Whenever any tool returns an error",
+          "When the task has a single fixed answer",
+          "When the Solver receives evidence from more than one Worker",
+          "When the environment reveals little before it is observed, so the plan must enumerate every possibility"
+        ],
+        "answerIndex": 3,
+        "explanation": "The paper's ALFWorld example shows that a planner with no knowledge of the environment must plan for the worst case, which matches the complexity of the observation-dependent loop it replaced."
+      },
+      {
+        "id": "q-agent-architecture-spectrum-5",
+        "prompt": "What keeps a Reflexion agent from growing its memory or retrying without end?",
+        "choices": [
+          "It fine-tunes the model after each failed trial",
+          "Memory is capped at a small number of reflections, trials run up to a maximum count, and reflection is triggered by explicit conditions such as repeated identical action-observation cycles",
+          "The Evaluator is required to pass every trajectory after three trials",
+          "It discards all prior trajectories and reflections at each reset"
+        ],
+        "answerIndex": 1,
+        "explanation": "The paper bounds memory to usually one to three stored reflections, loops until the Evaluator passes or a maximum trial count is reached, and in ALFWorld reflects when the same action and observation repeat for more than three cycles or when more than 30 actions are taken."
+      },
+      {
+        "id": "q-agent-architecture-spectrum-6",
+        "prompt": "A long-running coding agent keeps declaring the project finished after partial progress. Which change from Anthropic's long-running harness write-up targets that failure?",
+        "choices": [
+          "Raise the turn limit so the agent has more time",
+          "Rely on compaction summaries to carry the project status forward",
+          "Run every session in parallel so one of them finishes",
+          "Have the first session write a feature list with every feature marked failing, and let later sessions change only a feature's pass status after end-to-end testing"
+        ],
+        "answerIndex": 3,
+        "explanation": "The write-up pairs a JSON feature list, initially all failing, with instructions that sessions only flip the pass field after careful testing -- giving each new context window a verifiable record of what is actually done. It notes compaction alone was not sufficient."
       }
     ]
   },
   "sources": [
     {
-      "title": "OpenAI Agents SDK documentation",
-      "url": "https://openai.github.io/openai-agents-js/",
+      "title": "ReAct: Synergizing Reasoning and Acting in Language Models",
+      "url": "https://arxiv.org/abs/2210.03629",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "ReWOO: Decoupling Reasoning from Observations for Efficient Augmented Language Models",
+      "url": "https://arxiv.org/abs/2305.18323",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Reflexion: Language Agents with Verbal Reinforcement Learning",
+      "url": "https://arxiv.org/abs/2303.11366",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Running Agents",
+      "url": "https://openai.github.io/openai-agents-js/guides/running-agents/",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-05"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Effective harnesses for long-running agents",
+      "url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 2700,
+    "cues": [
+      {
+        "id": "cue-spectrum-react-narration",
+        "kind": "narration",
+        "sectionId": "react-thoughts-as-actions",
+        "text": "ReAct adds language to the action space: a thought changes nothing in the world, but it steers what the agent retrieves next and how it reads what came back."
+      },
+      {
+        "id": "cue-spectrum-react-visual",
+        "kind": "visual",
+        "sectionId": "react-thoughts-as-actions",
+        "text": "Show one multi-hop question solved three ways -- reason only, act only, and interleaved -- with every thought, action, and observation labelled and the step where each approach goes wrong marked.",
+        "accessibilityAlternative": "A three-column table lists the same question's steps for the reason-only, act-only, and interleaved trajectories. Each row is labelled thought, action, or observation, and the step where each trajectory goes wrong is marked in text. Reduced-motion mode shows the full table at once."
+      },
+      {
+        "id": "cue-spectrum-rewoo-narration",
+        "kind": "narration",
+        "sectionId": "rewoo-plan-then-execute",
+        "text": "An interleaved loop resends its whole history on every step; ReWOO plans once, lets workers fill in the evidence, and pays for that only when the world cannot be reasoned about in advance."
+      },
+      {
+        "id": "cue-spectrum-rewoo-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "rewoo-plan-then-execute",
+        "text": "Ask learners to name a tool in their own stack that fails often enough to push an interleaved loop into retry oscillation."
+      },
+      {
+        "id": "cue-spectrum-reflexion-narration",
+        "kind": "narration",
+        "sectionId": "reflexion-bounded-memory",
+        "text": "Reflexion wraps the loop in a second loop: an evaluator scores the attempt, a reflection turns the score into a lesson, and a small, capped memory carries it into the next trial."
+      },
+      {
+        "id": "cue-spectrum-reflexion-pause",
+        "kind": "pause",
+        "sectionId": "reflexion-bounded-memory",
+        "text": "Allow two minutes for learners to write down the evaluator they would trust for their own task, and what happens to a reflection loop if that evaluator is wrong."
+      },
+      {
+        "id": "cue-spectrum-persistence-narration",
+        "kind": "narration",
+        "sectionId": "loops-that-outlive-context",
+        "text": "Once a loop outlives its context window, what counts as done and what the next session can verify matter more than the prompt."
+      },
+      {
+        "id": "cue-spectrum-persistence-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "loops-that-outlive-context",
+        "text": "Check that learners can state the termination rule, the limit, and the at-limit behavior for one loop as three separate decisions."
+      },
+      {
+        "id": "cue-spectrum-choose-narration",
+        "kind": "narration",
+        "sectionId": "choosing-a-rung",
+        "text": "Pick the lowest rung whose failure mode the task can afford, not the most autonomous design available."
+      },
+      {
+        "id": "cue-spectrum-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the three-design sketch, the empty-tool fault trace, and the persistence artifact list."
+      },
+      {
+        "id": "cue-spectrum-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can explain what each rung adds and name the specific failure its source paper reports."
+      }
+    ],
+    "transcript": "ReAct adds language to the action space: a thought changes nothing in the world, but it steers what the agent retrieves next and how it reads what came back. An interleaved loop resends its whole history on every step; ReWOO plans once, lets workers fill in the evidence, and pays for that only when the world cannot be reasoned about in advance. Reflexion wraps the loop in a second loop: an evaluator scores the attempt, a reflection turns the score into a lesson, and a small, capped memory carries it into the next trial. Once a loop outlives its context window, what counts as done and what the next session can verify matter more than the prompt. Pick the lowest rung whose failure mode the task can afford, not the most autonomous design available.",
+    "captions": [
+      {
+        "cueId": "cue-spectrum-react-narration",
+        "startSeconds": 0,
+        "endSeconds": 450,
+        "text": "ReAct adds language to the action space: a thought changes nothing in the world, but it steers what the agent retrieves next and how it reads what came back."
+      },
+      {
+        "cueId": "cue-spectrum-rewoo-narration",
+        "startSeconds": 480,
+        "endSeconds": 930,
+        "text": "An interleaved loop resends its whole history on every step; ReWOO plans once, lets workers fill in the evidence, and pays for that only when the world cannot be reasoned about in advance."
+      },
+      {
+        "cueId": "cue-spectrum-reflexion-narration",
+        "startSeconds": 960,
+        "endSeconds": 1410,
+        "text": "Reflexion wraps the loop in a second loop: an evaluator scores the attempt, a reflection turns the score into a lesson, and a small, capped memory carries it into the next trial."
+      },
+      {
+        "cueId": "cue-spectrum-persistence-narration",
+        "startSeconds": 1440,
+        "endSeconds": 1890,
+        "text": "Once a loop outlives its context window, what counts as done and what the next session can verify matter more than the prompt."
+      },
+      {
+        "cueId": "cue-spectrum-choose-narration",
+        "startSeconds": 1920,
+        "endSeconds": 2370,
+        "text": "Pick the lowest rung whose failure mode the task can afford, not the most autonomous design available."
+      },
+      {
+        "cueId": "cue-spectrum-assessment",
+        "startSeconds": 2400,
+        "endSeconds": 2700,
+        "text": "Begin the check once learners can explain what each rung adds and name the specific failure its source paper reports."
+      }
+    ],
+    "reducedMotionAlternative": "Present the three trajectory styles, the token-growth comparison, and the rung trade-offs as static tables with focus-based highlighting instead of animated sequences."
+  }
 }
