@@ -29,8 +29,8 @@
       "callout": "OpenAI is a provider; ChatGPT, the API platform, and Codex are distinct operating surfaces.",
       "code": {
         "language": "typescript",
-        "label": "One provider has several operating surfaces (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Surface profiles that share nothing by default",
+        "code": "// One provider, separate operating surfaces. None of these fields carries over automatically.\ntype Surface = \"chatgpt\" | \"chatgpt-project\" | \"api\" | \"codex\";\n\ninterface SurfaceProfile {\n  surface: Surface;\n  actor: string;\n  credential: string; // a reference, never a secret value\n  dataControls: string; // where the governing policy is configured\n  toolsAndPermissions: string[];\n  operatingOwner: string;\n}\n\nconst surfaces: SurfaceProfile[] = [\n  {\n    surface: \"chatgpt\",\n    actor: \"named staff member\",\n    credential: \"workspace SSO\",\n    dataControls: \"ChatGPT workspace admin settings\",\n    toolsAndPermissions: [\"admin-approved connectors\"],\n    operatingOwner: \"workspace admin\",\n  },\n  {\n    surface: \"api\",\n    actor: \"course-feedback-service\",\n    credential: \"env:OPENAI_API_KEY (project-scoped)\",\n    dataControls: \"API project data controls and request settings\",\n    toolsAndPermissions: [\"get_enrollment (read only)\"],\n    operatingOwner: \"platform team\",\n  },\n  {\n    surface: \"codex\",\n    actor: \"developer in a repository\",\n    credential: \"Codex sign-in\",\n    dataControls: \"sandbox mode and approval policy\",\n    toolsAndPermissions: [\"workspace-write\", \"network off\"],\n    operatingOwner: \"repository maintainers\",\n  },\n];"
       }
     },
     {
@@ -42,8 +42,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Match the surface to the outcome (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Choose a surface from the outcome and record the handoff",
+        "code": "interface OutcomeNeeds {\n  changesRepository: boolean; // code edits, commands, tests, source-control evidence\n  enforcedContract: boolean; // validated input and output, tools, identity, reliability\n  organizedContext: boolean; // related files and instructions reused across follow-up work\n}\n\ntype Surface = \"codex\" | \"api\" | \"chatgpt-project\" | \"chatgpt\";\n\nfunction chooseSurface(needs: OutcomeNeeds): Surface {\n  if (needs.changesRepository) return \"codex\";\n  if (needs.enforcedContract) return \"api\";\n  if (needs.organizedContext) return \"chatgpt-project\";\n  return \"chatgpt\"; // supervised exploration, explanation, drafting, analysis\n}\n\n// A workflow that crosses surfaces needs an explicit handoff and a control review.\ninterface Handoff {\n  from: Surface;\n  to: Surface;\n  artifact: string;\n  reviewBeforeHandoff: string[];\n}\n\nconst rubricToGrader: Handoff = {\n  from: chooseSurface({ changesRepository: false, enforcedContract: false, organizedContext: true }),\n  to: chooseSurface({ changesRepository: false, enforcedContract: true, organizedContext: false }),\n  artifact: \"rubric drafted in a ChatGPT project, versioned into the grading service\",\n  reviewBeforeHandoff: [\"credential boundary\", \"data classification\", \"tool scope\", \"human approval\"],\n};"
       }
     },
     {
@@ -68,8 +68,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Separate stable principles from volatile facts (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Volatile model facts as dated configuration",
+        "code": "import OpenAI from \"openai\";\n\n// Stable principles live in code: authenticate, validate, observe.\nconst client = new OpenAI(); // reads OPENAI_API_KEY from the environment\n\n// Volatile facts live in dated, linked configuration, never in routing rules.\nconst volatile = {\n  model: process.env.OPENAI_MODEL, // verify current ids: https://developers.openai.com/api/docs/models\n  verifiedOn: process.env.OPENAI_MODEL_VERIFIED_ON, // ISO date the id was checked\n  lifecycleSource: \"https://developers.openai.com/api/docs/deprecations\",\n};\nif (!volatile.model || !volatile.verifiedOn) {\n  throw new Error(\"Set OPENAI_MODEL and OPENAI_MODEL_VERIFIED_ON from current official docs\");\n}\n\nconst ageDays = (Date.now() - Date.parse(volatile.verifiedOn)) / 86_400_000;\nif (ageDays > 30) {\n  console.warn(`Model evidence is ${Math.floor(ageDays)} days old; revalidate before release`);\n}\n\nconst response = await client.responses.create({ model: volatile.model, input: \"Reply with OK.\" });\nif (response.status !== \"completed\") throw new Error(`Smoke check failed: ${response.status}`);"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Build a reviewable surface map (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Reviewable journey-to-surface map entry",
+        "code": "interface JourneyMapEntry {\n  journey: string;\n  surface: \"chatgpt\" | \"chatgpt-project\" | \"api\" | \"codex\";\n  inputSources: string[];\n  outputConsumer: string;\n  tools: string[];\n  approvals: string[];\n  exclusions: string[]; // what the workflow intentionally cannot do\n  operatingOwner: string;\n  reviewers: string[];\n  evidence: { url: string; verifiedOn: string }[];\n  revalidateBy: string;\n}\n\nconst feedbackDrafting: JourneyMapEntry = {\n  journey: \"Instructor drafts feedback on a lab submission\",\n  surface: \"api\",\n  inputSources: [\"submission text (untrusted)\", \"published rubric (trusted)\"],\n  outputConsumer: \"instructor review queue\",\n  tools: [\"get_rubric (read only)\"],\n  approvals: [\"instructor approves before the learner sees feedback\"],\n  exclusions: [\"cannot change grades\", \"cannot message learners directly\"],\n  operatingOwner: \"curriculum platform team\",\n  reviewers: [\"product\", \"security\", \"data\", \"accessibility\", \"operations\"],\n  evidence: [{ url: \"https://developers.openai.com/api/docs/quickstart\", verifiedOn: \"2026-09-11\" }],\n  revalidateBy: \"2026-10-11\",\n};"
       }
     }
   ],
@@ -293,6 +293,12 @@
     {
       "title": "Codex documentation",
       "url": "https://learn.chatgpt.com/docs/",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Models",
+      "url": "https://developers.openai.com/api/docs/models",
       "publisher": "OpenAI",
       "lastVerified": "2026-09-11"
     }

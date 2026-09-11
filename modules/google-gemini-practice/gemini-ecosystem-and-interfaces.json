@@ -29,8 +29,8 @@
       "callout": "Saying “Gemini supports it” is incomplete until the product, interface, model, account, and date are named.",
       "code": {
         "language": "typescript",
-        "label": "Separate products, interfaces, and models (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Capability claim that names every layer",
+        "code": "// \"Gemini supports it\" is incomplete until every layer below is named.\ninterface CapabilityClaim {\n  capability: string;\n  product: \"Gemini app\" | \"Google AI Studio\" | \"Gemini API\" | \"Google Cloud\";\n  interface: \"consumer chat\" | \"prompt workspace\" | \"@google/genai SDK\" | \"REST\";\n  api?: \"interactions\" | \"generateContent\";\n  modelId: string; // exact API identifier, not a product or marketing name\n  accountContext: string;\n  configuration: Record<string, string>;\n  observedOn: string;\n  evidenceUrl: string;\n}\n\nconst modelId = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!modelId) throw new Error(\"GEMINI_MODEL is not configured\");\n\nconst claim: CapabilityClaim = {\n  capability: \"function calling with structured arguments\",\n  product: \"Gemini API\",\n  interface: \"@google/genai SDK\",\n  api: \"interactions\",\n  modelId,\n  accountContext: \"paid-tier project owned by the platform team\",\n  configuration: { store: \"false\" },\n  observedOn: \"2026-09-11\",\n  evidenceUrl: \"https://ai.google.dev/gemini-api/docs/function-calling\",\n};\n// A feature seen in the Gemini app is a claim about that product only, until the API docs say otherwise."
       }
     },
     {
@@ -42,8 +42,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Choose the surface by outcome (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Choose a Gemini surface from outcome requirements",
+        "code": "interface OutcomeRequirements {\n  repeatable: boolean; // same inputs, versioned prompt, reviewed settings\n  appOwnedValidation: boolean; // schema checks, tool authorization, audit evidence\n  exploring: boolean; // comparing prompts, settings, and capabilities\n  endUserInteractive: boolean; // a person works directly with the assistant\n  dataClass: \"public\" | \"internal\" | \"restricted\";\n}\n\ntype Surface = \"Gemini API\" | \"Google AI Studio\" | \"Gemini app\" | \"needs review\";\n\nfunction chooseSurface(r: OutcomeRequirements): Surface {\n  if (r.dataClass === \"restricted\") return \"needs review\"; // data rules come before feature fit\n  if (r.repeatable || r.appOwnedValidation) return \"Gemini API\";\n  if (r.exploring) return \"Google AI Studio\";\n  if (r.endUserInteractive) return \"Gemini app\";\n  return \"needs review\";\n}\n\n// Record why, so the choice can be challenged later.\nconst decision = {\n  outcome: \"Tag uploaded lab photos with the equipment shown\",\n  surface: chooseSurface({ repeatable: true, appOwnedValidation: true, exploring: false, endUserInteractive: false, dataClass: \"internal\" }),\n  rationale: [\"must run on every upload\", \"tags are validated against the equipment catalog\"],\n  alsoConsidered: { \"Google AI Studio\": \"used to compare prompts before the build, not in production\" },\n};"
       }
     },
     {
@@ -55,8 +55,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Treat AI Studio as a prototype boundary (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Promote an AI Studio prototype into reviewed configuration",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\n\n// Promoting an AI Studio prototype: the exported snippet is a starting point, not production code.\n// - the key moves out of the snippet into the environment or a managed secret store\n// - instructions, model, and settings move into reviewed, versioned configuration\n// - tools enabled in the playground are re-reviewed before they are exposed\n// - evaluation cases replace \"it looked right in the playground\"\nconst promoted = {\n  systemInstruction: await loadVersionedPrompt(\"lab-feedback@2\"),\n  model: process.env.GEMINI_MODEL, // verify current ids: https://ai.google.dev/gemini-api/docs/models\n  generationConfig: { thinking_level: \"low\" }, // model-specific; re-check when the model changes\n  evalSet: \"evals/lab-feedback-v2.jsonl\",\n};\nif (!process.env.GEMINI_API_KEY || !promoted.model) throw new Error(\"Gemini configuration is incomplete\");\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\nconst interaction = await ai.interactions.create({\n  model: promoted.model,\n  system_instruction: promoted.systemInstruction,\n  generation_config: promoted.generationConfig,\n  input: submissionText,\n  store: false, // retention is decided deliberately, not inherited from the prototype\n});\nif (interaction.status !== \"completed\") throw new Error(`Interaction ended as ${interaction.status}`);"
       }
     },
     {
@@ -68,8 +68,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Treat model choice as configuration (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Model id, stage, and rollback as configuration",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\n\n// Model choice is reviewed configuration with lifecycle evidence, not a literal in code.\n// Current ids and version labels: https://ai.google.dev/gemini-api/docs/models\nconst modelConfig = {\n  id: process.env.GEMINI_MODEL,\n  stage: process.env.GEMINI_MODEL_STAGE, // \"stable\" or \"preview\"\n  verifiedOn: process.env.GEMINI_MODEL_VERIFIED_ON,\n  rollbackId: process.env.GEMINI_ROLLBACK_MODEL,\n};\nif (!modelConfig.id || !modelConfig.stage || !modelConfig.verifiedOn) {\n  throw new Error(\"GEMINI_MODEL, GEMINI_MODEL_STAGE, and GEMINI_MODEL_VERIFIED_ON are required\");\n}\n// \"-latest\" aliases are hot-swapped with each new release; production pins a specific id.\nif (modelConfig.id.endsWith(\"-latest\")) throw new Error(\"Pin a specific model id for production\");\n// Preview models can be deprecated with as little as two weeks' notice.\nif (modelConfig.stage === \"preview\" && !modelConfig.rollbackId) {\n  throw new Error(\"A preview model needs GEMINI_ROLLBACK_MODEL and a named owner\");\n}\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\nconst interaction = await ai.interactions.create({ model: modelConfig.id, input: \"Reply with OK.\", store: false });\nif (interaction.status !== \"completed\") throw new Error(`Smoke check failed: ${interaction.status}`);"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Start with a reproducible record (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Reproducible, secret-free experiment record",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\n\n// A shareable experiment record: enough to reproduce the run, nothing secret.\ninterface ExperimentRecord {\n  outcome: string;\n  surface: \"Gemini app\" | \"Google AI Studio\" | \"Gemini API\";\n  accountType: \"free\" | \"paid\";\n  modelRef: string;\n  promptVersion: string;\n  inputsRef: string; // fixture path, never raw sensitive content\n  settings: Record<string, string>;\n  tools: string[];\n  date: string;\n  output: string;\n  validation: \"pass\" | \"fail\";\n  latencyMs: number;\n  totalTokens?: number;\n  sources: string[];\n}\n\nconst model = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!model) throw new Error(\"GEMINI_MODEL is not configured\");\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst startedAt = Date.now();\nconst interaction = await ai.interactions.create({ model, input: await readFixture(\"lab-report-anonymized-03.md\"), store: false });\n\nconst record: ExperimentRecord = {\n  outcome: \"Summarize a lab report into three rubric-aligned strengths\",\n  surface: \"Gemini API\",\n  accountType: \"paid\",\n  modelRef: model,\n  promptVersion: \"lab-summary@1\",\n  inputsRef: \"fixtures/lab-report-anonymized-03.md\",\n  settings: { store: \"false\" },\n  tools: [],\n  date: new Date().toISOString().slice(0, 10),\n  output: interaction.output_text ?? \"\",\n  validation: meetsRubric(interaction.output_text) ? \"pass\" : \"fail\",\n  latencyMs: Date.now() - startedAt,\n  totalTokens: interaction.usage?.total_tokens,\n  sources: [\"https://ai.google.dev/gemini-api/docs/models\"],\n};"
       }
     }
   ],
@@ -293,6 +293,12 @@
     {
       "title": "Gemini models",
       "url": "https://ai.google.dev/gemini-api/docs/models",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Interactions API",
+      "url": "https://ai.google.dev/gemini-api/docs/interactions-overview",
       "publisher": "Google",
       "lastVerified": "2026-09-11"
     }

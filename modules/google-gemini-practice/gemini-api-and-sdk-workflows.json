@@ -28,8 +28,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Treat responses as structured candidates (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Inspect prompt feedback, candidates, parts, and usage",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\n\n// generateContent remains fully supported but is now labeled legacy; Google recommends the\n// Interactions API for new projects: https://ai.google.dev/gemini-api/docs/migrate-to-interactions\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\nconst model = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!model) throw new Error(\"GEMINI_MODEL is not configured\");\n\nconst response = await ai.models.generateContent({ model, contents: learnerQuestion });\n\n// response.text is a convenience. Inspect the structure before trusting it.\nif (response.promptFeedback?.blockReason) {\n  await handleBlockedPrompt(response.promptFeedback.blockReason); // the prompt was blocked; no candidate\n} else {\n  const candidate = response.candidates?.[0];\n  await recordResponseShape({\n    candidateCount: response.candidates?.length ?? 0,\n    finishReason: candidate?.finishReason,\n    partKinds: (candidate?.content?.parts ?? []).map((part) => Object.keys(part).join(\"+\")), // text, functionCall, ...\n    safetyRatings: candidate?.safetyRatings,\n    hasGrounding: Boolean(candidate?.groundingMetadata),\n    usage: response.usageMetadata, // promptTokenCount, candidatesTokenCount, totalTokenCount\n  });\n}"
       }
     },
     {
@@ -54,8 +54,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Own conversation state explicitly (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Application-owned history for stateless generateContent",
+        "code": "import { GoogleGenAI, type Content } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\nconst model = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!model) throw new Error(\"GEMINI_MODEL is not configured\");\n\n// generateContent is stateless: the application decides exactly which turns are resent.\n// A chat helper (ai.chats.create) holds history in process memory; it is not a durable record.\nconst history: Content[] = await loadHistory(sessionId); // application-owned record\n\nhistory.push({ role: \"user\", parts: [{ text: learnerMessage }] });\nconst response = await ai.models.generateContent({\n  model,\n  contents: trimAtUserTurnBoundary(history, { maxTurns: 10 }), // explicit truncation policy\n});\n\nconst reply = response.candidates?.[0]?.content;\nif (reply) history.push(reply); // keep the model turn as returned, including non-text parts\n\nawait saveHistory(sessionId, history, {\n  retentionDays: 30,\n  excludeFromLogs: true,\n  deleteOnRequest: true, // what the UI shows, what the client holds, and what we store are different things\n});"
       }
     },
     {
@@ -67,8 +67,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Validate finish, parts, and output (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Route finish reasons and part types before validation",
+        "code": "import { FinishReason, type GenerateContentResponse } from \"@google/genai\";\nimport { z } from \"zod\";\n\nconst RiskSummary = z.object({\n  risk: z.enum([\"low\", \"medium\", \"high\"]),\n  evidence: z.array(z.string()).min(1),\n});\n\n// Transport success, model completion, application validation, and postconditions are separate states.\nfunction validate(response: GenerateContentResponse) {\n  const candidate = response.candidates?.[0];\n  switch (candidate?.finishReason) {\n    case FinishReason.STOP:\n      break;\n    case FinishReason.MAX_TOKENS:\n      return { state: \"incomplete\" } as const;\n    case FinishReason.SAFETY:\n    case FinishReason.PROHIBITED_CONTENT:\n    case FinishReason.SPII:\n    case FinishReason.BLOCKLIST:\n      return { state: \"blocked\", reason: candidate.finishReason } as const;\n    case FinishReason.RECITATION:\n      return { state: \"recitation\" } as const;\n    case FinishReason.MALFORMED_FUNCTION_CALL:\n      return { state: \"malformed_function_call\" } as const;\n    default:\n      return { state: \"unknown_finish\", reason: candidate?.finishReason } as const;\n  }\n\n  const parts = candidate?.content?.parts ?? [];\n  if (parts.some((part) => part.functionCall || part.executableCode)) {\n    return { state: \"part_not_permitted\" } as const; // this workflow accepts text only\n  }\n  try {\n    const parsed = RiskSummary.safeParse(JSON.parse(parts.map((part) => part.text ?? \"\").join(\"\")));\n    return parsed.success\n      ? ({ state: \"valid\", value: parsed.data } as const)\n      : ({ state: \"invalid_output\", issues: parsed.error.issues } as const);\n  } catch {\n    return { state: \"invalid_output\", issues: [\"not JSON\"] } as const;\n  }\n}"
       }
     },
     {
@@ -80,8 +80,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Recover and observe with bounds (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Transient-only retries with backoff, jitter, and a deadline",
+        "code": "import { ApiError, GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\nconst model = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!model) throw new Error(\"GEMINI_MODEL is not configured\");\n\n// Retry only transient failures (408, 429, 5xx); 400 and 403 need correction, not repetition.\nconst isTransient = (status: number) => status === 408 || status === 429 || status >= 500;\nconst MAX_ATTEMPTS = 4;\n\nasync function generateWithBounds(contents: string, correlationId: string) {\n  const deadline = Date.now() + 45_000; // end-to-end budget across all attempts\n  for (let attempt = 1; ; attempt++) {\n    const startedAt = Date.now();\n    try {\n      const response = await ai.models.generateContent({ model, contents });\n      await recordTelemetry({\n        correlationId,\n        promptVersion: \"risk-summary@3\",\n        configuredModel: model,\n        attempt,\n        latencyMs: Date.now() - startedAt,\n        finishReason: response.candidates?.[0]?.finishReason,\n        promptTokens: response.usageMetadata?.promptTokenCount,\n        outputTokens: response.usageMetadata?.candidatesTokenCount,\n        // Never the API key, request headers, or raw prompt and response text.\n      });\n      return response;\n    } catch (error) {\n      const status = error instanceof ApiError ? error.status : undefined;\n      const retryable = status !== undefined && isTransient(status);\n      if (!retryable || attempt >= MAX_ATTEMPTS || Date.now() >= deadline) {\n        await recordTerminal(correlationId, retryable ? \"retry_budget_exhausted\" : \"needs_correction\", status);\n        throw error;\n      }\n      const backoffMs = 1_000 * 2 ** (attempt - 1);\n      await sleep(backoffMs + Math.random() * backoffMs); // exponential backoff with jitter\n    }\n  }\n}"
       }
     }
   ],
@@ -292,6 +292,18 @@
     {
       "title": "Troubleshooting guide",
       "url": "https://ai.google.dev/gemini-api/docs/troubleshooting",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Migrating to the Interactions API",
+      "url": "https://ai.google.dev/gemini-api/docs/migrate-to-interactions",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Gemini models",
+      "url": "https://ai.google.dev/gemini-api/docs/models",
       "publisher": "Google",
       "lastVerified": "2026-09-11"
     }

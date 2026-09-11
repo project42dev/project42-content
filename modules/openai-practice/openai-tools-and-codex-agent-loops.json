@@ -28,8 +28,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Tools have execution owners (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Hosted, MCP, and application-owned tools in one request",
+        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI(); // reads OPENAI_API_KEY from the environment\nconst model = process.env.OPENAI_MODEL; // verify current ids: https://developers.openai.com/api/docs/models\nif (!model) throw new Error(\"OPENAI_MODEL is not configured\");\n\nconst response = await client.responses.create({\n  model,\n  input: learnerQuestion,\n  tools: [\n    // Owner: OpenAI. Hosted search, cache-only until live web access is reviewed.\n    { type: \"web_search\", external_web_access: false },\n    // Owner: a third-party MCP server reached through OpenAI. Approval gates data sharing.\n    {\n      type: \"mcp\",\n      server_label: \"course_docs\",\n      server_url: courseDocsMcpUrl,\n      allowed_tools: [\"search_docs\"],\n      require_approval: \"always\",\n    },\n    // Owner: this application. The model only proposes the call; our code runs it.\n    {\n      type: \"function\",\n      name: \"get_enrollment\",\n      description: \"Read the signed-in learner's enrollment for one module.\",\n      strict: true,\n      parameters: {\n        type: \"object\",\n        properties: { moduleId: { type: \"string\" } },\n        required: [\"moduleId\"],\n        additionalProperties: false,\n      },\n    },\n  ],\n});\n\nfor (const item of response.output) {\n  if (item.type === \"web_search_call\") recordHostedToolUse(\"openai\", item.id);\n  else if (item.type === \"mcp_approval_request\") await queueMcpApprovalForReview(item);\n  else if (item.type === \"function_call\") await executeOwnedFunction(item); // our credentials, our audit\n}"
       }
     },
     {
@@ -54,8 +54,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Match calls, results, and loop state (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Bounded Responses API tool loop matched by call_id",
+        "code": "import OpenAI from \"openai\";\nimport { toResponseInputItems } from \"openai/lib/responses/ResponseInputItems\";\n\nconst client = new OpenAI();\nconst model = process.env.OPENAI_MODEL; // verify current ids: https://developers.openai.com/api/docs/models\nif (!model) throw new Error(\"OPENAI_MODEL is not configured\");\n\ntype Outcome = { state: \"completed\" | \"failed_safely\" | \"budget_exceeded\"; detail: string };\n\nasync function runToolLoop(request: string, principal: Principal): Promise<Outcome> {\n  const MAX_TURNS = 6;\n  const MAX_TOOL_CALLS = 10;\n  const deadline = Date.now() + 60_000;\n  let toolCalls = 0;\n  const input: OpenAI.Responses.ResponseInput = [{ role: \"user\", content: request }];\n\n  for (let turn = 1; turn <= MAX_TURNS; turn++) {\n    if (Date.now() > deadline) return { state: \"budget_exceeded\", detail: \"deadline\" };\n    const response = await client.responses.create({ model, tools, input });\n    if (response.status !== \"completed\") return { state: \"failed_safely\", detail: response.status ?? \"unknown\" };\n\n    const calls = response.output.filter((item) => item.type === \"function_call\");\n    if (calls.length === 0) return { state: \"completed\", detail: response.output_text };\n\n    input.push(...toResponseInputItems(response.output)); // keep reasoning and call items for the next turn\n    for (const call of calls) {\n      if (++toolCalls > MAX_TOOL_CALLS) return { state: \"budget_exceeded\", detail: \"tool calls\" };\n      // Arguments are untrusted JSON; match by call_id, never by array position.\n      const result = await validateAuthorizeAndRun(call.name, call.arguments, principal);\n      input.push({ type: \"function_call_output\", call_id: call.call_id, output: JSON.stringify(result) });\n    }\n  }\n  return { state: \"budget_exceeded\", detail: \"max turns\" };\n}"
       }
     },
     {
@@ -68,8 +68,8 @@
       "callout": "Prompt instructions can guide behavior; only the surrounding system can enforce authority and side-effect policy.",
       "code": {
         "language": "typescript",
-        "label": "Enforce side-effect safety outside the model (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Authorized, idempotent write with postcondition check",
+        "code": "import { z } from \"zod\";\n\n// Same shape as the strict schema; parsing proves structure, not authority.\nconst SetTrainingStatusArgs = z\n  .object({\n    learnerId: z.string(),\n    moduleId: z.string(),\n    status: z.enum([\"not-started\", \"in-progress\", \"completed\"]),\n    operationId: z.string(),\n  })\n  .strict();\n\n// The principal comes from the authenticated session, never from model arguments.\nasync function setTrainingStatus(call: { call_id: string; arguments: string }, principal: Principal) {\n  const args = SetTrainingStatusArgs.parse(JSON.parse(call.arguments));\n\n  const allowed = await canEditTranscript(principal, args.learnerId, args.moduleId);\n  await logAuthorizationDecision(principal, call.call_id, allowed);\n  if (!allowed) return { status: \"refused\", reason: \"not authorized for this learner\" };\n  if (args.status === \"completed\" && !(await hasFreshApproval(principal, args.operationId))) {\n    return { status: \"needs_approval\", operationId: args.operationId };\n  }\n\n  try {\n    // Replaying the same operationId is a no-op in the system of record.\n    await transcripts.setStatus(args, { idempotencyKey: args.operationId, timeoutMs: 5_000 });\n  } catch (error) {\n    if (isTimeout(error)) return { status: \"outcome_unknown\", operationId: args.operationId }; // reconcile first\n    throw error;\n  }\n\n  // A handler that did not throw is not proof: read the postcondition back.\n  const stored = await transcripts.getStatus(args.learnerId, args.moduleId);\n  return stored === args.status\n    ? { status: \"completed\", operationId: args.operationId }\n    : { status: \"outcome_unknown\", operationId: args.operationId };\n}"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Bound Codex and agent autonomy (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Codex exec with least-privilege sandbox, budget, and review gate",
+        "code": "import { spawn } from \"node:child_process\";\nimport { createInterface } from \"node:readline\";\n\ntype Outcome = \"completed\" | \"failed_safely\" | \"budget_exceeded\";\n\n// codex exec defaults to a read-only sandbox; grant workspace-write only to an approved edit pass.\n// Interactive equivalent in config.toml: sandbox_mode = \"workspace-write\", approval_policy = \"on-request\";\n// network stays off unless [sandbox_workspace_write] network_access = true.\n// Flags and JSONL events: https://learn.chatgpt.com/docs/non-interactive-mode\nasync function runCodex(task: string, sandbox: \"read-only\" | \"workspace-write\", budgetMs: number): Promise<Outcome> {\n  const signal = AbortSignal.timeout(budgetMs);\n  const child = spawn(\"codex\", [\"exec\", \"--json\", \"--ephemeral\", \"--sandbox\", sandbox, task], { signal });\n  child.on(\"error\", () => {}); // a timeout abort surfaces here; the outcome is decided from the signal\n  let outcome: Outcome = \"failed_safely\";\n  for await (const line of createInterface({ input: child.stdout })) {\n    if (!line.trim()) continue;\n    const event = JSON.parse(line);\n    if (event.type === \"item.completed\") auditCodexItem(event.item); // commands, file changes, tool calls\n    if (event.type === \"turn.completed\") outcome = \"completed\";\n    if (event.type === \"turn.failed\" || event.type === \"error\") outcome = \"failed_safely\";\n  }\n  return signal.aborted ? \"budget_exceeded\" : outcome;\n}\n\nconst diagnosis = await runCodex(\"Diagnose the failing unit test. Do not modify files.\", \"read-only\", 10 * 60_000);\nif (diagnosis === \"completed\" && (await reviewerApproves(await collectDiagnosisEvidence()))) {\n  const fix = await runCodex(\"Apply the approved fix and rerun the unit tests.\", \"workspace-write\", 15 * 60_000);\n  await verifyDiffAndTestsIndependently(fix); // Codex reporting success is not the postcondition\n}"
       }
     }
   ],
@@ -293,6 +293,30 @@
     {
       "title": "Agent approvals and security",
       "url": "https://learn.chatgpt.com/docs/agent-approvals-security",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Using tools",
+      "url": "https://developers.openai.com/api/docs/guides/tools",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "MCP and Connectors",
+      "url": "https://developers.openai.com/api/docs/guides/tools-connectors-mcp",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Codex non-interactive mode",
+      "url": "https://learn.chatgpt.com/docs/non-interactive-mode",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Models",
+      "url": "https://developers.openai.com/api/docs/models",
       "publisher": "OpenAI",
       "lastVerified": "2026-09-11"
     }

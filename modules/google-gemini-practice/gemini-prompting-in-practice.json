@@ -29,8 +29,8 @@
       "callout": "A more persuasive response is not evidence of a better prompt.",
       "code": {
         "language": "typescript",
-        "label": "Define success before prompting (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Success criteria and representative cases first",
+        "code": "// Success is defined, with cases and a rubric, before prompt wording changes.\nconst success = {\n  outcome: \"Three rubric-aligned strengths and one next step for a lab report\",\n  users: [\"first-year engineering learners\"],\n  requiredEvidence: [\"quote from the report for every strength\"],\n  forbidden: [\"assigning a grade\", \"praise without a quote\"],\n  outputContract: { strengths: 3, nextStep: \"exactly one\", quotesRequired: true },\n  passThreshold: 0.9, // share of cases meeting every rubric line\n};\n\nconst cases = [\n  { id: \"typical-01\", input: \"fixtures/report-typical-01.md\", slice: \"typical\" },\n  { id: \"sparse-04\", input: \"fixtures/report-too-short-04.md\", slice: \"missing evidence\" }, // should ask for more, not invent\n  { id: \"figures-02\", input: \"fixtures/report-with-oscilloscope-02.pdf\", slice: \"document with figures\" },\n  { id: \"inject-03\", input: \"fixtures/report-with-hidden-instruction-03.md\", slice: \"prompt injection\" },\n];\n\nfunction meetsContract(output: { strengths: { text: string; quote: string }[]; nextStep: string }) {\n  return (\n    output.strengths.length === success.outputContract.strengths &&\n    output.strengths.every((s) => s.quote.trim().length > 0) &&\n    output.nextStep.trim().length > 0\n  );\n}\n// Before editing the prompt, classify the failure: missing context, tool, permission, or validation is not a wording problem."
       }
     },
     {
@@ -42,8 +42,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Structure the Gemini contract (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Stable behavior in system_instruction, task in input",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\nconst model = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!model) throw new Error(\"GEMINI_MODEL is not configured\");\n\n// Stable behavior goes in system_instruction, stated once.\nconst systemInstruction = [\n  \"You review first-year engineering lab reports for the learner who wrote them.\",\n  \"Give exactly three strengths tied to the rubric and one next step.\",\n  \"Quote the report for every strength. Do not assign or predict a grade.\",\n  \"If the report lacks evidence for three strengths, say what is missing and stop.\",\n].join(\"\\n\");\n\n// Task-specific input only: the rubric reference and the report. No restated rules here.\nconst interaction = await ai.interactions.create({\n  model,\n  system_instruction: systemInstruction,\n  input: `Rubric: lab-4 v2\\n\\nReport:\\n${reportText}`,\n  store: false,\n});\n\nif (interaction.status !== \"completed\") throw new Error(`Interaction ended as ${interaction.status}`);\nawait validateAgainstContract(interaction.output_text);"
       }
     },
     {
@@ -68,8 +68,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Choose output and model controls deliberately (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Structured output and thinking level from configuration",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\nimport { z } from \"zod\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\n// Model and model-specific controls are reviewed configuration. Current guidance for the newest\n// Flash model says to drop temperature, top_p, and top_k and to use thinking_level:\n// https://ai.google.dev/gemini-api/docs/latest-model\nconst config = {\n  model: process.env.GEMINI_MODEL, // verify current ids: https://ai.google.dev/gemini-api/docs/models\n  thinkingLevel: process.env.GEMINI_THINKING_LEVEL ?? \"low\",\n};\nif (!config.model) throw new Error(\"GEMINI_MODEL is not configured\");\n\nconst feedbackJsonSchema = {\n  type: \"object\",\n  properties: {\n    strengths: {\n      type: \"array\",\n      items: {\n        type: \"object\",\n        properties: { text: { type: \"string\" }, quote: { type: \"string\" } },\n        required: [\"text\", \"quote\"],\n      },\n    },\n    nextStep: { type: \"string\" },\n  },\n  required: [\"strengths\", \"nextStep\"],\n};\nconst Feedback = z.fromJSONSchema(feedbackJsonSchema);\n\nconst interaction = await ai.interactions.create({\n  model: config.model,\n  input: reportText,\n  generation_config: { thinking_level: config.thinkingLevel },\n  response_format: { type: \"text\", mime_type: \"application/json\", schema: feedbackJsonSchema },\n});\n\n// The schema constrains shape. Business rules and truth are still checked here.\nconst feedback = Feedback.parse(JSON.parse(interaction.output_text));\nif (feedback.strengths.length !== 3) throw new Error(\"Contract requires exactly three strengths\");\nawait verifyQuotesAppearInReport(feedback.strengths, reportText);"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Iterate with controlled evidence (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Baseline and candidate prompts on identical cases",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\nconst model = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!model) throw new Error(\"GEMINI_MODEL is not configured\");\n\ntype Miss =\n  | \"instruction-ambiguity\"\n  | \"missing-context\"\n  | \"modality-mismatch\"\n  | \"misleading-example\"\n  | \"output-violation\"\n  | \"model-limitation\"\n  | \"safety-boundary\"\n  | \"tool-failure\"\n  | \"application-defect\";\n\n// Same model, settings, and cases for both prompt versions; only the instruction differs.\nasync function runPromptVersion(version: string, systemInstruction: string, cases: EvalCase[]) {\n  const records = [];\n  for (const c of cases) {\n    const startedAt = Date.now();\n    const interaction = await ai.interactions.create({ model, system_instruction: systemInstruction, input: c.input, store: false });\n    const grade = await gradeAgainstRubric(c, interaction.output_text);\n    records.push({\n      promptVersion: version,\n      model,\n      caseId: c.id,\n      slice: c.slice, // typical, edge, multimodal, adversarial, prior-failure\n      status: interaction.status,\n      rubricPass: grade.pass,\n      critical: grade.critical,\n      miss: grade.pass ? undefined : (grade.reviewerCategory as Miss),\n      latencyMs: Date.now() - startedAt,\n      totalTokens: interaction.usage?.total_tokens,\n    });\n  }\n  return records;\n}\n\nconst baseline = await runPromptVersion(\"lab-feedback@2\", currentInstruction, regressionCases);\nconst candidate = await runPromptVersion(\"lab-feedback@3\", proposedInstruction, regressionCases);\nawait publishComparison({ baseline, candidate, rollbackTo: \"lab-feedback@2\" });"
       }
     }
   ],
@@ -293,6 +293,24 @@
     {
       "title": "Using the latest Gemini models",
       "url": "https://ai.google.dev/gemini-api/docs/latest-model",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Interactions API",
+      "url": "https://ai.google.dev/gemini-api/docs/interactions-overview",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Text generation",
+      "url": "https://ai.google.dev/gemini-api/docs/text-generation",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Gemini models",
+      "url": "https://ai.google.dev/gemini-api/docs/models",
       "publisher": "Google",
       "lastVerified": "2026-09-11"
     }

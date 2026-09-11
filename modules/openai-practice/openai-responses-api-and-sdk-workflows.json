@@ -29,8 +29,8 @@
       "callout": "A syntactically successful HTTP request is not the same as a validated application outcome.",
       "code": {
         "language": "typescript",
-        "label": "Responses are typed items, not one string (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Route every Responses output item by type",
+        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI(); // reads OPENAI_API_KEY from the environment\nconst model = process.env.OPENAI_MODEL; // verify current ids: https://developers.openai.com/api/docs/models\nif (!model) throw new Error(\"OPENAI_MODEL is not configured\");\n\nconst response = await client.responses.create({\n  model,\n  instructions: \"Answer from the supplied course notes only.\",\n  input: learnerQuestion,\n});\n\n// response.output_text flattens message text. Route every item type the contract permits instead.\nfor (const item of response.output) {\n  switch (item.type) {\n    case \"message\":\n      handleMessageParts(item.content); // output_text vs refusal parts\n      break;\n    case \"reasoning\":\n      break; // not user-facing; retain only when replaying context yourself\n    case \"function_call\":\n      await routeToToolHandler(item); // a proposal with call_id, name, and JSON arguments\n      break;\n    default:\n      throw new Error(`Unhandled output item type: ${item.type}`); // never flatten into trusted text\n  }\n}\n\nrecordUsage({ status: response.status, usage: response.usage });"
       }
     },
     {
@@ -42,8 +42,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Choose who owns conversation state (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Application-owned versus provider-linked conversation state",
+        "code": "import OpenAI from \"openai\";\nimport { toResponseInputItems } from \"openai/lib/responses/ResponseInputItems\";\n\nconst client = new OpenAI();\nconst model = process.env.OPENAI_MODEL; // verify current ids: https://developers.openai.com/api/docs/models\nif (!model) throw new Error(\"OPENAI_MODEL is not configured\");\n\n// Option A: the application owns state. Nothing is stored at OpenAI; we replay items ourselves.\nconst history: OpenAI.Responses.ResponseInput = [{ role: \"user\", content: firstQuestion }];\nconst first = await client.responses.create({ model, input: history, store: false });\nhistory.push(...toResponseInputItems(first.output)); // includes reasoning items the next turn needs\nhistory.push({ role: \"user\", content: followUp });\nconst second = await client.responses.create({ model, input: history, store: false });\nawait saveTranscript(sessionId, history, { retentionDays: 30 }); // our retention and deletion policy\n\n// Option B: OpenAI stores and links state. Response objects are kept for 30 days by default,\n// and earlier turns in the chain are still billed as input tokens.\nconst linked = await client.responses.create({\n  model,\n  previous_response_id: storedResponseId,\n  input: [{ role: \"user\", content: followUp }],\n  store: true,\n});\nawait recordProviderStateReference(sessionId, linked.id); // needed for audit and deletion requests"
       }
     },
     {
@@ -68,8 +68,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Validate status and output (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Status, refusal, and schema validation for Structured Outputs",
+        "code": "import OpenAI from \"openai\";\nimport { z } from \"zod\";\n\nconst client = new OpenAI();\nconst model = process.env.OPENAI_MODEL; // verify current ids: https://developers.openai.com/api/docs/models\nif (!model) throw new Error(\"OPENAI_MODEL is not configured\");\n\nconst RiskSummary = z.object({\n  risk: z.enum([\"low\", \"medium\", \"high\"]),\n  evidence: z.array(z.string()).min(1),\n});\n\nconst response = await client.responses.create({\n  model,\n  input: approvedInput,\n  max_output_tokens: 800,\n  text: {\n    format: {\n      type: \"json_schema\",\n      name: \"risk_summary\",\n      strict: true,\n      schema: {\n        type: \"object\",\n        properties: {\n          risk: { type: \"string\", enum: [\"low\", \"medium\", \"high\"] },\n          evidence: { type: \"array\", items: { type: \"string\" } },\n        },\n        required: [\"risk\", \"evidence\"],\n        additionalProperties: false,\n      },\n    },\n  },\n});\n\nif (response.status === \"incomplete\") {\n  throw new Error(`Incomplete response: ${response.incomplete_details?.reason}`); // e.g. max_output_tokens\n}\nif (response.status !== \"completed\") throw new Error(`Unexpected status: ${response.status}`);\n\nconst part = response.output.find((item) => item.type === \"message\")?.content[0];\nif (part?.type === \"refusal\") {\n  await routeRefusalToUserSafePath(part.refusal); // refusals do not follow the schema\n} else if (part?.type === \"output_text\") {\n  const summary = RiskSummary.parse(JSON.parse(part.text)); // schema conformance is shape, not truth\n  await verifyEvidenceAgainstSources(summary.evidence); // application validation is a separate state\n} else {\n  throw new Error(\"No usable output\");\n}"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Recover and observe with bounds (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Bounded retries, error classes, and allowlisted telemetry",
+        "code": "import OpenAI from \"openai\";\n\n// The SDK retries connection errors, 408, 409, 429, and 5xx twice by default. Make the budget explicit.\nconst client = new OpenAI({ maxRetries: 2, timeout: 30_000 });\nconst model = process.env.OPENAI_MODEL; // verify current ids: https://developers.openai.com/api/docs/models\nif (!model) throw new Error(\"OPENAI_MODEL is not configured\");\n\nconst startedAt = Date.now();\ntry {\n  const response = await client.responses.create({ model, input: approvedInput, store: false });\n  recordTelemetry({\n    correlationId,\n    promptVersion: \"risk-summary@7\",\n    configuredModel: model,\n    requestId: response._request_id, // from the x-request-id header, for provider support\n    status: response.status,\n    itemTypes: response.output.map((item) => item.type),\n    inputTokens: response.usage?.input_tokens,\n    outputTokens: response.usage?.output_tokens,\n    latencyMs: Date.now() - startedAt,\n    // Never log the API key, headers, or unrestricted input and output text.\n  });\n} catch (error) {\n  if (error instanceof OpenAI.RateLimitError || error instanceof OpenAI.InternalServerError) {\n    recordTerminal(correlationId, \"retry_budget_exhausted\", error.requestID); // SDK retries already ran\n  } else if (error instanceof OpenAI.AuthenticationError || error instanceof OpenAI.BadRequestError) {\n    recordTerminal(correlationId, \"needs_correction\", error.requestID); // an unchanged retry cannot succeed\n  } else {\n    throw error;\n  }\n}"
       }
     }
   ],
@@ -293,6 +293,18 @@
     {
       "title": "Error codes",
       "url": "https://developers.openai.com/api/docs/guides/error-codes",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Structured model outputs",
+      "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Models",
+      "url": "https://developers.openai.com/api/docs/models",
       "publisher": "OpenAI",
       "lastVerified": "2026-09-11"
     }

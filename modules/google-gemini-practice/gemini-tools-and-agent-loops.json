@@ -28,8 +28,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Identify each tool's execution owner (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Built-in and application-owned tools in one interaction",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\nconst model = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!model) throw new Error(\"GEMINI_MODEL is not configured\");\n\nconst tools = [\n  // Owner: Google. Built-in search runs in provider infrastructure; results are untrusted input.\n  { type: \"google_search\" },\n  // Owner: this application. Gemini only proposes the call; our code validates, authorizes, and runs it.\n  {\n    type: \"function\",\n    name: \"get_enrollment\",\n    description: \"Read the signed-in learner's enrollment for one module.\",\n    parameters: {\n      type: \"object\",\n      properties: { moduleId: { type: \"string\" } },\n      required: [\"moduleId\"],\n    },\n  },\n];\n\nconst interaction = await ai.interactions.create({ model, input: learnerQuestion, tools, store: false });\n\nfor (const step of interaction.steps) {\n  if (step.type === \"function_call\") {\n    // A proposal, not proof of intent or permission. Our credentials, our retries, our audit.\n    await executeOwnedFunction(step.name, step.arguments, step.id, session.user);\n  } else if (step.type !== \"model_output\") {\n    recordProviderStep(step.type); // provider-executed tool activity, logged for audit\n  }\n}"
       }
     },
     {
@@ -41,8 +41,8 @@
       ],
       "code": {
         "language": "json",
-        "label": "Narrow Gemini function declaration",
-        "code": "{\n  \"name\": \"set_training_status\",\n  \"description\": \"Set one learner module to an allowed status after authorization.\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"learnerId\": { \"type\": \"string\" },\n      \"moduleId\": { \"type\": \"string\" },\n      \"status\": { \"type\": \"string\", \"enum\": [\"not-started\", \"in-progress\", \"completed\"] },\n      \"operationId\": { \"type\": \"string\" }\n    },\n    \"required\": [\"learnerId\", \"moduleId\", \"status\", \"operationId\"]\n  }\n}"
+        "label": "Narrow Gemini function declaration (Interactions API)",
+        "code": "{\n  \"type\": \"function\",\n  \"name\": \"set_training_status\",\n  \"description\": \"Set one learner module to an allowed status after authorization.\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"learnerId\": { \"type\": \"string\" },\n      \"moduleId\": { \"type\": \"string\" },\n      \"status\": { \"type\": \"string\", \"enum\": [\"not-started\", \"in-progress\", \"completed\"] },\n      \"operationId\": { \"type\": \"string\" }\n    },\n    \"required\": [\"learnerId\", \"moduleId\", \"status\", \"operationId\"]\n  }\n}"
       }
     },
     {
@@ -54,8 +54,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Match calls, results, and loop state (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Bounded Interactions tool loop matched by call id",
+        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\nconst model = process.env.GEMINI_MODEL; // verify current ids: https://ai.google.dev/gemini-api/docs/models\nif (!model) throw new Error(\"GEMINI_MODEL is not configured\");\n\ntype Outcome = { state: \"completed\" | \"failed_safely\" | \"budget_exceeded\"; detail: string };\n\n// Stateless mode: the application holds the history and replays the returned steps each turn.\nasync function runToolLoop(request: string, principal: Principal): Promise<Outcome> {\n  const MAX_TURNS = 6;\n  const MAX_TOOL_CALLS = 10;\n  const deadline = Date.now() + 60_000;\n  let toolCalls = 0;\n  const history: unknown[] = [{ type: \"user_input\", content: [{ type: \"text\", text: request }] }];\n\n  for (let turn = 1; turn <= MAX_TURNS; turn++) {\n    if (Date.now() > deadline) return { state: \"budget_exceeded\", detail: \"deadline\" };\n    const interaction = await ai.interactions.create({ model, input: history, tools, store: false });\n    if (interaction.status !== \"completed\") return { state: \"failed_safely\", detail: interaction.status };\n\n    const calls = interaction.steps.filter((step) => step.type === \"function_call\");\n    if (calls.length === 0) return { state: \"completed\", detail: interaction.output_text ?? \"\" };\n\n    history.push(...interaction.steps);\n    for (const call of calls) {\n      if (++toolCalls > MAX_TOOL_CALLS) return { state: \"budget_exceeded\", detail: \"tool calls\" };\n      // Complete, validated arguments only; never execute partial streamed deltas.\n      const result = await validateAuthorizeAndRun(call.name, call.arguments, principal);\n      history.push({\n        type: \"function_result\",\n        name: call.name,\n        call_id: call.id, // the result is matched to its call by id, not by position\n        result: [{ type: \"text\", text: JSON.stringify(result) }],\n      });\n    }\n  }\n  return { state: \"budget_exceeded\", detail: \"max turns\" };\n}"
       }
     },
     {
@@ -68,8 +68,8 @@
       "callout": "Function schemas improve structure; only the surrounding system can enforce identity, authority, approval, and side-effect policy.",
       "code": {
         "language": "typescript",
-        "label": "Enforce side-effect safety (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Authorized, idempotent handler returning a function_result",
+        "code": "// Handler behind the set_training_status declaration. It returns a function_result either way,\n// so the model can explain the outcome, but authority is decided here, not by the model.\nasync function handleSetTrainingStatus(call: { id: string; name: string; arguments: Record<string, unknown> }, principal: Principal) {\n  const args = parseSetTrainingStatus(call.arguments); // rejects unknown fields and bad enums\n\n  // Identity comes from the authenticated session; learnerId in the arguments is only a claim.\n  const decision = await authorize(principal, \"transcript:write\", args.learnerId, args.moduleId);\n  await auditAuthorization(principal, call.id, decision);\n\n  let outcome: { status: string; operationId?: string };\n  if (!decision.allowed) {\n    outcome = { status: \"refused\" };\n  } else if (args.status === \"completed\" && !(await hasFreshApproval(principal, args.operationId))) {\n    outcome = { status: \"needs_approval\", operationId: args.operationId };\n  } else if (await pendingReconciliation(args.operationId)) {\n    outcome = { status: \"outcome_unknown\", operationId: args.operationId }; // no retry until reconciled\n  } else {\n    outcome = await writeAndVerify(args); // idempotent write keyed by operationId, then read back\n  }\n\n  return {\n    type: \"function_result\",\n    name: call.name,\n    call_id: call.id,\n    result: [{ type: \"text\", text: JSON.stringify(outcome) }],\n  };\n}\n\nasync function writeAndVerify(args: SetTrainingStatusArgs) {\n  try {\n    await transcripts.setStatus(args, { idempotencyKey: args.operationId, timeoutMs: 5_000 });\n  } catch (error) {\n    if (isTimeout(error)) {\n      await markPendingReconciliation(args.operationId); // the write may have been accepted\n      return { status: \"outcome_unknown\", operationId: args.operationId };\n    }\n    throw error;\n  }\n  const stored = await transcripts.getStatus(args.learnerId, args.moduleId); // the postcondition, not the handler's word\n  return { status: stored === args.status ? \"completed\" : \"outcome_unknown\", operationId: args.operationId };\n}"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Choose a workflow or bounded agent (Code Implementation)",
-        "code": "import { GoogleGenAI } from \"@google/genai\";\n\nconst ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });\n\nconst response = await ai.models.generateContent({\n  model: \"gemini-2.5-flash\",\n  contents: \"Demonstrate structured output extraction with schema enforcement.\"\n});\nconsole.log(response.text);"
+        "label": "Deterministic workflow versus a bounded agent specification",
+        "code": "// Known steps and branches: a deterministic workflow. The model fills one bounded step.\nasync function enrollmentReminderWorkflow(learnerId: string) {\n  const enrollment = await getEnrollment(learnerId); // code decides what runs, and in what order\n  if (enrollment.status === \"completed\") return \"completed\";\n  const draft = await draftReminderWithGemini(enrollment); // one model call, no tools\n  return (await instructorApproves(draft)) ? sendReminder(learnerId, draft) : \"needs_approval\";\n}\n\n// Path depends on what tools reveal: a bounded agent, with every limit written down.\n// Frameworks such as ADK can host this, but they do not grant authority on their own.\ntype Terminal = \"completed\" | \"needs_approval\" | \"refused\" | \"failed_safely\" | \"cancelled\" | \"budget_exceeded\" | \"outcome_unknown\";\n\nconst labSupportAgent = {\n  objective: \"Diagnose why a learner's lab submission fails the autograder and suggest a fix\",\n  allowedTools: [\"get_submission\", \"get_autograder_log\", \"search_course_notes\"], // reads only\n  dataScope: \"the requesting learner's own submissions\",\n  budgets: { maxTurns: 8, maxToolCalls: 12, maxSeconds: 120, maxTotalTokens: 60_000 },\n  checkpoints: [\"human review before any suggestion that edits files\"],\n  audit: \"every function_call step and result stored under the trace id\",\n  rollback: \"agent disabled by flag; the workflow above remains the fallback\",\n  terminalStates: [\n    \"completed\",\n    \"needs_approval\",\n    \"refused\",\n    \"failed_safely\",\n    \"cancelled\",\n    \"budget_exceeded\",\n    \"outcome_unknown\",\n  ] satisfies Terminal[],\n  promotionEvidence: \"beats the workflow on the evaluation set without new critical failures\",\n};"
       }
     }
   ],
@@ -293,6 +293,18 @@
     {
       "title": "ADK tools",
       "url": "https://adk.dev/integrations/",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Interactions API",
+      "url": "https://ai.google.dev/gemini-api/docs/interactions-overview",
+      "publisher": "Google",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Gemini models",
+      "url": "https://ai.google.dev/gemini-api/docs/models",
       "publisher": "Google",
       "lastVerified": "2026-09-11"
     }

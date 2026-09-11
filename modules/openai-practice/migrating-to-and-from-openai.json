@@ -28,8 +28,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Inventory before changing (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Dependency inventory seeded from code markers",
+        "code": "// Seed the inventory by searching the codebase for provider-specific usage.\nconst markers: Record<string, RegExp> = {\n  chatCompletions: /chat\\.completions\\.create/, // still supported; Responses is the recommended target\n  chatResponseFormat: /response_format/, // becomes text.format in Responses\n  choicesParsing: /choices\\[0\\]/, // becomes response.output / output_text\n  assistantsApi: /beta\\.assistants|beta\\.threads/, // Assistants API was sunset on 2026-08-26\n  linkedState: /previous_response_id|conversations\\.create/,\n  modelLiteral: /model:\\s*[\"'`]/, // model ids belong in configuration\n};\n\ninterface Dependency {\n  id: string;\n  kind: \"endpoint\" | \"sdk\" | \"model-ref\" | \"tool-schema\" | \"structured-output\" | \"state\" | \"data-control\" | \"eval\" | \"dashboard\" | \"runbook\";\n  location: string;\n  current: string;\n  owner: string;\n  risk: \"low\" | \"medium\" | \"high\";\n  verification: string;\n}\n\nconst inventory: Dependency[] = [\n  { id: \"d1\", kind: \"endpoint\", location: \"src/triage.ts\", current: \"chat.completions.create\", owner: \"triage team\", risk: \"medium\", verification: \"replay 200 labeled tickets on Responses\" },\n  { id: \"d2\", kind: \"structured-output\", location: \"src/triage.ts\", current: \"response_format json_schema\", owner: \"triage team\", risk: \"high\", verification: \"schema tests against text.format\" },\n  { id: \"d3\", kind: \"model-ref\", location: \"config/prod.env\", current: \"OPENAI_MODEL\", owner: \"platform\", risk: \"high\", verification: \"check the deprecations page monthly\" },\n  { id: \"d4\", kind: \"state\", location: \"src/chat.ts\", current: \"client-held messages array\", owner: \"chat team\", risk: \"medium\", verification: \"decide manual items, previous_response_id, or Conversations\" },\n  { id: \"d5\", kind: \"dashboard\", location: \"dashboards/llm-latency\", current: \"reads choices[0].finish_reason\", owner: \"sre\", risk: \"low\", verification: \"map to response.status\" },\n];\n\nconst unowned = inventory.filter((d) => !d.owner || !d.verification);\nif (unowned.length) throw new Error(`Dependencies without owner or verification: ${unowned.map((d) => d.id).join(\", \")}`);"
       }
     },
     {
@@ -41,8 +41,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Separate portable and OpenAI-specific contracts (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Portable contract with an OpenAI adapter",
+        "code": "import OpenAI from \"openai\";\n\n// Portable contract: what the application needs, in its own terms.\ninterface TriageResult {\n  label: \"Hardware\" | \"Software\" | \"Other\" | null;\n  status: \"ok\" | \"refused\" | \"incomplete\";\n  usage: { inputTokens: number; outputTokens: number };\n}\n\ninterface TriageProvider {\n  triage(ticket: string): Promise<TriageResult>;\n}\n\n// OpenAI-specific adapter: Responses items, text.format, refusals, and status stay behind this boundary.\nclass OpenAITriage implements TriageProvider {\n  constructor(private client: OpenAI, private model: string) {}\n\n  async triage(ticket: string): Promise<TriageResult> {\n    const r = await this.client.responses.create({\n      model: this.model,\n      instructions: \"Classify the ticket as Hardware, Software, or Other.\",\n      input: ticket,\n      text: { format: { type: \"json_schema\", name: \"triage\", strict: true, schema: triageSchema } },\n    });\n    const usage = { inputTokens: r.usage?.input_tokens ?? 0, outputTokens: r.usage?.output_tokens ?? 0 };\n    if (r.status === \"incomplete\") return { label: null, status: \"incomplete\", usage };\n    const part = r.output.find((item) => item.type === \"message\")?.content[0];\n    if (part?.type === \"refusal\") return { label: null, status: \"refused\", usage }; // surfaced, not hidden\n    return { label: JSON.parse(r.output_text).label, status: \"ok\", usage };\n  }\n}\n\nconst model = process.env.OPENAI_MODEL; // verify current ids: https://developers.openai.com/api/docs/models\nif (!model) throw new Error(\"OPENAI_MODEL is not configured\");\nconst provider: TriageProvider = new OpenAITriage(new OpenAI(), model);"
       }
     },
     {
@@ -55,8 +55,8 @@
       "callout": "Code that compiles after a one-field change can still regress behavior, safety, tool trajectories, latency, cost, or data handling.",
       "code": {
         "language": "typescript",
-        "label": "Use current migration and lifecycle evidence (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Chat Completions to Responses with a lifecycle gate",
+        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI(); // reads OPENAI_API_KEY from the environment\nconst model = process.env.OPENAI_MODEL; // verify current ids: https://developers.openai.com/api/docs/models\nif (!model) throw new Error(\"OPENAI_MODEL is not configured\");\n\n// Before (Chat Completions):\n//   messages: [{ role: \"system\", ... }, { role: \"user\", ... }]\n//   response_format: { type: \"json_schema\", json_schema: { name, strict, schema } }\n//   read choices[0].message.content\n// After (Responses), per https://developers.openai.com/api/docs/guides/migrate-to-responses\nconst response = await client.responses.create({\n  model,\n  instructions: systemPrompt, // was the system message\n  input: userMessage, // was messages[]\n  text: { format: { type: \"json_schema\", name: \"triage\", strict: true, schema: triageSchema } }, // was response_format\n  store: false, // Responses are stored by default; decide explicitly\n});\n\n// Items, not choices: reasoning, function calls, and messages are separate output types.\nif (response.status !== \"completed\") throw new Error(`Status ${response.status}`);\nconst result = JSON.parse(response.output_text);\n\n// Lifecycle gate: fail the build when the configured id has an announced shutdown.\n// Source: https://developers.openai.com/api/docs/deprecations (reviewed snapshot, with an owner)\nconst shutdowns = await loadReviewedDeprecationSnapshot();\nconst entry = shutdowns.get(model);\nif (entry) throw new Error(`${model} shuts down ${entry.shutdownDate}; evaluate ${entry.replacement} now`);"
       }
     },
     {
@@ -68,8 +68,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Evaluate, shadow, and canary (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Shadow traffic, sticky canary, and predeclared gates",
+        "code": "// Promotion, hold, and rollback thresholds are declared before any traffic moves.\nconst thresholds = {\n  maxCriticalFailures: 0,\n  minWorstSliceDelta: 0, // the candidate may not regress any critical slice\n  maxP95LatencyMs: 4_000,\n  maxCostRatio: 1.2,\n};\n\n// Shadow: the candidate sees a copy of approved traffic. Its output is never shown,\n// and it runs without side-effecting tools, so nothing needs reconciling afterwards.\nasync function handle(request: TriageRequest): Promise<TriageResult> {\n  const live = await baseline.triage(request.ticket);\n  if (shadowPermitted(request.dataClass)) {\n    candidate\n      .triage(request.ticket)\n      .then((shadowResult) => recordComparison({ version: \"candidate-2026-09\", requestId: request.id, live, shadowResult }))\n      .catch((error) => recordShadowError(request.id, error));\n  }\n  return live;\n}\n\n// Canary: a small, sticky cohort. Rollback is a configuration change.\nfunction route(userId: string): \"baseline\" | \"candidate\" {\n  const percent = Number(process.env.CANARY_PERCENT ?? \"0\");\n  return stableHashPercent(userId) < percent ? \"candidate\" : \"baseline\";\n}\n\nfunction gate(m: { criticalFailures: number; worstSliceDelta: number; p95LatencyMs: number; costRatio: number }) {\n  if (m.criticalFailures > thresholds.maxCriticalFailures) return \"rollback\";\n  if (m.p95LatencyMs > thresholds.maxP95LatencyMs || m.costRatio > thresholds.maxCostRatio) return \"hold\";\n  return m.worstSliceDelta >= thresholds.minWorstSliceDelta ? \"promote\" : \"hold\";\n}"
       }
     },
     {
@@ -81,8 +81,8 @@
       ],
       "code": {
         "language": "typescript",
-        "label": "Migrate reversibly and close deliberately (Code Implementation)",
-        "code": "import OpenAI from \"openai\";\n\nconst client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\nconst completion = await client.chat.completions.create({\n  model: \"gpt-4o\",\n  messages: [{ role: \"user\", content: \"Evaluate architectural invariants and error modes.\" }],\n  response_format: { type: \"json_object\" }\n});\nconsole.log(completion.choices[0].message.content);"
+        "label": "Reversible routing and an explicit close checklist",
+        "code": "// Routing and prompts are versioned configuration; rollback is a flag flip, not a deploy.\nconst route = process.env.TRIAGE_ROUTE === \"responses\" ? \"responses\" : \"chat-completions\";\nconst promptVersion = { \"chat-completions\": \"triage@6\", responses: \"triage@6-responses\" }[route];\n\n// Backward-compatible records: both state shapes are kept until the observation window closes.\ninterface ConversationRow {\n  id: string;\n  messages: unknown[]; // legacy shape, read by the old path\n  lastResponseId?: string; // Responses chain, when store is enabled\n  migratedAt?: string;\n}\n\ninterface CloseChecklist {\n  productionGatesPassed: boolean;\n  rollbackRehearsedMinutes: number | null;\n  dataReconciled: boolean;\n  securityAndPrivacyReviewed: boolean;\n  runbooksUpdated: boolean;\n  remainingLegacyUse: { usage: string; owner: string; acceptedUntil: string }[];\n  residualRiskAcceptedBy: string | null;\n  observationWindowEnds: string;\n}\n\nfunction canClose(c: CloseChecklist, today: string) {\n  return (\n    c.productionGatesPassed &&\n    c.rollbackRehearsedMinutes !== null &&\n    c.dataReconciled &&\n    c.securityAndPrivacyReviewed &&\n    c.runbooksUpdated &&\n    c.remainingLegacyUse.every((u) => u.owner && u.acceptedUntil) &&\n    c.residualRiskAcceptedBy !== null &&\n    today >= c.observationWindowEnds\n  );\n}\n// Irreversible cleanup, such as dropping ConversationRow.messages, happens only after canClose() is true."
       }
     }
   ],
@@ -293,6 +293,12 @@
     {
       "title": "Production best practices",
       "url": "https://developers.openai.com/api/docs/guides/production-best-practices",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Models",
+      "url": "https://developers.openai.com/api/docs/models",
       "publisher": "OpenAI",
       "lastVerified": "2026-09-11"
     }
