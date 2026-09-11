@@ -1,74 +1,301 @@
 {
   "id": "open-weights-and-quantization",
   "title": "The Open-Weight Ecosystem & Quantization",
-  "summary": "Meta Llama 3, DeepSeek V3, Mistral, Qwen, and FP16 vs GGUF vs AWQ quantization math.",
+  "summary": "How an open-weight checkpoint becomes a deployable file: tensor-only versus self-describing formats, what a GGUF file carries besides weights, how to read a quantization type as bits per weight, what calibration and importance matrices change, and why a 4-bit file is not automatically a 4-bit deployment.",
   "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 40,
+  "estimatedMinutes": 45,
   "objectives": [
-    "Master the architectural principles and core mechanisms of The Open-Weight Ecosystem & Quantization.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Distinguish a tensor-only checkpoint from a self-describing GGUF file and name the decisions (template, context length, license claim, lineage) a GGUF carries from whoever converted it.",
+    "Read a quantization type as bits per weight, including block scales and tensor mixtures, and predict a file's size from its parameter count.",
+    "Compare calibration-based quantization (GPTQ, AWQ), on-the-fly quantization (bitsandbytes, HQQ), and GGUF k-quants with an importance matrix, and explain why requantizing an already-quantized file is a lower-quality path.",
+    "Explain why a 4-bit file only saves memory while the runtime keeps it packed, and choose the serving engine before the file format."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "tensor-files-and-self-describing-files",
+      "title": "Tensor-only files versus self-describing files",
       "paragraphs": [
-        "Meta Llama 3, DeepSeek V3, Mistral, Qwen, and FP16 vs GGUF vs AWQ quantization math.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for The Open-Weight Ecosystem & Quantization.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "An open-weight model rarely reaches production in the form its publisher uploaded. Hugging Face's Hub documentation contrasts two kinds of file: tensor-only formats such as safetensors -- also a recommended model format on the Hub -- and GGUF, a binary format that encodes both the tensors and a standardized set of metadata. GGUF was developed by the author of llama.cpp for use with GGML and other executors, and models built in frameworks like PyTorch are converted into it for use with those engines. Every conversion produces a new artifact; the model-artifact-integrity module in the self-hosted operations path treats that as a provenance event. This module is about what actually changes inside the file.",
+        "The GGUF specification lists the design goals that make the format operationally attractive: single-file deployment with no external files, mmap compatibility for fast loading, and full information -- everything needed to load the model is in the file. Its key difference from the older GGJT format is a typed key-value metadata structure, so new information can be added without breaking existing models. For an operator that means the file carries decisions somebody else made: the architecture (general.architecture), the trained context length ([llm].context_length, which for most architectures is the hard limit on input length), the number of key-value heads used for grouped-query attention, the Jinja chat template (tokenizer.chat_template), a license field expressed as an SPDX license expression, and general.base_model.* keys that record the parent model's name, organization, and repository.",
+        "The specification's naming convention -- BaseName, SizeLabel, FineTune, Version, Encoding, Type, and Shard, separated by dashes -- is explicitly described as not intended to be perfectly parsable, and the spec warns that an Encoding is easily mistaken for a FineTune when the Version is omitted. Identify a GGUF by its metadata and digest, never by its filename. If any tensor in the file is quantized, the specification requires general.quantization_version to be present; a file named Q4_K_M without that key is a reason to stop and inspect, not to guess."
+      ],
+      "callout": "A GGUF file is a bundle of someone else's decisions -- template, context length, license claim, lineage -- not just weights. Read the metadata before you trust the name.",
+      "code": {
+        "language": "text",
+        "label": "GGUF metadata keys to read before trusting a filename (from the GGUF specification)",
+        "code": "general.architecture             # e.g. llama -- selects the loader\ngeneral.quantization_version     # MUST be present if any tensor is quantized\ngeneral.file_type                # type of the majority of tensors (optional)\ngeneral.license                  # SPDX license expression, e.g. \"MIT OR Apache-2.0\"\ngeneral.base_model.{id}.repo_url # where the parent model came from\n[llm].context_length             # trained context; usually the hard input limit\n[llm].attention.head_count       # attention (query) heads\n[llm].attention.head_count_kv    # KV heads; absent or equal to head_count => no GQA\ntokenizer.chat_template          # Jinja template the runtime will apply"
+      }
+    },
+    {
+      "id": "bits-per-weight",
+      "title": "Bits per weight is the unit that matters",
+      "paragraphs": [
+        "A quantization label names a scheme, not a size. The Hub's GGUF type table spells out the arithmetic: Q4_K uses super-blocks of 8 blocks with 32 weights each and the formula w = q * block_scale(6-bit) + block_min(6-bit), which works out to 4.5 bits per weight rather than 4. Q6_K is 6.5625 bits per weight, Q5_K is 5.5, Q3_K is 3.4375, and Q2_K is 2.625. The difference is the scales and minimums stored alongside each block of quantized values. The i-quant types (IQ4_XS, IQ3_S, IQ2_XXS and others) use 256-weight super-blocks and an importance matrix, while the legacy round-to-nearest types such as Q4_0 and Q8_0 use 32-weight blocks and are described in the same table as not widely used today.",
+        "Types are also mixed within a file. llama.cpp's llama-quantize exposes --pure to disable k-quant mixtures and quantize every tensor to the same type, and --output-tensor-type and --token-embedding-type to set particular tensors differently -- so a Q4_K_M file is a mixture whose average sits above the Q4_K base type. llama.cpp's own measurements for Llama-3.1-8B make this concrete: F16 is 16.0005 bits per weight and 14.96 GiB, Q8_0 is 8.5008 and 7.95 GiB, Q6_K is 6.5633 and 6.14 GiB, and Q4_K_M is 4.8944 bits per weight and 4.58 GiB.",
+        "That table is enough to size any variant. File size in bytes is parameters x bits per weight / 8. Working backwards from the F16 row: 14.96 GiB x 1,073,741,824 bytes per GiB x 8 bits / 16.0005 bits per weight gives about 8.03 billion parameters. Forwards again for Q4_K_M: 8.03 x 10^9 x 4.8944 / 8 is about 4.91 x 10^9 bytes, or 4.58 GiB -- the measured row. Using the nominal 4.5 bits of Q4_K instead predicts about 4.21 GiB, roughly 0.37 GiB short, because the mixture keeps some tensors at higher precision. Size a deployment from the measured bits per weight of the exact file, not from the digit in its name."
+      ],
+      "callout": "size_bytes = parameters x bits_per_weight / 8 -- and the bits per weight must come from the file you will actually load, not from its label."
+    },
+    {
+      "id": "calibration-and-importance",
+      "title": "Calibration, importance matrices, and requantization",
+      "paragraphs": [
+        "Quantizing is lossy, and the tooling says so. llama.cpp's quantize documentation notes that reducing precision may introduce accuracy loss, usually measured as perplexity or Kullback-Leibler divergence, and that the loss can be minimized with a suitable importance matrix (imatrix) file. Its workflow has two phases: convert the original model to a high-precision GGUF (typically BF16, with --outtype auto working in the usual 16-bit case) and then quantize that file. The --allow-requantize option carries an explicit warning that requantizing already-quantized tensors can severely reduce quality compared to quantizing from 16-bit or 32-bit. A community Q4 made from someone else's Q8 is a different, lower-quality path than a Q4 made from the 16-bit original -- and nothing in the filename says which one you have.",
+        "Outside GGUF, Hugging Face's guide to selecting a quantization method separates calibration-based methods from on-the-fly ones. GPTQ (through GPTQModel) and AWQ need a calibration dataset and a separate step -- about 20 and 10 minutes respectively for an 8B model on one A100 in Hugging Face's measurements -- and GPTQ can overfit its calibration data. bitsandbytes, HQQ, and SINQ need no calibration: bitsandbytes is simple but primarily optimized for NVIDIA CUDA with no guaranteed speed-up, and HQQ's accuracy can degrade significantly below 4 bits. The guide's benchmark summary on Llama 3.1 8B and 70B: 8-bit methods save about 2x memory versus bf16 and stay very close to baseline, 4-bit methods save about 4x with relatively high accuracy, and sub-4-bit methods compress further with a noticeable drop, especially at 2 bits.",
+        "Multimodal models add one more decision. llama.cpp converts the language-model portion separately from an mmproj file holding vision or audio encoders and projectors, and recommends keeping that projector in a high-quality format such as BF16 or Q8: its quality directly shapes the inputs the language model sees, while a smaller quant of it saves a negligible amount of speed and memory. Every source converges on the rule Hugging Face states outright -- benchmark accuracy and speed of the quantized model on your own task and hardware before choosing it."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "packed-or-dequantized",
+      "title": "A 4-bit file is not automatically a 4-bit deployment",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
-      ]
+        "Memory savings exist only while the runtime keeps weights in their packed form. Hugging Face Transformers can load a GGUF file, but its documentation is specific about when the blocks stay packed: only on Metal (MPS) devices, where llama.cpp kernels run matrix multiplications directly on the packed blocks, and currently only for the Qwen3.5 architecture. On any other device, quantization type, or architecture the model is dequantized at load time into a regular dense model -- which is also the documented way to take a GGUF checkpoint into a chosen dtype. Load a Q4_K_M 8B file that way at 16 bits and budget for roughly the 14.96 GiB F16 row, not 4.58 GiB. The Transformers quantization overview also marks GGUF as not serializable back through Transformers and not supported for PEFT fine-tuning.",
+        "vLLM loads GGUF too, with caveats that matter in production. Its documentation calls GGUF support highly experimental and under-optimized and possibly incompatible with other features, says support has moved to an out-of-tree vllm-gguf-plugin that must be installed first, and recommends using the base model's tokenizer rather than converting the GGUF tokenizer, which it describes as time-consuming and unstable for large vocabularies. A format being loadable is not the same as a format being the engine's first-class, optimized path.",
+        "The ecosystem decision therefore runs backwards from the runtime: choose the serving engine first, then the format that engine keeps packed and supports as a first-class path, then the quantization level measured on your workload. Weight quantization also says nothing about the key-value cache that grows with every token of context; that is a separate precision decision each runtime makes, and the next module in this path sizes it step by step."
+      ],
+      "callout": "Choose the engine, then the format it keeps packed, then the bit width you have measured -- in that order."
     }
   ],
   "activity": {
     "id": "open-weights-and-quantization-activity",
-    "title": "The Open-Weight Ecosystem & Quantization Hands-On Lab",
+    "title": "Size and trace three variants of one open-weight model",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Pick one open-weight model that is available as a 16-bit checkpoint and as at least two community GGUF quantizations (for example Q8_0 and Q4_K_M).",
+      "For each GGUF file, read the metadata with the Hub's GGUF viewer or a GGUF parser and record general.architecture, general.quantization_version, general.license, any general.base_model.* keys, [llm].context_length, [llm].attention.head_count_kv, and whether a chat template is embedded.",
+      "Compute the expected file size from the parameter count and the file's measured bits per weight, compare it with the actual file size, and explain any gap larger than 2 percent.",
+      "From the metadata and the model card, determine whether each quantization was made from the 16-bit original or requantized, and whether an importance matrix was used. Write 'unknown' wherever the evidence does not say.",
+      "Name the runtime you would serve each file with, and state -- citing that runtime's documentation -- whether it keeps the weights packed or dequantizes them at load."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A three-row table: file, recorded metadata fields, measured bits per weight, predicted versus actual size, lineage (from 16-bit / requantized / unknown), and importance matrix (yes / no / unknown).",
+      "For each file, the chosen runtime and the expected resident weight memory under that runtime, with the documentation reference for the packed-or-dequantized claim."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which of the three files could you not trace back to a 16-bit original, and what would you need from its publisher before letting it serve users?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-open-weights-and-quantization-1",
-        "prompt": "What is the primary architectural goal of The Open-Weight Ecosystem & Quantization?",
+        "prompt": "llama.cpp measures Llama-3.1-8B at 16.0005 bits per weight and 14.96 GiB in F16. Roughly how large is the Q4_K_M file at 4.8944 bits per weight?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "About 3.7 GiB -- a quarter of the F16 size",
+          "About 4.21 GiB -- the nominal 4.5 bits of Q4_K",
+          "About 4.58 GiB -- parameters x 4.8944 / 8",
+          "About 7.95 GiB -- half of the F16 size"
         ],
-        "answerIndex": 0,
-        "explanation": "The Open-Weight Ecosystem & Quantization enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 2,
+        "explanation": "14.96 GiB at 16.0005 bits per weight implies about 8.03 billion parameters; 8.03e9 x 4.8944 / 8 is about 4.91e9 bytes, or 4.58 GiB, which is the measured size. The nominal Q4_K figure underestimates because Q4_K_M mixes tensor types."
+      },
+      {
+        "id": "q-open-weights-and-quantization-2",
+        "prompt": "Why does the GGUF Q4_K type work out to 4.5 bits per weight rather than 4?",
+        "choices": [
+          "GGUF pads every tensor to a byte boundary",
+          "Each block stores a 6-bit scale and a 6-bit minimum alongside the 4-bit values",
+          "The tokenizer is stored inside the tensor data",
+          "It is a naming convention with no storage meaning"
+        ],
+        "answerIndex": 1,
+        "explanation": "The Hub's type table defines Q4_K as super-blocks of 8 blocks x 32 weights with w = q * block_scale(6-bit) + block_min(6-bit); the stored scales and minimums are the extra half bit per weight."
+      },
+      {
+        "id": "q-open-weights-and-quantization-3",
+        "prompt": "A vendor offers a Q4 GGUF produced with llama-quantize --allow-requantize from their own Q8_0 file. What does llama.cpp's documentation say about this path?",
+        "choices": [
+          "It is identical in quality to quantizing from the 16-bit original",
+          "Requantizing can severely reduce quality compared to quantizing from 16-bit or 32-bit",
+          "It is the required path for every k-quant",
+          "It only changes the output tensor"
+        ],
+        "answerIndex": 1,
+        "explanation": "The --allow-requantize option is documented with a warning that requantizing already-quantized tensors can severely reduce quality compared to quantizing from 16-bit or 32-bit weights."
+      },
+      {
+        "id": "q-open-weights-and-quantization-4",
+        "prompt": "You load a Q4_K_M GGUF of an 8B Llama model through Hugging Face Transformers on a CUDA GPU in bfloat16. What should you budget for weight memory?",
+        "choices": [
+          "About 4.6 GiB, because the file stays packed in memory",
+          "About 15 GiB, because outside the Metal and Qwen3.5 fast path Transformers dequantizes GGUF into a dense model at load",
+          "Nothing extra, because GGUF is memory-mapped from disk",
+          "Exactly 4 GiB, because the model is 4-bit"
+        ],
+        "answerIndex": 1,
+        "explanation": "Transformers keeps GGUF blocks packed only on Metal devices for the Qwen3.5 architecture; everywhere else the model is dequantized into a regular dense model in the requested dtype, so a 16-bit 8B model is roughly the 14.96 GiB F16 size."
+      },
+      {
+        "id": "q-open-weights-and-quantization-5",
+        "prompt": "Which GGUF metadata key tells you whether a model uses grouped-query attention?",
+        "choices": [
+          "general.file_type",
+          "[llm].attention.head_count_kv, when present and different from head_count",
+          "general.quantization_version",
+          "tokenizer.chat_template"
+        ],
+        "answerIndex": 1,
+        "explanation": "The GGUF specification defines head_count_kv as the number of heads per group used in grouped-query attention; if it is absent or equal to head_count, the model does not use GQA."
+      },
+      {
+        "id": "q-open-weights-and-quantization-6",
+        "prompt": "According to Hugging Face's guide to selecting a quantization method, which two methods need a calibration dataset and a separate calibration step?",
+        "choices": [
+          "bitsandbytes and HQQ",
+          "GPTQ (GPTQModel) and AWQ",
+          "HQQ and SINQ",
+          "torchao and bitsandbytes"
+        ],
+        "answerIndex": 1,
+        "explanation": "The guide groups GPTQ/GPTQModel and AWQ as calibration-based methods (about 20 and 10 minutes for an 8B model on one A100), and bitsandbytes, HQQ, and SINQ as on-the-fly methods that need no calibration."
       }
     ]
   },
   "sources": [
     {
-      "title": "Hugging Face Transformers: quantization overview",
-      "url": "https://huggingface.co/docs/transformers/en/quantization/overview",
+      "title": "GGUF (Hugging Face Hub documentation)",
+      "url": "https://huggingface.co/docs/hub/gguf",
       "publisher": "Hugging Face",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GGUF file format specification",
+      "url": "https://github.com/ggml-org/ggml/blob/master/docs/gguf.md",
+      "publisher": "ggml-org",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "llama.cpp quantize tool README",
+      "url": "https://github.com/ggml-org/llama.cpp/blob/master/tools/quantize/README.md",
+      "publisher": "ggml-org",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Selecting a quantization method",
+      "url": "https://huggingface.co/docs/transformers/main/en/quantization/selecting",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Quantization overview",
+      "url": "https://huggingface.co/docs/transformers/main/en/quantization/overview",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GGUF (Transformers quantization)",
+      "url": "https://huggingface.co/docs/transformers/main/en/quantization/gguf",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GGUF (vLLM quantization documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/features/quantization/gguf.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 2700,
+    "cues": [
+      {
+        "id": "cue-owq-formats-narration",
+        "kind": "narration",
+        "sectionId": "tensor-files-and-self-describing-files",
+        "text": "Tensor-only files carry weights; a GGUF file also carries its converter's decisions -- template, context length, license claim, and lineage -- so read its metadata, not its name."
+      },
+      {
+        "id": "cue-owq-formats-visual",
+        "kind": "visual",
+        "sectionId": "tensor-files-and-self-describing-files",
+        "text": "Show a GGUF filename split into its naming-convention components beside the metadata keys that confirm or contradict each component.",
+        "accessibilityAlternative": "A two-column table lists the filename components (BaseName, SizeLabel, FineTune, Version, Encoding) on the left and the GGUF metadata keys that confirm or contradict each one on the right. Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-owq-bpw-narration",
+        "kind": "narration",
+        "sectionId": "bits-per-weight",
+        "text": "A quantization label names a scheme; bits per weight, including block scales and tensor mixtures, is what decides the file size."
+      },
+      {
+        "id": "cue-owq-bpw-pause",
+        "kind": "pause",
+        "sectionId": "bits-per-weight",
+        "text": "Allow three minutes for learners to predict the Q8_0 size of Llama-3.1-8B from 8.03 billion parameters and 8.5008 bits per weight, then compare the result with the measured 7.95 GiB."
+      },
+      {
+        "id": "cue-owq-calibration-narration",
+        "kind": "narration",
+        "sectionId": "calibration-and-importance",
+        "text": "Quantizing from a 16-bit original with calibration or an importance matrix is a different, better path than requantizing someone else's quantized file."
+      },
+      {
+        "id": "cue-owq-calibration-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "calibration-and-importance",
+        "text": "Ask learners what evidence in a model card or GGUF metadata would tell them whether a community quantization was made from the 16-bit original or requantized."
+      },
+      {
+        "id": "cue-owq-runtime-narration",
+        "kind": "narration",
+        "sectionId": "packed-or-dequantized",
+        "text": "A 4-bit file saves memory only while the runtime keeps it packed; choose the engine first, then the format it serves as a first-class path."
+      },
+      {
+        "id": "cue-owq-runtime-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "packed-or-dequantized",
+        "text": "Check that learners can state the weight memory a Q4_K_M 8B GGUF needs when it is loaded through a runtime that dequantizes it at load."
+      },
+      {
+        "id": "cue-owq-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the three-variant sizing and lineage table, insisting on 'unknown' wherever the evidence is silent."
+      },
+      {
+        "id": "cue-owq-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can compute a file size from bits per weight and name a runtime that dequantizes GGUF at load."
+      }
+    ],
+    "transcript": "Tensor-only files carry weights; a GGUF file also carries its converter's decisions -- template, context length, license claim, and lineage -- so read its metadata, not its name. A quantization label names a scheme; bits per weight, including block scales and tensor mixtures, is what decides the file size. Quantizing from a 16-bit original with calibration or an importance matrix is a different, better path than requantizing someone else's quantized file. A 4-bit file saves memory only while the runtime keeps it packed; choose the engine first, then the format it serves as a first-class path.",
+    "captions": [
+      {
+        "cueId": "cue-owq-formats-narration",
+        "startSeconds": 0,
+        "endSeconds": 600,
+        "text": "Tensor-only files carry weights; a GGUF file also carries its converter's decisions -- template, context length, license claim, and lineage -- so read its metadata, not its name."
+      },
+      {
+        "cueId": "cue-owq-bpw-narration",
+        "startSeconds": 630,
+        "endSeconds": 1320,
+        "text": "A quantization label names a scheme; bits per weight, including block scales and tensor mixtures, is what decides the file size."
+      },
+      {
+        "cueId": "cue-owq-calibration-narration",
+        "startSeconds": 1350,
+        "endSeconds": 1980,
+        "text": "Quantizing from a 16-bit original with calibration or an importance matrix is a different, better path than requantizing someone else's quantized file."
+      },
+      {
+        "cueId": "cue-owq-runtime-narration",
+        "startSeconds": 2010,
+        "endSeconds": 2460,
+        "text": "A 4-bit file saves memory only while the runtime keeps it packed; choose the engine first, then the format it serves as a first-class path."
+      },
+      {
+        "cueId": "cue-owq-assessment",
+        "startSeconds": 2490,
+        "endSeconds": 2700,
+        "text": "Begin the check once learners can compute a file size from bits per weight and name a runtime that dequantizes GGUF at load."
+      }
+    ],
+    "reducedMotionAlternative": "Present the filename-versus-metadata comparison and the bits-per-weight worked example as static tables with focus-based highlighting instead of animated sequences."
+  }
 }

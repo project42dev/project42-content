@@ -1,80 +1,340 @@
 {
   "id": "hardware-and-vram-calculator",
   "title": "GPU Sizing, VRAM Planning & KV Cache",
-  "summary": "Calculating memory for model weights, context window KV cache, and tensor parallelism.",
+  "summary": "Size accelerator memory step by step from sourced formulas: weight memory from measured bits per weight, KV cache per token from layers, KV heads and head dimension, a reproduction of published tables that keeps their discrepancies, and the conversion of a memory budget into a token ceiling and concurrency under vLLM's paged allocator.",
   "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 35,
+  "estimatedMinutes": 45,
   "objectives": [
-    "Master the architectural principles and core mechanisms of GPU Sizing, VRAM Planning & KV Cache.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Compute weight memory from parameter count and the measured bits per weight of the exact file, converting every figure to a single unit before adding.",
+    "Derive KV-cache bytes per token from layers, KV heads, head dimension, and element size, and explain why grouped-query attention shrinks it.",
+    "Reproduce a published KV-cache sizing table from first principles, identify the token-count and unit assumptions behind it, and record a discrepancy instead of choosing a convenient number.",
+    "Convert an accelerator memory budget into a KV token ceiling and a concurrency estimate under vLLM's paged allocator, and name what the arithmetic cannot know until the engine profiles memory."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "weights-from-bits-per-weight",
+      "title": "Step 1: weight memory from parameters and bits per weight",
       "paragraphs": [
-        "Calculating memory for model weights, context window KV cache, and tensor parallelism.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for GPU Sizing, VRAM Planning & KV Cache.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
-      ]
+        "Every sizing starts with the weights, because they stay resident for the life of the server. The PagedAttention paper's profile of a 13B-parameter model served on a 40 GB NVIDIA A100 shows the shape of the problem: about 65% of memory holds the static weights, close to 30% holds the dynamic per-request key-value (KV) cache, and a small remainder is used ephemerally for activations. Hugging Face's Llama 3.1 release post gives rule-of-thumb weights-only figures for the 8B model -- 16 GB at FP16, 8 GB at FP8, 4 GB at INT4 -- and notes they are the VRAM needed just to load the checkpoint, excluding the space PyTorch reserves for kernels and CUDA graphs.",
+        "Those round numbers use nominal bits. The formula is weight bytes = parameters x bits per weight / 8, and the honest input is the measured bits per weight of the exact file. llama.cpp's measurements for Llama-3.1-8B list F16 at 16.0005 bits per weight and 14.96 GiB, and Q4_K_M at 4.8944 bits per weight and 4.58 GiB. Watch the units: 14.96 GiB is 14.96 x 1,073,741,824, about 16.06 x 10^9 bytes -- the same quantity as the blog's 16 GB written in decimal gigabytes. The 4-bit case is where the gap is real: 4.58 GiB is about 4.92 x 10^9 bytes, roughly 23% more than a nominal 4 GB, because block scales and tensor mixtures add bits (the previous module in this path derives why). Pick one unit -- this module uses GiB, 2^30 bytes -- and convert every published figure into it before adding anything."
+      ],
+      "callout": "Convert every figure to one unit before adding: 1 GiB = 1,073,741,824 bytes and 1 KiB = 1,024 bytes. A decimal GB and a GiB differ by about 7%."
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "kv-cache-per-token",
+      "title": "Step 2: KV cache per token from the architecture",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "The KV cache stores the attention keys and values of every token already processed, so later tokens can be generated without recomputing them. The PagedAttention paper gives the per-token arithmetic for OPT-13B: 2 (key and value vectors) x 5,120 (hidden state size) x 40 (layers) x 2 (bytes per FP16 value) = 819,200 bytes, about 800 KB per token. Because OPT can generate sequences of up to 2,048 tokens, one request's KV cache can reach about 1.6 GB, and the paper concludes that even if all available memory went to KV cache, only a few tens of requests would fit.",
+        "That formula uses the hidden size because OPT gives every attention head its own keys and values. With grouped-query attention (GQA), each key-value head is shared by a group of query heads, so the per-token width is KV heads x head dimension rather than the full hidden size. The GGUF specification records exactly the inputs needed: [llm].block_count (layers), [llm].attention.head_count, [llm].attention.head_count_kv (absent or equal to head_count means no GQA), and [llm].attention.key_length, which defaults to embedding length / head count when not stated. The general formula is KV bytes per token = 2 x layers x KV heads x head dimension x bytes per element.",
+        "Apply it to Llama 3.1 8B. Table 3 of The Llama 3 Herd of Models -- whose reported results are for the Llama 3.1 models -- lists 32 layers, a model dimension of 4,096, 32 attention heads, and 8 key-value heads, and the paper says GQA with 8 KV heads was adopted to improve inference speed and to reduce the size of key-value caches during decoding. Head dimension = 4,096 / 32 = 128. KV bytes per token at 16 bits = 2 x 32 x 8 x 128 x 2 = 131,072 bytes = 128 KiB. With one KV head per query head (32 instead of 8), the same arithmetic gives 524,288 bytes, 512 KiB -- four times as much. One 8,192-token sequence therefore holds 8,192 x 128 KiB = 1 GiB of KV cache."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Per-token KV cache for Llama 3.1 8B, derived step by step",
+        "code": "# Inputs: The Llama 3 Herd of Models, Table 3, 8B column\nlayers          = 32\nmodel_dim       = 4096\nattention_heads = 32\nkv_heads        = 8      # grouped-query attention\nbytes_per_elem  = 2      # FP16 / BF16 KV cache\n\n# GGUF spec default: key_length = embedding_length / head_count\nhead_dim = 4096 / 32 = 128\n\n# The leading 2 = one key vector + one value vector\nkv_per_token = 2 * layers * kv_heads * head_dim * bytes_per_elem\n             = 2 * 32 * 8 * 128 * 2\n             = 131,072 bytes = 128 KiB\n\n# Sanity check against the PagedAttention paper (OPT-13B, no GQA):\n# 2 * 5120 * 40 * 2 = 819,200 bytes (~800 KB) per token"
+      }
+    },
+    {
+      "id": "reproduce-published-tables",
+      "title": "Step 3: reproduce published tables, and keep the discrepancies",
+      "paragraphs": [
+        "Hugging Face's Llama 3.1 post publishes FP16 KV-cache sizes for the 8B model: 0.125 GB at 1k tokens, 1.95 GB at 16k, and 15.62 GB at 128k. Reproduce them before trusting them. 128 KiB x 1,024 tokens = 134,217,728 bytes = 0.125 GiB. 128 KiB x 16,000 tokens = 2,097,152,000 bytes = 1.95 GiB. 128 KiB x 128,000 tokens = 16,777,216,000 bytes = 15.625 GiB. The table's GB values therefore reproduce as GiB, with 16k and 128k read as 16,000 and 128,000 tokens; a full 131,072-token context would be exactly 16 GiB. State the token count and the unit behind any '128k' figure you publish.",
+        "The 70B row reproduces too. Table 3 gives 80 layers, a model dimension of 8,192, 64 attention heads, and 8 KV heads: head dimension 128, so 2 x 80 x 8 x 128 x 2 = 327,680 bytes (320 KiB) per token, or 39.06 GiB at 128,000 tokens -- the post lists 39.06 GB. The 405B row does not. Table 3 gives 126 layers, a dimension of 16,384, 128 heads, and 8 KV heads, which derives 2 x 126 x 8 x 128 x 2 = 516,096 bytes (504 KiB) per token and 61.52 GiB at 128,000 tokens; the post lists 123.05 GB, exactly twice that. This module does not resolve the difference, and a sizing sheet should not resolve it by picking the convenient number: check the model's own configuration and measure. Two sources that agree on two rows and differ by a clean factor of two on the third are telling you an assumption differs.",
+        "The post also states the point this arithmetic exists to surface: for the small model, the cache uses as much memory as the weights when approaching the context length maximum. Here that is 15.6 GiB of KV cache for one 128,000-token sequence beside 14.96 GiB of F16 weights -- a long-context deployment is sized by its cache, not by its parameter count."
+      ],
+      "callout": "A published sizing table is a claim to reproduce. Record the token count, the unit, and every row that does not reproduce."
+    },
+    {
+      "id": "budget-to-concurrency",
+      "title": "Step 4: from a memory budget to tokens and concurrent sequences",
+      "paragraphs": [
+        "vLLM turns the arithmetic into an allocation. Its cache configuration -- which vLLM's engine-arguments documentation names as the source of truth for defaults -- sets gpu_memory_utilization, the fraction of GPU memory the model executor may use as a per-instance limit, to 0.92 by default; an explicit kv_cache_memory_bytes overrides it. KV memory is divided into fixed-size blocks whose default in the same configuration is 16 tokens. The PagedAttention paper found 16 large enough to use the GPU efficiently and small enough to avoid significant internal fragmentation in most workloads.",
+        "A worked example, with its assumptions stated: one accelerator that reports 80 GiB, Llama 3.1 8B with F16 weights (14.96 GiB), and an FP16 KV cache (128 KiB per token). Budget = 0.92 x 80 GiB = 73.6 GiB. Subtract the weights: 73.6 - 14.96 = 58.64 GiB. That is a ceiling, not a result -- activations and CUDA graphs, which vLLM's memory guide notes take extra GPU memory, still come out of it. Tokens under the ceiling = 58.64 x 1,073,741,824 / 131,072, about 480,000 tokens. One 16-token block is 16 x 128 KiB = 2 MiB, so about 30,000 blocks. At 8,192 tokens per sequence that is at most 58 full-length sequences at once; at a 131,072-token context, at most 3.",
+        "The ceiling is reachable only because of paging. The paper measured that systems pre-allocating contiguous memory for each request's maximum length used only 20.4% to 38.2% of their KV memory for actual token states, whereas paging limits each request's waste to within one block. The levers that move the ceiling are the ones vLLM documents: lower max_model_len and max_num_seqs to reduce memory; tensor parallelism to shard the weights and leave each GPU more room for KV cache; and an FP8 KV cache (kv_cache_dtype fp8), which vLLM says significantly reduces the cache footprint. At one byte per element the same model needs 64 KiB per token, roughly doubling the token ceiling -- but it is a precision change to evaluate like any other quantization, and vLLM notes that some attention layer types, such as sliding-window layers, are more sensitive to it."
+      ],
+      "callout": "tokens_ceiling = (utilization x device_memory - weights) / kv_bytes_per_token. Then subtract what profiling says activations and graphs actually take."
+    },
+    {
+      "id": "what-arithmetic-cannot-know",
+      "title": "What the arithmetic cannot know",
+      "paragraphs": [
+        "The calculator leaves out everything that is neither weights nor KV cache: activation buffers, CUDA graph memory, runtime workspace, and the partly filled last block of each request. vLLM does not guess those. On startup it profiles memory and logs the exact --kv-cache-memory value that reproduces the resulting allocation. Passing that value back skips profiling on the next boot, with documented trade-offs: a conservative value caps batch concurrency and therefore throughput, an optimistic one fails at allocation, and the value is valid only on the same GPU with the same initial free memory -- if hardware or co-tenants change, remove the flag and re-profile.",
+        "When the cache is exhausted at runtime, vLLM preempts requests to free KV space and, in its V1 engine, recomputes them later by default rather than swapping them to CPU memory. It logs a warning that a sequence group was preempted because there is not enough KV cache space, and its tuning guide lists the responses: raise gpu_memory_utilization, lower max_num_seqs or max_num_batched_tokens, or add tensor or pipeline parallelism. Preemption keeps the server alive at the cost of end-to-end latency, and the preemption count is exposed through vLLM's Prometheus metrics.",
+        "Treat the arithmetic as a hypothesis with its assumptions written beside it -- device memory, utilization fraction, weight bits per weight, KV dtype, context length, and whether the model uses GQA -- and let the measurement discipline of the hardware-runtime-and-capacity-planning module confirm or replace it. A sizing sheet that shows only the final number cannot be re-checked when a driver, model revision, or context policy changes."
       ]
     }
   ],
   "activity": {
     "id": "hardware-and-vram-calculator-activity",
-    "title": "GPU Sizing, VRAM Planning & KV Cache Hands-On Lab",
+    "title": "Build and defend a VRAM sizing sheet",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Choose an open-weight model you might deploy and take its layers, model dimension, attention heads, KV heads, and head dimension (if stated) from the model's own configuration file or GGUF metadata -- not from a blog post.",
+      "Derive KV bytes per token with 2 x layers x KV heads x head dimension x bytes per element, showing every factor, for a 16-bit and an 8-bit KV cache.",
+      "Compute weight memory from the parameter count and the measured bits per weight of the exact file you would load, in GiB.",
+      "For one target accelerator, compute the KV token ceiling at vLLM's default 0.92 utilization and the maximum number of concurrent sequences at two context lengths your application actually needs.",
+      "Find one published sizing figure for the same model and try to reproduce it. Record whether it matches and, if it does not, which assumption differs."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A sizing sheet showing every input with its source, every intermediate value with its unit, and the final token ceiling and concurrency for each context length.",
+      "A reproduction note for one published figure: matched, or the specific differing assumption (token count, unit, KV heads, or dtype).",
+      "A list of what the sheet excludes -- activations, CUDA graphs, runtime workspace -- and how you will measure each on the real build."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which single assumption in your sheet would change the concurrency answer most if it were wrong, and how would you find out before your users do?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-hardware-and-vram-calculator-1",
-        "prompt": "What is the primary architectural goal of GPU Sizing, VRAM Planning & KV Cache?",
+        "prompt": "Using the PagedAttention paper's formula, what is the FP16 KV cache per token for OPT-13B, with a hidden size of 5,120 and 40 layers?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "About 400 KB",
+          "About 800 KB (819,200 bytes)",
+          "About 1.6 GB",
+          "About 10 KB"
         ],
-        "answerIndex": 0,
-        "explanation": "GPU Sizing, VRAM Planning & KV Cache enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 1,
+        "explanation": "2 (key and value) x 5,120 x 40 x 2 bytes = 819,200 bytes, about 800 KB per token. 1.6 GB is the paper's figure for a full 2,048-token request."
+      },
+      {
+        "id": "q-hardware-and-vram-calculator-2",
+        "prompt": "Llama 3.1 8B has 32 layers, 8 KV heads, and a head dimension of 128. What is its FP16 KV cache per token?",
+        "choices": [
+          "32 KiB",
+          "128 KiB",
+          "512 KiB",
+          "1 MiB"
+        ],
+        "answerIndex": 1,
+        "explanation": "2 x 32 x 8 x 128 x 2 bytes = 131,072 bytes = 128 KiB. 512 KiB is what the model would need with 32 KV heads instead of 8."
+      },
+      {
+        "id": "q-hardware-and-vram-calculator-3",
+        "prompt": "Why does grouped-query attention reduce KV-cache size?",
+        "choices": [
+          "It quantizes keys and values to 4 bits",
+          "Keys and values are stored only for KV heads shared by groups of query heads, so the per-token width is KV heads x head dimension instead of the full hidden size",
+          "It discards the value vectors",
+          "It moves the cache to CPU memory"
+        ],
+        "answerIndex": 1,
+        "explanation": "The Llama 3 paper adopts GQA with 8 KV heads to reduce KV-cache size during decoding; with 32 query heads that is a four-fold reduction in the per-token KV width."
+      },
+      {
+        "id": "q-hardware-and-vram-calculator-4",
+        "prompt": "Hugging Face lists 15.62 GB of FP16 KV cache for Llama 3.1 8B at '128k' tokens. Which reading reproduces that figure from 128 KiB per token?",
+        "choices": [
+          "131,072 tokens, in decimal GB",
+          "128,000 tokens, in GiB",
+          "128,000 tokens, in decimal GB",
+          "131,072 tokens, in GiB"
+        ],
+        "answerIndex": 1,
+        "explanation": "128,000 x 131,072 bytes = 16,777,216,000 bytes = 15.625 GiB. In decimal GB the same bytes are about 16.78 GB, and 131,072 tokens would be exactly 16 GiB."
+      },
+      {
+        "id": "q-hardware-and-vram-calculator-5",
+        "prompt": "With vLLM's default gpu_memory_utilization on an accelerator reporting 80 GiB, and 14.96 GiB of weights, what is the upper bound for KV cache before activations and CUDA graphs?",
+        "choices": [
+          "80 GiB",
+          "73.6 GiB",
+          "58.64 GiB",
+          "65.04 GiB"
+        ],
+        "answerIndex": 2,
+        "explanation": "The default utilization is 0.92, so the budget is 0.92 x 80 = 73.6 GiB; subtracting 14.96 GiB of weights leaves a 58.64 GiB ceiling, from which activations and graph memory still have to come."
+      },
+      {
+        "id": "q-hardware-and-vram-calculator-6",
+        "prompt": "vLLM logs that a sequence group was preempted because there is not enough KV cache space. Which response does vLLM's tuning guide list?",
+        "choices": [
+          "Increase max_num_seqs so more requests share the cache",
+          "Increase gpu_memory_utilization, or decrease max_num_seqs or max_num_batched_tokens",
+          "Disable the KV cache entirely",
+          "Switch the V1 engine to SWAP preemption because it has lower overhead"
+        ],
+        "answerIndex": 1,
+        "explanation": "The guide lists raising gpu_memory_utilization, lowering max_num_seqs or max_num_batched_tokens, and adding tensor or pipeline parallelism. V1 defaults to RECOMPUTE precisely because recomputation has lower overhead in that architecture."
       }
     ]
   },
   "sources": [
     {
-      "title": "PyTorch documentation",
-      "url": "https://docs.pytorch.org/docs/",
-      "publisher": "PyTorch",
-      "lastVerified": "2026-09-05"
+      "title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+      "url": "https://arxiv.org/abs/2309.06180",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
     },
     {
-      "title": "vLLM documentation",
-      "url": "https://docs.vllm.ai/",
+      "title": "The Llama 3 Herd of Models",
+      "url": "https://arxiv.org/abs/2407.21783",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Llama 3.1 - 405B, 70B & 8B with multilinguality and long context",
+      "url": "https://huggingface.co/blog/llama31",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "llama.cpp quantize tool README",
+      "url": "https://github.com/ggml-org/llama.cpp/blob/master/tools/quantize/README.md",
+      "publisher": "ggml-org",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GGUF file format specification",
+      "url": "https://github.com/ggml-org/ggml/blob/master/docs/gguf.md",
+      "publisher": "ggml-org",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "vLLM cache configuration (vllm/config/cache.py)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/vllm/config/cache.py",
       "publisher": "vLLM",
-      "lastVerified": "2026-09-06"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Engine Arguments (vLLM documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/configuration/engine_args.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Optimization and Tuning (vLLM documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/configuration/optimization.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Conserving Memory (vLLM documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/configuration/conserving_memory.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Quantized KV Cache (vLLM documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/features/quantization/quantized_kvcache.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 2700,
+    "cues": [
+      {
+        "id": "cue-vram-weights-narration",
+        "kind": "narration",
+        "sectionId": "weights-from-bits-per-weight",
+        "text": "Weights are parameters times measured bits per weight divided by eight, and every figure goes into one unit before anything is added."
+      },
+      {
+        "id": "cue-vram-kv-narration",
+        "kind": "narration",
+        "sectionId": "kv-cache-per-token",
+        "text": "KV cache per token is two times layers times KV heads times head dimension times bytes per element; grouped-query attention shrinks the KV-heads factor."
+      },
+      {
+        "id": "cue-vram-kv-visual",
+        "kind": "visual",
+        "sectionId": "kv-cache-per-token",
+        "text": "Build the Llama 3.1 8B per-token KV calculation one factor at a time, then show the same calculation with 32 KV heads to make the four-fold GQA saving visible.",
+        "accessibilityAlternative": "A static table lists each factor (2, 32 layers, 8 KV heads, 128 head dimension, 2 bytes) with a running product, followed by a second row using 32 KV heads that ends at 512 KiB instead of 128 KiB. Reduced-motion mode shows both rows at once."
+      },
+      {
+        "id": "cue-vram-reproduce-narration",
+        "kind": "narration",
+        "sectionId": "reproduce-published-tables",
+        "text": "A published sizing table is a claim to reproduce: find its token count and unit, and record any row that does not reproduce instead of choosing the convenient number."
+      },
+      {
+        "id": "cue-vram-reproduce-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "reproduce-published-tables",
+        "text": "Ask learners to propose one assumption that would make the 405B row exactly twice the value derived from Table 3, and how they would check it against the model's own configuration."
+      },
+      {
+        "id": "cue-vram-budget-narration",
+        "kind": "narration",
+        "sectionId": "budget-to-concurrency",
+        "text": "The token ceiling is utilization times device memory, minus weights, divided by KV bytes per token -- and paging is what makes that ceiling reachable."
+      },
+      {
+        "id": "cue-vram-budget-pause",
+        "kind": "pause",
+        "sectionId": "budget-to-concurrency",
+        "text": "Allow four minutes for learners to recompute the worked example with an FP8 KV cache and report the new token ceiling and the maximum number of 32,768-token sequences."
+      },
+      {
+        "id": "cue-vram-unknowns-narration",
+        "kind": "narration",
+        "sectionId": "what-arithmetic-cannot-know",
+        "text": "The arithmetic cannot see activations, graphs, or workspace; the engine's profiling and its preemption warnings tell you what the calculation missed."
+      },
+      {
+        "id": "cue-vram-unknowns-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "what-arithmetic-cannot-know",
+        "text": "Check that learners can name two things a sizing sheet excludes and the vLLM signal that reveals each one on the real build."
+      },
+      {
+        "id": "cue-vram-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the sizing sheet and the reproduction of one published figure, requiring a source beside every input."
+      },
+      {
+        "id": "cue-vram-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can derive KV bytes per token for a GQA model and turn a memory budget into a token ceiling with its assumptions stated."
+      }
+    ],
+    "transcript": "Weights are parameters times measured bits per weight divided by eight, and every figure goes into one unit before anything is added. KV cache per token is two times layers times KV heads times head dimension times bytes per element; grouped-query attention shrinks the KV-heads factor. A published sizing table is a claim to reproduce: find its token count and unit, and record any row that does not reproduce instead of choosing the convenient number. The token ceiling is utilization times device memory, minus weights, divided by KV bytes per token -- and paging is what makes that ceiling reachable. The arithmetic cannot see activations, graphs, or workspace; the engine's profiling and its preemption warnings tell you what the calculation missed.",
+    "captions": [
+      {
+        "cueId": "cue-vram-weights-narration",
+        "startSeconds": 0,
+        "endSeconds": 420,
+        "text": "Weights are parameters times measured bits per weight divided by eight, and every figure goes into one unit before anything is added."
+      },
+      {
+        "cueId": "cue-vram-kv-narration",
+        "startSeconds": 450,
+        "endSeconds": 1080,
+        "text": "KV cache per token is two times layers times KV heads times head dimension times bytes per element; grouped-query attention shrinks the KV-heads factor."
+      },
+      {
+        "cueId": "cue-vram-reproduce-narration",
+        "startSeconds": 1110,
+        "endSeconds": 1560,
+        "text": "A published sizing table is a claim to reproduce: find its token count and unit, and record any row that does not reproduce instead of choosing the convenient number."
+      },
+      {
+        "cueId": "cue-vram-budget-narration",
+        "startSeconds": 1590,
+        "endSeconds": 2160,
+        "text": "The token ceiling is utilization times device memory, minus weights, divided by KV bytes per token -- and paging is what makes that ceiling reachable."
+      },
+      {
+        "cueId": "cue-vram-unknowns-narration",
+        "startSeconds": 2190,
+        "endSeconds": 2490,
+        "text": "The arithmetic cannot see activations, graphs, or workspace; the engine's profiling and its preemption warnings tell you what the calculation missed."
+      },
+      {
+        "cueId": "cue-vram-assessment",
+        "startSeconds": 2520,
+        "endSeconds": 2700,
+        "text": "Begin the check once learners can derive KV bytes per token for a GQA model and turn a memory budget into a token ceiling with its assumptions stated."
+      }
+    ],
+    "reducedMotionAlternative": "Present each calculation as a static table of factors and running products, with focus-based highlighting of the current factor instead of animated build-ups."
+  }
 }

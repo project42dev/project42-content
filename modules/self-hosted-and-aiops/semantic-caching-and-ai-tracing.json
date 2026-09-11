@@ -1,74 +1,377 @@
 {
   "id": "semantic-caching-and-ai-tracing",
   "title": "Semantic Caching, Fallbacks & OpenTelemetry",
-  "summary": "Redis semantic caching, rate limiting, latency telemetry, and distributed AI traces.",
+  "summary": "Put a gateway in front of self-hosted models without hiding what it does: tell prefix, exact-match, and semantic caches apart by what they key on, tune a semantic cache's threshold and partition with each tool's own semantics, keep it away from multi-turn and agent traffic, make fallback-served answers attributable, and trace all of it with the OpenTelemetry GenAI conventions.",
   "level": "advanced",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 40,
+  "estimatedMinutes": 45,
   "objectives": [
-    "Master the architectural principles and core mechanisms of Semantic Caching, Fallbacks & OpenTelemetry.",
-    "Apply provider-neutral implementation patterns with verifiable evidence.",
-    "Evaluate operational trade-offs, performance constraints, and security boundaries."
+    "Distinguish prefix (KV), exact-match, and semantic caches by what they key on, and explain why only a semantic cache can change the answer a user receives.",
+    "Configure a semantic cache's threshold, partition, and lifetime using each tool's documented threshold semantics, and exclude the multi-turn and agentic traffic it breaks.",
+    "Design a fallback chain with retries, timeouts, cooldowns, and context-window and content-policy routes, and make fallback-served responses distinguishable after the fact.",
+    "Instrument the gateway with OpenTelemetry GenAI spans and metrics, stating each attribute's stability, where no convention exists, and the opt-in rule for content capture."
   ],
   "prerequisites": [],
   "sections": [
     {
-      "id": "architecture-overview",
-      "title": "Architectural Foundations & Specifications",
+      "id": "three-caches",
+      "title": "Three caches, keyed on three different things",
       "paragraphs": [
-        "Redis semantic caching, rate limiting, latency telemetry, and distributed AI traces.",
-        "This module establishes provider-neutral specifications, deterministic patterns, and verifiable checkpoints for Semantic Caching, Fallbacks & OpenTelemetry.",
-        "Understanding these mechanisms allows practitioners to build resilient, portable AI systems with zero vendor lock-in."
+        "'Caching' names three mechanisms with different failure modes. A prefix (KV) cache inside the engine reuses attention state: vLLM hashes each full KV block together with its parent block's hash and extras such as LoRA IDs, and its design notes describe prefix caching as almost a free lunch that won't change model outputs -- it saves prefill compute and nothing else. An exact-match response cache sits in front of the model: LiteLLM's exact-match caches key on a hash of the whole request, so any change to the conversation is a miss. LiteLLM also notes that an in-memory cache lives inside one worker process, so a proxy running four workers keeps four separate caches and the hit rate drops roughly by the worker count.",
+        "A semantic cache is different in kind. LiteLLM's semantic caches embed the prompt and serve the closest cached response whose cosine similarity clears a similarity_threshold. Azure API Management's llm-semantic-cache-lookup policy returns a stored response based on the vector proximity of the prompt to previous requests and a score threshold. Either way, the user receives an answer that was generated for a different request, and API Management's documentation states the consequence plainly: because semantic caching returns responses based on similarity rather than exact match, it can surface responses that are incorrect, outdated, or unsafe for the current request.",
+        "Each cache therefore needs a different evaluation question. A prefix cache is judged on latency and hit rate, because it cannot change answers. An exact-match cache is judged on hit rate and staleness. A semantic cache has to be judged like a model -- on how often the served answer is wrong for the request that received it -- which means it needs its own evaluation set of prompts that must not hit, not just a hit-rate dashboard."
+      ],
+      "callout": "Prefix caching changes latency. Exact-match caching changes cost. Semantic caching changes answers -- evaluate it like a model."
+    },
+    {
+      "id": "threshold-partition-lifetime",
+      "title": "Tuning a semantic cache: threshold, partition, lifetime",
+      "paragraphs": [
+        "Threshold numbers do not transfer between tools, because their meaning is inverted. In API Management, score-threshold ranges from 0.0 to 1.0 and lower values require higher semantic similarity; the policy reference suggests starting low, such as 0.05, and warns that a threshold above 0.2 may lead to cache mismatch. In LiteLLM, similarity_threshold is the cosine similarity a cached entry must clear, and its examples use 0.8 -- so there, higher is stricter. Record each value beside the tool's own definition of it, and never copy a threshold from one product's runbook into another's configuration.",
+        "Partition by trust boundary before tuning anything else. API Management's vary-by element partitions the cache -- its example uses the caller's subscription ID -- and the policy reference advises controlling cross-user access by varying on user or user-group identifiers. LiteLLM's documentation is blunt about its default: the semantic cache key deliberately leaves the prompt out, so only the tenant scope (virtual key, team, organization) keeps callers apart, every end user behind one virtual key shares one bucket, and a response generated for one of them -- tool calls included -- can be served to another who sends a similar prompt. Setting semantic_cache_scope to end_user isolates buckets per authenticated end user. vLLM makes the same argument for its exact prefix cache: an optional cache_salt limits reuse to requests sharing the salt, to prevent timing attacks that infer cached content from latency.",
+        "A semantic cache also adds a dependency to every request. LiteLLM runs the embedding call inline and caps it at 5 seconds; past the deadline the lookup is abandoned, the response carries x-litellm-semantic-similarity: 0.0, and the request proceeds as a miss -- and a larger semantic_cache_embedding_timeout is how long every request waits when the embedding endpoint stops answering. API Management advises sizing the embeddings deployment for the prompt volume, placing a rate-limit policy immediately after the lookup so the backend is protected if the cache is unavailable, and setting a duration on the paired llm-semantic-cache-store policy. The two tools even differ on what text is embedded: API Management recommends ignore-system-messages so system messages are removed before similarity is assessed, while LiteLLM embeds the entire messages array, system prompt included. Verify which text your tool compares before you trust a similarity score."
+      ],
+      "callout": "API Management: lower score-threshold is stricter. LiteLLM: higher similarity_threshold is stricter. Same idea, opposite numbers."
+    },
+    {
+      "id": "agentic-traffic",
+      "title": "Why semantic caches break multi-turn and agent traffic",
+      "paragraphs": [
+        "LiteLLM documents the failure precisely. Clients in multi-turn or agentic workloads -- coding agents, tool-calling loops, anything that resends the whole conversation -- send each new turn as the previous request plus a small appended delta. Consecutive turns are therefore nearly identical text whose embeddings are about 0.99 similar, so at any practical threshold every turn matches the previous turn's cached entry and the client replays a stale response, which typically shows up as an agent repeating the same tool call over and over. Raising the threshold does not reliably fix it, and assistant tool_calls are not part of the embedded text, which makes consecutive agent turns even harder to tell apart.",
+        "The documented remedy is scope, not tuning: keep semantic caching for single-shot traffic and exclude agentic traffic -- in LiteLLM, by setting no-cache in the metadata of the virtual keys agents use, by making caching opt-in with a default-off mode, or by letting clients opt out per request. If agentic traffic must be cached, use an exact-match cache, where any change to the conversation is a miss and a stale replay cannot happen. API Management offers a related guard in max-message-count, which skips caching once a dialog exceeds a set number of remaining messages.",
+        "Before enabling a semantic cache, classify the traffic behind each route or key as single-shot, multi-turn, or agentic, and enable it only where the class is single-shot and the must-not-hit evaluation passes. A cache that is safe for an FAQ endpoint and dangerous for an agent loop is not a gateway-wide setting."
       ]
     },
     {
-      "id": "practical-implementation",
-      "title": "Production Implementation & Workflow Patterns",
+      "id": "fallback-chains",
+      "title": "Fallbacks: retries, cooldowns, and honest attribution",
       "paragraphs": [
-        "Follow the structured lab instructions below to verify execution against deterministic acceptance criteria.",
-        "Ensure error-handling fallbacks, token spend constraints, and cryptographic audit records meet standard operational benchmarks."
+        "A fallback chain decides what answers when the primary cannot. In LiteLLM, if a call fails after num_retries the router falls back to another model group, trying fallbacks in the order listed. It distinguishes three triggers: content_policy_fallbacks for content-policy violations, context_window_fallbacks for context-window-exceeded errors, and plain fallbacks for everything else, such as rate limits. Context-window routing needs enable_pre_call_checks: true; without it, requests are sent to the provider regardless of input token count. The documented example combines num_retries: 3, a request_timeout of 10 seconds, allowed_fails: 3, and a cooldown_time of 30 seconds that takes a failing deployment out of rotation.",
+        "Attribution is the part most gateways skip. LiteLLM's spend logs record attempted_fallbacks (0 means the requested model group served the request) and original_model_group, both written by the proxy and overwriting any client-supplied values, so fallback-served and directly served requests stay distinguishable afterwards. Its documentation also says to test fallbacks by triggering a real provider error in a non-production environment; the mock-testing flags are stripped from proxy requests as of LiteLLM Proxy v1.85.0.",
+        "A fallback serves a different model, so it inherits none of the primary's evaluation results; the scaling-failure-and-capacity-controls module requires any degraded route to go to a separately evaluated fallback. Telemetry can carry the difference without custom fields: the OpenTelemetry GenAI conventions define gen_ai.request.model as the model a request was made to and gen_ai.response.model as the exact model that actually provided the response, and a GenAI span covers the whole logical operation, including any automatic retries. A dashboard that groups by request model alone will credit the primary with the fallback's answers."
       ]
+    },
+    {
+      "id": "genai-telemetry",
+      "title": "Tracing the gateway with the OpenTelemetry GenAI conventions",
+      "paragraphs": [
+        "Start with where the conventions live and how stable they are. The Generative AI page on opentelemetry.io now reads 'Moved': the GenAI semantic conventions have moved to a separate OpenTelemetry repository, semantic-conventions-genai, and the old page is no longer maintained. In that repository the conventions carry Development status, and every gen_ai.* attribute is marked Development; the general attributes they reuse, such as error.type, server.address, and server.port, are Stable. Pin the revision you implement and expect names to change.",
+        "An inference span is named '{gen_ai.operation.name} {gen_ai.request.model}', with span kind CLIENT (INTERNAL is allowed for a model running in the same process). gen_ai.operation.name and gen_ai.provider.name are required. The well-known operation names include chat, text_completion, embeddings, and retrieval -- so the embedding call a semantic cache makes can be its own span. The well-known provider values cover hosted providers such as openai, anthropic, and aws.bedrock; none names a self-hosted engine, so a custom value may be used, and the conventions note that the provider name reflects the instrumentation's best knowledge and may differ from the actual upstream provider when a proxy relays requests. For metrics, the client side defines gen_ai.client.operation.duration (a histogram in seconds with documented buckets from 0.01 to 81.92), gen_ai.client.token.usage, and gen_ai.client.operation.time_to_first_chunk; the server side defines gen_ai.server.request.duration, gen_ai.server.time_per_output_token, and gen_ai.server.time_to_first_token, which the conventions say captures time spent in the queue and in prefill. vLLM can emit OpenTelemetry traces itself when started with --otlp-traces-endpoint, and warns that its detailed-trace option can cost performance.",
+        "Two traps sit in the cache and content fields. gen_ai.usage.cache_read.input_tokens counts input tokens served from a provider-managed cache and should also be included in gen_ai.usage.input_tokens -- that is prompt or prefix caching at the provider, not a semantic response cache, and the current conventions define no attribute for a semantic-cache hit. Record hits and similarity scores as application-owned attributes in your own namespace rather than overloading a provider-cache field. For content, the conventions say instrumentations should not capture system instructions, inputs, or outputs by default but should offer an opt-in; gen_ai.input.messages is flagged as likely to contain personal data, and for production environments where telemetry volume or sensitive data is a concern, the recommended pattern is to store content externally, under separate access controls, and record references on the span. A semantic cache is itself a store of prompts and responses, so the same retention and access rules apply to it."
+      ],
+      "callout": "gen_ai.usage.cache_read.input_tokens is provider prompt caching. A semantic-cache hit has no GenAI convention yet -- name it yourself and say so.",
+      "code": {
+        "language": "text",
+        "label": "One logical request that missed the semantic cache and was answered by a fallback",
+        "code": "span \"chat primary-model\"   kind=CLIENT\n  gen_ai.operation.name      = \"chat\"            # Required (Development)\n  gen_ai.provider.name       = \"<custom value>\"  # Required; no well-known value for a self-hosted engine\n  gen_ai.request.model       = \"primary-model\"   # what the client asked for\n  gen_ai.response.model      = \"fallback-model\"  # the model that actually answered\n  gen_ai.usage.input_tokens  = 812               # includes any provider-cached input tokens\n  gen_ai.usage.output_tokens = 164\n  app.semantic_cache.hit        = false          # application-owned: no GenAI convention exists\n  app.semantic_cache.similarity = 0.71           # record the tool's own threshold semantics too\n  # The span covers the whole logical operation, including automatic retries.\n  # Prompt and response content: not captured unless explicitly opted in."
+      }
     }
   ],
   "activity": {
     "id": "semantic-caching-and-ai-tracing-activity",
-    "title": "Semantic Caching, Fallbacks & OpenTelemetry Hands-On Lab",
+    "title": "Design a cache-and-fallback gateway you can audit",
     "instructions": [
-      "Review the architectural constraints, tool definitions, and environment variables.",
-      "Configure the input parameters, model routing rules, and verification bounds.",
-      "Execute the workflow and verify the output against expected schema assertions."
+      "Classify one application's traffic into single-shot, multi-turn, and agentic classes with rough shares, and decide for each class: no cache, exact-match cache, or semantic cache.",
+      "For the semantic-cache class, choose a tool and write down, in that tool's own words, whether lower or higher threshold values are stricter; then record a starting value from its documentation, the partition key, the entry lifetime, and the embedding timeout.",
+      "Build an evaluation set of at least 30 prompt pairs: pairs that should hit, and pairs that must not hit (similar wording but a different meaning, or the same prompt from a different tenant). Record which pairs the cache actually served.",
+      "Define a fallback chain with retry count, timeout, cooldown, and separate context-window and content-policy routes, and name the evaluation that approved each fallback model.",
+      "Specify the span and metric attributes the gateway emits for a request that misses the cache and is answered by a fallback, marking each as a GenAI convention (with its stability) or application-owned."
     ],
     "evidence": [
-      "Execution output strictly conforms to the expected JSON schema.",
-      "All security bounds and rate limits verified with zero high-severity violations."
+      "A traffic-class table with the caching decision and the reason for each class.",
+      "The semantic-cache configuration with the threshold's documented meaning, and the must-not-hit results including every false hit.",
+      "A fallback-chain table and a sample trace record for a fallback-served request showing gen_ai.request.model versus gen_ai.response.model."
     ],
-    "reflectionPrompt": "How does this pattern scale in high-concurrency production environments?"
+    "reflectionPrompt": "Which false hit in your must-not-hit set would have done the most damage in production, and which setting -- threshold, partition, or traffic exclusion -- actually stopped it?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-semantic-caching-and-ai-tracing-1",
-        "prompt": "What is the primary architectural goal of Semantic Caching, Fallbacks & OpenTelemetry?",
+        "prompt": "Which of these caches can change the answer a user receives?",
         "choices": [
-          "Ensuring provider-neutrality, verifiable evidence, and deterministic execution.",
-          "Hardcoding vendor-specific proprietary APIs without fallbacks.",
-          "Disabling security boundaries and audit logging.",
-          "Ignoring latency, cost, and token limits."
+          "vLLM automatic prefix caching",
+          "An exact-match cache keyed on a hash of the whole request",
+          "A semantic cache that serves the closest cached response above a similarity threshold",
+          "A per-worker in-memory exact-match cache"
         ],
-        "answerIndex": 0,
-        "explanation": "Semantic Caching, Fallbacks & OpenTelemetry enforces provider-neutral design, auditability, and deterministic operational behavior."
+        "answerIndex": 2,
+        "explanation": "Prefix caching reuses attention state without changing outputs, and exact-match caches only replay an identical request. A semantic cache serves a response generated for a different, similar request, which API Management warns can be incorrect, outdated, or unsafe."
+      },
+      {
+        "id": "q-semantic-caching-and-ai-tracing-2",
+        "prompt": "An API Management runbook uses score-threshold 0.05; a LiteLLM example uses similarity_threshold 0.8. Which statement is correct?",
+        "choices": [
+          "Both are similarity scores, so 0.8 is far looser than 0.05",
+          "In API Management lower values require higher similarity; in LiteLLM a cached response must clear the cosine-similarity threshold, so higher values are stricter",
+          "In both tools lower values are stricter",
+          "The values are interchangeable once normalized"
+        ],
+        "answerIndex": 1,
+        "explanation": "The two tools define their thresholds in opposite directions, so a number from one tool's documentation says nothing about the other's."
+      },
+      {
+        "id": "q-semantic-caching-and-ai-tracing-3",
+        "prompt": "Why does LiteLLM recommend excluding agentic traffic from semantic caching?",
+        "choices": [
+          "Agents use too many tokens for the embedding model",
+          "Consecutive turns are nearly identical text, so each turn matches the previous turn's cached entry and the agent replays a stale response, such as repeating a tool call",
+          "Semantic caches cannot store JSON responses",
+          "Agent traffic is always streamed"
+        ],
+        "answerIndex": 1,
+        "explanation": "Each turn is the previous request plus a small delta, giving embeddings about 0.99 similar; raising the threshold does not reliably fix it, and tool_calls are not part of the embedded text."
+      },
+      {
+        "id": "q-semantic-caching-and-ai-tracing-4",
+        "prompt": "Under LiteLLM's default semantic-cache scope, what keeps two end users behind the same virtual key from receiving each other's cached responses?",
+        "choices": [
+          "Their different prompts are part of the cache key",
+          "Nothing -- they share one bucket unless semantic_cache_scope is set to end_user",
+          "Each TLS session gets its own cache",
+          "The embedding model isolates users automatically"
+        ],
+        "answerIndex": 1,
+        "explanation": "LiteLLM states that the semantic cache key deliberately leaves the prompt out, so every end user behind one virtual key shares one bucket by default, tool calls included."
+      },
+      {
+        "id": "q-semantic-caching-and-ai-tracing-5",
+        "prompt": "A LiteLLM context_window_fallbacks rule never triggers, and oversized requests reach the primary model. What does the documentation say is required?",
+        "choices": [
+          "num_retries set to 0",
+          "enable_pre_call_checks: true in router_settings",
+          "A semantic cache in front of the router",
+          "A cooldown_time longer than 60 seconds"
+        ],
+        "answerIndex": 1,
+        "explanation": "Without enable_pre_call_checks, requests are sent to the provider regardless of input token count, so context-window enforcement never happens before the call."
+      },
+      {
+        "id": "q-semantic-caching-and-ai-tracing-6",
+        "prompt": "Which OpenTelemetry GenAI attribute pair reveals that a fallback model answered a request?",
+        "choices": [
+          "gen_ai.operation.name and gen_ai.output.type",
+          "gen_ai.request.model and gen_ai.response.model",
+          "server.address and server.port",
+          "gen_ai.usage.cache_read.input_tokens and gen_ai.usage.input_tokens"
+        ],
+        "answerIndex": 1,
+        "explanation": "gen_ai.request.model is the model the request was made to; gen_ai.response.model is the exact model that actually provided the response."
+      },
+      {
+        "id": "q-semantic-caching-and-ai-tracing-7",
+        "prompt": "What does gen_ai.usage.cache_read.input_tokens record?",
+        "choices": [
+          "The number of semantic-cache hits at the gateway",
+          "Input tokens served from a provider-managed cache, which should also be counted in gen_ai.usage.input_tokens",
+          "The number of cache lookups per request",
+          "Output tokens replayed from a response cache"
+        ],
+        "answerIndex": 1,
+        "explanation": "The attribute covers provider-managed input caching. The current GenAI conventions define no attribute for a semantic response-cache hit, so that must be an application-owned attribute."
+      },
+      {
+        "id": "q-semantic-caching-and-ai-tracing-8",
+        "prompt": "By default, should GenAI instrumentation record prompts and responses on spans?",
+        "choices": [
+          "Yes, always, so traces are complete",
+          "No -- instrumentations should not capture them by default and should offer an opt-in; production guidance is to store content externally and reference it",
+          "Only when the request fails",
+          "Only the system instructions"
+        ],
+        "answerIndex": 1,
+        "explanation": "The conventions treat instructions, inputs, and outputs as sensitive and often large, flag gen_ai.input.messages as likely to contain personal data, and make capture opt-in."
       }
     ]
   },
   "sources": [
     {
-      "title": "OpenTelemetry documentation",
-      "url": "https://opentelemetry.io/",
+      "title": "Get cached responses of large language model API requests (llm-semantic-cache-lookup policy)",
+      "url": "https://learn.microsoft.com/en-us/azure/api-management/llm-semantic-cache-lookup-policy",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Enable semantic caching for LLM APIs in Azure API Management",
+      "url": "https://learn.microsoft.com/en-us/azure/api-management/azure-openai-enable-semantic-caching",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Semantic Caching",
+      "url": "https://docs.litellm.ai/docs/proxy/caching_semantic",
+      "publisher": "LiteLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Caching",
+      "url": "https://docs.litellm.ai/docs/proxy/caching",
+      "publisher": "LiteLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Fallbacks (Provider Failover)",
+      "url": "https://docs.litellm.ai/docs/proxy/reliability",
+      "publisher": "LiteLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Automatic Prefix Caching (vLLM design documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/design/prefix_caching.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Setup OpenTelemetry POC (vLLM observability example)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/examples/observability/opentelemetry/README.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Metrics (vLLM design documentation source)",
+      "url": "https://github.com/vllm-project/vllm/blob/main/docs/design/metrics.md",
+      "publisher": "vLLM",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Moved: Generative AI semantic conventions",
+      "url": "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
       "publisher": "OpenTelemetry",
-      "lastVerified": "2026-09-05"
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Semantic conventions for generative client AI spans",
+      "url": "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md",
+      "publisher": "OpenTelemetry",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Semantic conventions for generative AI metrics",
+      "url": "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-metrics.md",
+      "publisher": "OpenTelemetry",
+      "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "GenAI attribute registry",
+      "url": "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md",
+      "publisher": "OpenTelemetry",
+      "lastVerified": "2026-09-11"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 2700,
+    "cues": [
+      {
+        "id": "cue-semcache-caches-narration",
+        "kind": "narration",
+        "sectionId": "three-caches",
+        "text": "A prefix cache changes latency, an exact-match cache changes cost, and a semantic cache changes answers -- so only the last one needs to be evaluated like a model."
+      },
+      {
+        "id": "cue-semcache-caches-visual",
+        "kind": "visual",
+        "sectionId": "three-caches",
+        "text": "Show three request paths side by side -- engine prefix cache, exact-match gateway cache, semantic gateway cache -- with the key each one uses and what a hit returns.",
+        "accessibilityAlternative": "A three-row table lists each cache, its key (token-block hash, whole-request hash, prompt embedding plus threshold), and what a hit returns (reused attention state, an identical earlier response, a response generated for a different prompt). Reduced-motion mode shows the table without animation."
+      },
+      {
+        "id": "cue-semcache-tuning-narration",
+        "kind": "narration",
+        "sectionId": "threshold-partition-lifetime",
+        "text": "Read each tool's threshold in its own terms, partition by trust boundary before tuning, and budget for the embedding call every request now waits on."
+      },
+      {
+        "id": "cue-semcache-tuning-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "threshold-partition-lifetime",
+        "text": "Ask learners what happens if an API Management threshold of 0.05 is pasted into a LiteLLM similarity_threshold, and who would notice first."
+      },
+      {
+        "id": "cue-semcache-agentic-narration",
+        "kind": "narration",
+        "sectionId": "agentic-traffic",
+        "text": "Multi-turn and agent requests look almost identical turn to turn, so a semantic cache replays stale answers; the fix is excluding that traffic, not raising the threshold."
+      },
+      {
+        "id": "cue-semcache-fallback-narration",
+        "kind": "narration",
+        "sectionId": "fallback-chains",
+        "text": "A fallback answers with a different model, so it needs its own evaluation, and every fallback-served response must stay distinguishable from the primary's."
+      },
+      {
+        "id": "cue-semcache-fallback-pause",
+        "kind": "pause",
+        "sectionId": "fallback-chains",
+        "text": "Allow three minutes for learners to sketch the fallback order for their own application and mark which trigger -- rate limit, context window, or content policy -- routes to each fallback."
+      },
+      {
+        "id": "cue-semcache-otel-narration",
+        "kind": "narration",
+        "sectionId": "genai-telemetry",
+        "text": "The GenAI conventions have moved and are still in development; use request and response model to expose fallbacks, and name semantic-cache hits yourself because no convention exists."
+      },
+      {
+        "id": "cue-semcache-otel-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "genai-telemetry",
+        "text": "Check that learners can say why gen_ai.usage.cache_read.input_tokens must not be used to count semantic-cache hits."
+      },
+      {
+        "id": "cue-semcache-activity",
+        "kind": "learner-prompt",
+        "text": "Guide the traffic classification, the must-not-hit evaluation set, and the fallback trace record."
+      },
+      {
+        "id": "cue-semcache-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check once learners can explain opposite threshold semantics and show how a trace distinguishes a fallback-served response."
+      }
+    ],
+    "transcript": "A prefix cache changes latency, an exact-match cache changes cost, and a semantic cache changes answers -- so only the last one needs to be evaluated like a model. Read each tool's threshold in its own terms, partition by trust boundary before tuning, and budget for the embedding call every request now waits on. Multi-turn and agent requests look almost identical turn to turn, so a semantic cache replays stale answers; the fix is excluding that traffic, not raising the threshold. A fallback answers with a different model, so it needs its own evaluation, and every fallback-served response must stay distinguishable from the primary's. The GenAI conventions have moved and are still in development; use request and response model to expose fallbacks, and name semantic-cache hits yourself because no convention exists.",
+    "captions": [
+      {
+        "cueId": "cue-semcache-caches-narration",
+        "startSeconds": 0,
+        "endSeconds": 420,
+        "text": "A prefix cache changes latency, an exact-match cache changes cost, and a semantic cache changes answers -- so only the last one needs to be evaluated like a model."
+      },
+      {
+        "cueId": "cue-semcache-tuning-narration",
+        "startSeconds": 450,
+        "endSeconds": 1020,
+        "text": "Read each tool's threshold in its own terms, partition by trust boundary before tuning, and budget for the embedding call every request now waits on."
+      },
+      {
+        "cueId": "cue-semcache-agentic-narration",
+        "startSeconds": 1050,
+        "endSeconds": 1440,
+        "text": "Multi-turn and agent requests look almost identical turn to turn, so a semantic cache replays stale answers; the fix is excluding that traffic, not raising the threshold."
+      },
+      {
+        "cueId": "cue-semcache-fallback-narration",
+        "startSeconds": 1470,
+        "endSeconds": 1950,
+        "text": "A fallback answers with a different model, so it needs its own evaluation, and every fallback-served response must stay distinguishable from the primary's."
+      },
+      {
+        "cueId": "cue-semcache-otel-narration",
+        "startSeconds": 1980,
+        "endSeconds": 2490,
+        "text": "The GenAI conventions have moved and are still in development; use request and response model to expose fallbacks, and name semantic-cache hits yourself because no convention exists."
+      },
+      {
+        "cueId": "cue-semcache-assessment",
+        "startSeconds": 2520,
+        "endSeconds": 2700,
+        "text": "Begin the check once learners can explain opposite threshold semantics and show how a trace distinguishes a fallback-served response."
+      }
+    ],
+    "reducedMotionAlternative": "Present the three cache paths, the threshold comparison, and the fallback trace record as static tables with focus-based highlighting instead of animated request flows."
+  }
 }
