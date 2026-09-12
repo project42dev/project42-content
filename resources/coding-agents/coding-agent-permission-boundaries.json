@@ -1,83 +1,80 @@
 {
   "id": "coding-agent-permission-boundaries",
   "slug": "coding-agent-permission-boundaries",
-  "title": "AI Coding-Agent Permission Boundaries",
-  "summary": "Define least-privilege tool access, trust boundaries, approval gates, and postconditions for coding-agent work.",
+  "title": "Coding Agent Permission Boundaries",
+  "summary": "Define and test which resources and operations a coding agent may access, which it must not access, and which require approval. This guide provides a provider-neutral procedure for applying least privilege and collecting evidence that the boundary works.",
   "category": "AI coding agents",
-  "format": "decision-path",
+  "format": "how-to",
   "audience": [
+    "practitioner",
     "developer",
-    "operator",
-    "leader"
+    "operator"
   ],
   "level": "intermediate",
   "providers": [
-    "provider-neutral",
-    "anthropic",
-    "openai",
-    "google"
+    "provider-neutral"
   ],
   "prerequisites": [
-    "An AI coding-agent work plan",
-    "Knowledge of the target environment and data classification"
+    "An inventory of the files, services, credentials, and other resources the coding agent may encounter",
+    "Authority to change the agent's access controls or access to a person who can approve those changes",
+    "An isolated test task that does not use production data or systems"
   ],
   "owner": "project42-editorial",
-  "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-11",
+  "reviewCadenceDays": 90,
+  "lastVerified": "2026-09-12",
   "tags": [
     "coding-agents",
-    "permissions",
-    "sandbox",
-    "least-privilege"
+    "permission-boundaries",
+    "least-privilege",
+    "access-control",
+    "verification"
   ],
   "sections": [
     {
-      "id": "classify-actions",
-      "title": "Classify actions before granting tools",
+      "id": "answer-and-source-correction",
+      "title": "Answer and source correction",
       "paragraphs": [
-        "Separate read-only discovery, reversible workspace edits, local execution, network access, secret access, external writes, production changes, and destructive actions. Grant only the tools, paths, domains, and duration needed for the current step. Repository instructions influence behavior; a sandbox, permission engine, identity policy, and branch protection enforce boundaries.",
-        "Treat untrusted repositories, generated instructions, dependency scripts, web content, tool output, and issue text as data until an authorized person accepts them as instructions. Trusted-folder prompts and workspace trust reduce accidental execution, but they do not make repository content trustworthy."
+        "How should I set a permission boundary for a coding agent? At the intermediate level, begin with the smallest set of resources and operations required for one defined task, deny everything outside that set, require separate approval for sensitive changes, and test both an allowed action and a prohibited action before using the boundary with important data or systems.",
+        "Least privilege means allowing only the access necessary to accomplish assigned tasks. Access enforcement applies approved authorizations to requested access. Together, these concepts support a boundary that identifies protected resources, permitted operations, prohibited operations, approval conditions, and the response to a denied or unexpected action.",
+        "The cited record that triggered this update was content/resources/coding-agents/coding-agent-permission-boundaries.json. That record was an internal repository path with an unregistered publisher and no verification date, not a public HTTPS source. Whether an earlier public source moved or only exceeded its review cadence is UNKNOWN because its URL and prior verification date were not supplied. This correction replaces the unusable citation with the NIST sources listed at the end. The corrected sourcing supports the explanations of least privilege, access enforcement, authorization decisions, audit evidence, and restrictions on changes. The previous resource body was not supplied, so the exact paragraphs changed by the source event and the preservation of every unaffected paragraph are UNKNOWN."
+      ],
+      "callout": "Do not treat an agent's stated intentions or a displayed configuration as proof of enforcement. Verify the boundary by attempting controlled allowed and prohibited actions and examining the resulting state."
+    },
+    {
+      "id": "define-and-test-the-boundary",
+      "title": "Define and test the boundary",
+      "paragraphs": [
+        "Step 1: Write down the task and enumerate the resources the agent could encounter, including files, external services, credentials, and execution environments. For each resource, record the operations required by the task. If ownership, sensitivity, or required access is unclear, stop and ask the responsible owner to classify the resource before granting access.",
+        "Step 2: Classify each operation as permitted, prohibited, or permitted only after approval. Keep permitted operations to the minimum required by the task, and identify who may approve each conditional operation. If an operation cannot be classified, treat it as prohibited and escalate the decision to the resource owner rather than granting provisional access.",
+        "Step 3: Apply the classifications through the access-enforcement mechanisms available in the environment. No implementation technology, command, configuration key, or default behavior is established by the supplied material. If the environment cannot enforce a required restriction, do not run the agent against the protected resource; move the test to an isolated environment or ask an authorized operator for an enforceable control.",
+        "Step 4: Prepare a non-production test for one permitted operation, one prohibited operation, and each approval-gated operation. Capture the relevant state before testing. If a safe test cannot be constructed, do not substitute a production action; obtain a disposable resource or have the resource owner approve another verification method.",
+        "Step 5: Run the permitted test and confirm that it completes only the intended operation. If it fails, inspect the authorization decision and task definition, correct an erroneous restriction only when the operation is demonstrably required, and repeat the test. Do not broaden unrelated permissions to make the test pass.",
+        "Step 6: Run the prohibited test and confirm that the operation is denied and that the protected state does not change. If the prohibited operation succeeds or changes protected state, stop the agent, remove its access, restore affected state from a known safe copy when available, report the boundary failure to the responsible owner, correct the enforcement rule, and repeat all tests.",
+        "Step 7: Test each approval-gated operation without approval and then with valid approval. It must remain blocked in the first case and perform only the approved action in the second. If it proceeds without approval, follow the same containment and correction path used for a prohibited action. If valid approval does not permit it, verify the approval scope and authorization decision, correct only the mismatched condition, and retest."
       ]
     },
     {
-      "id": "record-boundary",
-      "title": "Record permission and approval boundaries",
-      "paragraphs": [
-        "Prefer a clean isolated environment for unfamiliar code. Keep credentials out of prompts, logs, fixtures, patches, and commits. Do not combine an open-ended shell, unrestricted network access, broad credentials, and unattended execution. A missing tool response is not proof that an external mutation failed; reconcile system state before retrying."
-      ],
-      "code": {
-        "language": "text",
-        "label": "Coding-agent permission matrix",
-        "code": "Step: [PLAN STEP]\nEnvironment trust: [TRUSTED | UNTRUSTED | ISOLATED]\nData classification: [PUBLIC | INTERNAL | RESTRICTED]\nRead paths: [ALLOWLIST]\nWrite paths: [ALLOWLIST]\nExecutable commands: [EXACT OR BOUNDED COMMAND SET]\nNetwork destinations: [ALLOWLIST OR NONE]\nCredential capability: [NONE | NAMED LEAST-PRIVILEGE IDENTITY]\nExternal writes: [NONE | SYSTEM AND OBJECT]\nMust ask before: [MATERIAL ACTIONS]\nAlways denied: [DESTRUCTIVE OR OUT-OF-SCOPE ACTIONS]\nTimeout/revocation: [WHEN ACCESS ENDS]\nPrecondition: [STATE TO CONFIRM BEFORE ACTION]\nPostcondition: [STATE TO VERIFY AFTER ACTION]\nRollback/recovery: [REVOKE ACCESS, RESTORE POLICY, RECONCILE SIDE EFFECTS]\nAudit evidence: [LOG, CHANGE ID, TEST, OR REVIEW]"
-      }
-    },
-    {
-      "id": "verify-boundary",
+      "id": "expected-evidence-and-verification",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "The expected evidence is a permission matrix whose allowed capabilities are no broader than the work-plan step, plus an audit record of approvals and verified postconditions.",
-        "Test denied paths and disallowed actions with safe probes, confirm credentials expose only the intended capability, inspect staged changes before commit, and verify external state after mutation. Revoke temporary access at the stated boundary. Escalate any request to bypass controls, expose secrets, broaden scope, or perform an irreversible action."
+        "Expected evidence consists of the written resource and operation classifications, the identity or role responsible for approvals, the state captured before and after each test, the result of the permitted test, the denial result for the prohibited test, and the results of approval-gated tests. Where the environment generates audit records, retain the records associated with these attempts. If expected records are absent, check whether the relevant events are configured for recording; if they cannot be recorded, document that limitation and use an independently observed before-and-after state comparison.",
+        "Verify success by comparing the evidence with the written boundary. The permitted operation must succeed without enabling unrelated access. The prohibited operation must fail, and an independent inspection must show no unauthorized state change. An approval-gated operation must fail without approval and succeed only within the approved scope. If any result differs, treat the boundary as unverified, contain access, correct the classification or enforcement mechanism, and repeat the complete test set.",
+        "Record the test date, test environment, task, observed outcomes, reviewer, and unresolved limitations. Do not approve operational use while a prohibited action succeeds, an approval check can be bypassed, or the evidence cannot establish whether protected state changed. The next action in any of these cases is to keep access disabled and escalate to the responsible resource owner or authorized operator."
       ]
     }
   ],
   "sources": [
     {
-      "title": "Configure permissions",
-      "url": "https://code.claude.com/docs/en/permissions",
-      "publisher": "Anthropic",
-      "lastVerified": "2026-09-11"
+      "title": "Least Privilege",
+      "url": "https://csrc.nist.gov/glossary/term/least_privilege",
+      "publisher": "NIST Computer Security Resource Center",
+      "lastVerified": "2026-09-12"
     },
     {
-      "title": "Agent approvals & security",
-      "url": "https://learn.chatgpt.com/docs/agent-approvals-security",
-      "publisher": "OpenAI",
-      "lastVerified": "2026-09-11"
-    },
-    {
-      "title": "Trusted folders",
-      "url": "https://geminicli.com/docs/cli/trusted-folders/",
-      "publisher": "Google",
-      "lastVerified": "2026-09-11"
+      "title": "Security and Privacy Controls for Information Systems and Organizations, SP 800-53 Rev. 5",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf",
+      "publisher": "National Institute of Standards and Technology",
+      "lastVerified": "2026-09-12"
     }
   ]
 }
