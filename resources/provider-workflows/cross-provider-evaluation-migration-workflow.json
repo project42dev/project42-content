@@ -1,91 +1,77 @@
 {
   "id": "cross-provider-evaluation-migration-workflow",
   "slug": "cross-provider-evaluation-migration-workflow",
-  "title": "Cross-Provider Evaluation and Migration Workflow",
-  "summary": "Compare or migrate Anthropic, OpenAI, and Google workflows through one application-owned contract, provider-specific adapters, representative evaluation, staged cutover, and tested rollback.",
+  "title": "Cross-provider evaluation migration workflow",
+  "summary": "Use this playbook to move an existing evaluation between providers while preserving its test intent, comparison evidence, and decision criteria. It also identifies when differences prevent a valid comparison.",
   "category": "Provider workflows",
   "format": "playbook",
   "audience": [
-    "developer",
-    "operator",
-    "leader"
+    "practitioner",
+    "developer"
   ],
-  "level": "advanced",
+  "level": "intermediate",
   "providers": [
-    "provider-neutral",
-    "anthropic",
-    "openai",
-    "google"
+    "provider-neutral"
   ],
   "prerequisites": [
-    "A versioned application success contract",
-    "Provider-specific adapters",
-    "A representative redacted or synthetic evaluation set"
+    "An existing evaluation with representative test cases and recorded results",
+    "A documented scoring method and acceptance criteria",
+    "Authorized access to the source and destination providers"
   ],
   "owner": "project42-editorial",
-  "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-11",
+  "reviewCadenceDays": 60,
+  "lastVerified": "2026-09-12",
   "tags": [
     "cross-provider",
-    "evaluation",
-    "migration",
-    "rollback"
+    "evaluation-migration",
+    "model-comparison",
+    "verification",
+    "risk-management"
   ],
   "sections": [
     {
-      "id": "design-fair-comparison",
-      "title": "Compare outcomes without false equivalence",
+      "id": "answer-and-source-update",
+      "title": "Answer and source update",
       "paragraphs": [
-        "Freeze an application-owned input, output, evidence, safety, and latency contract, then map each provider through its own adapter. Record unsupported capabilities as gaps rather than forcing one API's tools, state, citations, refusals, or structured output into another provider's vocabulary. Use the same representative cases and scoring policy while preserving provider-specific diagnostics.",
-        "Measure task quality, severe failures, safety, evidence support, schema validity, tool correctness, latency distribution, cost, and operational failure rate. Version prompts and settings per provider; identical prompt text is not automatically a fair configuration. Calibrate judgment graders with blinded human examples and inspect slices, disagreements, and worst cases."
+        "How do you migrate an evaluation without mistaking implementation differences for model-quality differences? Preserve the evaluation's test cases, instructions, scoring rules, acceptance criteria, and evidence; document every provider-specific adaptation; then compare results only after checking that the two runs measured the same intended behavior. This is an intermediate-level playbook for practitioners who already have an evaluation and a recorded baseline.",
+        "The changed citation is content/resources/provider-workflows/cross-provider-evaluation-migration-workflow.json. It was an unregistered publisher record and had never been verified, so it has been removed from the source list and replaced with the cited publications from the National Institute of Standards and Technology. The change affects the guide's provenance and support for its risk-management, measurement, and verification guidance. It does not change the migration procedure."
+      ],
+      "callout": "Do not claim that results are equivalent when the baseline, scoring method, or execution conditions cannot be reconstructed. Establish a new baseline and record the break in comparability instead."
+    },
+    {
+      "id": "migration-playbook",
+      "title": "Migration playbook",
+      "paragraphs": [
+        "Step 1: Freeze the evaluation intent before changing the implementation. Record the behavior being tested, representative test cases, instructions, scoring method, acceptance criteria, and the evidence retained from the source-provider run. If any element cannot be reconstructed, stop the direct comparison, label the old baseline as incomplete, and create a documented baseline that future runs can reproduce.",
+        "Step 2: Separate provider-neutral test content from provider-specific adaptations. Preserve the meaning and expected outcome of each test while recording any adaptation required to submit it to the destination provider. If an adaptation changes the task, available context, or expected response, classify that test as non-comparable and evaluate it separately rather than combining it with the comparable set.",
+        "Step 3: Define comparable run conditions before execution. Record the inputs, evaluation population, scoring process, repetition policy, and environmental conditions that could affect interpretation. If a condition cannot be matched, record the difference before running the evaluation and restrict conclusions to questions that the remaining evidence can answer.",
+        "Step 4: Run a small validation subset through the complete destination-provider workflow. Confirm that inputs arrive intact, outputs are captured, and the scoring process can evaluate them as intended. If the subset fails, correct the transport or scoring mismatch and repeat the subset; if correction would alter test intent, mark the affected cases non-comparable and do not proceed with an equivalence claim for them.",
+        "Step 5: Run the full comparable set and retain case-level evidence rather than only an aggregate result. Apply the documented scoring method consistently and route ambiguous cases through the previously defined review process. If evidence is missing or a score cannot be reproduced, rerun the affected case when permitted; otherwise exclude it from the comparison and record the exclusion and its effect on coverage.",
+        "Step 6: Compare results against the predeclared acceptance criteria and inspect individual regressions, not only the aggregate outcome. Approve migration only when the retained evidence supports the intended decision. If criteria are not met, investigate whether the cause is a destination-provider limitation, an invalid adaptation, or an evaluation defect; remediate the identified cause and rerun affected tests, or reject the migration if the cause cannot be resolved."
       ]
     },
     {
-      "id": "stage-migration",
-      "title": "Stage migration and cutover",
-      "paragraphs": [
-        "Run offline evaluation first, then shadow traffic with no user-visible or external side effects, then a bounded canary with stop conditions. Preserve provider, model, configuration, adapter, request IDs, scores, and redacted outcomes. Never send production data to a new provider before privacy, contract, region, retention, and authorization review.",
-        "Promotion requires every blocking threshold and named approval. Treat compatibility endpoints as partial adapters, not proof that semantics match. Maintain the previous adapter and configuration until the observation window and reconciliation checks complete."
-      ],
-      "code": {
-        "language": "text",
-        "label": "Cross-provider migration gate",
-        "code": "Application contract/version: [NAME / VERSION]\nBaseline provider/model/adapter: [VALUES]\nCandidate provider/model/adapter: [VALUES]\nCapability gaps and explicit exclusions: [LIST]\nDataset/segments/holdout: [VERSION]\nMetrics and blocking thresholds: [QUALITY / SAFETY / EVIDENCE / TOOL / LATENCY / COST]\nOffline result and worst slice: [EVIDENCE]\nShadow result: [EVIDENCE / NO SIDE EFFECTS]\nCanary percentage/time/stop conditions: [PLAN]\nData-policy and security approval: [OWNER / DATE]\nCutover decision: [PROMOTE | HOLD]\nRollback trigger/target/owner: [CONDITIONS / LAST VERIFIED VERSION / OWNER]\nReconciliation and closure evidence: [CHECKS]"
-      }
-    },
-    {
-      "id": "verify-and-recover",
+      "id": "expected-evidence-and-verification",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence is a reproducible comparison report and migration record showing provider-specific configurations, capability gaps, dataset version, grader agreement, thresholds, offline and staged results, approvals, and traceable cutover status. Verify no secret or sensitive data leakage, no hidden provider fallback, correct attribution, side-effect isolation, and complete rollback readiness.",
-        "Trigger rollback on any blocking safety, correctness, policy, latency, cost, or operational threshold. Route traffic to the last verified adapter and configuration, stop candidate side effects, reconcile uncertain operations, and rerun smoke and regression checks. Close only after rollback or cutover postconditions pass and the retained evaluation evidence can reproduce the decision."
+        "The expected evidence is a migration record containing the frozen evaluation intent, the source baseline, documented adaptations, comparable and non-comparable case classifications, run conditions, case-level outputs, scores, exclusions, reviewed regressions, and the final decision against the stated acceptance criteria.",
+        "Verify success by selecting cases from the retained record and tracing each one from its original test intent through any adaptation, captured output, score, and final comparison. Confirm that every reported aggregate can be derived from included case-level results and that non-comparable or missing cases are disclosed. If a trace cannot be completed or an aggregate cannot be reproduced, treat verification as failed, correct the record or calculation, and repeat the check before relying on the migration decision.",
+        "Verify the scope of the conclusion separately. Confirm that the decision covers only the tested behaviors and documented conditions. If the conclusion extends beyond that evidence, narrow it to the supported scope or collect and evaluate the additional evidence before making the broader claim."
       ]
     }
   ],
   "sources": [
     {
-      "title": "Define success criteria and build evaluations",
-      "url": "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests",
-      "publisher": "Anthropic",
-      "lastVerified": "2026-09-11"
+      "title": "Artificial Intelligence Risk Management Framework (AI RMF 1.0)",
+      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf",
+      "publisher": "National Institute of Standards and Technology",
+      "lastVerified": "2026-09-12"
     },
     {
-      "title": "Evaluation best practices",
-      "url": "https://developers.openai.com/api/docs/guides/evaluation-best-practices",
-      "publisher": "OpenAI",
-      "lastVerified": "2026-09-11"
-    },
-    {
-      "title": "Gemini API logs and datasets",
-      "url": "https://ai.google.dev/gemini-api/docs/logs-datasets",
-      "publisher": "Google",
-      "lastVerified": "2026-09-11"
-    },
-    {
-      "title": "Migrate to the Google GenAI SDK",
-      "url": "https://ai.google.dev/gemini-api/docs/migrate",
-      "publisher": "Google",
-      "lastVerified": "2026-09-11"
+      "title": "Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile",
+      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf",
+      "publisher": "National Institute of Standards and Technology",
+      "lastVerified": "2026-09-12"
     }
   ]
 }
