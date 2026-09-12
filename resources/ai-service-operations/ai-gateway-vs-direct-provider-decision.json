@@ -1,83 +1,81 @@
 {
   "id": "ai-gateway-vs-direct-provider-decision",
   "slug": "ai-gateway-vs-direct-provider-decision",
-  "title": "AI Gateway vs. Direct Provider Decision",
-  "summary": "Decide whether an AI gateway earns its additional trust, latency, cost, and failure boundary through enforceable governance or operational value.",
-  "category": "AI service operations",
+  "title": "Choose between an AI gateway and direct provider access",
+  "summary": "This intermediate-level decision guide helps practitioners choose whether an application should call an AI provider directly or pass requests through a gateway. It produces a reviewable decision based on requirements, request-path evidence, failure tests, and operational ownership.",
+  "category": "Models and providers",
   "format": "decision-path",
   "audience": [
+    "practitioner",
     "developer",
-    "operator",
-    "leader"
+    "operator"
   ],
-  "level": "advanced",
+  "level": "intermediate",
   "providers": [
     "provider-neutral"
   ],
   "prerequisites": [
-    "An inventory of applications, providers, models, tools, and data classes",
-    "Required identity, policy, resilience, and telemetry controls",
-    "Direct-provider baseline measurements"
+    "A diagram or description of the application's current request path",
+    "The application's security, reliability, and observability requirements",
+    "Access to a safe test environment and representative requests",
+    "Named owners for application and service operations"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 60,
-  "lastVerified": "2026-07-26",
+  "lastVerified": "2026-09-12",
   "tags": [
-    "gateway",
-    "routing",
-    "governance",
-    "resilience",
-    "decision"
+    "ai-gateway",
+    "provider-selection",
+    "architecture-decision",
+    "service-operations"
   ],
   "sections": [
     {
-      "id": "identify-value",
-      "title": "Require a concrete cross-cutting value",
+      "id": "answer-and-decision-path",
+      "title": "Answer and decision path",
       "paragraphs": [
-        "A gateway can centralize authentication, quotas, rate and spend limits, routing, retries, caching, safety policy, logs, and provider abstraction. Direct calls can preserve provider-native features, reduce latency and dependencies, simplify debugging, and narrow access to prompt and response data.",
-        "Do not add a gateway solely for a unified endpoint. Name the policy or operational outcome that cannot be enforced adequately in application adapters, and verify the chosen product supports the exact provider API, streaming, modalities, tools, identity, region, and failure behavior."
+        "Should you use an AI gateway or connect directly to a provider? Prefer direct access when your existing request path satisfies the documented requirements and no gateway-specific capability has been validated as necessary. Choose a gateway when testing shows that a shared intermediary is needed to enforce or observe requirements across applications, and when a team explicitly owns that intermediary.",
+        "Direct access means the application sends a request to the provider without an additional gateway operated as part of your estate. A gateway places an intermediary in that request path. HTTP semantics recognizes intermediaries as participants in message handling, but the standard does not establish that a particular intermediary will improve security, reliability, cost, or performance. Treat those outcomes as requirements to test, not benefits to assume.",
+        "Decision 1: Identify the requirement that could justify a gateway, such as shared request policy, centralized credential handling, consistent audit evidence, controlled routing, or common operational visibility. Continue toward a gateway only if the requirement has an owner, a measurable acceptance condition, and no satisfactory implementation in the direct path. If owners cannot agree on the requirement or acceptance condition, stop the decision and obtain written priorities from the accountable owner rather than selecting an architecture by preference.",
+        "Decision 2: Determine whether each candidate can satisfy the requirement in your environment. Evaluate only capabilities demonstrated by documentation or testing. If a capability cannot be confirmed, record it as UNKNOWN and omit it from the justification; request evidence from the responsible owner or run a bounded test before reconsidering it.",
+        "Decision 3: Compare operational responsibility. A gateway candidate must have named ownership for deployment, access control, monitoring, incident response, change review, and recovery. If any responsibility is unassigned, do not adopt the gateway for production; assign an owner and rehearse the responsibility, or retain the direct path.",
+        "Decision 4: Select the simplest candidate that passes every mandatory acceptance condition. If both candidates pass, prefer the one with fewer components your team must operate unless an approved organizational constraint requires otherwise. If neither passes, do not force a binary choice; revise the requirements or design, then repeat the evaluation."
       ]
     },
     {
-      "id": "test-boundary",
-      "title": "Test the gateway as a new high-value trust boundary",
+      "id": "run-the-comparison",
+      "title": "Run a reversible comparison",
       "paragraphs": [
-        "Threat-model credential custody, prompt and response visibility, retention, tenant isolation, policy bypass, transformation drift, caching, fallback semantics, retry duplication, outage blast radius, and administrative access. Compare end-to-end quality, streaming, tool behavior, latency, availability, observability, and cost against the direct baseline.",
-        "Keep provider adapters and evaluation fixtures portable. A gateway must not silently erase provider-specific semantics or make safe exit impossible."
-      ],
-      "code": {
-        "language": "text",
-        "label": "Gateway decision record",
-        "code": "Task: [GATEWAY ADOPTION OR REVIEW DECISION]\nScope: [APPLICATIONS, PROVIDERS, APIS, TOOLS, DATA, REGIONS, AND TENANTS]\nPermissions: [RUNTIME IDENTITY, PROVIDER CREDENTIALS, ADMIN, POLICY, AND LOG ACCESS]\nRequired value: [CONTROL OR OPERATIONAL OUTCOME -> ENFORCEMENT EVIDENCE]\nDirect baseline: [QUALITY, FEATURES, LATENCY, RELIABILITY, COST, AND DEBUGGING]\nGateway result: [SAME MEASURES + POLICY, ROUTING, CACHE, RETRY, AND FALLBACK]\nTrust review: [DATA VISIBILITY, RETENTION, ISOLATION, BYPASS, AND BLAST RADIUS]\nStop conditions: [SEMANTIC DRIFT, DATA VIOLATION, POLICY BYPASS, OR UNSAFE RETRY]\nVerification: [CONTRACT FIXTURES, FAILURE INJECTION, LOAD, AND END-TO-END TRACE]\nRecovery: [BYPASS/REMOVE SAFELY, RESTORE DIRECT ROUTE, AND RECONCILE WRITES]"
-      }
+        "Step 1: Create one comparison record containing the mandatory requirements, optional preferences, accountable owner, test environment, and rollback condition. Separate mandatory conditions from preferences before testing. If a requirement is vague, ask its owner to express an observable result; if that cannot be done, mark the requirement UNKNOWN and omit it from scoring until clarified.",
+        "Step 2: Draw both request paths from the application boundary to the provider boundary. For each path, identify where authentication, authorization, request handling, response handling, logging, and failure recovery occur. If you cannot trace a boundary or responsible component, collect evidence in the safe test environment or ask its owner for the missing documentation; do not treat an untraced path as acceptable.",
+        "Step 3: Send the same representative workload through each viable path and capture request outcomes, timing observations, error behavior, and the audit evidence required by your organization. Remove or protect sensitive content according to the applicable policy. If the workloads are not comparable, correct the test data and repeat the run; if a candidate cannot support a mandatory request type, record a failed condition rather than substituting an easier request.",
+        "Step 4: Exercise expected failure conditions in the safe environment, including loss of access to a required component, rejected requests, interrupted responses, and recovery after service restoration. Confirm that operators can identify the failing boundary and execute the rollback condition. If safe failure testing is unavailable, record the affected result as UNKNOWN and do not use it to support production adoption; establish an isolated test method or obtain explicit risk acceptance from the accountable owner.",
+        "Step 5: Review the evidence with application, security, and operations owners. Record pass, fail, or UNKNOWN for every mandatory condition, together with the evidence location. If a reviewer disputes a result, rerun the disputed test with agreed inputs; if agreement remains impossible, escalate to the accountable owner and keep the decision pending.",
+        "Step 6: Approve direct access only when its path passes every mandatory condition. Approve a gateway only when its path passes every mandatory condition, its operational owner accepts responsibility, and rollback has been demonstrated. If the selected path fails during a limited rollout, execute the recorded rollback, preserve the failure evidence, correct the design, and repeat the affected tests before another rollout."
+      ]
     },
     {
-      "id": "verify-gateway",
+      "id": "expected-evidence-and-verification",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence includes the required value, direct baseline, product and tier capabilities, trust and data review, exact API compatibility, contract fixtures, latency and cost results, failure injection, policy enforcement, owner, decision expiry, and tested exit route.",
-        "Stop when provider semantics change, sensitive content is retained unexpectedly, policy can be bypassed, retries can duplicate writes, or the gateway becomes an unowned single point of failure. Recover by disabling the affected policy or route, restoring the verified direct adapter, and reconciling request and external-operation state."
+        "The expected evidence is a dated decision record naming the selected path, accountable owner, mandatory requirements, architecture diagrams, test inputs, observed results, unresolved UNKNOWN items, operational responsibilities, and rollback condition. The record must explain why the rejected candidate did not satisfy the decision path or why it added no validated requirement coverage.",
+        "Verify the decision by tracing a representative request through the selected path and matching each observed boundary to the approved diagram. Confirm that every mandatory condition has reproducible evidence, every operational responsibility has an accepting owner, and the rollback procedure has a recorded successful test. If any item is missing or cannot be reproduced, suspend final approval, restore the last accepted path when necessary, and repeat the relevant comparison step.",
+        "After rollout, verify that the selected path continues to produce the required request outcomes, audit evidence, failure signals, and recovery behavior. Review the decision again when requirements, ownership, provider access, or the request path changes. If production evidence conflicts with the comparison record, treat the production evidence as a trigger for investigation and rollback rather than silently rewriting the acceptance condition."
       ]
     }
   ],
   "sources": [
     {
-      "title": "AI gateway capabilities in Azure API Management",
-      "url": "https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities",
-      "publisher": "Microsoft",
-      "lastVerified": "2026-07-26"
+      "title": "HTTP Semantics",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "publisher": "RFC Editor",
+      "lastVerified": "2026-09-12"
     },
     {
-      "title": "Cloudflare AI Gateway overview",
-      "url": "https://developers.cloudflare.com/ai-gateway/",
-      "publisher": "Cloudflare",
-      "lastVerified": "2026-09-11"
-    },
-    {
-      "title": "Cloudflare AI Gateway limits",
-      "url": "https://developers.cloudflare.com/ai-gateway/reference/limits/",
-      "publisher": "Cloudflare",
-      "lastVerified": "2026-09-11"
+      "title": "AI Risk Management Framework",
+      "url": "https://www.nist.gov/itl/ai-risk-management-framework",
+      "publisher": "National Institute of Standards and Technology",
+      "lastVerified": "2026-09-12"
     }
   ]
 }
