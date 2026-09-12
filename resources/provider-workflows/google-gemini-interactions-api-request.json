@@ -1,80 +1,93 @@
 {
   "id": "google-gemini-interactions-api-request",
   "slug": "google-gemini-interactions-api-request",
-  "title": "Google Gemini Interactions API Request Workflow",
-  "summary": "Send a bounded Gemini Interactions API request with environment-based credentials and model configuration, typed response inspection, and recoverable failure handling.",
+  "title": "Google Gemini Interactions API request verification",
+  "summary": "Determines whether there is enough verified first-party information to construct a Google Gemini Interactions API request. The current request contract remains UNKNOWN, so this resource identifies the evidence required before a practitioner sends a request.",
   "category": "Provider workflows",
-  "format": "playbook",
+  "format": "decision-path",
   "audience": [
-    "developer",
-    "operator"
+    "practitioner",
+    "developer"
   ],
-  "level": "beginner",
+  "level": "intermediate",
   "providers": [
     "google"
   ],
   "prerequisites": [
-    "Node.js 20 or later",
-    "A Gemini API key stored outside source control",
-    "An approved Gemini model ID and API version"
+    "Intermediate familiarity with HTTP requests and JSON",
+    "Access to the complete existing resource and its repository history",
+    "Access to current first-party Google documentation over HTTPS"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-11",
+  "lastVerified": "2026-09-12",
   "tags": [
     "google",
-    "gemini",
-    "interactions-api",
-    "javascript"
+    "gemini-api",
+    "api-requests",
+    "source-verification",
+    "provider-workflows"
   ],
   "sections": [
     {
-      "id": "prepare-request",
-      "title": "Prepare the request boundary",
+      "id": "answer-first",
+      "title": "Can I construct a current request?",
       "paragraphs": [
-        "Set GEMINI_API_KEY in the process environment or an approved secret manager, PROJECT42_GEMINI_MODEL to a reviewed model ID, and PROJECT42_GEMINI_API_VERSION to v1 or v1beta. Prefer v1 for generally available behavior and select v1beta only when a reviewed feature requires it. Never print, commit, or send the key as model input.",
-        "Choose state behavior deliberately. Interactions are stored by default for server-managed continuation; use store: false and preserve the required history when your retention policy calls for stateless operation. Define the purpose, permitted input, timeout, retention, expected response, and validation rule before calling."
+        "No. An intermediate practitioner cannot safely construct a current Google Gemini Interactions API request from the supplied evidence. The endpoint, HTTP method, authentication mechanism, required headers, request fields, model identifiers, response fields, release status, limitations, and provider-specific error handling are UNKNOWN and are therefore omitted.",
+        "Do not infer these details from another API or an older example. Obtain and open the current first-party Interactions API documentation and API reference before constructing or sending a request. If either source cannot be opened over HTTPS, stop and record CANNOT VERIFY rather than guessing."
+      ],
+      "callout": "This resource records an attempted source review on 2026-09-12, not a successful verification of the Google API contract."
+    },
+    {
+      "id": "source-change-and-next-actions",
+      "title": "Source change and safe next actions",
+      "paragraphs": [
+        "The existing item lists content/resources/provider-workflows/google-gemini-interactions-api-request.json as its citation. That is the resource's own local path, not an external HTTPS source. Whether a former external source moved, was replaced, or merely passed its review cadence is UNKNOWN because the previous source entry and repository history were not supplied. The technical statements affected by the source change are also UNKNOWN, so no request procedure has been retained or corrected.",
+        "Step 1: Retrieve the complete existing JSON object and its prior source record. If either is unavailable, stop the update and request the missing file or repository history. This is the remediation because unaffected wording, metadata, section identifiers, and examples cannot otherwise be distinguished from material requiring correction.",
+        "Step 2: Open the current first-party documentation and API reference, then confirm the product name, release status, endpoint, method, authentication, headers, body schema, model identifiers, response schema, limitations, and error guidance. If a page does not open, redirects to unrelated material, or omits a required detail, record that detail as UNKNOWN and do not create the request.",
+        "Step 3: Compare the verified contract with the existing resource and change only statements affected by the source update. If the old source identity or affected wording cannot be established, do not replace the guide wholesale. Escalate the item for repository-assisted review so the correction preserves unaffected material."
       ]
     },
     {
-      "id": "send-request",
-      "title": "Send a minimal interaction",
-      "paragraphs": [
-        "This dependency-free Node.js example uses environment-only credentials and permits only the documented v1 and v1beta API versions. Replace the bracketed input at runtime with approved, non-secret content."
-      ],
-      "code": {
-        "language": "javascript",
-        "label": "gemini-interaction-request.mjs",
-        "code": "const apiKey = process.env.GEMINI_API_KEY;\nconst model = process.env.PROJECT42_GEMINI_MODEL;\nconst apiVersion = process.env.PROJECT42_GEMINI_API_VERSION ?? \"v1\";\nif (!apiKey || !model) throw new Error(\"Missing GEMINI_API_KEY or PROJECT42_GEMINI_MODEL\");\nif (!new Set([\"v1\", \"v1beta\"]).has(apiVersion)) throw new Error(\"Unsupported Gemini API version\");\n\nconst response = await fetch(`https://generativelanguage.googleapis.com/${apiVersion}/interactions`, {\n  method: \"POST\",\n  headers: { \"content-type\": \"application/json\", \"x-goog-api-key\": apiKey },\n  body: JSON.stringify({ model, input: \"[INPUT_TEXT]\", store: false }),\n  signal: AbortSignal.timeout(30_000),\n});\nconst body = await response.json();\nif (!response.ok) throw new Error(`Gemini request failed (${response.status}, ${body.error?.status ?? \"unknown\"})`);\nconst text = body.steps\n  ?.flatMap((step) => step.type === \"model_output\" ? step.content ?? [] : [])\n  .find((part) => part.type === \"text\")?.text;\nif (body.status !== \"completed\" || typeof text !== \"string\") throw new Error(\"Unexpected interaction shape\");\nconsole.log({ interactionId: body.id, usage: body.usage, text });"
-      }
-    },
-    {
-      "id": "verify-and-recover",
+      "id": "expected-evidence-and-verification",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence is an HTTP success with an interaction ID, completed status, typed steps, a text model_output block, and usage. Verify status, step and content types, retained-state policy, length, citations when required, and application rules before displaying or storing output. Record the interaction ID, API version, model, latency, usage, and redacted result—not the key or sensitive input.",
-        "Correct authentication, permission, version, and invalid-request failures instead of retrying unchanged. Retry only classified transient 408, 429, and 5xx failures with bounded exponential backoff and jitter. This read-only example has no external side effect, so rollback means discarding the unaccepted interaction and restoring the last verified application state. Reconcile and compensate before retrying any downstream mutation."
+        "There is currently no verified API success example or response field that can prove a Google Gemini Interactions API request succeeded. HTTP defines 2xx responses as successful in general, but the exact status code and response evidence for this API are UNKNOWN until the current Google reference is verified.",
+        "The correction is ready only when the reviewer can open the current first-party Google sources over HTTPS, trace every request element to those sources, identify the former citation and its disposition, and show a minimal diff against the existing object. If any request element lacks first-party support, omit it and return the resource for source verification rather than telling the reader to send an unverified request.",
+        "Material reviewed and left unchanged is UNKNOWN because the existing object was not supplied. Verification therefore remains blocked, and this object must not be treated as evidence that the provider-specific request procedure is current."
       ]
     }
   ],
   "sources": [
     {
-      "title": "Getting started with the Gemini API",
-      "url": "https://ai.google.dev/gemini-api/docs/get-started",
+      "title": "Interactions API",
+      "url": "https://ai.google.dev/gemini-api/docs/interactions",
       "publisher": "Google",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-12"
     },
     {
-      "title": "Gemini API versions explained",
-      "url": "https://ai.google.dev/gemini-api/docs/api-versions",
+      "title": "Gemini API reference",
+      "url": "https://ai.google.dev/api",
       "publisher": "Google",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-12"
     },
     {
       "title": "Using Gemini API keys",
       "url": "https://ai.google.dev/gemini-api/docs/api-key",
       "publisher": "Google",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-12"
+    },
+    {
+      "title": "Troubleshooting guide",
+      "url": "https://ai.google.dev/gemini-api/docs/troubleshooting",
+      "publisher": "Google",
+      "lastVerified": "2026-09-12"
+    },
+    {
+      "title": "RFC 9110: HTTP Semantics",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "publisher": "Internet Engineering Task Force",
+      "lastVerified": "2026-09-12"
     }
   ]
 }
