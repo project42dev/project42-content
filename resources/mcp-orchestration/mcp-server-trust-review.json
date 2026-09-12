@@ -1,81 +1,83 @@
 {
   "id": "mcp-server-trust-review",
   "slug": "mcp-server-trust-review",
-  "title": "MCP Server Trust Review",
-  "summary": "Review an MCP server's provenance, code path, identity, data access, tools, authorization, and containment before connection.",
+  "title": "MCP server trust review",
+  "summary": "Use this checklist to decide whether the evidence available for an MCP server is sufficient to permit a connection. It covers capabilities, data exposure, authorization boundaries, token handling, and unresolved review findings.",
   "category": "MCP and orchestration",
   "format": "checklist",
   "audience": [
+    "practitioner",
     "developer",
-    "operator",
-    "leader"
+    "operator"
   ],
   "level": "intermediate",
   "providers": [
-    "provider-neutral",
-    "anthropic"
+    "provider-neutral"
   ],
   "prerequisites": [
-    "An MCP integration use case",
-    "An identified server distribution or endpoint"
+    "A description of the MCP server and the capabilities it exposes",
+    "The proposed connection and authorization flow",
+    "A list of the data and permissions the connection would expose"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-11",
+  "lastVerified": "2026-09-12",
   "tags": [
     "mcp",
+    "trust-review",
+    "authorization",
     "security",
-    "trust",
-    "authorization"
+    "orchestration"
   ],
   "sections": [
     {
-      "id": "review-before-connection",
-      "title": "Review provenance and capability before connection",
+      "id": "decision-first",
+      "title": "Decide whether to connect",
       "paragraphs": [
-        "Confirm who publishes and operates the server, where its source or build comes from, how updates are signed or reviewed, and whether the endpoint or package matches the expected identity. Inventory the files, network destinations, APIs, tenant data, credentials, and external actions the server can reach under the actual runtime identity.",
-        "Review every exposed tool rather than trusting names or annotations. Determine whether it reads, writes, deletes, communicates externally, spends money, changes authorization, or operates across tenants. New tools must remain disabled until reviewed; a server update can change the effective capability even when the connection name stays the same."
+        "Do not permit the MCP server connection until you can attribute the server, identify the capabilities and data access involved, and verify the authorization and token boundaries. If any of that evidence is unavailable or contradictory, pause the connection and request the missing evidence rather than treating the server's displayed identity as proof of trust.",
+        "This is an intermediate-level checklist. It assumes that you can inspect a proposed MCP connection and discuss permissions and authorization flows, but it explains the evidence needed for the decision.",
+        "Update provenance: the supplied trigger identifies content/resources/mcp-orchestration/mcp-server-trust-review.json as having an unregistered publisher and never having been verified. Which previously cited HTTPS source moved or exceeded its review cadence is UNKNOWN because the earlier resource, source URL, and revision history were not supplied. The claims affected by that source change are therefore also UNKNOWN, so no claim-specific correction or minimal-diff comparison can be established from the supplied material."
+      ],
+      "callout": "An unresolved trust question is a reason to pause the connection, not a reason to assume approval."
+    },
+    {
+      "id": "review-procedure",
+      "title": "Run the trust review",
+      "paragraphs": [
+        "Step 1: Record the proposed server, the host that would connect to it, the capabilities the server exposes, and the data the host would make available. MCP uses a host, client, and server architecture, and the review must follow the actual connection boundary. If the proposed connection or exposed capabilities cannot be identified, stop and obtain that information from the connection owner before continuing.",
+        "Step 2: Compare each requested capability and category of data access with the task the server is expected to perform. Do not rely only on a displayed identity when deciding whether access is appropriate. If a capability or data request lacks a task-related justification, remove or deny that access and repeat the review with the reduced scope.",
+        "Step 3: Examine the authorization flow, including token handling, intended token audience, consent, redirect handling, and possible confused-deputy behavior. Token passthrough is unsafe because accepting a token not issued for the server can undermine audience restrictions and accountability. If the server cannot demonstrate appropriate token validation or requires token passthrough, do not approve the connection; require the authorization design to be corrected and reviewed again.",
+        "Step 4: Record a result for every review question as supported, rejected, or UNKNOWN, with the evidence used. If any decision-critical item remains UNKNOWN, keep the connection unapproved and assign a next action to obtain documentation, reduce access, correct the authorization flow, or abandon the proposed connection."
       ]
     },
     {
-      "id": "record-trust-decision",
-      "title": "Record the trust decision",
-      "paragraphs": [
-        "For remote servers, validate HTTPS, authorization-server metadata, audience-bound tokens, least-privilege scopes, redirect handling, and secret storage. For local servers, inspect the executable and launch arguments, then constrain filesystem, process, and network access. Never pass through a client token to an unrelated downstream service."
-      ],
-      "code": {
-        "language": "text",
-        "label": "MCP server trust review",
-        "code": "Server and version: [IDENTITY, VERSION, DIGEST/COMMIT]\nPublisher/operator: [OWNER, OFFICIAL SOURCE]\nDeployment: [LOCAL PROCESS | REMOTE ENDPOINT]\nUpdate path: [SOURCE, REVIEW, PINNING, ALERT]\nRuntime identity: [USER/SERVICE PRINCIPAL]\nFilesystem/process/network access: [ALLOWLIST]\nData classification and retention: [DATA -> POLICY]\nCredential storage and scopes: [CAPABILITY, NOT SECRET]\nIssuer/audience validation: [EXPECTED VALUES AND TEST]\nTool inventory: [NAME -> EFFECT, APPROVAL, IDEMPOTENCY]\nResources/prompts reviewed: [ITEM -> TRUST STATUS]\nLogging and redaction: [EVENTS, EXCLUSIONS, RETENTION]\nFailure/timeout behavior: [OBSERVED RESULT]\nContainment: [SANDBOX, RATE LIMIT, DISABLED-BY-DEFAULT]\nDecision: [APPROVE | APPROVE WITH CONDITIONS | REJECT]\nApprover and expiry: [OWNER, YYYY-MM-DD]\nRollback: [DISABLE, REVOKE, REMOVE, RESTORE]\nEvidence: [SOURCE REVIEW, TRACE, TEST, CHANGE ID]"
-      }
-    },
-    {
-      "id": "verify-trust-controls",
+      "id": "expected-evidence-and-verification",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "The expected evidence is a time-bounded decision tied to a specific server version or digest, exact endpoint, reviewed capability inventory, runtime identity, data policy, and containment test.",
-        "Verify denied scopes and destinations with safe probes, confirm tokens are audience-bound and absent from logs, exercise an approval-required tool without approving it, and confirm newly discovered tools stay disabled. Test disconnection, credential revocation, and recovery of dependent workflows. Re-review after any server, owner, endpoint, tool inventory, scope, or data-flow change."
+        "The expected evidence is a review record attributable to the server under consideration. It identifies the proposed host-to-server connection, exposed capabilities, accessible data, authorization boundaries, token handling, and the result and remediation for each finding.",
+        "Verify the result by tracing every approval statement to recorded evidence and every rejected or UNKNOWN item to a stated next action. Confirm that the reviewed capabilities and data access match the proposed connection and that the authorization review addresses token audience, consent, redirects, token passthrough, and confused-deputy risk where those concerns apply.",
+        "The review is complete only when decision-critical evidence is supported and no rejected or UNKNOWN item is being treated as approval. If the evidence cannot be attributed to the server or does not cover the proposed connection, reopen the review and obtain evidence for that specific server and connection before permitting access."
       ]
     }
   ],
   "sources": [
     {
-      "title": "MCP security best practices",
-      "url": "https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices",
+      "title": "Architecture overview",
+      "url": "https://modelcontextprotocol.io/docs/learn/architecture",
       "publisher": "Model Context Protocol",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-12"
     },
     {
-      "title": "MCP authorization",
-      "url": "https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization",
+      "title": "Authorization",
+      "url": "https://modelcontextprotocol.io/specification/latest/basic/authorization",
       "publisher": "Model Context Protocol",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-12"
     },
     {
-      "title": "MCP connector",
-      "url": "https://platform.claude.com/docs/en/agents-and-tools/mcp-connector",
-      "publisher": "Anthropic",
-      "lastVerified": "2026-09-11"
+      "title": "Security Best Practices",
+      "url": "https://modelcontextprotocol.io/specification/latest/basic/security_best_practices",
+      "publisher": "Model Context Protocol",
+      "lastVerified": "2026-09-12"
     }
   ]
 }
