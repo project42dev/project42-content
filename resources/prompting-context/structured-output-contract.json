@@ -1,8 +1,8 @@
 {
   "id": "structured-output-contract",
   "slug": "structured-output-contract",
-  "title": "Structured Output Contract",
-  "summary": "Design portable output contracts, use provider schema features where supported, and validate shape, meaning, authority, and evidence before downstream use.",
+  "title": "Structured output contracts",
+  "summary": "This intermediate guide shows practitioners how to represent a field with a fixed set of allowed values instead of using a placeholder string that cannot enforce those values.",
   "category": "Prompting",
   "format": "how-to",
   "audience": [
@@ -11,72 +11,67 @@
   ],
   "level": "intermediate",
   "providers": [
-    "provider-neutral",
-    "anthropic",
-    "openai",
-    "google"
+    "provider-neutral"
   ],
   "prerequisites": [
-    "A framed task and a consumer that needs predictable output"
+    "A structured output contract containing a status field",
+    "A way to validate sample outputs against that contract"
   ],
   "owner": "project42-editorial",
-  "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-11",
+  "reviewCadenceDays": 90,
+  "lastVerified": "2026-09-12",
   "tags": [
     "structured-output",
-    "schema",
-    "validation",
-    "portability"
+    "json",
+    "json-schema",
+    "validation"
   ],
   "sections": [
     {
-      "id": "separate-shape-from-truth",
-      "title": "Separate shape from truth",
+      "id": "use-enforceable-alternatives",
+      "title": "Use enforceable alternatives",
       "paragraphs": [
-        "Define the portable business contract first: fields, types, allowed values, required evidence, unknown handling, and version. Then map that contract to the current provider schema or tool mechanism. Keep provider-specific request syntax in an adapter so the business contract can survive model or provider changes.",
-        "A valid schema can constrain structure; it does not prove factual accuracy, permission, policy compliance, or successful side effects. Validate both structure and business meaning in trusted code before storage, display, communication, or action."
-      ],
-      "callout": "Parseable is not the same as correct, authorized, or safe."
-    },
-    {
-      "id": "define-output-envelope",
-      "title": "Define a portable envelope",
-      "paragraphs": [
-        "Use explicit unknown values instead of forcing guesses. Do not put credentials or unrestricted sensitive text in examples."
+        "How should a status field allow only complete, needs-input, or blocked? In a JSON Schema contract, define those three strings as separate enum values. Do not encode them as the single string complete | needs-input | blocked.",
+        "A quoted sequence containing vertical bars is one JSON string. The bars do not declare alternatives. The enum keyword instead constrains an instance to equal one of the values in its array."
       ],
       "code": {
         "language": "json",
-        "label": "Provider-neutral output envelope",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"status\": \"complete | needs-input | blocked\",\n  \"result\": \"[BOUNDED RESULT — NO SECRETS]\",\n  \"evidence\": [\n    { \"claim\": \"[MATERIAL CLAIM]\", \"source\": \"[SOURCE ID OR URL]\" }\n  ],\n  \"assumptions\": [\"[VISIBLE ASSUMPTION]\"],\n  \"warnings\": [\"[SAFETY, QUALITY, OR POLICY WARNING]\"],\n  \"nextAction\": \"[NONE OR HUMAN-APPROVED STEP]\"\n}"
+        "label": "Schema for the status value",
+        "code": "{\n  \"enum\": [\n    \"complete\",\n    \"needs-input\",\n    \"blocked\"\n  ]\n}"
       }
     },
     {
-      "id": "validate-output",
+      "id": "apply-and-review-the-correction",
+      "title": "Apply and review the correction",
+      "paragraphs": [
+        "Step 1: Locate the rule for the status field and replace only the literal placeholder with the enum shown above. If the existing contract is not JSON Schema, do not paste this fragment into it; identify the contract's documented allowed-values mechanism before making the correction.",
+        "Step 2: Preserve the surrounding fields, wording, and contract structure. If the fragment cannot be inserted without changing unrelated material, stop and compare against the existing resource before proceeding.",
+        "Step 3: Test each allowed string and at least one unlisted string. If an allowed string is rejected or an unlisted string is accepted, confirm that the validator is applying the intended schema fragment and correct that connection before publishing.",
+        "The cited source that moved or passed its review cadence is UNKNOWN because the inspection did not identify it. What that source change affected is also UNKNOWN. The inspection independently establishes that the status example needs correction, but it does not establish a connection between that defect and a specific changed source."
+      ],
+      "callout": "Do not treat a source as reverified merely because its recorded date is no longer in the future. Verification requires checking the source."
+    },
+    {
+      "id": "expected-result-and-verification",
       "title": "Expected result and verification",
       "paragraphs": [
-        "The expected result is output that conforms to the declared version, represents unknown or blocked states explicitly, and carries evidence for material claims without leaking restricted data.",
-        "Validate against the schema, enforce allowed values and size limits, check citations against retrieved sources, apply authorization independently of model fields, and test missing, extra, malformed, adversarial, and oversized inputs. Pin and regression-test provider adapters because supported schema behavior can change."
+        "The expected result is a contract in which the status value accepts complete, needs-input, and blocked as three distinct alternatives rather than displaying them as one placeholder string.",
+        "Verify the result by validating each of the three listed strings separately. Then validate an unlisted string. Success requires all three listed values to pass and the unlisted value to fail. If that evidence is not produced, inspect whether the status rule is being applied at the correct location in the surrounding contract and repeat the checks."
       ]
     }
   ],
   "sources": [
     {
-      "title": "Structured model outputs",
-      "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
-      "publisher": "OpenAI",
-      "lastVerified": "2026-09-11"
+      "title": "RFC 8259: The JavaScript Object Notation (JSON) Data Interchange Format",
+      "url": "https://www.rfc-editor.org/rfc/rfc8259.html",
+      "publisher": "RFC Editor",
+      "lastVerified": "2026-09-12"
     },
     {
-      "title": "Structured output",
-      "url": "https://ai.google.dev/gemini-api/docs/structured-output",
-      "publisher": "Google",
-      "lastVerified": "2026-09-11"
-    },
-    {
-      "title": "How tool use works",
-      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works",
-      "publisher": "Anthropic",
-      "lastVerified": "2026-09-11"
+      "title": "JSON Schema Validation: A Vocabulary for Structural Validation of JSON",
+      "url": "https://json-schema.org/draft/2020-12/json-schema-validation.html#name-enum",
+      "publisher": "JSON Schema",
+      "lastVerified": "2026-09-12"
     }
   ]
 }
