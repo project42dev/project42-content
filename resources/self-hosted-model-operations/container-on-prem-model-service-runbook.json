@@ -1,95 +1,78 @@
 {
   "id": "container-on-prem-model-service-runbook",
   "slug": "container-on-prem-model-service-runbook",
-  "title": "Container and On-Premises Model Service Runbook",
-  "summary": "Operate a shared containerized model service with pinned artifacts, explicit host and cluster boundaries, measured capacity, and reversible releases.",
+  "title": "Container On-Premises Model Service Incident Runbook",
+  "summary": "Use this playbook to stabilize, diagnose, and restore a containerized on-premises model service without improvising deployment values. It provides failure paths and defines the evidence required before returning the service to use.",
   "category": "Self-hosted model operations",
   "format": "playbook",
   "audience": [
-    "developer",
-    "operator",
-    "leader"
+    "practitioner",
+    "operator"
   ],
-  "level": "advanced",
+  "level": "intermediate",
   "providers": [
     "provider-neutral"
   ],
   "prerequisites": [
-    "An approved service contract, model artifact, image, and dependency manifest",
-    "Named host, cluster, network, identity, storage, and incident owners",
-    "Representative evaluation and load profiles with service and recovery objectives"
+    "Access to the approved local deployment record and known-good artifact identity",
+    "Permission to inspect the service and use the approved incident and rollback procedures",
+    "Access to service, host, network, and request-path observations"
   ],
   "owner": "project42-editorial",
-  "reviewCadenceDays": 60,
-  "lastVerified": "2026-07-27",
+  "reviewCadenceDays": 90,
+  "lastVerified": "2026-09-12",
   "tags": [
-    "self-hosted",
-    "containers",
+    "container-operations",
     "on-premises",
-    "kubernetes",
-    "model-serving"
+    "model-serving",
+    "incident-response",
+    "service-recovery"
   ],
   "sections": [
     {
-      "id": "construct-serving-unit",
-      "title": "Construct one verifiable serving unit",
+      "id": "answer-and-source-update",
+      "title": "Answer and source update",
       "paragraphs": [
-        "Treat the release as a complete unit: model and tokenizer digests, license and provenance decision, immutable image, runtime and driver compatibility, templates and adapters, gateway contract, identity and authorization policy, network and egress rules, secret references, resource requests and limits, storage, telemetry, evaluation set, load profile, rollout and rollback policy, and runbook. A model tag or container image alone cannot reproduce service behavior.",
-        "Separate serving and management paths. Grant deployment, secret, cluster, and model-administration authority only to named roles. Run the workload with the minimum operating-system and container privileges, constrain host mounts and device access, protect the runtime or orchestrator control plane, and keep secrets and learner content out of images, manifests, logs, and screenshots."
+        "Intermediate-level answer: when an on-premises containerized model service degrades, first limit user impact, preserve available evidence, compare the observed deployment with the approved local record, and restore service only through an approved restart or rollback path. If the approved record, known-good artifact, or recovery authority is unavailable, keep the affected instance out of service and escalate to the responsible operator rather than guessing.",
+        "Source update: the previous citation was the catalogue-local path content/resources/self-hosted-model-operations/container-on-prem-model-service-runbook.json, attributed to an unregistered publisher and never verified. That citation has been replaced with the official runtime specification repository and official container security guidance. The correction affects source provenance, verification status, and the support for checking runtime state and security-relevant boundaries. Local commands, thresholds, artifact identifiers, health targets, and configuration values are UNKNOWN in the supplied material and are therefore not asserted here.",
+        "The runtime specification defines a container execution environment and lifecycle, while the security guidance identifies risks across images, runtime components, hosts, networks, and operational controls. These sources support the checks in this playbook but do not establish values for a particular local deployment."
+      ],
+      "callout": "Do not substitute guessed commands, identifiers, thresholds, or configuration values for the approved local deployment record."
+    },
+    {
+      "id": "stabilize-diagnose-and-restore",
+      "title": "Stabilize, diagnose, and restore",
+      "paragraphs": [
+        "Step 1: confirm the affected service boundary, the incident authority, and whether traffic can be limited through an approved local procedure. If the boundary cannot be identified, stop broad changes, preserve the observations already available, and escalate to the service owner. If traffic cannot be limited safely, invoke the established emergency escalation path instead of experimenting on the live service.",
+        "Step 2: record the observation time, reported symptom, affected request path, container lifecycle state, host condition, network reachability, and recent approved changes. Avoid collecting request content unless local policy authorizes it. If an observation source is unavailable, mark that evidence as unavailable, collect the remaining evidence, and ask the owner of the missing source to preserve or recover it.",
+        "Step 3: compare the running deployment with the approved local record, including the artifact identity, execution arguments, environment, attached storage, network boundary, resource controls, and host placement. If the approved record is missing or inconsistent, do not infer the intended state. Keep the instance isolated from normal traffic and obtain a validated record from the deployment owner.",
+        "Step 4: determine whether the fault is confined to one instance, shared across instances, or associated with a host, network boundary, storage dependency, or recent approved change. If the available evidence cannot distinguish these cases, avoid fleet-wide action, test only through an approved isolated path, and escalate with the unresolved alternatives documented.",
+        "Step 5: use the approved recovery procedure to restart the unchanged deployment or roll back to a recorded known-good artifact, choosing only the action authorized by the incident owner. If the action fails, stop repeated attempts, preserve the resulting state and logs, and move to the approved rollback path. If no validated rollback is available, leave the affected instance out of service and escalate to the deployment owner.",
+        "Step 6: validate the recovered instance through the approved local request path before restoring normal traffic. If validation fails, remove the instance from service, retain the failed validation evidence, and return to the comparison in Step 3. If the validation path itself is unavailable, do not treat a running lifecycle state as proof of service health; keep the instance isolated until an authorized validation can be completed."
       ]
     },
     {
-      "id": "operate-bounded-capacity",
-      "title": "Operate within measured capacity and failure domains",
-      "paragraphs": [
-        "Declare context, output, body, concurrency, rate, queue, deadline, retry, accelerator, memory, storage, and cost boundaries. Exercise load through the real gateway and serving path, including warm-up, long requests, cancellation, overload, dependency loss, instance loss, and telemetry loss. Resource requests and limits are scheduling and isolation inputs; they are not proof of model throughput or safe queue behavior.",
-        "Use bounded admission and backpressure before saturation. Scale only on signals that explain the bottleneck, and verify the full replica lifecycle: artifact identity, readiness, traffic eligibility, drain, termination, and replacement. Keep at least one compatible known-good release manifest and prove that its artifacts and dependencies remain available."
-      ],
-      "code": {
-        "language": "text",
-        "label": "Container and on-premises release record",
-        "code": "Task: [SHARED MODEL-SERVICE WORKLOAD]\nScope: [HOSTS/CLUSTER, USERS, DATA, NETWORKS, STORAGE, TOOLS, AND SERVICE OBJECTIVES]\nPermissions: [MODEL/LICENSE, IMAGE REGISTRY, DEPLOY, CLUSTER, SECRET, NETWORK, AND RELEASE AUTHORITY]\nExact build: [MODEL/TOKENIZER DIGESTS, IMAGE DIGEST, RUNTIME/DRIVER, ADAPTER, POLICY, CONFIG, AND EVAL VERSION]\nIsolation: [USER, CAPABILITIES, MOUNTS, DEVICES, NAMESPACES, INGRESS, EGRESS, AND MANAGEMENT PATH]\nCapacity: [REQUEST/LIMIT, CONTEXT, OUTPUT, CONCURRENCY, RATE, QUEUE, DEADLINE, AND FAILURE DOMAIN]\nVerification: [PROVENANCE, IDENTITY, NEGATIVE ACCESS, REPRESENTATIVE EVAL, LOAD, INSTANCE LOSS, DRAIN, AND RESTORE]\nStop conditions: [ARTIFACT/POLICY DRIFT, CONTROL-PLANE EXPOSURE, CRITICAL EVAL FAILURE, UNBOUNDED QUEUE, SATURATION, OR FAILED ROLLBACK]\nRecovery: [STOP ROUTING, DRAIN/CANCEL, RECONCILE EFFECTS, RESTORE COMPLETE KNOWN-GOOD UNIT, VERIFY POSTCONDITIONS]"
-      }
-    },
-    {
-      "id": "verify-container-service",
+      "id": "expected-evidence-and-verification",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence includes the complete release manifest, signatures or digests, provenance and license disposition, runtime compatibility, least-privilege and network tests, secret-source evidence, representative evaluation and load results, queue and overload behavior, replica and failure-domain behavior, telemetry and alerts, backup or artifact-retention proof, rollback rehearsal, owners, and review date.",
-        "Stop new traffic when artifacts or policy drift, a management interface becomes exposed, a critical evaluation or security case fails, queues lose their bound, the service saturates outside its decision, or the known-good release cannot be restored. Preserve secret-free evidence, contain the narrow boundary, reconcile in-flight and external effects, restore the full compatible unit, and verify identity, authorization, quality, capacity, telemetry, and user-visible postconditions."
+        "The incident record should contain the observation time, scope, lifecycle state, relevant host and network observations, recent approved changes, comparison with the approved deployment record, every recovery action, and the identity of the person who authorized restoration. If any item cannot be collected, record it as unavailable and assign a named follow-up owner rather than silently closing the gap.",
+        "Verification succeeds only when the running deployment matches the approved local record, the approved validation request completes with the locally defined expected result, relevant observations remain stable for the locally defined review period, and the incident owner authorizes traffic restoration. The expected result, review period, and operational thresholds are UNKNOWN in the supplied material; obtain them from the approved local service record before declaring recovery.",
+        "If any verification condition fails, remove or keep the instance out of normal service, preserve the failed result, and resume diagnosis from the first unresolved comparison. If the required evidence cannot be produced, classify the recovery as unverified and escalate rather than closing the incident."
       ]
     }
   ],
   "sources": [
     {
-      "title": "Docker Engine security",
-      "url": "https://docs.docker.com/engine/security/",
-      "publisher": "Docker",
-      "lastVerified": "2026-07-27"
+      "title": "Open Container Initiative Runtime Specification",
+      "url": "https://github.com/opencontainers/runtime-spec",
+      "publisher": "Open Container Initiative",
+      "lastVerified": "2026-09-12"
     },
     {
-      "title": "Docker resource constraints",
-      "url": "https://docs.docker.com/engine/containers/resource_constraints/",
-      "publisher": "Docker",
-      "lastVerified": "2026-07-27"
-    },
-    {
-      "title": "Kubernetes Deployments",
-      "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
-      "publisher": "Kubernetes",
-      "lastVerified": "2026-07-27"
-    },
-    {
-      "title": "Kubernetes resource management for Pods and containers",
-      "url": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
-      "publisher": "Kubernetes",
-      "lastVerified": "2026-07-27"
-    },
-    {
-      "title": "KServe generative inference runtime overview",
-      "url": "https://kserve.github.io/website/docs/model-serving/generative-inference/overview",
-      "publisher": "KServe",
-      "lastVerified": "2026-07-27"
+      "title": "NIST Special Publication 800-190: Application Container Security Guide",
+      "url": "https://csrc.nist.gov/pubs/sp/800/190/final",
+      "publisher": "National Institute of Standards and Technology",
+      "lastVerified": "2026-09-12"
     }
   ]
 }
