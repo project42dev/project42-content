@@ -4,7 +4,7 @@
   "summary": "Build a thin adapter over the native Anthropic, OpenAI, and Google SDKs: normalize three different response shapes and stop signals, keep model ids and state policy in configuration, and treat OpenAI-compatible endpoints as a test harness because they silently drop guarantees.",
   "level": "intermediate",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-11",
+  "lastVerified": "2026-09-13",
   "providers": [
     "provider-neutral",
     "anthropic",
@@ -26,7 +26,7 @@
       "paragraphs": [
         "A portable client starts by admitting that the providers do not agree on what a response is. The Claude Messages API takes the system prompt as a top-level `system` parameter and prior turns in a `messages` array, and returns an assistant message whose `content` is an array of typed blocks such as `text` and `tool_use`. Anthropic describes the Messages API as usable for single queries or stateless multi-turn conversations: your application resends whatever history the model should see.",
         "The OpenAI Responses API -- which OpenAI recommends for all new projects while Chat Completions remains supported -- returns an `output` array of Items. A `message` is one Item type; `reasoning`, `function_call`, and `function_call_output` are others, and OpenAI's own migration guide lists 'treating every output entry as a message' as a common error. The SDK's `output_text` helper joins the text for you, but only the Items tell you what else happened. Responses are stored by default unless you send `store: false`.",
-        "Google currently documents two Gemini surfaces. `generateContent` returns `candidates`, each with `content.parts` and a `finishReason`. The Interactions API returns an Interaction with a `status` and a `steps` timeline (`user_input`, `function_call`, `model_output`, and others), stores interactions by default (55 days on the paid tier, 1 day on the free tier), and is in beta: a `steps` array has already replaced an earlier `outputs` array in a breaking change. The same overview page recommends Interactions for new projects and tells production workloads to continue using `generateContent`. An adapter is how you make that choice once, in one place, and reverse it later without touching any caller."
+        "Google currently documents two Gemini surfaces. `generateContent` returns `candidates`, each with `content.parts` and a `finishReason`. The Interactions API returns an Interaction with a `status` and a `steps` timeline (`user_input`, `function_call`, `model_output`, and others), stores interactions by default (55 days on the paid tier, 1 day on the free tier), and has been generally available since June 2026. Google's Interactions overview recommends it for all new projects and calls `generateContent` legacy but still fully supported. An adapter is how you make that choice once, in one place, and reverse it later without touching any caller."
       ],
       "callout": "The SDK is not the abstraction. The abstraction is the internal contract you write; each SDK sits behind an adapter that fills it.",
       "code": {
@@ -71,7 +71,7 @@
       "title": "Model ids, API surface, and storage policy belong in configuration",
       "paragraphs": [
         "Model identifiers change faster than code. As of 2026-09-11 the providers' own model pages list, among others, `claude-opus-5` and `claude-sonnet-5` on Anthropic (which states that every Claude model ID is a pinned snapshot, including the dateless IDs used from the 4.6 generation on), `gpt-5.6-terra` on OpenAI (described as balancing intelligence and cost), and `gemini-3.8-flash` on Google (listed as stable). Put the id in configuration, record where and when it was verified, and fail startup or CI when it is missing -- never let an adapter fall back to a hardcoded default that nobody rereads. Anthropic's Models API returns `max_input_tokens`, `max_tokens`, and a `capabilities` object for each model, which a startup check can use.",
-        "Documentation can disagree with itself, which is exactly why the check belongs in code. Google's models page lists `gemini-3.8-flash` as stable and the Interactions guides use it in their examples, yet the supported-models table on the Interactions overview (as read on 2026-09-11) does not list it. A contract test that makes one real call per configured surface-and-model pair settles that for your project on the day you deploy; a comment in the source does not.",
+        "Documentation can disagree with itself, which is exactly why the check belongs in code. Google's models page lists `gemini-3.8-flash` as stable and the Interactions guides use it in their examples, and the supported-models table on the Interactions overview lists it too as of this review -- but provider surfaces and their lifecycle labels change (`generateContent` is already labelled legacy), so a documentation cross-check can drift again. A contract test that makes one real call per configured surface-and-model pair settles that for your project on the day you deploy; a comment in the source does not.",
         "Treat state and retention as configuration too, because the defaults differ. The Claude Messages API keeps no conversation for you. The Responses API stores responses unless you send `store: false`, and OpenAI enforces `store: false` automatically for Zero Data Retention organizations. The Gemini Interactions API stores interactions by default; setting `store=false` also disables `previous_interaction_id` chaining and background execution, and when you do chain, `tools`, `system_instruction`, and `generation_config` are interaction-scoped and must be resent on every call. A unified client that exposes one `store` switch has to translate it per surface, and must refuse a combination the surface cannot honor rather than quietly keep data your policy said to discard."
       ],
       "code": {
@@ -150,15 +150,15 @@
       },
       {
         "id": "q-dev-sdk-5",
-        "prompt": "Google's Interactions overview recommends it for new projects and also says production workloads should continue to use generateContent. What is the adapter-level response?",
+        "prompt": "Google's Interactions overview recommends Interactions for all new projects and calls generateContent legacy but still fully supported. What is the adapter-level response?",
         "choices": [
-          "Choose Interactions because it is newer",
+          "Migrate immediately because generateContent is being removed",
           "Make the surface a configuration choice behind one internal contract, record the reason, and cover the chosen surface with contract tests",
           "Use the OpenAI compatibility endpoint instead",
           "Hardcode generateContent and remove the adapter"
         ],
         "answerIndex": 1,
-        "explanation": "Keeping the surface behind an adapter makes the choice reversible; the beta Interactions API has already had one breaking schema change, steps replacing outputs."
+        "explanation": "Keeping the surface behind an adapter makes the choice reversible; provider surfaces and their lifecycle labels change even after general availability, so pin the decision in one place rather than in every caller."
       }
     ]
   },
@@ -167,73 +167,73 @@
       "title": "Models overview",
       "url": "https://platform.claude.com/docs/en/models/overview",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "Create a Message",
       "url": "https://platform.claude.com/docs/en/api/messages/create",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "OpenAI SDK compatibility",
       "url": "https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "Models",
       "url": "https://developers.openai.com/api/docs/models",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "GPT-5.6 Terra",
       "url": "https://developers.openai.com/api/docs/models/gpt-5.6-terra",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "Migrate to the Responses API",
       "url": "https://developers.openai.com/api/docs/guides/migrate-to-responses",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "Structured model outputs",
       "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "Gemini models",
       "url": "https://ai.google.dev/gemini-api/docs/models",
       "publisher": "Google",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "Interactions API",
       "url": "https://ai.google.dev/gemini-api/docs/interactions-overview",
       "publisher": "Google",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "Migrate to the Interactions API",
       "url": "https://ai.google.dev/gemini-api/docs/migrate-to-interactions",
       "publisher": "Google",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "OpenAI compatibility",
       "url": "https://ai.google.dev/gemini-api/docs/openai",
       "publisher": "Google",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     },
     {
       "title": "Structured output",
       "url": "https://ai.google.dev/gemini-api/docs/structured-output",
       "publisher": "Google",
-      "lastVerified": "2026-09-11"
+      "lastVerified": "2026-09-13"
     }
   ],
   "instructorScript": {
