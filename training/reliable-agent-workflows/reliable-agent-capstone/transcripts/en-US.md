@@ -51,7 +51,7 @@ Design observability and the operating runbook together. Correlate workflow, age
 
 Sources:
 
-- <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
+- <https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md>
 - <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
@@ -63,7 +63,7 @@ Sources:
 
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 - <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
-- <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
+- <https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md>
 
 ## Demonstration: Exemplar Demonstration
 

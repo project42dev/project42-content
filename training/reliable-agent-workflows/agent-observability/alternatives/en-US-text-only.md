@@ -17,7 +17,7 @@ Sources:
 
 - <https://openai.github.io/openai-agents-js/guides/tracing/>
 - <https://adk.dev/observability/>
-- <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
+- <https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md>
 
 ## Narration: Trace The Agent Graph
 
@@ -29,7 +29,7 @@ Sources:
 
 - <https://openai.github.io/openai-agents-js/guides/tracing/>
 - <https://adk.dev/observability/>
-- <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
+- <https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md>
 
 ## Narration: Measure Service And Quality
 
@@ -40,7 +40,7 @@ Visual alternative: The catalog includes success, policy, correction, escalation
 Sources:
 
 - <https://adk.dev/observability/>
-- <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
+- <https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Narration: Privacy Preserving Telemetry
@@ -52,7 +52,7 @@ Visual alternative: Raw prompts, documents, tool payloads, credentials, personal
 Sources:
 
 - <https://openai.github.io/openai-agents-js/guides/tracing/>
-- <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
+- <https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Narration: Trace Review And Escalation
@@ -109,7 +109,7 @@ If retrying: List only the fields required to understand impact, containment, an
 Sources:
 
 - <https://www.nist.gov/itl/ai-risk-management-framework>
-- <https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/>
+- <https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md>
 
 ## Transition: Activity Transition
 
