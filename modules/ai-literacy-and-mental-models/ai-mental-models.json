@@ -1,8 +1,8 @@
 {
   "id": "ai-mental-models",
   "title": "Mental Models: Probabilistic Intelligence",
-  "summary": "A working mental model of a language model as something that samples from a probability distribution rather than looks up an answer. Covers how decoding settings shape that sampling, why identical requests can return different outputs, why models guess when they are uncertain, and how to turn run-to-run variation into evidence instead of noise.",
-  "level": "beginner",
+  "summary": "This intermediate module builds a working mental model of a language model as something that selects tokens from a probability distribution rather than looks up an answer. After completing it, a learner can explain how decoding controls affect outputs and use repeated tests to measure observed output stability without mistaking agreement for truth or evidence about the underlying distribution's shape.",
+  "level": "intermediate",
   "reviewCadenceDays": 30,
   "lastVerified": "2026-09-13",
   "providers": [
@@ -13,7 +13,7 @@
     "Explain how a language model turns a probability distribution over its vocabulary into a single emitted token, and how greedy search, sampling, top-k, top-p, and temperature change that choice.",
     "Predict when two identical requests may return different outputs, and explain why a temperature of 0 is not a reproducibility guarantee on every hosted API.",
     "Explain, using the incentive argument from current research, why models produce confident errors instead of acknowledging uncertainty.",
-    "Design a small repeated-sampling test that measures how stable a model's answer is before relying on it."
+    "Design a small repeated test that measures observed output stability under a specific endpoint and decoding configuration without inferring the shape of the model's underlying distribution."
   ],
   "prerequisites": [],
   "sections": [
@@ -22,10 +22,10 @@
       "title": "Each token is chosen from a distribution",
       "paragraphs": [
         "At each step of generation a language model does not retrieve a stored answer. It produces a probability for every token in its vocabulary, and a decoding strategy decides which single token is emitted; that token is appended to the context and the step repeats. Hugging Face's Transformers documentation describes the two basic strategies plainly: greedy search \"selects the next most likely token at each step,\" while multinomial sampling \"randomly selects a token based on the probability distribution over the entire model's vocabulary,\" so every token with a non-zero probability has a chance of being picked. Anthropic's glossary describes the objective that produces those probabilities in the same terms: autoregressive models are pretrained \"to predict the next word, given the previous context of text in the document.\"",
-        "The mental model that follows is simple and consequential: a response is one draw from a space of plausible continuations. When the distribution is sharply peaked, because one continuation is far more probable than the rest, repeated draws tend to agree. When it is flat, because several continuations are similarly plausible, draws diverge, and the text you receive depends partly on which branch the sampler took early. Because each chosen token becomes context for the next one, an early low-probability choice can steer everything after it. None of this shows in the wording: text produced from a flat distribution reads just as fluently as text produced from a peaked one.",
+        "The mental model that follows is simple and consequential: a response is one continuation selected from a space of plausible continuations. Under multinomial sampling, a sharply peaked distribution, in which one continuation is far more probable than the rest, tends to produce more agreement than a flatter distribution in which several continuations are similarly plausible. However, observing agreement alone does not establish that the underlying distribution is peaked, because greedy decoding, top-k restrictions, provider behavior, or other controls can also produce identical outputs. Because each chosen token becomes context for the next one, an early low-probability choice during sampling can steer everything after it. None of this shows in the wording: text produced from a flat distribution can read just as fluently as text produced from a peaked one.",
         "Neither strategy is simply better. The same documentation notes that greedy search works for short outputs but \"breaks down when generating longer sequences because it begins to repeat itself,\" that sampling reduces repetition and produces more diverse output, and that beam search, which tracks several candidate sequences and keeps the one with the highest overall probability, suits input-grounded tasks such as describing an image or recognizing speech. Hosted assistants choose a strategy and settings for you; the distribution underneath is the same idea."
       ],
-      "callout": "A response is a sample, not a lookup. Fluency tells you nothing about how many other answers the model found almost as likely.",
+      "callout": "A response is a selected continuation, not a lookup. Fluency does not reveal how many other answers the model treated as plausible.",
       "code": {
         "language": "python",
         "label": "One model, three decoding strategies (Hugging Face Transformers)",
@@ -36,7 +36,7 @@
       "id": "decoding-controls",
       "title": "Temperature, top-k, and top-p reshape the draw",
       "paragraphs": [
-        "Hosted APIs expose a few controls over that draw. Google's Gemini prompting guide defines them concretely. Temperature \"controls the degree of randomness in token selection.\" A topK of 1 means the selected token is the single most probable one, \"also called greedy decoding,\" while a topK of 3 means the next token is chosen from among the three most probable. With topP, tokens are selected \"from the most to least probable until the sum of their probabilities equals the topP value.\" The guide's worked example: if tokens A, B, and C have probabilities 0.3, 0.2, and 0.1 and topP is 0.5, the model picks A or B and excludes C. Anthropic's glossary summarizes the practical effect of temperature: lower values give \"more conservative and deterministic outputs that stick to the most probable phrasing and answers,\" higher values give more varied ones.",
+        "Hosted APIs expose a few controls over token selection. Google's Gemini prompting guide defines them concretely. Temperature \"controls the degree of randomness in token selection.\" A topK of 1 means the selected token is the single most probable one, \"also called greedy decoding,\" while a topK of 3 means the next token is chosen from among the three most probable. For top-p, tokens are ordered from most to least probable and the smallest set whose cumulative probability reaches or exceeds the threshold is retained. An exact equality is not required and often does not occur. In the guide's worked example, if tokens A, B, and C have probabilities 0.3, 0.2, and 0.1 and topP is 0.5, the model picks A or B and excludes C. The cited Google Prompt design strategies source changed its top-p description, and this update corrects the module's former claim that cumulative probabilities must equal the threshold. Anthropic's glossary summarizes the practical effect of temperature: lower values give \"more conservative and deterministic outputs that stick to the most probable phrasing and answers,\" while higher values give more varied ones.",
         "Two cautions keep these controls from turning into superstition. First, they are not accuracy dials. Lowering temperature makes the model more likely to emit its most probable continuation; it does not make that continuation more correct, and if the most probable answer is wrong you will receive the same wrong answer more consistently. Second, recommended settings are model-specific. Google's guide strongly recommends keeping temperature, top_p, and top_k at their defaults for Gemini 3.x models and warns that changing them, for example \"setting the temperature below 1.0,\" can cause \"looping or degraded performance, particularly in complex mathematical or reasoning tasks.\" The portable rule is to treat decoding settings as part of the configuration you evaluate on real cases, not as a fix you apply out of habit."
       ],
       "callout": "Lower temperature buys consistency, not correctness."
@@ -55,9 +55,106 @@
       "title": "Models guess under uncertainty, so measure agreement",
       "paragraphs": [
         "Why do fluent, wrong answers happen at all? Kalai, Nachum, Vempala, and Zhang argue in \"Why Language Models Hallucinate\" (2025) that \"language models hallucinate because the training and evaluation procedures reward guessing over acknowledging uncertainty.\" Like students facing hard exam questions, models \"sometimes guess when uncertain, producing plausible yet incorrect statements instead of admitting uncertainty.\" Because most evaluations are graded so that \"guessing when uncertain improves test performance,\" models are optimized to be good test-takers, and the authors propose changing how the dominant benchmarks score uncertain answers. For a user, the implication is direct: a confident tone is not evidence, because the system was in effect rewarded for sounding sure.",
-        "The distributional view also gives you a practical instrument. Wang and colleagues showed in \"Self-Consistency Improves Chain of Thought Reasoning in Language Models\" that sampling a diverse set of reasoning paths and selecting \"the most consistent answer\" outperformed taking the single greedy path, reporting improvements over chain-of-thought prompting of +17.9% on the GSM8K benchmark and +11.0% on SVAMP. You do not need their method to borrow the idea. Ask the same question several times with the configuration you will actually use and look at the spread. If the key figure, fact, or decision is the same every time, you have learned that the model's distribution is peaked there, which is still not proof that it is right. If it changes across runs, you have found exactly where the output needs a source, a tool, or a person before anyone relies on it."
+        "The distributional view also gives you a practical instrument. Wang and colleagues showed in \"Self-Consistency Improves Chain of Thought Reasoning in Language Models\" that sampling a diverse set of reasoning paths and selecting \"the most consistent answer\" outperformed taking the single greedy path, reporting improvements over chain-of-thought prompting of +17.9% on the GSM8K benchmark and +11.0% on SVAMP. You do not need their method to borrow the idea. Ask the same question several times with the endpoint and decoding configuration you will actually use and look at the spread. If the key figure, fact, or decision is the same every time, you have observed output stability under those tested conditions. You have not established that the model's underlying distribution is peaked, and you have not proved that the answer is correct. Greedy decoding, top-k restrictions, provider behavior, or other controls can produce agreement. If the answer changes across runs, you have found where the output needs a source, a tool, or a person before anyone relies on it."
       ],
-      "callout": "Agreement across samples is evidence of stability, not of truth. Disagreement is a reliable flag for where to verify."
+      "callout": "Agreement across repeated tests is evidence of observed output stability under the tested conditions, not evidence of truth or of the underlying distribution's shape. Disagreement is a flag for where to verify."
+    }
+  ],
+  "knowledgeCheck": {
+    "passPercent": 80,
+    "questions": [
+      {
+        "id": "q-ai-mental-models-1",
+        "prompt": "At one generation step a model assigns probabilities 0.3, 0.2, and 0.1 to tokens A, B, and C. With top-p set to 0.5, which tokens can be selected?",
+        "choices": [
+          "A only",
+          "A or B",
+          "A, B, or C",
+          "Any token in the vocabulary"
+        ],
+        "answerIndex": 1,
+        "explanation": "Top-p retains the smallest set of tokens, ordered from most to least probable, whose cumulative probability reaches or exceeds the threshold. A (0.3) plus B (0.2) reaches 0.5, so C is excluded. An exact equality is not required in cases where the cumulative probability passes the threshold."
+      },
+      {
+        "id": "q-ai-mental-models-2",
+        "prompt": "A team sets temperature to 0 on a hosted API and assumes identical requests will now always return identical text. What is the soundest response?",
+        "choices": [
+          "Agree: temperature 0 guarantees identical outputs on every provider",
+          "Raise the temperature instead, because higher values are more reproducible",
+          "Verify reproducibility on the exact model and endpoint, and store validated outputs wherever stability matters",
+          "Ignore it, because reproducibility only matters for creative tasks"
+        ],
+        "answerIndex": 2,
+        "explanation": "Anthropic documents that even at temperature 0 identical inputs may produce different outputs across API calls, while Google describes 0 as deterministic. Because documented behavior differs, verify reproducibility on the exact system and store what you validated. Raising temperature increases variety, and reproducibility also matters for audit and regression work."
+      },
+      {
+        "id": "q-ai-mental-models-3",
+        "prompt": "Why does lowering temperature not make a factual answer more accurate?",
+        "choices": [
+          "It makes the most probable continuation more likely to be chosen, and the most probable continuation can still be wrong",
+          "Temperature only controls how long the response is",
+          "Low temperature switches off what the model learned in training",
+          "Temperature only applies to image inputs"
+        ],
+        "answerIndex": 0,
+        "explanation": "Temperature reshapes how tokens are selected from the distribution; it does not make a probable continuation true. A wrong but probable answer can become more consistent, not more correct. Temperature does not merely control length, remove training, or apply only to images."
+      },
+      {
+        "id": "q-ai-mental-models-4",
+        "prompt": "According to Kalai and colleagues (2025), why do language models produce plausible but incorrect statements instead of admitting uncertainty?",
+        "choices": [
+          "Their context windows are too small to hold the correct fact",
+          "Training and evaluation procedures reward guessing over acknowledging uncertainty",
+          "Tokenizers split rare words incorrectly",
+          "They are deliberately designed to deceive users"
+        ],
+        "answerIndex": 1,
+        "explanation": "The paper argues that hallucinations persist because most evaluations are graded so that guessing when uncertain improves scores, which optimizes models to be good test-takers. It does not attribute the behavior to context size, tokenization, or deliberate deception."
+      },
+      {
+        "id": "q-ai-mental-models-5",
+        "prompt": "You ask the same factual question five times using the same endpoint and decoding configuration and receive the same figure every time. What have you learned?",
+        "choices": [
+          "The figure is verified and needs no authoritative source",
+          "The outputs were stable under the tested endpoint and configuration, but neither the figure's truth nor the underlying distribution's shape has been established",
+          "The model must be using greedy decoding",
+          "The underlying distribution must be peaked on that figure"
+        ],
+        "answerIndex": 1,
+        "explanation": "Agreement demonstrates observed output stability under the tested endpoint and decoding configuration. It does not verify the figure or establish that the underlying distribution is peaked. Greedy decoding, top-k restrictions, provider behavior, or other controls can produce agreement, so the factual figure still needs an authoritative source."
+      }
+    ]
+  },
+  "sources": [
+    {
+      "title": "Generation strategies",
+      "url": "https://huggingface.co/docs/transformers/generation_strategies",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Glossary",
+      "url": "https://platform.claude.com/docs/en/about-claude/glossary",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Prompt design strategies",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "publisher": "Google",
+      "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Why Language Models Hallucinate",
+      "url": "https://arxiv.org/abs/2509.04664",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Self-Consistency Improves Chain of Thought Reasoning in Language Models",
+      "url": "https://arxiv.org/abs/2203.11171",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-13"
     }
   ],
   "activity": {
@@ -175,102 +272,5 @@
       }
     ],
     "reducedMotionAlternative": "Present the next-token probability chart and the decoding-controls comparison as static tables with focus-based highlighting instead of animated sequences."
-  },
-  "knowledgeCheck": {
-    "passPercent": 80,
-    "questions": [
-      {
-        "id": "q-ai-mental-models-1",
-        "prompt": "At one generation step a model assigns probabilities 0.3, 0.2, and 0.1 to tokens A, B, and C. With top-p set to 0.5, which tokens can be selected?",
-        "choices": [
-          "A only",
-          "A or B",
-          "A, B, or C",
-          "Any token in the vocabulary"
-        ],
-        "answerIndex": 1,
-        "explanation": "Top-p keeps tokens from most to least probable until their probabilities sum to the top-p value: A (0.3) plus B (0.2) reaches 0.5, so C is excluded. \"A only\" describes top-k of 1 (greedy decoding); including C or the whole vocabulary ignores the cutoff."
-      },
-      {
-        "id": "q-ai-mental-models-2",
-        "prompt": "A team sets temperature to 0 on a hosted API and assumes identical requests will now always return identical text. What is the soundest response?",
-        "choices": [
-          "Agree: temperature 0 guarantees identical outputs on every provider",
-          "Raise the temperature instead, because higher values are more reproducible",
-          "Verify reproducibility on the exact model and endpoint, and store validated outputs wherever stability matters",
-          "Ignore it, because reproducibility only matters for creative tasks"
-        ],
-        "answerIndex": 2,
-        "explanation": "Anthropic documents that even at temperature 0 identical inputs may produce different outputs across API calls, while other providers describe 0 as deterministic. Because behavior differs, verify it and store what you validated. Raising temperature increases variety, and reproducibility matters most for audit and regression work, not creative tasks."
-      },
-      {
-        "id": "q-ai-mental-models-3",
-        "prompt": "Why does lowering temperature not make a factual answer more accurate?",
-        "choices": [
-          "It makes the most probable continuation more likely to be chosen, and the most probable continuation can still be wrong",
-          "Temperature only controls how long the response is",
-          "Low temperature switches off what the model learned in training",
-          "Temperature only applies to image inputs"
-        ],
-        "answerIndex": 0,
-        "explanation": "Temperature reshapes how tokens are sampled from the distribution; it does not change what the model believes is probable. A wrong but probable answer becomes more consistent, not more correct. Length is governed by output limits, and temperature neither removes training nor applies only to images."
-      },
-      {
-        "id": "q-ai-mental-models-4",
-        "prompt": "According to Kalai and colleagues (2025), why do language models produce plausible but incorrect statements instead of admitting uncertainty?",
-        "choices": [
-          "Their context windows are too small to hold the correct fact",
-          "Training and evaluation procedures reward guessing over acknowledging uncertainty",
-          "Tokenizers split rare words incorrectly",
-          "They are deliberately designed to deceive users"
-        ],
-        "answerIndex": 1,
-        "explanation": "The paper argues that hallucinations persist because most evaluations are graded so that guessing when uncertain improves scores, which optimizes models to be good test-takers. It does not attribute the behavior to context size, tokenization, or deliberate deception."
-      },
-      {
-        "id": "q-ai-mental-models-5",
-        "prompt": "You ask the same factual question five times with your production configuration and receive the same figure every time. What have you learned?",
-        "choices": [
-          "The figure is verified and needs no source",
-          "Nothing, because repeated samples carry no information",
-          "The model must be running greedy decoding",
-          "The model's distribution is peaked on that figure, so it is stable, but it still needs checking against an authoritative source"
-        ],
-        "answerIndex": 3,
-        "explanation": "Agreement across samples shows stability, not truth: a model can be consistently wrong. Repeated samples do carry information, which is why self-consistency methods use them, and agreement can occur under sampling as well as greedy decoding."
-      }
-    ]
-  },
-  "sources": [
-    {
-      "title": "Generation strategies",
-      "url": "https://huggingface.co/docs/transformers/generation_strategies",
-      "publisher": "Hugging Face",
-      "lastVerified": "2026-09-13"
-    },
-    {
-      "title": "Glossary",
-      "url": "https://platform.claude.com/docs/en/about-claude/glossary",
-      "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
-    },
-    {
-      "title": "Prompt design strategies",
-      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
-      "publisher": "Google",
-      "lastVerified": "2026-09-13"
-    },
-    {
-      "title": "Why Language Models Hallucinate",
-      "url": "https://arxiv.org/abs/2509.04664",
-      "publisher": "arXiv",
-      "lastVerified": "2026-09-13"
-    },
-    {
-      "title": "Self-Consistency Improves Chain of Thought Reasoning in Language Models",
-      "url": "https://arxiv.org/abs/2203.11171",
-      "publisher": "arXiv",
-      "lastVerified": "2026-09-13"
-    }
-  ]
+  }
 }
