@@ -34,12 +34,12 @@
       "paragraphs": [
         "Reciprocal rank fusion sidesteps the scale problem by discarding scores entirely. For each document, it sums 1 / (k + rank) across every result list the document appears in, where rank starts at 1 and k is a constant. Elastic describes RRF as requiring no tuning, with the different relevance indicators not needing to be related to each other. Elastic's rank_constant defaults to 60 and must be at least 1; a higher value gives lower-ranked documents more influence over the final order. Azure applies the same formula and notes that it performs best with a small k such as 60 -- a k unrelated to the k that sets how many nearest neighbours a vector query returns.",
         "Because each list contributes at most about 1/k to a document, an RRF score is a sort key, not a relevance probability. Azure notes that its upper limit is bounded by the number of queries being fused, so a query that fuses three result sets produces higher RRF scores than one that fuses two. Weighting is engine-specific: Elastic's RRF retriever gives every child retriever equal weight, while Azure lets you multiply a vector query's contribution (for example 0.5 or 2.0, default 1.0).",
-        "The parameter that decides what fusion can see at all is the per-list window. Elastic's rank_window_size sets how many results from each list enter fusion; a larger window improves relevance at a performance cost. Its own worked example shows the effect: two lists fused with a window of 5 produce the order [1, 4, 2, 3, 5], but with a window of 2 the fused list becomes [1, 5, 2, 4] -- document 3, ranked third in both lists, disappears completely, and paging past the window returns nothing. Anything below the window is invisible to fusion and to every stage after it."
+        "The per-list window decides which results can enter fusion. Elastic's rank_window_size limits each child result set, must be at least the requested response size, and defaults to that size. In Elastic's documented example, the lexical list is [4, 3, 2, 1] and the vector list is [3, 2, 1, 5]. With rank_constant 1 and a window of 5, RRF ranks all five documents [3, 2, 4, 1, 5], then response size 3 returns [3, 2, 4]. If we instead use a window and response size of 2, only [4, 3] and [3, 2] enter fusion; documents 1 and 5 are excluded before scoring. A larger window can improve relevance at a performance cost. If the vector retriever's own k is larger than the window, its results are truncated to the window."
       ],
       "code": {
         "language": "text",
         "label": "RRF by hand, using the lists from Elastic's worked example",
-        "code": "List A (lexical): [1, 2, 3, 4]      List B (dense): [5, 4, 3, 1, 2]\n\nk = 1, window = 5 (Elastic's example)\n  doc 1: 1/(1+1) + 1/(1+4) = 0.700\n  doc 4: 1/(1+4) + 1/(1+2) = 0.533\n  doc 2: 1/(1+2) + 1/(1+5) = 0.500\n  doc 3: 1/(1+3) + 1/(1+3) = 0.500\n  doc 5: 0       + 1/(1+1) = 0.500\n  fused: [1, 4, 2, 3, 5]\n\nk = 60, same lists and window\n  doc 1: 0.03202   doc 4: 0.03175   doc 3: 0.03175\n  doc 2: 0.03151   doc 5: 0.01639\n  -> doc 5 (first in only one list) falls to last;\n     appearing in both lists now matters more than\n     being first in one."
+        "code": "Elastic example: lexical [4, 3, 2, 1]; vector [3, 2, 1, 5]\n\nrank_constant = 1, window = 5, response size = 3\n  doc 1: 1/(1+4) + 1/(1+3) = 0.4500\n  doc 2: 1/(1+3) + 1/(1+2) = 0.5833\n  doc 3: 1/(1+2) + 1/(1+1) = 0.8333\n  doc 4: 1/(1+1)            = 0.5000\n  doc 5:             1/(1+4) = 0.2000\n  fused: [3, 2, 4, 1, 5]; returned: [3, 2, 4]\n\nrank_constant = 60, same lists and window\n  doc 1: 1/64 + 1/63 = 0.0315\n  doc 2: 1/63 + 1/62 = 0.0320\n  doc 3: 1/62 + 1/61 = 0.0325\n  doc 4: 1/61        = 0.0164\n  doc 5:        1/64 = 0.0156\n  fused: [3, 2, 1, 4, 5]; returned: [3, 2, 1]\n\nWith window = 2 and response size = 2, only lexical [4, 3]\nand vector [3, 2] enter fusion. Docs 1 and 5 are absent;\nthe two returned documents are [3, 4] at rank_constant 1."
       }
     },
     {
@@ -77,13 +77,13 @@
     "title": "Fuse, re-rank, and measure a two-retriever pipeline",
     "instructions": [
       "Assemble five queries against an index you control or a public test collection: at least two exact-match queries (a product or error code, a person's name) and at least two paraphrased natural-language questions. For each query, capture the top ten document IDs and scores from a BM25 retriever and from a dense vector retriever.",
-      "Compute RRF for every query at k = 1 and k = 60 with a per-list window of 10, then repeat with a window of 3. Record which documents enter or leave the fused top five in each variant.",
+      "Compute RRF for every query at rank constants 1 and 60 with a per-list window of 10, then repeat with a window of 3. Request only the top three results so the response size is valid for both windows. Record which documents enter or leave the fused top three.",
       "Normalize the raw scores with min-max, combine them with an arithmetic mean at weights 0.5/0.5 and 0.3/0.7 (lexical/dense), and compare the resulting orders with the RRF orders.",
       "Label the relevance of every document that appears in any variant's top ten, producing a judgment list, and compute one ranking metric of your choice (for example precision at 5) per variant and per query type.",
       "Choose a re-ranking depth and justify it from your data by naming any relevant document that sat below the fusion window, where no re-ranker could have reached it."
     ],
     "evidence": [
-      "A table of fused top-five results for each variant and query, with your relevance labels and the metric per variant and query type.",
+      "A table of fused top-three results for each variant and query, with your relevance labels and the metric per variant and query type.",
       "A written configuration choice -- fusion method, rank constant or weights, window size, and re-rank depth -- with each value tied to a specific observed query.",
       "One named example of a relevant document that fell outside the window, and the parameter change that recovered it, or an explicit statement that none did."
     ],
@@ -118,7 +118,7 @@
       },
       {
         "id": "q-advanced-rag-and-hybrid-search-3",
-        "prompt": "In Elastic's worked example, reducing rank_window_size from 5 to 2 makes a document that was ranked 3rd in both lists vanish from the fused results. Why?",
+        "prompt": "Using Elastic's documented lexical [4, 3, 2, 1] and vector [3, 2, 1, 5] lists, why would document 1 be absent if the window and response size were both reduced to 2?",
         "choices": [
           "The rank constant changed when the window changed",
           "Each list is cut to the window before fusion, so documents below it are never seen by RRF",
@@ -126,7 +126,7 @@
           "The window only affects pagination, so this cannot happen"
         ],
         "answerIndex": 1,
-        "explanation": "rank_window_size sets how many results from each list enter fusion. With a window of 2 the document's 3rd-place ranks are outside both windows, so it contributes nothing and cannot appear in the fused list or be reached by a later stage."
+        "explanation": "Document 1 is fourth in the lexical list and third in the vector list. A window of 2 removes it from both child result sets before RRF scores the remaining documents. The response size must be no larger than the window."
       },
       {
         "id": "q-advanced-rag-and-hybrid-search-4",
@@ -242,8 +242,8 @@
         "id": "cue-hybrid-rrf-visual",
         "kind": "visual",
         "sectionId": "reciprocal-rank-fusion",
-        "text": "Show two ranked lists side by side, compute each document's reciprocal-rank contributions at k equals 1 and k equals 60, then shrink the window from 5 to 2 and show document 3 dropping out of the fused list.",
-        "accessibilityAlternative": "A static table lists each document's rank in the lexical and dense lists, its RRF contribution from each list at k = 1 and k = 60, and its fused position for a window of 5 and a window of 2, with the row for document 3 marked as absent in the window-2 column. Reduced-motion mode shows the table without animation."
+        "text": "Show Elastic's lexical [4, 3, 2, 1] and vector [3, 2, 1, 5] lists side by side. Compute each document's contributions at rank constants 1 and 60 with a window of 5. Then reduce the window and response size to 2; show that documents 1 and 5 are no longer eligible for fusion.",
+        "accessibilityAlternative": "A static table lists each document's rank in Elastic's lexical and vector lists, its RRF score at rank constants 1 and 60, and whether it remains eligible when the window is reduced from 5 to 2. Documents 1 and 5 are marked absent from both truncated lists. Reduced-motion mode shows the table without animation."
       },
       {
         "id": "cue-hybrid-rrf-pause",
