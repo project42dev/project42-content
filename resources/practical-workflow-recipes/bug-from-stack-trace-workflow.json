@@ -1,66 +1,81 @@
 {
   "id": "bug-from-stack-trace-workflow",
   "slug": "bug-from-stack-trace-workflow",
-  "title": "Bug from stack trace workflow",
-  "summary": "Use a stack trace to identify a testable failure location, reproduce the problem, evaluate a focused correction, and retain evidence that the correction worked.",
+  "title": "Bug from Stack Trace Workflow",
+  "summary": "Turn a stack trace into a minimized reproducer, evidence-backed cause, bounded fix, regression test, and verified user outcome.",
   "category": "Practical workflows",
-  "format": "how-to",
+  "format": "playbook",
   "audience": [
-    "practitioner",
-    "developer"
+    "developer",
+    "operator"
   ],
   "level": "intermediate",
   "providers": [
     "provider-neutral"
   ],
   "prerequisites": [
-    "The complete stack trace or the most complete copy available",
-    "Access to the source code associated with the reported failure",
-    "A way to repeat the operation that produced the failure"
+    "A secret-safe error report or stack trace",
+    "The relevant source and a reproducible environment",
+    "Permission to run tests and inspect logs"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 90,
-  "lastVerified": "2026-09-12",
+  "lastVerified": "2026-07-26",
   "tags": [
+    "debugging",
     "stack-trace",
-    "bug-investigation",
-    "debugging-workflow",
-    "failure-verification"
+    "reproducer",
+    "regression-test"
   ],
   "sections": [
     {
-      "id": "answer-and-source-update",
-      "title": "Answer and source update",
+      "id": "orient",
+      "title": "Orient from evidence before proposing a fix",
       "paragraphs": [
-        "Where should you start when a stack trace is all you have? Preserve the complete trace, find the reported failure location, identify the nearest relevant frame in code you control, and use that location to form a hypothesis that you can reproduce before changing the code. Treat the trace as evidence about where the failure appeared, not as proof of its underlying cause.",
-        "This is an intermediate-level workflow for practitioners who can read source code and repeat a failing operation. The previous citation, content/resources/practical-workflow-recipes/bug-from-stack-trace-workflow.json, was an unregistered local publisher path and had never been verified. It has been replaced with the canonical arXiv record for The Debugging Book. This correction affects citation provenance and verification metadata only; the operational workflow remains unchanged."
+        "Redact credentials, tokens, personal data, and unnecessary payloads while preserving exception type, message, frames, correlation identifiers, runtime and dependency versions, configuration shape, time window, and observable impact. Confirm which frame belongs to the application and which belongs to a dependency.",
+        "Ask the AI to list facts, hypotheses, missing evidence, and the next discriminating check separately. Do not accept a plausible explanation as a root cause."
       ]
     },
     {
-      "id": "investigation-procedure",
-      "title": "Investigation procedure",
+      "id": "reproduce-isolate-fix",
+      "title": "Reproduce, isolate, and make the smallest coherent fix",
       "paragraphs": [
-        "Step 1: Save the exact error message, the complete stack trace, the operation being attempted, and the input or state associated with the failure. If the trace is truncated, repeat the failing operation and capture a complete copy. If a complete copy cannot be obtained, record which portion is missing and continue only with conclusions that do not depend on that portion.",
-        "Step 2: Locate the failure position reported by the trace, then distinguish frames belonging to code you control from frames outside that code. Confirm that the available source corresponds to the code that produced the trace. If a reported location does not exist or does not match the available source, obtain the matching source or reproduction artifact before drawing a location-based conclusion. If that material is unavailable, record the location as UNKNOWN and request it.",
-        "Step 3: Form one testable hypothesis from the error message, the failing operation, the relevant frame, and the values entering that operation. Attempt the smallest reproduction that still produces the same failure. If the failure does not reproduce, capture another occurrence with the same contextual evidence rather than changing code speculatively. If several hypotheses remain possible, test one at a time so that each result has a clear interpretation.",
-        "Step 4: Apply the smallest correction that addresses the reproduced cause, then repeat the same reproduction and a related successful case. If the original failure remains, restore the prior behavior and revise the hypothesis using the new evidence. If the original case passes but the related case fails, revise or narrow the correction before accepting it."
-      ]
+        "Create the smallest deterministic failing case, compare it with a known-good case, and find the first divergent input, state, call, or version. Version-control history and bisect can narrow a regression when a reliable test distinguishes good from bad.",
+        "Add the failing regression test before or with the fix. Change only the responsible boundary, review the complete diff, and test adjacent error, timeout, and cleanup paths."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Stack-trace debugging task card",
+        "code": "Task: [OBSERVED BUG AND USER IMPACT]\nScope: [REPOSITORY, COMPONENT, ENVIRONMENT, AND ALLOWED PATHS]\nPermissions: [LOG/SOURCE READ, TEST COMMANDS, WRITES, NETWORK, AND DATA LIMITS]\nEvidence: [REDACTED TRACE, VERSIONS, CORRELATION ID, AND EXPECTED BEHAVIOR]\nFacts / hypotheses / unknowns: [SEPARATE LISTS]\nMinimal reproducer: [INPUT, PRECONDITION, COMMAND, EXPECTED, ACTUAL]\nFirst divergence and cause: [BOUNDARY -> EVIDENCE]\nStop conditions: [SECRET, PRODUCTION WRITE, NONDETERMINISM, OR SCOPE EXPANSION]\nVerification: [FAILING-THEN-PASSING TEST, RELATED SUITE, DIFF, AND USER PATH]\nRecovery: [REVERT BOUNDED CHANGE, RESTORE CONFIG/DATA, AND PRESERVE REPRODUCER]"
+      }
     },
     {
-      "id": "expected-evidence-and-verification",
+      "id": "verify-bug-fix",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "The expected evidence is a preserved trace, a confirmed mapping from the relevant frame to matching source, a reproducible failing case, a stated hypothesis, and before-and-after results from the same case. Verify the outcome by showing that the original reproduction fails before the correction and succeeds afterward under the same relevant conditions.",
-        "Also retain the result of at least one related successful case to check that the correction did not merely move the failure. If the original failure cannot be reproduced, the correction is not verified by this workflow. Mark the result unresolved and collect a new trace, matching source, inputs, and execution context from another occurrence before proceeding."
+        "Expected evidence includes the redacted trace, exact environment, minimized reproducer, first divergence, rejected hypotheses, root-cause explanation, failing-then-passing regression, reviewed diff, relevant suite, and user-boundary result.",
+        "Stop if reproduction needs protected production data, the AI proposes unrelated cleanup, the failure is nondeterministic without containment, or a write outcome is unknown. Restore the bounded change or configuration, reconcile affected state, keep the reproducer, and resume only with a safer test boundary."
       ]
     }
   ],
   "sources": [
     {
-      "title": "The Debugging Book",
-      "url": "https://arxiv.org/abs/1804.01193",
-      "publisher": "arXiv",
-      "lastVerified": "2026-09-12"
+      "title": "Git bisect",
+      "url": "https://git-scm.com/docs/git-bisect",
+      "publisher": "Git",
+      "lastVerified": "2026-07-26"
+    },
+    {
+      "title": "OpenTelemetry tracing",
+      "url": "https://opentelemetry.io/docs/concepts/signals/traces/",
+      "publisher": "OpenTelemetry",
+      "lastVerified": "2026-07-26"
+    },
+    {
+      "title": "NIST Secure Software Development Framework",
+      "url": "https://csrc.nist.gov/pubs/sp/800/218/final",
+      "publisher": "NIST",
+      "lastVerified": "2026-07-26"
     }
   ]
 }
