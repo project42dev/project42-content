@@ -1,36 +1,30 @@
 flowchart TD
     accTitle: The Orchard content lifecycle
-    accDescr: Discovery, currency inspection, and a designed request-intake path all feed one shared queue and one Gate 1 owner approval. Approved work moves through a research, authoring, and review ensemble to a second Gate 2 approval bound to the exact artifact digest, then commit, push, and a designed live-verification step. A Gate 2 denial returns the work for rework with a reason.
+    accDescr: Scheduled discovery, scheduled currency inspection, and content requests feed a shared proposal queue. Gate 1 authorizes authoring. Failed review returns work for correction. Gate 2 binds approval to an exact artifact. Publication, platform release, site deployment, and live verification are separate steps that can each hold until their evidence is complete.
 
-    subgraph INTAKE["Three intake paths, one shared queue"]
-        direction LR
-        kickoff["Discovery kicks off, monthly the 1st 06:00 UTC"] --> sources["Read the approved-source list"]
-        sources --> storeDiscovered["Store discovered content"]
-        storeDiscovered --> score["Score the discovered content"]
-        score --> storeScores["Store the scores"]
-
-        currencyInspect["Currency track inspects existing content, monthly the 15th 06:00 UTC"] --> currencyRecord["Record updates and flag stale content"]
-
-        requestIntake["Request intake: labeled GitHub issue (designed, not built)"]
+    subgraph INTAKE["Three intake paths, one proposal queue"]
+        discovery["Discovery: monthly on the 1st"] --> queue["Shared proposal queue"]
+        currency["Currency: monthly on the 15th"] --> queue
+        request["Labeled content request"] --> queue
     end
 
-    storeScores --> issue1{{"GitHub issue and alert: everything found, with scoring"}}
-    currencyRecord --> issue1
-    requestIntake -.-> issue1
+    queue --> gate1{"Gate 1: approve the proposal?"}
+    gate1 -->|no| stop1["No authoring authority"]
+    gate1 -->|yes| tracker["Link the work item"]
+    tracker --> author["Research and author the artifact"]
+    author --> review{"Factual and assessment review pass?"}
+    review -->|no| rework["Correct the draft with review findings"]
+    rework --> author
+    review -->|yes| gate2{"Gate 2: approve this exact artifact?"}
+    gate2 -->|no| rework
+    gate2 -->|yes| pull["Open a content pull request"]
+    pull --> merge["Validate and merge into canonical content"]
+    merge --> release["Release the platform content package"]
+    release --> deploy["Update the learner site package pin"]
+    deploy --> verify["Verify the lesson is live"]
 
-    issue1 --> gate1{"Gate 1: owner approves on the comment"}
-    gate1 -->|deny| noAuthority1["No delivery authority"]
-    gate1 -->|approve| approvedTracker["Approved list entry, plus tracker work item"]
-
-    approvedTracker --> orchestration["Orchestration: research, authoring, review agents"]
-    orchestration --> storeWritten["Store the written content"]
-    storeWritten --> issue2{{"Second GitHub issue: work-item link plus content"}}
-    issue2 --> gate2{"Gate 2: approve or deny, bound to the exact artifact digest"}
-    gate2 -->|deny, reason required| rework["No publication authority, work returns for rework"]
-    rework --> orchestration
-    gate2 -->|approve| commitPush["Commit and push to the central content store"]
-    commitPush --> verifyLive["Verify the new content is live (designed, not wired)"]
-
-    classDef pending stroke-dasharray: 6 4
-    class requestIntake pending
-    class verifyLive pending
+    hold["Any failed check holds the item with its reason"]
+    review -.-> hold
+    merge -.-> hold
+    release -.-> hold
+    verify -.-> hold
