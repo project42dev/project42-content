@@ -62,7 +62,7 @@
       "code": {
         "language": "typescript",
         "label": "One source of truth, enforced after the response",
-        "code": "import { z } from \"zod\";\n\n// The API receives a relaxed JSON Schema; this object still enforces\n// the rules the API could not (email format, 200-character summary).\nconst Ticket = z.object({\n  category: z.enum([\"billing\", \"access\", \"bug\", \"other\"]),\n  priority: z.enum([\"low\", \"normal\", \"urgent\"]),\n  customer_email: z.nullable(z.email()),\n  summary: z.string().max(200),\n  needs_human: z.boolean(),\n});\n\n// OpenAI:    client.responses.parse({ ..., text: { format: zodTextFormat(Ticket, \"ticket\") } })\n//            -> response.output_parsed\n// Anthropic: client.messages.parse({ ..., output_config: { format: zodOutputFormat(Ticket) } })\n//            -> response.parsed_output\n// Gemini:    send the JSON Schema, then parse the returned text yourself:\nconst ticket = Ticket.parse(JSON.parse(outputText));"
+        "code": "import { z } from \"zod\";\n\n// The API receives a relaxed JSON Schema; this object still enforces\n// the rules the API could not (email format, 200-character summary).\nconst Ticket = z.strictObject({\n  category: z.enum([\"billing\", \"access\", \"bug\", \"other\"]),\n  priority: z.enum([\"low\", \"normal\", \"urgent\"]),\n  customer_email: z.nullable(z.email()),\n  summary: z.string().max(200),\n  needs_human: z.boolean(),\n});\n\n// OpenAI:    client.responses.parse({ ..., text: { format: zodTextFormat(Ticket, \"ticket\") } })\n//            -> response.output_parsed\n// Anthropic: client.messages.parse({ ..., output_config: { format: zodOutputFormat(Ticket) } })\n//            -> response.parsed_output\n// Gemini:    send the JSON Schema, then parse the returned text yourself:\nconst ticket = Ticket.parse(JSON.parse(outputText));"
       }
     },
     {
@@ -70,14 +70,14 @@
       "title": "Refusals, truncation, and casing: what still reaches your code",
       "paragraphs": [
         "Constrained decoding cannot stop the model from refusing or from running out of tokens, and either one produces output that does not match your schema. Claude signals a safety refusal with `stop_reason: \"refusal\"` and HTTP 200, bills the tokens it generated, and lets the refusal message take precedence over the schema; a cut-off response has `stop_reason: \"max_tokens\"` and may be incomplete, and Anthropic's remedy is to retry with a higher `max_tokens`. OpenAI returns a `refusal` content item in place of schema output, and marks truncation with `status: \"incomplete\"` and an `incomplete_details.reason` of `max_output_tokens`. Check these signals before you parse, not after the parser throws.",
-        "Some drift is quieter. Anthropic documents that structured outputs do not guarantee the capitalization of string `enum` and `const` values: the model may return a value that differs from the schema only in case -- typically the first letter of a word after a space -- with no error and no special stop reason. Compare enum values case-insensitively and never define two values that differ only by case. Anthropic also lists structured outputs as incompatible with citations (a 400) and with message prefilling.",
+        "Some drift is quieter. Anthropic documents that structured outputs do not guarantee the capitalization of string `enum` and `const` values: the model may return a value that differs from the schema only in case -- typically the first letter of a word after a space -- with no error and no special stop reason. Never define two values that differ only by case. If your domain permits case-insensitive matching, explicitly map known values to canonical spellings before local validation; otherwise reject the mismatch. The strict reader below takes the rejection path. Anthropic also lists structured outputs as incompatible with citations (a 400) and with message prefilling.",
         "Finally, give the model a legitimate way out. Because the model always tries to satisfy the schema, OpenAI advises telling it in the prompt what to return when the input cannot produce a valid response. Build that answer into the schema itself -- an `\"other\"` category, a null field, a `needs_human` flag -- so that 'this email is not a support ticket' does not come back as a confidently filled-in ticket."
       ],
       "callout": "Look at stop_reason, status, and refusal items first. JSON.parse is the last step, not the error handler.",
       "code": {
         "language": "typescript",
         "label": "Check the stop signal, then parse, then validate",
-        "code": "type Read<T> =\n  | { ok: true; value: T }\n  | { ok: false; reason: \"refused\" | \"truncated\" | \"invalid\"; detail: string };\n\n// Claude Messages: inspect stop_reason before touching the text block.\nfunction readClaude(msg: { stop_reason: string | null; content: { type: string; text?: string }[] }): Read<unknown> {\n  if (msg.stop_reason === \"refusal\") return { ok: false, reason: \"refused\", detail: \"stop_reason refusal\" };\n  if (msg.stop_reason === \"max_tokens\") return { ok: false, reason: \"truncated\", detail: \"raise max_tokens and retry\" };\n  const text = msg.content.find((b) => b.type === \"text\")?.text ?? \"\";\n  return validate(JSON.parse(text));\n}\n\n// OpenAI Responses: an incomplete status or a refusal item is not schema output.\nfunction readResponses(r: { status: string; incomplete_details?: { reason?: string }; output: any[] }): Read<unknown> {\n  if (r.status === \"incomplete\") return { ok: false, reason: \"truncated\", detail: r.incomplete_details?.reason ?? \"unknown\" };\n  const part = r.output.find((i) => i.type === \"message\")?.content?.[0];\n  if (part?.type === \"refusal\") return { ok: false, reason: \"refused\", detail: part.refusal };\n  return validate(JSON.parse(part?.text ?? \"\"));\n}\n\n// validate(): run the full local schema, and compare enum values\n// case-insensitively before accepting them."
+        "code": "type Read<T> =\n  | { ok: true; value: T }\n  | { ok: false; reason: \"refused\" | \"truncated\" | \"invalid\"; detail: string };\ntype Part = { type: string; text?: string; refusal?: string };\n\nfunction parseAndValidate(parts: Part[], textType: string): Read<unknown> {\n  const texts = parts.filter((p) => p.type === textType);\n  // This extraction contract expects exactly one schema document, not several messages.\n  if (texts.length !== 1 || typeof texts[0].text !== \"string\" || !texts[0].text.trim())\n    return { ok: false, reason: \"invalid\", detail: \"Expected one non-empty JSON text block.\" };\n  try {\n    const value = JSON.parse(texts[0].text);\n    return { ok: true, value: Ticket.parse(value) }; // full local schema, including extra-key rejection\n  } catch {\n    return { ok: false, reason: \"invalid\", detail: \"Malformed JSON or local schema violation.\" };\n  }\n}\n\nfunction readClaude(msg: { stop_reason: string | null; content: Part[] }): Read<unknown> {\n  if (msg.stop_reason === \"refusal\") return { ok: false, reason: \"refused\", detail: \"Safety refusal.\" };\n  if (msg.stop_reason === \"max_tokens\") return { ok: false, reason: \"truncated\", detail: \"Token limit reached.\" };\n  if (msg.stop_reason !== \"end_turn\") return { ok: false, reason: \"invalid\", detail: \"Extraction did not finish normally.\" };\n  return parseAndValidate(msg.content, \"text\");\n}\n\nfunction readResponses(r: { status: string; incomplete_details?: { reason?: string }; output: { type: string; content?: Part[] }[] }): Read<unknown> {\n  const parts = r.output.filter((i) => i.type === \"message\").flatMap((i) => i.content ?? []);\n  if (parts.some((p) => p.type === \"refusal\")) return { ok: false, reason: \"refused\", detail: \"Safety refusal.\" };\n  if (r.status === \"incomplete\") return { ok: false, reason: \"truncated\", detail: r.incomplete_details?.reason ?? \"Incomplete response.\" };\n  if (r.status !== \"completed\") return { ok: false, reason: \"invalid\", detail: \"Response is not completed.\" };\n  return parseAndValidate(parts, \"output_text\");\n}\n\n// Ticket is the strict schema from the preceding example. No failed result is persisted.\n// A casing mismatch is rejected here. If the domain permits normalization, map only\n// known enum values to canonical spelling before Ticket.parse; never bypass validation."
       }
     }
   ],
@@ -88,7 +88,8 @@
       "Take one real extraction task and write its schema once, inside the portable subset: object root, every field required with null unions for absent values, additionalProperties false, string enums, and no numeric or length constraints.",
       "Move every dropped constraint (lengths, ranges, formats) into a local validator generated from the same source of truth, and prove that it rejects a payload with a malformed email, an over-length summary, and an extra property.",
       "Send the schema through OpenAI strict mode, Claude output_config.format, and Gemini structured output. Record every 400 error and the schema change that fixed it.",
-      "Force each failure path in a test: a request that should be refused, a max-token limit too low to finish, an input unrelated to the schema, and an enum value returned in the wrong case."
+      "Force each failure path in a test: a request that should be refused, a max-token limit too low to finish, an input unrelated to the schema, and an enum value returned in the wrong case.",
+      "Unit-test malformed JSON, missing or multiple text blocks, a refusal after a text block or in a later message, and queued, failed, or cancelled responses. Verify that every failure returns a typed result without persisting data or throwing a parse error."
     ],
     "evidence": [
       "The single-source schema, the relaxed schema actually sent to each provider, and the local validator, with the three rejected test payloads.",
@@ -219,7 +220,7 @@
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 3000,
+    "estimatedSeconds": 57,
     "cues": [
       {
         "id": "cue-dev-so-guarantee",
@@ -281,36 +282,36 @@
         "text": "Begin the check once learners can name the portable schema subset and the signals that precede a parse."
       }
     ],
-    "transcript": "Constrained decoding guarantees the shape of the output, not its truth; OpenAI, Claude, and Gemini all tell you to keep validating values in your own code. Write schemas in the portable subset -- an object root, every field required with null unions, additionalProperties false, string enums -- and enforce numeric and length rules locally. SDK helpers rewrite your schema before sending it, so keep one source of truth and validate the response against the original, remembering that format is only an annotation by default. Refusals, truncation, and enum casing still produce output that breaks the schema, so check the stop signal before parsing and give the model a legitimate way to say the input does not fit.",
+    "transcript": "Constrained decoding guarantees the shape of the output, not its truth; OpenAI, Claude, and Gemini all tell you to keep validating values in your own code. Write schemas in the portable subset -- an object root, every field required with null unions, additionalProperties false, string enums -- and enforce numeric and length rules locally. SDK helpers rewrite your schema before sending it, so keep one source of truth and validate the response against the original, remembering that format is only an annotation by default. Refusals, truncation, and enum casing still produce output that breaks the schema, so check the stop signal before parsing and give the model a legitimate way to say the input does not fit. Begin the check once learners can name the portable schema subset and the signals that precede a parse.",
     "captions": [
       {
         "cueId": "cue-dev-so-guarantee",
         "startSeconds": 0,
-        "endSeconds": 637,
+        "endSeconds": 11,
         "text": "Constrained decoding guarantees the shape of the output, not its truth; OpenAI, Claude, and Gemini all tell you to keep validating values in your own code."
       },
       {
         "cueId": "cue-dev-so-subset",
-        "startSeconds": 667,
-        "endSeconds": 1304,
+        "startSeconds": 11,
+        "endSeconds": 23,
         "text": "Write schemas in the portable subset -- an object root, every field required with null unions, additionalProperties false, string enums -- and enforce numeric and length rules locally."
       },
       {
         "cueId": "cue-dev-so-helpers",
-        "startSeconds": 1334,
-        "endSeconds": 1971,
+        "startSeconds": 23,
+        "endSeconds": 35,
         "text": "SDK helpers rewrite your schema before sending it, so keep one source of truth and validate the response against the original, remembering that format is only an annotation by default."
       },
       {
         "cueId": "cue-dev-so-failures",
-        "startSeconds": 2001,
-        "endSeconds": 2638,
+        "startSeconds": 35,
+        "endSeconds": 49,
         "text": "Refusals, truncation, and enum casing still produce output that breaks the schema, so check the stop signal before parsing and give the model a legitimate way to say the input does not fit."
       },
       {
         "cueId": "cue-dev-so-assessment",
-        "startSeconds": 2700,
-        "endSeconds": 3000,
+        "startSeconds": 49,
+        "endSeconds": 57,
         "text": "Begin the check once learners can name the portable schema subset and the signals that precede a parse."
       }
     ],

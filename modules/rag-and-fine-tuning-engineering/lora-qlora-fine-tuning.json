@@ -16,14 +16,17 @@
     "Configure instruction-tuning loss masking and chat templates so the model is trained on responses rather than prompts.",
     "Decide whether to merge an adapter or serve it separately, given batching, task-switching, and quantization-backend constraints."
   ],
-  "prerequisites": [],
+  "prerequisites": [
+    "open-weights-and-quantization",
+    "hardware-and-vram-calculator"
+  ],
   "sections": [
     {
       "id": "low-rank-update",
       "title": "The low-rank update: freeze W0, train BA",
       "paragraphs": [
         "Full fine-tuning retrains every parameter, and the LoRA paper (Hu et al.) uses GPT-3 175B to show why that stops scaling: deploying an independent fine-tuned instance per task, each with 175B parameters, is prohibitively expensive. LoRA freezes the pre-trained weights and injects trainable rank-decomposition matrices into the Transformer's layers. The motivating hypothesis is that the change in weights during adaptation has a low 'intrinsic rank', so it can be represented by two small matrices instead of a full-size update.",
-        "Concretely, for a frozen weight matrix W0 the forward pass becomes h = W0x + BAx, where B and A are the only trained parameters. The paper initializes A with random Gaussian values and B with zeros, so the update BA is zero at the start and training begins exactly at the base model's behaviour. The update is scaled by alpha / r; the authors set alpha to the first r they tried and did not tune it, because the scaling reduces the need to retune hyperparameters when r changes. Hugging Face PEFT's default, which it describes as matching the reference implementation, initializes A with Kaiming-uniform values rather than the Gaussian described in the paper's text (B is still zero); a Gaussian option is available, and use_rslora=True switches the scale to alpha / sqrt(r).",
+        "Concretely, for a frozen weight matrix W0 the forward pass becomes h = W0x + (alpha / r)BAx, where B and A are the only trained parameters. The paper initializes A with random Gaussian values and B with zeros, so the update BA is zero at the start and training begins exactly at the base model's behaviour. The update is scaled by alpha / r; the authors set alpha to the first r they tried and did not tune it, because the scaling reduces the need to retune hyperparameters when r changes. Hugging Face PEFT's default, which it describes as matching the reference implementation, initializes A with Kaiming-uniform values rather than the Gaussian described in the paper's text (B is still zero); a Gaussian option is available, and use_rslora=True switches the scale to alpha / sqrt(r).",
         "The paper reports that, against GPT-3 175B fine-tuned with Adam, LoRA reduced trainable parameters by 10,000 times and GPU memory by 3 times, while performing on par with or better than full fine-tuning on RoBERTa, DeBERTa, GPT-2, and GPT-3. Those are the paper's measurements on its tasks -- a reason to try LoRA, not a guarantee for yours."
       ],
       "callout": "Because B starts at zero, a LoRA run that has not learned anything yet is the base model. Any behaviour change you see is, by construction, the adapter."
@@ -70,7 +73,7 @@
       "id": "shipping-adapters",
       "title": "Shipping: merge, swap, or keep separate",
       "paragraphs": [
-        "LoRA's linear form allows the update to be folded into the base weights for deployment -- W = W0 + BA -- so a merged model runs with no additional inference latency, which the paper contrasts with adapter layers. Switching tasks means subtracting BA and adding a different B'A', a quick operation with little memory overhead. The paper's storage example is stark: with r = 4 on only the query and value projections, the GPT-3 checkpoint shrank from about 350 GB to 35 MB, which is what makes keeping many task adapters around a single base model practical.",
+        "LoRA's linear form allows the update to be folded into the base weights for deployment -- W = W0 + (alpha / r)BA -- so a merged model runs with no additional inference latency, which the paper contrasts with adapter layers. Switching tasks means subtracting the old scaled update and adding a different (alpha' / r')B'A', a quick operation with little memory overhead. The paper's storage example is stark: with r = 4 on only the query and value projections, the GPT-3 checkpoint shrank from about 350 GB to 35 MB, which is what makes keeping many task adapters around a single base model practical.",
         "Merging has a cost the paper names directly: once A and B are absorbed into W, it is no longer straightforward to batch inputs for different tasks, each needing different A and B, in one forward pass. Leaving adapters unmerged and choosing them per sample remains possible where latency is not critical. PEFT exposes both paths: merge_and_unload() produces a standalone merged model, merge_adapter() and unmerge_adapter() toggle merging while keeping the PeftModel, unload() recovers the base model, and add_weighted_adapter() combines several LoRAs into a new one.",
         "The quantization backend can decide for you. PEFT documents that adapters trained on AQLM-quantized models must be saved separately because merging with AQLM weights is not possible, and that merge() and unmerge() are not supported for INC-quantized models. Before promising a merged artifact, confirm the backend supports it -- and in every case record the exact base model and quantization configuration alongside the adapter, because an adapter is an update to one specific set of frozen weights."
       ]
@@ -80,6 +83,7 @@
     "id": "lora-qlora-fine-tuning-activity",
     "title": "Run a QLoRA experiment you can defend",
     "instructions": [
+      "Before starting, be able to run Python training scripts, manage a package environment, prepare a held-out dataset, and load a Transformers model. Check compatible PyTorch, Transformers, PEFT, TRL, and bitsandbytes versions and hardware with bfloat16 support; record the environment and memory budget.",
       "Choose a small open base model and an instruction dataset of a few thousand examples in prompt-completion or conversational format. Record the base model identifier and its exact revision.",
       "Configure 4-bit NF4 storage with double quantization and a bfloat16 compute dtype, and a LoRA adapter on all linear layers. Record r, alpha, and the resulting scale.",
       "Train two variants that differ in exactly one factor: either loss masking on (completion-only or assistant-only) versus off, or adapters on attention projections only versus all linear layers.",
@@ -204,7 +208,7 @@
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 3000,
+    "estimatedSeconds": 62,
     "cues": [
       {
         "id": "cue-lora-update-narration",
@@ -217,7 +221,7 @@
         "kind": "visual",
         "sectionId": "low-rank-update",
         "text": "Show a large frozen weight matrix beside two thin trainable matrices A and B, their product forming a full-size update, and the sum of the frozen and update paths producing the layer output.",
-        "accessibilityAlternative": "A static diagram description lists the frozen matrix W0, the trainable matrices A (r rows) and B (r columns), the update BA with the same shape as W0, and the output h = W0x + BAx, with a note that BA is zero at initialization. Reduced-motion mode shows the diagram without animation."
+        "accessibilityAlternative": "A static diagram description lists the frozen matrix W0, the trainable matrices A (r rows) and B (r columns), the update BA with the same shape as W0, and the output h = W0x + (alpha / r)BAx, with a note that BA is zero at initialization. Reduced-motion mode shows the diagram without animation."
       },
       {
         "id": "cue-lora-placement-narration",
@@ -272,42 +276,42 @@
         "text": "Begin the check once learners can explain why B starts at zero and what QLoRA stores in 4-bit versus computes in 16-bit."
       }
     ],
-    "transcript": "LoRA freezes the base weights and trains a low-rank update, B times A, scaled by alpha over r. B starts at zero, so training begins exactly at the base model. Both papers found that spreading adapters across more of the model's matrices mattered more than raising the rank on a few of them. QLoRA stores the frozen weights in 4-bit NormalFloat, computes in 16-bit, and adds double quantization and paged optimizers to keep memory within a single GPU. Train on responses, not prompts, and choose data for suitability over volume. A clean loss curve says the model fits your targets, not that the targets were right. Merging removes inference latency but makes mixed-task batching hard; keeping adapters separate keeps them swappable. The quantization backend may decide for you.",
+    "transcript": "LoRA freezes the base weights and trains a low-rank update, B times A, scaled by alpha over r. B starts at zero, so training begins exactly at the base model. Both papers found that spreading adapters across more of the model's matrices mattered more than raising the rank on a few of them. QLoRA stores the frozen weights in 4-bit NormalFloat, computes in 16-bit, and adds double quantization and paged optimizers to keep memory within a single GPU. Train on responses, not prompts, and choose data for suitability over volume. A clean loss curve says the model fits your targets, not that the targets were right. Merging removes inference latency but makes mixed-task batching hard; keeping adapters separate keeps them swappable. The quantization backend may decide for you. Begin the check once learners can explain why B starts at zero and what QLoRA stores in 4-bit versus computes in 16-bit.",
     "captions": [
       {
         "cueId": "cue-lora-update-narration",
         "startSeconds": 0,
-        "endSeconds": 510,
+        "endSeconds": 12,
         "text": "LoRA freezes the base weights and trains a low-rank update, B times A, scaled by alpha over r. B starts at zero, so training begins exactly at the base model."
       },
       {
         "cueId": "cue-lora-placement-narration",
-        "startSeconds": 540,
-        "endSeconds": 1050,
+        "startSeconds": 12,
+        "endSeconds": 22,
         "text": "Both papers found that spreading adapters across more of the model's matrices mattered more than raising the rank on a few of them."
       },
       {
         "cueId": "cue-lora-qlora-narration",
-        "startSeconds": 1080,
-        "endSeconds": 1590,
+        "startSeconds": 22,
+        "endSeconds": 32,
         "text": "QLoRA stores the frozen weights in 4-bit NormalFloat, computes in 16-bit, and adds double quantization and paged optimizers to keep memory within a single GPU."
       },
       {
         "cueId": "cue-lora-data-narration",
-        "startSeconds": 1620,
-        "endSeconds": 2130,
+        "startSeconds": 32,
+        "endSeconds": 44,
         "text": "Train on responses, not prompts, and choose data for suitability over volume. A clean loss curve says the model fits your targets, not that the targets were right."
       },
       {
         "cueId": "cue-lora-ship-narration",
-        "startSeconds": 2160,
-        "endSeconds": 2670,
+        "startSeconds": 44,
+        "endSeconds": 53,
         "text": "Merging removes inference latency but makes mixed-task batching hard; keeping adapters separate keeps them swappable. The quantization backend may decide for you."
       },
       {
         "cueId": "cue-lora-assessment",
-        "startSeconds": 2700,
-        "endSeconds": 3000,
+        "startSeconds": 53,
+        "endSeconds": 62,
         "text": "Begin the check once learners can explain why B starts at zero and what QLoRA stores in 4-bit versus computes in 16-bit."
       }
     ],

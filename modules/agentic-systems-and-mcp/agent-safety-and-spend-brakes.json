@@ -73,15 +73,15 @@
     "id": "agent-safety-and-spend-brakes-activity",
     "title": "Build and trip a layered brake stack",
     "instructions": [
-      "Take an agent that can perform at least one consequential action, such as sending a message, moving money, or deleting data. List its tools and, for each, remove functionality or permissions the task does not need before adding any brake.",
+      "Use a sandbox agent with mock tools representing a consequential action, such as sending a message, moving money, or deleting data. Record attempted and executed calls without real external effects. List its tools and remove functionality or permissions the task does not need before adding any brake.",
       "Choose the approval mechanism -- an in-process callback or serialize-and-resume -- and write down where the paused state lives, how long it may wait, what it contains, and which calls could reach execution without passing the gate.",
       "Set a turn limit and a per-run spend limit. For each, write what is counted, the value, the at-limit behavior, and the framework's documented default, so it is clear what you overrode.",
       "Identify the workspace or organization spend limit beneath the run, and describe which other workloads would stop if it tripped.",
-      "Write five tests that trip the brakes -- required approval, rejected approval, turn limit, spend limit, and resume after a long pause -- and capture the terminal state each one produces."
+      "Write four brake tests and one recovery test: required approval pauses before execution; rejected approval never executes the action; the turn limit stops further model turns; the spend limit stops further paid requests after the measured threshold check; and an approved run resumes after a simulated long pause. For recovery, reload persisted state, re-check authorization and guardrails, and prove the action executes once. Record the observed pause, rejection, limit, or completion state; do not call successful recovery a tripped brake."
     ],
     "evidence": [
       "A brake-stack table listing each layer, its mechanism, what it counts or gates, its value, its at-limit behavior, and what it leaves uncovered.",
-      "Five test results showing each brake tripping, with the error or result type, the message returned to the model, and the saved state."
+      "Five labelled test results: four brake cases and one recovery case, with expected versus observed state, error or result type, model-facing message if applicable, secret-safe saved-state reference, call counts, and measured usage. Recovery evidence shows the persisted run, renewed authorization/guardrail checks, and exactly one mock side effect."
     ],
     "reflectionPrompt": "Which of your brakes fires only after the cost or damage has already happened, and which earlier layer would have prevented it instead?"
   },
@@ -226,7 +226,7 @@
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 2700,
+    "estimatedSeconds": 54,
     "cues": [
       {
         "id": "cue-brakes-risks-narration",
@@ -286,7 +286,7 @@
       {
         "id": "cue-brakes-activity",
         "kind": "learner-prompt",
-        "text": "Guide the scoping pass, the approval design, the limits table, and the five tripping tests."
+        "text": "Guide the scoping pass, approval design, limits table, four brake tests, and a separate successful recovery test with no duplicate effect."
       },
       {
         "id": "cue-brakes-assessment",
@@ -294,42 +294,42 @@
         "text": "Begin the check once learners can describe what each brake counts, when it trips, and what it leaves uncovered."
       }
     ],
-    "transcript": "Brakes answer excessive autonomy and unbounded consumption; excessive functionality and permissions are fixed by scoping before any brake is added. An approval gate is a pause; decide whether it lives in a running process or in stored state, and check which calls never reach it. A turn limit becomes a specification only when it says what a turn counts, what the number is, and what happens at the limit. A per-run spend cap is an estimate checked after the spend, so it sits above workspace and organization limits rather than replacing them. Scope first, then approval, then per-run limits, then provider backstops, and prove each layer by making it trip.",
+    "transcript": "Brakes answer excessive autonomy and unbounded consumption; excessive functionality and permissions are fixed by scoping before any brake is added. An approval gate is a pause; decide whether it lives in a running process or in stored state, and check which calls never reach it. A turn limit becomes a specification only when it says what a turn counts, what the number is, and what happens at the limit. A per-run spend cap is an estimate checked after the spend, so it sits above workspace and organization limits rather than replacing them. Scope first, then approval, then per-run limits, then provider backstops, and prove each layer by making it trip. Begin the check once learners can describe what each brake counts, when it trips, and what it leaves uncovered.",
     "captions": [
       {
         "cueId": "cue-brakes-risks-narration",
         "startSeconds": 0,
-        "endSeconds": 450,
+        "endSeconds": 8,
         "text": "Brakes answer excessive autonomy and unbounded consumption; excessive functionality and permissions are fixed by scoping before any brake is added."
       },
       {
         "cueId": "cue-brakes-approval-narration",
-        "startSeconds": 480,
-        "endSeconds": 930,
+        "startSeconds": 8,
+        "endSeconds": 18,
         "text": "An approval gate is a pause; decide whether it lives in a running process or in stored state, and check which calls never reach it."
       },
       {
         "cueId": "cue-brakes-turns-narration",
-        "startSeconds": 960,
-        "endSeconds": 1410,
+        "startSeconds": 18,
+        "endSeconds": 28,
         "text": "A turn limit becomes a specification only when it says what a turn counts, what the number is, and what happens at the limit."
       },
       {
         "cueId": "cue-brakes-spend-narration",
-        "startSeconds": 1440,
-        "endSeconds": 1890,
+        "startSeconds": 28,
+        "endSeconds": 38,
         "text": "A per-run spend cap is an estimate checked after the spend, so it sits above workspace and organization limits rather than replacing them."
       },
       {
         "cueId": "cue-brakes-stack-narration",
-        "startSeconds": 1920,
-        "endSeconds": 2370,
+        "startSeconds": 38,
+        "endSeconds": 46,
         "text": "Scope first, then approval, then per-run limits, then provider backstops, and prove each layer by making it trip."
       },
       {
         "cueId": "cue-brakes-assessment",
-        "startSeconds": 2400,
-        "endSeconds": 2700,
+        "startSeconds": 46,
+        "endSeconds": 54,
         "text": "Begin the check once learners can describe what each brake counts, when it trips, and what it leaves uncovered."
       }
     ],

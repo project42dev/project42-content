@@ -42,13 +42,14 @@
       "paragraphs": [
         "The tempting SQL tool is `run_sql(query: string)`. OWASP's LLM06:2025 Excessive Agency entry explains why not: it names excessive functionality, excessive permissions, and excessive autonomy as the root causes of damaging actions taken on a model's unexpected, ambiguous, or manipulated output, and it advises avoiding open-ended extensions. Its own example of excessive permissions is a feature meant only to read data that connects with an identity holding UPDATE, INSERT, and DELETE as well as SELECT.",
         "Build the tool from fixed query templates instead. Each function maps to one statement an engineer wrote and reviewed; the model supplies only typed values, and those values reach the database as bound parameters rather than text spliced into SQL. PostgreSQL's libpq documentation gives the reason: sending parameter values separately from the command string avoids error-prone quoting and escaping, and the parameterized call accepts at most one SQL command per string, which the documentation calls an extra defense against SQL injection. Values that identify the caller -- tenant, user, account -- should not be arguments at all. OpenAI's function-calling guidance says not to make the model fill arguments you already know; pass them from the authenticated session in code.",
-        "Then make the database enforce what the template intends. Connect as a dedicated role granted SELECT on only the tables or columns the tools read. Do not treat a read-only transaction as the boundary: PostgreSQL calls read-only mode a high-level notion that does not prevent all writes to disk, and a transaction can override the session default with SET TRANSACTION. Row security policies add a per-role row filter and deny all rows when enabled with no policy, but superusers, roles with BYPASSRLS, and normally the table owner bypass them, so the tool role must be none of those. Finally, bound every call: `statement_timeout` aborts a statement that runs longer than the limit, PostgreSQL advises against setting it in postgresql.conf because that affects all sessions, and `ALTER ROLE ... SET` makes it the role's session default at login. A session default is a default, not a ceiling: it holds here because the model never writes SQL."
+        "Then make the database enforce what the template intends. Connect as a dedicated role granted SELECT on only the tables or columns the tools read. Do not treat a read-only transaction as the boundary: PostgreSQL calls read-only mode a high-level notion that does not prevent all writes to disk, and a transaction can override the session default with SET TRANSACTION. Row security policies add a per-role row filter and deny all rows when enabled with no policy, but superusers, roles with BYPASSRLS, and normally the table owner bypass them, so the tool role must be none of those. Finally, bound every call: `statement_timeout` aborts a statement that runs longer than the limit, PostgreSQL advises against setting it in postgresql.conf because that affects all sessions, and `ALTER ROLE ... SET` makes it the role's session default at login. A session default is a default, not a ceiling: it holds here because the model never writes SQL.",
+        "This example trusts the application to authenticate the session and set the account identity inside a transaction on one connection. Transaction-local configuration avoids leaking an identity across pooled requests. RLS then filters rows even if a template accidentally omits its account predicate. A compromised application role that can set this variable is outside that guarantee; never expose arbitrary SQL or configuration changes to model arguments. Inspect all applicable policies and inherited privileges before relying on the isolation."
       ],
       "callout": "The model chooses which template and supplies typed values. It never supplies SQL text, a table name, or the identity the query runs as.",
       "code": {
         "language": "typescript",
         "label": "A template-based SQL tool under a least-privilege role",
-        "code": "// One-time setup by an administrator -- never by the tool:\n//   CREATE ROLE support_tool LOGIN NOBYPASSRLS;\n//   GRANT SELECT (order_number, status, updated_at, account_id) ON orders TO support_tool;\n//   ALTER ROLE support_tool SET statement_timeout = '2s';\n\n// Any driver that sends parameters separately from the SQL text.\ninterface Db { query(sql: string, params: unknown[]): Promise<{ rows: Record<string, unknown>[] }>; }\ninterface Session { accountId: string }\n\nconst TEMPLATES = {\n  orders_get_status: {\n    sql: \"SELECT order_number, status, updated_at FROM orders \" +\n         \"WHERE account_id = $1 AND order_number = $2 LIMIT 1\",\n    // identity from the session; only order_number comes from the model\n    params: (s: Session, input: { order_number: string }) => [s.accountId, input.order_number],\n  },\n} as const;\n\nexport async function runSqlTool(db: Db, name: string, input: { order_number: string }, s: Session) {\n  const t = TEMPLATES[name as keyof typeof TEMPLATES];\n  if (!t) {\n    return { isError: true, text: `Unknown tool \"${name}\". Available: ${Object.keys(TEMPLATES).join(\", \")}.` };\n  }\n  const { rows } = await db.query(t.sql, t.params(s, input));   // bound parameters, one statement\n  return rows.length\n    ? { isError: false, text: JSON.stringify(rows[0]) }\n    : { isError: false, text: `No order ${input.order_number} on this account. Ask the customer to check the number.` };\n}"
+        "code": "// Administrator setup for an application-owned orders table:\n//   CREATE ROLE support_tool LOGIN NOSUPERUSER NOBYPASSRLS;\n//   GRANT SELECT (order_number, status, updated_at, account_id) ON orders TO support_tool;\n//   ALTER ROLE support_tool SET statement_timeout = '2s';\n//   ALTER TABLE orders ENABLE ROW LEVEL SECURITY;\n//   CREATE POLICY support_orders ON orders FOR SELECT TO support_tool\n//     USING (account_id::text = current_setting('app.account_id', true));\n// support_tool must not own orders or inherit a bypass role.\n\ninterface Connection { query(sql: string, params: unknown[]): Promise<{ rows: Record<string, unknown>[] }>; }\ninterface Db {\n  // BEGIN + callback + COMMIT; ROLLBACK on error, on ONE checked-out connection.\n  transaction<T>(work: (tx: Connection) => Promise<T>): Promise<T>;\n}\ninterface Session { accountId: string }\n\nexport async function runSqlTool(db: Db, name: string, input: unknown, s: Session) {\n  if (name !== \"orders_get_status\") return { isError: true, text: \"Unknown tool. Available: orders_get_status.\" };\n  if (!input || typeof input !== \"object\" || Array.isArray(input)) return { isError: true, text: \"Expected order_number.\" };\n  const a = input as Record<string, unknown>;\n  if (Object.keys(a).length !== 1 || typeof a.order_number !== \"string\" || !/^\\d{4,6}$/.test(a.order_number))\n    return { isError: true, text: \"order_number must be 4-6 digits; no extra fields.\" };\n  if (!s.accountId) return { isError: true, text: \"Authenticated account required.\" };\n  try {\n    const { rows } = await db.transaction(async (tx) => {\n      // Trusted session identity, never a model argument. true = transaction-local.\n      await tx.query(\"SELECT set_config('app.account_id', $1, true)\", [s.accountId]);\n      return tx.query(\"SELECT order_number, status, updated_at FROM orders WHERE account_id = $1 AND order_number = $2 LIMIT 1\", [s.accountId, a.order_number]);\n    });\n    return { isError: false, text: rows.length ? JSON.stringify(rows[0]) : \"No matching order on this account.\" };\n  } catch {\n    return { isError: true, text: \"Order lookup unavailable; do not assume the order is absent.\" };\n  }\n}"
       }
     },
     {
@@ -62,7 +63,7 @@
       "code": {
         "language": "typescript",
         "label": "One bounded tool; the bridge owns method, path, and token",
-        "code": "const helpdeskTool = {\n  type: \"function\",\n  name: \"helpdesk_tickets\",\n  description:\n    \"Read or comment on the signed-in user's helpdesk tickets. Use list_open to find tickets, get for one \" +\n    \"ticket's detail, and add_comment to reply on a ticket. It cannot close, reassign, or delete tickets. \" +\n    \"list_open returns at most 20 tickets, newest first; ticket_id and comment are null when not needed.\",\n  strict: true,\n  parameters: {\n    type: \"object\",\n    properties: {\n      action: { type: \"string\", enum: [\"list_open\", \"get\", \"add_comment\"] },\n      ticket_id: { type: [\"string\", \"null\"] },\n      comment: { type: [\"string\", \"null\"] },\n    },\n    required: [\"action\", \"ticket_id\", \"comment\"],\n    additionalProperties: false,\n  },\n};\n\ntype Args = { action: \"list_open\" | \"get\" | \"add_comment\"; ticket_id: string | null; comment: string | null };\n\nconst ROUTES = {\n  list_open: (_: Args) => ({ method: \"GET\", path: \"/tickets?status=open&limit=20\" }),\n  get: (a: Args) => ({ method: \"GET\", path: `/tickets/${encodeURIComponent(need(a.ticket_id))}` }),\n  add_comment: (a: Args) => ({\n    method: \"POST\",\n    path: `/tickets/${encodeURIComponent(need(a.ticket_id))}/comments`,\n    body: JSON.stringify({ text: need(a.comment) }),\n  }),\n};\n\nfunction need(v: string | null): string {\n  if (!v) throw new Error(\"This action needs ticket_id (and comment for add_comment).\");\n  return v;\n}\n\nexport async function runHelpdesk(args: Args, session: { userToken: string }, baseUrl: string) {\n  const r = ROUTES[args.action](args);          // enum-checked; no model-supplied URL\n  const res = await fetch(baseUrl + r.path, {\n    method: r.method,\n    headers: { Authorization: `Bearer ${session.userToken}`, \"Content-Type\": \"application/json\" },\n    body: \"body\" in r ? r.body : undefined,\n  });\n  return { isError: !res.ok, text: res.ok ? await res.text() : `Helpdesk returned ${res.status}.` };\n}"
+        "code": "const helpdeskTool = {\n  type: \"function\",\n  name: \"helpdesk_tickets\",\n  description:\n    \"Read or comment on the signed-in user's helpdesk tickets. Use list_open to find tickets, get for one \" +\n    \"ticket's detail, and add_comment to reply on a ticket. It cannot close, reassign, or delete tickets. \" +\n    \"list_open returns at most 20 tickets, newest first; ticket_id and comment are null when not needed.\",\n  strict: true,\n  parameters: {\n    type: \"object\",\n    properties: {\n      action: { type: \"string\", enum: [\"list_open\", \"get\", \"add_comment\"] },\n      ticket_id: { type: [\"string\", \"null\"] },\n      comment: { type: [\"string\", \"null\"] },\n    },\n    required: [\"action\", \"ticket_id\", \"comment\"],\n    additionalProperties: false,\n  },\n};\n\ntype Args = { action: \"list_open\" | \"get\" | \"add_comment\"; ticket_id: string | null; comment: string | null };\n\nconst ROUTES = {\n  list_open: (_: Args) => ({ method: \"GET\", path: \"/tickets?status=open&limit=20\" }),\n  get: (a: Args) => ({ method: \"GET\", path: `/tickets/${encodeURIComponent(need(a.ticket_id))}` }),\n  add_comment: (a: Args) => ({\n    method: \"POST\",\n    path: `/tickets/${encodeURIComponent(need(a.ticket_id))}/comments`,\n    body: JSON.stringify({ text: need(a.comment) }),\n  }),\n};\n\nfunction need(v: string | null): string {\n  if (!v) throw new Error(\"This action needs ticket_id (and comment for add_comment).\");\n  return v;\n}\n\nfunction parseArgs(input: unknown): Args {\n  if (!input || typeof input !== \"object\" || Array.isArray(input)) throw new Error(\"Invalid arguments.\");\n  const a = input as Record<string, unknown>;\n  if (Object.keys(a).length !== 3 || !Object.hasOwn(ROUTES, String(a.action))) throw new Error(\"Invalid action or fields.\");\n  if (a.action === \"list_open\") {\n    if (a.ticket_id !== null || a.comment !== null) throw new Error(\"list_open requires null ticket_id and comment.\");\n  } else {\n    if (typeof a.ticket_id !== \"string\" || !/^[a-zA-Z0-9_-]{1,128}$/.test(a.ticket_id)) throw new Error(\"Invalid ticket_id.\");\n    if (a.action === \"get\" ? a.comment !== null : typeof a.comment !== \"string\" || !a.comment.trim() || a.comment.length > 2000) throw new Error(\"Invalid comment.\");\n  }\n  return a as Args;\n}\n\nexport async function runHelpdesk(input: unknown, session: { userToken: string }, baseUrl: string) {\n  let args: Args;\n  try { args = parseArgs(input); } catch { return { isError: true, text: \"Invalid helpdesk arguments; check the allowed action and fields.\" }; }\n  // baseUrl is trusted deployment configuration; the downstream API authorizes the user.\n  const r = ROUTES[args.action](args);          // enum-checked; no model-supplied URL\n  const res = await fetch(baseUrl + r.path, {\n    method: r.method,\n    headers: { Authorization: `Bearer ${session.userToken}`, \"Content-Type\": \"application/json\" },\n    body: \"body\" in r ? r.body : undefined,\n  });\n  return { isError: !res.ok, text: res.ok ? await res.text() : `Helpdesk returned ${res.status}.` };\n}"
       }
     },
     {
@@ -84,14 +85,15 @@
     "id": "function-calling-and-tools-activity",
     "title": "Bridge one database and one API, then try to break out",
     "instructions": [
-      "Pick one read-only question your users ask about a database and one action they take in an existing HTTP API. Define at most four functions in total, each with a service-prefixed name, a description of at least three sentences, enum-constrained parameters, and no identity or credential arguments.",
-      "Implement the SQL function as a fixed parameterized template run by a dedicated role with column-level SELECT grants, a role-level statement_timeout, and no BYPASSRLS, ownership, or superuser attribute. Implement the API function as a bridge that builds the method and path itself and attaches the session's scoped token.",
+      "Pick one read-only question your users ask about a database and one action they take in an existing HTTP API. Define two to four functions in total, each with a service-prefixed name, a description of at least three sentences, closed enums for finite action choices and validated strings for identifiers, and no identity or credential arguments.",
+      "Implement the SQL function as a fixed parameterized template run by a dedicated role with column-level SELECT grants, a role-level statement_timeout, and no BYPASSRLS, ownership, or superuser attribute. Implement the API function as a bridge that builds the method and path itself and attaches the session's scoped token. Enable row security, create the account policy, and set authenticated account context transaction-locally on the same connection as the query. Test the policy directly as the tool role, including a query without the application account predicate.",
       "Express the same functions as OpenAI, Claude, and Gemini tool definitions, and show the field that links each call to its result (call_id, tool_use_id, or call_id).",
       "Attack the bridge: ask the model to read another account's rows, to run a statement that is not a template, to call an API path you did not expose, and to return a 10,000-row result. Record what stopped each attempt -- the schema, the template, the grant, the row policy, the timeout, or the row cap."
     ],
     "evidence": [
-      "Four function definitions in three provider dialects, plus the SQL role setup (grants and timeout) and the bridge route table.",
-      "An attack log naming, for each attempt, the control that stopped it and whether that control lives in the prompt, the bridge code, or the database."
+      "The same two to four function definitions in three provider dialects, plus SQL role grants, timeout, enabled row security, account policy, transaction-scoped identity setup, and the bridge route table.",
+      "An attack log naming, for each attempt, the control that stopped it and whether that control lives in the prompt, the bridge code, or the database.",
+      "Database test results for two accounts with overlapping order numbers: own rows visible, other-account rows hidden even without the template predicate, no rows without account context, and no previous identity after a pooled transaction ends."
     ],
     "reflectionPrompt": "If the model's arguments were fully attacker-controlled, which of your controls would still hold, and which worked only because the model behaved?"
   },
@@ -266,7 +268,7 @@
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 3300,
+    "estimatedSeconds": 59,
     "cues": [
       {
         "id": "cue-dev-tools-dialects",
@@ -297,7 +299,7 @@
         "id": "cue-dev-tools-api",
         "kind": "narration",
         "sectionId": "api-bridges",
-        "text": "An API bridge exposes a small, bounded set of actions, and the bridge -- not the model -- owns the method, the path, the credentials, and the authorization check."
+        "text": "The bridge selects allowed methods and paths, validates arguments, and attaches the authenticated user token. The downstream API enforces authorization for that identity."
       },
       {
         "id": "cue-dev-tools-api-pause",
@@ -328,36 +330,36 @@
         "text": "Begin the check once learners can say which layer stops a model from reading another account and how each API links a call to its result."
       }
     ],
-    "transcript": "One tool contract has three dialects -- parameters, input_schema, and function declarations -- and each API links a call to its result with a different identifier that your bridge must preserve. A SQL tool is a set of fixed parameterized templates run by a least-privilege role; identity comes from the session, and the database, not the prompt, enforces what the tool may touch. An API bridge exposes a small, bounded set of actions, and the bridge -- not the model -- owns the method, the path, the credentials, and the authorization check. Tool results and errors are the model's next input, so return high-signal fields, instructive errors, and capped rows, and budget the tool surface as carefully as the loop.",
+    "transcript": "One tool contract has three dialects -- parameters, input_schema, and function declarations -- and each API links a call to its result with a different identifier that your bridge must preserve. A SQL tool is a set of fixed parameterized templates run by a least-privilege role; identity comes from the session, and the database, not the prompt, enforces what the tool may touch. The bridge selects allowed methods and paths, validates arguments, and attaches the authenticated user token. The downstream API enforces authorization for that identity. Tool results and errors are the model's next input, so return high-signal fields, instructive errors, and capped rows, and budget the tool surface as carefully as the loop. Begin the check once learners can say which layer stops a model from reading another account and how each API links a call to its result.",
     "captions": [
       {
         "cueId": "cue-dev-tools-dialects",
         "startSeconds": 0,
-        "endSeconds": 712,
+        "endSeconds": 13,
         "text": "One tool contract has three dialects -- parameters, input_schema, and function declarations -- and each API links a call to its result with a different identifier that your bridge must preserve."
       },
       {
         "cueId": "cue-dev-tools-sql",
-        "startSeconds": 742,
-        "endSeconds": 1454,
+        "startSeconds": 13,
+        "endSeconds": 26,
         "text": "A SQL tool is a set of fixed parameterized templates run by a least-privilege role; identity comes from the session, and the database, not the prompt, enforces what the tool may touch."
       },
       {
         "cueId": "cue-dev-tools-api",
-        "startSeconds": 1484,
-        "endSeconds": 2196,
-        "text": "An API bridge exposes a small, bounded set of actions, and the bridge -- not the model -- owns the method, the path, the credentials, and the authorization check."
+        "startSeconds": 26,
+        "endSeconds": 36,
+        "text": "The bridge selects allowed methods and paths, validates arguments, and attaches the authenticated user token. The downstream API enforces authorization for that identity."
       },
       {
         "cueId": "cue-dev-tools-results",
-        "startSeconds": 2226,
-        "endSeconds": 2938,
+        "startSeconds": 36,
+        "endSeconds": 48,
         "text": "Tool results and errors are the model's next input, so return high-signal fields, instructive errors, and capped rows, and budget the tool surface as carefully as the loop."
       },
       {
         "cueId": "cue-dev-tools-assessment",
-        "startSeconds": 3000,
-        "endSeconds": 3300,
+        "startSeconds": 48,
+        "endSeconds": 59,
         "text": "Begin the check once learners can say which layer stops a model from reading another account and how each API links a call to its result."
       }
     ],

@@ -1,124 +1,73 @@
-# Operate, Recover, and Improve Agent Systems: text-only class
+# Review Agent Results Against Evidence: text-only class
 
 This route contains the complete teaching content, learner actions, feedback,
 and assessment handoff without requiring audio, video, or animation.
 
 ## Welcome: Welcome And Outcomes
 
-Welcome. This class treats agent operations as a system discipline. You will classify the failed boundary, contain impact, reconcile uncertain actions, choose bounded recovery, communicate with evidence, and turn incidents into tests and stronger controls.
+Welcome. This class is about deciding whether an agent's result deserves acceptance. We will use the work order, source material, tool records, and observed outcomes to make that decision. A persuasive summary is a starting point for review, not a substitute for evidence. You will create a criterion-to-evidence matrix, distinguish a defect from missing evidence, and choose accept, request changes, or escalate. Our example is a support agent asked to summarize a policy and prepare a ticket update. The update must remain within the approved account and must not be sent without the required approval. The policy summary must cite the current source. Keep these requirements visible as you examine each artifact.
 
-## Narration: Classify Before Changing
+## Narration: Review Contract
 
-Classify evidence before choosing a fix. Model failures include unsupported or incorrect generation. Prompt failures encode ambiguity, conflicting requirements, or missing constraints. Tool failures include bad schemas, authorization, execution, or postconditions. Retrieval and data failures include missing, stale, poisoned, malformed, or cross-tenant evidence. Policy failures permit forbidden action or block required escalation. Orchestration failures misroute, loop, race, lose state, or join results incorrectly. Infrastructure failures include capacity, network, dependency, credential, storage, and deployment faults. One incident may cross several classes. Record the first wrong transition, later contributing factors, and uncertainty instead of forcing one convenient root cause. Replacing the model cannot repair an expired data source, missing authorization, duplicate-effect retry, or broken network route.
-
-Visual alternative: Each boundary lists representative failures, evidence, containment choices, and the owner who can change it.
+Start with the original work order. Write the requested outcome, scope, constraints, and acceptance criteria before reading the agent's completion claim. This order matters because a polished answer can draw attention toward what the agent did and away from what it omitted. Give each criterion its own row. Record the artifact or postcondition that would demonstrate success, the evidence location, the observed result, and the review status. For our support task, separate factual accuracy, account isolation, approval, and delivery status. An accurate summary does not compensate for an unauthorized update. Likewise, a valid approval does not make a stale policy current. If the work order itself is ambiguous, record the ambiguity and identify who can resolve it. Do not silently replace a difficult requirement with one that is easier to satisfy.
 
 Sources:
 
 - <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
-## Narration: Triage And Contain
+## Narration: Review Evidence
 
-Triage actual and credible potential impact. Assess affected users and tenants, data exposure, permissions, external side effects, money, availability, legal or safety obligations, and whether the agent is still acting. Severity comes from impact and propagation, not fluent output or a familiar error code. Contain first when unsafe behavior may continue. Pause the workflow or one tool, revoke credentials, disable a route, reduce concurrency, stop retries, switch to a read-only fallback, or require manual approval. Preserve secret-safe traces, request and operation identifiers, configuration versions, approval records, and postcondition evidence before mutable state disappears. Containment should be scoped enough to reduce harm without destroying evidence or unnecessarily disabling healthy paths. Record who authorized it, its target, expected effect, validation, and rollback.
-
-Visual alternative: Affected users, data, authority, effects, cost, availability, and obligations determine severity before pausing tools, routes, credentials, concurrency, or retries.
+Trace material claims to evidence that supports their exact wording and scope. Open the cited policy, check its date and applicability, and locate the passage behind the claim. A working URL proves only that a page can be reached. Distinguish an observed fact from an inference and keep uncertainty visible. For an action, inspect the authorized identity, operation arguments, approval record, execution result, and actual postcondition in the system of record. A timeout after a write leaves the outcome unknown: it does not prove that nothing happened. Use a durable operation identifier to reconcile that state before recommending a retry. For code, inspect the changed artifact and reproduce the relevant check against the exact revision. A test report from an earlier revision cannot establish the behavior of a later change. Keep secrets and personal information out of the review packet.
 
 Sources:
 
 - <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
-## Narration: Reconcile And Recover
+## Narration: Review Decision
 
-Reconcile before retry, rollback, or replay. A timeout after a write does not prove failure; the effect may have completed while the response was lost. Query the system of record using the durable operation key or correlation identifier. Compare intended and actual postconditions, then classify the outcome as completed, not completed, partially completed, conflicting, or still unknown. Choose accept, compensate, retry, roll back, or escalate from that evidence. Retry only transient failures within a total budget, using provider guidance, exponential backoff, jitter, and idempotency. Do not retry validation, authorization, policy, or deterministic conflict failures unchanged. Rollback must target an exact version or object through a tested path and verify restored state. If reconciliation cannot prove the outcome, preserve uncertainty and require a human decision instead of manufacturing completion.
-
-Visual alternative: The system of record and operation key determine actual postcondition; only transient, idempotent, budgeted failures may be retried.
-
-Sources:
-
-- <https://platform.claude.com/docs/en/api/errors>
-- <https://developers.openai.com/api/docs/guides/error-codes>
-- <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
-
-## Demonstration: Unknown Outcome Demonstration
-
-An agent sends a sandbox notification and receives a network timeout. Blind retry risks two messages. The responder pauses the send tool, reads the operation ledger, and queries the destination using the same case and operation identifiers. One matching message exists with the expected recipient and content hash. The outcome is completed, so no retry occurs. The responder records the missing acknowledgment as an infrastructure symptom, verifies the user-visible postcondition, restores the tool after a canary, and adds a lost-response regression test. If no authoritative query existed, the correct state would remain unknown and escalate.
-
-Visual alternative: The responder pauses sending, checks one operation key, finds one destination message, verifies its postcondition, and performs no retry.
-
-Sources:
-
-- <https://platform.claude.com/docs/en/api/errors>
-- <https://developers.openai.com/api/docs/guides/error-codes>
-- <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
-
-## Narration: Runbook And Communication
-
-Give responders a decision-ready runbook. Name triggers, severity rules, owner, communication channel, dashboards and queries, exact containment targets, required credentials and approvals, reconciliation procedure, safe retry conditions, rollback or fallback, verification, escalation, and closure criteria. Commands must be safe to copy, explicit about environment and target, and guarded against broad destructive scope. Status updates separate confirmed facts, hypotheses, actions, impact, uncertainty, and the next decision. Avoid unsupported blame and do not expose secrets or customer content. Notify affected people under applicable incident, privacy, and contractual obligations. Every material decision needs an owner, time, evidence reference, and follow-up. A runbook should support action under pressure without encouraging blind restarts, limitless retry, or invented success.
-
-Visual alternative: Each decision includes an owner, approval, exact target, evidence, expected result, failure path, and communication requirement.
-
-Sources:
-
-- <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
-
-## Narration: Learn And Improve
-
-Close only after recovery evidence and owned prevention work. Verify the user-visible result, external postconditions, queues, retries, permissions, data isolation, cost, and monitoring. A green health endpoint may miss a duplicated effect, lost learner record, or incomplete workflow. Preserve a blameless timeline of facts and contributing conditions. Add the smallest reproducing case to the evaluation suite, improve the control at the failed boundary, and rehearse the updated runbook. Assign owners and due dates for follow-up defects, security work, documentation, and monitoring. Measure recurrence, detection time, containment time, recovery time, unknown outcomes, and whether the new control catches the case. The post-incident review is not closure if its actions disappear into prose. Closure requires evidence that service and external state are correct and that required work is tracked.
-
-Visual alternative: Closure checks user outcome, external state, queues, authority, isolation, cost, and monitoring before prevention tasks receive owners and measures.
+Use three review outcomes deliberately. Accept when every required criterion has supporting evidence and remaining risk is within the agreed boundary. Request changes when you can describe a reproducible defect or a specific missing artifact that the author can supply. Escalate when deciding requires authority you do not have, the external outcome cannot yet be determined, or the possible impact exceeds your review scope. Do not average away a failed mandatory criterion with several successful ones. A useful decision names the affected requirement, the evidence, its practical consequence, and the next check needed. Keep the original result and findings so a revision can be compared honestly. When the author returns, check the changed criteria and any connected behavior that the change could affect. Record what was retested instead of implying that an entire system was requalified.
 
 Sources:
 
 - <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
-## Learner Prompt: Learner Incident Prompt
+## Demonstration: Support Result Demonstration
 
-For a timed-out consequential tool call, write the evidence that would distinguish completed, not completed, partial, conflicting, and unknown outcomes. Then name which outcomes permit retry and which require compensation or escalation.
+Consider our support agent's report: policy summarized, customer notified, all checks passed. Open the artifacts before accepting those claims. The summary cites an older policy revision, so mark the current-policy criterion failed and identify the source that must replace it. The approval record authorizes a draft only, while the trace reports a send attempt. Mark the authorization criterion failed and escalate the possible external effect. The send request timed out, so customer notification is unknown until the message system is queried using the operation identifier. Finally, the test log covers formatting but never checks the account boundary. Mark account-isolation evidence unknown, not passed. These rows produce a request for corrections plus an escalation for the potentially unauthorized action. The summary's confident wording changes none of those findings. This scenario is a classroom fixture; use synthetic records and do not send a real message.
 
-Learner action: Create an evidence-based reconciliation table before selecting recovery.
+## Learner Prompt: Review Matrix Prompt
 
-## Pause: Learner Work Time
+Now build your own matrix from the fixture. Start with four rows: current policy, authorized action, correct account, and observed delivery status. For each, name the smallest check that would resolve its state. Separate the evidence you already have from evidence you are requesting. A policy page and its revision can resolve the factual claim. A scoped test with two synthetic accounts can examine the account boundary. A delivery record can establish whether the message exists, but it cannot retroactively authorize a send. Write one sentence explaining that distinction. If you discover a criterion missing from the original work order, record it as a proposed clarification rather than pretending it was always required. Pause here and compare your matrix with a partner or the supplied feedback.
 
-## Checkpoint: Timeout Checkpoint
+Learner action: Create four criterion rows with verified, failed, or unknown status, evidence references, and the next check.
 
-Checkpoint. A write reached the server and then timed out. Should the workflow assume failure and retry immediately?
+## Checkpoint: Acceptance Checkpoint
 
-Learner action: Treat the outcome as unknown and reconcile authoritative state before another mutation.
+Before making the decision, answer this question: can a result be accepted because every automated test passed while one mandatory source citation is unsupported? Explain which criterion remains unverified and what evidence would change your decision. Then consider a second case: the system of record confirms delivery, but the approval permitted only drafting. Delivery is now an observed fact; authorization still failed. Your review must preserve both conclusions. A successful side effect and a permitted side effect are different checks. Finally, decide who should receive the escalation for a possibly unauthorized action in your organization. Name the responsible role rather than inventing permission to investigate or reverse an external action yourself.
 
-Sources:
+Learner action: Reject acceptance with an unsupported mandatory claim and separate observed delivery from authorization.
 
-- <https://platform.claude.com/docs/en/api/errors>
-- <https://developers.openai.com/api/docs/guides/error-codes>
+## Feedback: Decision Feedback
 
-## Pause: Checkpoint Response Time
+If you withheld acceptance because the citation did not support the mandatory claim, your decision follows the work order. Ask for a supported correction and then check the revised source relationship. If you accepted because the tests passed, identify what those tests actually exercised. They may prove formatting, parsing, or a particular function, while saying nothing about source currency. If you treated confirmed delivery as sufficient authorization, revisit the approval record. Verification tells us what happened; authorization tells us what was allowed. Keep those columns separate in the matrix. Escalation should include the observed facts, unresolved questions, potential impact, and the decision required. It should not convert a hypothesis into an accusation or conceal uncertainty behind a vague statement that the agent failed.
 
-## Feedback: Timeout Feedback
+If correct: Acceptance follows every mandatory criterion, including factual support and authorization.
 
-No. The outcome is unknown until the system of record proves the postcondition. Use the operation key and target identifier, then accept, compensate, retry, rollback, or escalate from evidence. If you chose immediate retry, add reconciliation and idempotency first. If you chose never to retry, refine the rule: a proven transient failure may be retried within budget when the operation is idempotent and provider guidance permits it.
-
-If correct: You protected the external system from duplicate impact by reconciling before retry.
-
-If retrying: A timeout describes communication, not the final state of the external action.
-
-Sources:
-
-- <https://platform.claude.com/docs/en/api/errors>
-- <https://developers.openai.com/api/docs/guides/error-codes>
-- <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
+If retrying: Passing tests or observing an effect cannot substitute for a missing source or approval.
 
 ## Transition: Activity Transition
 
-Open the incident runbook activity. Classify model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure evidence. Write severity, containment, reconciliation, retry, rollback, communication, escalation, validation, and closure. Convert the incident into regression cases, a control change, a rehearsal, an owner, and a recurrence metric.
+Open the audit activity. Use a synthetic or appropriately redacted work order, result, sources, tool trace, and test report. Reproduce one check, inspect two material sources, and verify one action against the system of record or its classroom fixture. Submit your matrix and decision record with exact evidence references. A reviewer should be able to repeat your reasoning without trusting the agent's summary.
 
 ## Pause: Activity Work Time
 
 ## Assessment Handoff: Assessment Handoff
 
-When ready, begin the knowledge check. You will classify stale evidence, reconcile timed-out writes, reject unchanged authorization retries, contain ongoing unsafe action, and separate failures across system boundaries.
+Begin the knowledge check when you can explain what defines completion, how to investigate an unknown write outcome, why a citation must support the exact claim, and when evidence is sufficient for acceptance. Return to your matrix if any of those decisions still depends on the agent saying it finished.
 
 ## Closing: Class Closing
 
-Classify before changing, contain ongoing impact, reconcile unknown effects, recover within tested bounds, communicate evidence, and close only after verified recovery and owned improvement.
+Review starts with the work order and ends with a decision another person can verify. Preserve the distinction between facts, defects, and missing evidence. Accept demonstrated completion, request precise corrections, and escalate unresolved authority or impact. The result is a trustworthy review record, even when the agent's delivery is not yet ready.
