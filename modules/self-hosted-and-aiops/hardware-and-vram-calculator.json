@@ -54,7 +54,7 @@
       "id": "budget-to-concurrency",
       "title": "Step 4: from a memory budget to tokens and concurrent sequences",
       "paragraphs": [
-        "vLLM turns the arithmetic into an allocation. Its cache configuration -- which vLLM's engine-arguments documentation names as the source of truth for defaults -- sets gpu_memory_utilization, the fraction of GPU memory the model executor may use as a per-instance limit, to 0.92 by default; an explicit kv_cache_memory_bytes overrides it. KV memory is divided into fixed-size blocks whose default in the same configuration is 16 tokens. The PagedAttention paper found 16 large enough to use the GPU efficiently and small enough to avoid significant internal fragmentation in most workloads.",
+        "For this worked example, explicitly set vLLM's gpu_memory_utilization to 0.92 and choose a supported 16-token block size. The engine-arguments documentation checked on 2026-09-18 lists 0.92 as the utilization default, but block-size selection depends on the platform and backend. Do not assume these settings for every release or device. The utilization fraction is a per-instance limit; an explicit kv_cache_memory_bytes overrides it. The PagedAttention paper found 16-token blocks balanced efficiency and fragmentation in its experiments.",
         "A worked example, with its assumptions stated: one accelerator that reports 80 GiB, Llama 3.1 8B with F16 weights (14.96 GiB), and an FP16 KV cache (128 KiB per token). Budget = 0.92 x 80 GiB = 73.6 GiB. Subtract the weights: 73.6 - 14.96 = 58.64 GiB. That is a ceiling, not a result -- activations and CUDA graphs, which vLLM's memory guide notes take extra GPU memory, still come out of it. Tokens under the ceiling = 58.64 x 1,073,741,824 / 131,072, about 480,000 tokens. One 16-token block is 16 x 128 KiB = 2 MiB, so about 30,000 blocks. At 8,192 tokens per sequence that is at most 58 full-length sequences at once; at a 131,072-token context, at most 3.",
         "The ceiling is reachable only because of paging. The paper measured that systems pre-allocating contiguous memory for each request's maximum length used only 20.4% to 38.2% of their KV memory for actual token states, whereas paging limits each request's waste to within one block. The levers that move the ceiling are the ones vLLM documents: lower max_model_len and max_num_seqs to reduce memory; tensor parallelism to shard the weights and leave each GPU more room for KV cache; and an FP8 KV cache (kv_cache_dtype fp8), which vLLM says significantly reduces the cache footprint. At one byte per element the same model needs 64 KiB per token, roughly doubling the token ceiling -- but it is a precision change to evaluate like any other quantization, and vLLM notes that some attention layer types, such as sliding-window layers, are more sensitive to it."
       ],
@@ -228,7 +228,7 @@
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 2700,
+    "estimatedSeconds": 62,
     "cues": [
       {
         "id": "cue-vram-weights-narration",
@@ -296,42 +296,42 @@
         "text": "Begin the check once learners can derive KV bytes per token for a GQA model and turn a memory budget into a token ceiling with its assumptions stated."
       }
     ],
-    "transcript": "Weights are parameters times measured bits per weight divided by eight, and every figure goes into one unit before anything is added. KV cache per token is two times layers times KV heads times head dimension times bytes per element; grouped-query attention shrinks the KV-heads factor. A published sizing table is a claim to reproduce: find its token count and unit, and record any row that does not reproduce instead of choosing the convenient number. The token ceiling is utilization times device memory, minus weights, divided by KV bytes per token -- and paging is what makes that ceiling reachable. The arithmetic cannot see activations, graphs, or workspace; the engine's profiling and its preemption warnings tell you what the calculation missed.",
+    "transcript": "Weights are parameters times measured bits per weight divided by eight, and every figure goes into one unit before anything is added. KV cache per token is two times layers times KV heads times head dimension times bytes per element; grouped-query attention shrinks the KV-heads factor. A published sizing table is a claim to reproduce: find its token count and unit, and record any row that does not reproduce instead of choosing the convenient number. The token ceiling is utilization times device memory, minus weights, divided by KV bytes per token -- and paging is what makes that ceiling reachable. The arithmetic cannot see activations, graphs, or workspace; the engine's profiling and its preemption warnings tell you what the calculation missed. Begin the check once learners can derive KV bytes per token for a GQA model and turn a memory budget into a token ceiling with its assumptions stated.",
     "captions": [
       {
         "cueId": "cue-vram-weights-narration",
         "startSeconds": 0,
-        "endSeconds": 420,
+        "endSeconds": 9,
         "text": "Weights are parameters times measured bits per weight divided by eight, and every figure goes into one unit before anything is added."
       },
       {
         "cueId": "cue-vram-kv-narration",
-        "startSeconds": 450,
-        "endSeconds": 1080,
+        "startSeconds": 9,
+        "endSeconds": 19,
         "text": "KV cache per token is two times layers times KV heads times head dimension times bytes per element; grouped-query attention shrinks the KV-heads factor."
       },
       {
         "cueId": "cue-vram-reproduce-narration",
-        "startSeconds": 1110,
-        "endSeconds": 1560,
+        "startSeconds": 19,
+        "endSeconds": 31,
         "text": "A published sizing table is a claim to reproduce: find its token count and unit, and record any row that does not reproduce instead of choosing the convenient number."
       },
       {
         "cueId": "cue-vram-budget-narration",
-        "startSeconds": 1590,
-        "endSeconds": 2160,
+        "startSeconds": 31,
+        "endSeconds": 41,
         "text": "The token ceiling is utilization times device memory, minus weights, divided by KV bytes per token -- and paging is what makes that ceiling reachable."
       },
       {
         "cueId": "cue-vram-unknowns-narration",
-        "startSeconds": 2190,
-        "endSeconds": 2490,
+        "startSeconds": 41,
+        "endSeconds": 50,
         "text": "The arithmetic cannot see activations, graphs, or workspace; the engine's profiling and its preemption warnings tell you what the calculation missed."
       },
       {
         "cueId": "cue-vram-assessment",
-        "startSeconds": 2520,
-        "endSeconds": 2700,
+        "startSeconds": 50,
+        "endSeconds": 62,
         "text": "Begin the check once learners can derive KV bytes per token for a GQA model and turn a memory budget into a token ceiling with its assumptions stated."
       }
     ],

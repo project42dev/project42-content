@@ -24,12 +24,13 @@
       "paragraphs": [
         "Reinforcement learning from human feedback first fits a reward model to human preference labels, then fine-tunes the language model with reinforcement learning to maximize that reward without drifting too far from the original model. The DPO paper (Rafailov et al.) calls this a complex and often unstable procedure. DPO introduces a new parameterization of the reward model under which the optimal policy can be extracted in closed form, so the same RLHF objective can be solved with a simple classification loss -- no separate reward model to train and no sampling from the model during fine-tuning.",
         "The objective DPO optimizes is the familiar one: reward maximization under a KL-divergence constraint that keeps the policy close to a reference. The paper explains why that constraint matters -- it keeps the model near the distribution on which the reward is accurate, maintains generation diversity, and prevents collapse onto a single high-reward answer. In DPO the reward is implicit: it is beta times the log-ratio of the policy's and the reference model's probabilities for a completion.",
-        "Hugging Face TRL writes the loss as the negative log-sigmoid of beta times the difference between the chosen completion's log-ratio and the rejected completion's log-ratio, each measured against the reference model. Its DPOConfig sets beta to 0.1 by default and describes it as controlling deviation from the reference: a higher beta means less deviation. TRL also implements a family of alternative losses selected by loss_type -- among them a robust variant that models label noise through label smoothing, and a length-normalized variant aimed at the length bias of the original sigmoid loss."
+        "Hugging Face TRL writes the loss as the negative log-sigmoid of beta times the difference between the chosen completion's log-ratio and the rejected completion's log-ratio, each measured against the reference model. Its DPOConfig sets beta to 0.1 by default and describes it as controlling deviation from the reference: a higher beta means less deviation. TRL also implements a family of alternative losses selected by loss_type -- among them a robust variant that models label noise through label smoothing, and a length-normalized variant aimed at the length bias of the original sigmoid loss.",
+        "The JSON array below illustrates two alternative record shapes. It is not a mixed-format training dataset: select one shape and use it consistently throughout the dataset you pass to the trainer."
       ],
       "code": {
         "language": "json",
-        "label": "Preference examples in the two formats TRL accepts",
-        "code": "// Standard format, explicit prompt\n{\"prompt\": \"The sky is\", \"chosen\": \" blue.\", \"rejected\": \" green.\"}\n\n// Conversational format, explicit prompt\n{\"prompt\":   [{\"role\": \"user\",      \"content\": \"What color is the sky?\"}],\n \"chosen\":   [{\"role\": \"assistant\", \"content\": \"It is blue.\"}],\n \"rejected\": [{\"role\": \"assistant\", \"content\": \"It is green.\"}]}"
+        "label": "Two illustrative alternatives: standard and conversational preference records (choose one format for a dataset)",
+        "code": "[\n  {\n    \"prompt\": \"The sky is\",\n    \"chosen\": \" blue.\",\n    \"rejected\": \" green.\"\n  },\n  {\n    \"prompt\": [\n      {\n        \"role\": \"user\",\n        \"content\": \"What color is the sky?\"\n      }\n    ],\n    \"chosen\": [\n      {\n        \"role\": \"assistant\",\n        \"content\": \"It is blue.\"\n      }\n    ],\n    \"rejected\": [\n      {\n        \"role\": \"assistant\",\n        \"content\": \"It is green.\"\n      }\n    ]\n  }\n]"
       }
     },
     {
@@ -77,12 +78,12 @@
     "instructions": [
       "Start from an SFT model and record it as the reference. If no SFT model matches your preference data, first fine-tune on the chosen completions (the Preferred-FT approach) and use that as the reference.",
       "Assemble a few hundred preference pairs in prompt/chosen/rejected format. Hold out a set of prompts from the same distribution and a smaller set from a deliberately different distribution for evaluation.",
-      "Train DPO at two beta values, logging rewards/chosen, rewards/rejected, rewards/margins, rewards/accuracies, and logps/chosen for each run.",
+      "Train DPO at two beta values, logging rewards/chosen, rewards/rejected, rewards/margins, rewards/accuracies, logps/chosen, and logps/rejected for each run.",
       "Generate on the held-out prompts at two sampling temperatures and judge each policy against the reference pairwise, calling the judge in both answer orders and counting inconsistent verdicts as ties. Hand-label a small sample of the same comparisons yourself.",
       "Report win, tie, and loss counts per beta, temperature, and prompt distribution, alongside the training curves."
     ],
     "evidence": [
-      "Training-metric curves for each beta, with a note on whether logps/chosen rose or fell while the margin grew.",
+      "Training-metric curves for each beta, comparing both logps/chosen and logps/rejected with rewards/margins. Explain whether separation increased by raising chosen likelihood, lowering rejected likelihood, or both.",
       "A win/tie/loss table for in-distribution and shifted prompts at each temperature, including the judge's swap-consistency rate.",
       "Judge-versus-human agreement on your hand-labelled sample, and the average length of winning versus losing answers as a verbosity check."
     ],
@@ -193,7 +194,7 @@
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 3000,
+    "estimatedSeconds": 66,
     "cues": [
       {
         "id": "cue-dpo-objective-narration",
@@ -261,42 +262,42 @@
         "text": "Begin the check once learners can explain what rewards/accuracies does and does not show, and how a swap-consistent win rate is computed."
       }
     ],
-    "transcript": "DPO solves the same KL-constrained preference objective as RLHF with a classification loss on chosen and rejected pairs. Beta sets how far the policy may move from the reference. Every DPO number is relative to the reference model. Use the model that generated the preference data, or fine-tune on the chosen answers first to close the distribution gap. A rising margin and high reward accuracy mean the model separates its training pairs, usually by pushing rejected answers down. They do not show better generations on new prompts. Without a ground-truth reward, evaluate by win rate against a named baseline, across temperatures and on a shifted prompt set, with a fixed and versioned judge prompt. LLM judges show position, verbosity, and self-preference biases. Judge in both answer orders, count inconsistent verdicts as ties, and calibrate against a human-labelled sample.",
+    "transcript": "DPO solves the same KL-constrained preference objective as RLHF with a classification loss on chosen and rejected pairs. Beta sets how far the policy may move from the reference. Every DPO number is relative to the reference model. Use the model that generated the preference data, or fine-tune on the chosen answers first to close the distribution gap. A rising margin and high reward accuracy mean the model separates its training pairs, usually by pushing rejected answers down. They do not show better generations on new prompts. Without a ground-truth reward, evaluate by win rate against a named baseline, across temperatures and on a shifted prompt set, with a fixed and versioned judge prompt. LLM judges show position, verbosity, and self-preference biases. Judge in both answer orders, count inconsistent verdicts as ties, and calibrate against a human-labelled sample. Begin the check once learners can explain what rewards/accuracies does and does not show, and how a swap-consistent win rate is computed.",
     "captions": [
       {
         "cueId": "cue-dpo-objective-narration",
         "startSeconds": 0,
-        "endSeconds": 510,
+        "endSeconds": 12,
         "text": "DPO solves the same KL-constrained preference objective as RLHF with a classification loss on chosen and rejected pairs. Beta sets how far the policy may move from the reference."
       },
       {
         "cueId": "cue-dpo-reference-narration",
-        "startSeconds": 540,
-        "endSeconds": 1050,
+        "startSeconds": 12,
+        "endSeconds": 24,
         "text": "Every DPO number is relative to the reference model. Use the model that generated the preference data, or fine-tune on the chosen answers first to close the distribution gap."
       },
       {
         "cueId": "cue-dpo-metrics-narration",
-        "startSeconds": 1080,
-        "endSeconds": 1590,
+        "startSeconds": 24,
+        "endSeconds": 36,
         "text": "A rising margin and high reward accuracy mean the model separates its training pairs, usually by pushing rejected answers down. They do not show better generations on new prompts."
       },
       {
         "cueId": "cue-dpo-winrate-narration",
-        "startSeconds": 1620,
-        "endSeconds": 2130,
+        "startSeconds": 36,
+        "endSeconds": 47,
         "text": "Without a ground-truth reward, evaluate by win rate against a named baseline, across temperatures and on a shifted prompt set, with a fixed and versioned judge prompt."
       },
       {
         "cueId": "cue-dpo-judge-narration",
-        "startSeconds": 2160,
-        "endSeconds": 2670,
+        "startSeconds": 47,
+        "endSeconds": 57,
         "text": "LLM judges show position, verbosity, and self-preference biases. Judge in both answer orders, count inconsistent verdicts as ties, and calibrate against a human-labelled sample."
       },
       {
         "cueId": "cue-dpo-assessment",
-        "startSeconds": 2700,
-        "endSeconds": 3000,
+        "startSeconds": 57,
+        "endSeconds": 66,
         "text": "Begin the check once learners can explain what rewards/accuracies does and does not show, and how a swap-consistent win rate is computed."
       }
     ],

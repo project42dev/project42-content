@@ -21,7 +21,7 @@
       "id": "host-client-server-layers",
       "title": "One host, many clients, one connection each",
       "paragraphs": [
-        "An MCP host is the AI application itself; it creates a dedicated MCP client for every server it connects to, and each client holds exactly one connection. A local server reached over stdio typically serves one client; a remote server reached over Streamable HTTP typically serves many. Nothing is shared between clients -- a compromised or slow server cannot see another server's traffic.",
+        "An MCP host is the AI application; it manages a dedicated client for each server. A local stdio server typically serves one client, while a remote HTTP server can serve many. The host must enforce access boundaries and decide which data to share with each server. Separate clients alone do not prevent the host from forwarding sensitive data or a compromised server's output from influencing later calls.",
         "MCP factors the protocol into two layers. The data layer is a JSON-RPC 2.0 exchange that defines discovery, the primitives a server exposes, and notifications. The transport layer is what carries those JSON-RPC messages -- stdio for local processes, Streamable HTTP for remote ones -- and it is where connection setup, framing, and authorization live. The same JSON-RPC message format crosses either transport unchanged, which is what lets a host treat a local filesystem server and a remote Sentry server through the same client interface."
       ],
       "callout": "A host with four connected servers is running four independent client connections, not one client juggling four endpoints."
@@ -30,14 +30,15 @@
       "id": "primitives-and-discovery",
       "title": "What a server can offer, and how a client finds out",
       "paragraphs": [
-        "Servers expose three core primitives: tools (executable actions), resources (contextual data), and prompts (interaction templates). Each has list/get/call methods, and a client is expected to call tools/list before tools/call rather than assuming a tool exists -- the same server can add or remove tools between sessions.",
-        "MCP is stateless: every request carries its protocol version and capabilities in a `_meta` field, so a server can act on one request without remembering the last one. A client MAY send server/discover first to learn a server's supported protocol versions and capabilities in one round trip, but it is not required to -- any request already carries enough for the server to respond or reject a mismatched version.",
-        "Capability negotiation matters because MCP versions primitives, not just the protocol as a whole. As of protocol version 2026-07-28, the client-side sampling and logging primitives are deprecated: new servers should call an LLM provider directly instead of requesting a completion through the client, and should log to stderr or OpenTelemetry instead of the deprecated logging notifications. A server written against an older tutorial that still relies on sampling is building against a primitive the current spec no longer recommends."
+        "Servers expose tools, resources, and prompts through distinct methods: tools/list and tools/call; resources/list, resources/templates/list, and resources/read; prompts/list and prompts/get. Discover the relevant surface and refresh it when it changes rather than assuming a tool still exists.",
+        "In protocol version 2026-07-28, requests carry version and client capabilities in params._meta, enabling per-request handling. Every server must implement server/discover; a client may query it to discover supported versions and capabilities before other requests. These lifecycle rules are version-specific: do not apply them unchanged to clients or servers implementing an older protocol.",
+        "Capability negotiation matters because MCP versions primitives, not just the protocol as a whole. As of protocol version 2026-07-28, the client-side sampling and logging primitives are deprecated: new servers should call an LLM provider directly instead of requesting a completion through the client, and should log to stderr or OpenTelemetry instead of the deprecated logging notifications. A server written against an older tutorial that still relies on sampling is building against a primitive the current spec no longer recommends.",
+        "This fragment advertises tools and resources, not prompts. listChanged means the server can support tool-list notifications requested through subscriptions/listen; it does not automatically send notifications to every client."
       ],
       "code": {
         "language": "json",
-        "label": "A capability the client must check before relying on it",
-        "code": "// From a real server/discover response\n{\n  \"capabilities\": {\n    \"tools\": { \"listChanged\": true },\n    \"resources\": {}\n  }\n}\n// This server exposes tools and resources, and will notify the\n// client when its tool list changes. It does not claim prompts."
+        "label": "Illustrative capability fragment from a 2026-07-28 discovery result (not a complete JSON-RPC response)",
+        "code": "{\n  \"capabilities\": {\n    \"tools\": {\n      \"listChanged\": true\n    },\n    \"resources\": {}\n  }\n}"
       }
     },
     {
@@ -45,7 +46,7 @@
       "title": "Two transports, one statelessness rule",
       "paragraphs": [
         "Stdio gives a local process direct standard-input/output framing with no network overhead -- the natural choice when the host and server run on the same machine and only one client will ever connect. Streamable HTTP uses HTTP POST for client-to-server messages with optional Server-Sent Events for server-to-client streaming, and it is the transport that lets one remote server serve many clients concurrently; it supports bearer tokens, API keys, and custom headers, and MCP recommends OAuth for obtaining them.",
-        "Statelessness is what makes the remote case work at all: because every request is self-describing, a load balancer can route two requests from the same client to two different server instances without either instance needing to have seen the first request. The cost is that nothing about a prior tool call is implicitly remembered -- a server that needs continuity across calls has to make that continuity part of its own data model (a resource, a stored ID), not rely on connection state MCP does not provide."
+        "Self-describing requests in the 2026-07-28 protocol allow independent handling across server instances. Shared application data, authorization, and any long-lived subscriptions/listen streams still need an explicit deployment design. A load balancer does not replicate application state or preserve subscriptions by itself. Persist continuity in a shared store or durable identifier and plan for reconnects; protocol statelessness does not mean the application has no state."
       ]
     },
     {
@@ -102,15 +103,15 @@
       },
       {
         "id": "q-model-context-protocol-mcp-3",
-        "prompt": "Why can a load balancer route two requests from the same MCP client to two different server instances without breaking the session?",
+        "prompt": "In MCP 2026-07-28, what enables independent handling of requests by different server instances?",
         "choices": [
           "MCP servers replicate their memory across instances automatically",
-          "MCP is a stateless protocol -- every request carries what the server needs to process it on its own",
+          "Requests carry their protocol version and capabilities; application state and subscription streams still need explicit handling",
           "The client always retries on the same instance",
           "Streamable HTTP guarantees a single instance per client"
         ],
         "answerIndex": 1,
-        "explanation": "Statelessness means each request is self-describing, so no server instance has to remember a prior request from that client."
+        "explanation": "Self-describing requests remove a dependency on prior protocol negotiation at one instance. They do not replicate application data or preserve live subscription streams."
       },
       {
         "id": "q-model-context-protocol-mcp-4",
@@ -138,11 +139,17 @@
       "url": "https://code.claude.com/docs/en/mcp",
       "publisher": "Anthropic",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "MCP 2026-07-28: server primitives and methods",
+      "url": "https://modelcontextprotocol.io/docs/2026-07-28/learn/server-concepts",
+      "publisher": "Model Context Protocol",
+      "lastVerified": "2026-09-18"
     }
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 2700,
+    "estimatedSeconds": 49,
     "cues": [
       {
         "id": "cue-mcp-host-client-server",
@@ -154,7 +161,7 @@
         "id": "cue-mcp-primitives-narration",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
-        "text": "A server exposes tools, resources, and prompts; a client should list before it calls, because MCP is stateless and nothing else tells it what still exists."
+        "text": "List tools, read resources, and get prompts through their distinct methods. In the 2026-07-28 protocol, server discovery is required on the server and optional for the client."
       },
       {
         "id": "cue-mcp-primitives-visual",
@@ -173,7 +180,7 @@
         "id": "cue-mcp-transport-narration",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
-        "text": "Stdio suits one local client and no network hop; Streamable HTTP suits many remote clients and needs statelessness to scale."
+        "text": "Stdio suits a local process; HTTP suits remote clients. Self-describing requests help distribute work, but application state and subscription streams still need explicit handling."
       },
       {
         "id": "cue-mcp-statelessness-pause",
@@ -204,36 +211,36 @@
         "text": "Begin the check once learners can distinguish the data layer from the transport layer and name what statelessness costs a server."
       }
     ],
-    "transcript": "A host runs one dedicated MCP client per server it connects to; the data layer and transport layer are separate concerns. A server exposes tools, resources, and prompts; a client should list before it calls, because MCP is stateless and nothing else tells it what still exists. Stdio suits one local client and no network hop; Streamable HTTP suits many remote clients and needs statelessness to scale. Running many MCP servers safely means separating scope, trust, and bound -- not treating any one of them as a stand-in for the others.",
+    "transcript": "A host runs one dedicated MCP client per server it connects to; the data layer and transport layer are separate concerns. List tools, read resources, and get prompts through their distinct methods. In the 2026-07-28 protocol, server discovery is required on the server and optional for the client. Stdio suits a local process; HTTP suits remote clients. Self-describing requests help distribute work, but application state and subscription streams still need explicit handling. Running many MCP servers safely means separating scope, trust, and bound -- not treating any one of them as a stand-in for the others. Begin the check once learners can distinguish the data layer from the transport layer and name what statelessness costs a server.",
     "captions": [
       {
         "cueId": "cue-mcp-host-client-server",
         "startSeconds": 0,
-        "endSeconds": 360,
+        "endSeconds": 9,
         "text": "A host runs one dedicated MCP client per server it connects to; the data layer and transport layer are separate concerns."
       },
       {
         "cueId": "cue-mcp-primitives-narration",
-        "startSeconds": 390,
-        "endSeconds": 810,
-        "text": "A server exposes tools, resources, and prompts; a client should list before it calls, because MCP is stateless and nothing else tells it what still exists."
+        "startSeconds": 9,
+        "endSeconds": 20,
+        "text": "List tools, read resources, and get prompts through their distinct methods. In the 2026-07-28 protocol, server discovery is required on the server and optional for the client."
       },
       {
         "cueId": "cue-mcp-transport-narration",
-        "startSeconds": 840,
-        "endSeconds": 1440,
-        "text": "Stdio suits one local client and no network hop; Streamable HTTP suits many remote clients and needs statelessness to scale."
+        "startSeconds": 20,
+        "endSeconds": 30,
+        "text": "Stdio suits a local process; HTTP suits remote clients. Self-describing requests help distribute work, but application state and subscription streams still need explicit handling."
       },
       {
         "cueId": "cue-mcp-fleet-narration",
-        "startSeconds": 1470,
-        "endSeconds": 2340,
+        "startSeconds": 30,
+        "endSeconds": 40,
         "text": "Running many MCP servers safely means separating scope, trust, and bound -- not treating any one of them as a stand-in for the others."
       },
       {
         "cueId": "cue-mcp-assessment",
-        "startSeconds": 2370,
-        "endSeconds": 2700,
+        "startSeconds": 40,
+        "endSeconds": 49,
         "text": "Begin the check once learners can distinguish the data layer from the transport layer and name what statelessness costs a server."
       }
     ],

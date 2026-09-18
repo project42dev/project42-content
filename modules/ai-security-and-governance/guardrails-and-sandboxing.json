@@ -1,7 +1,7 @@
 {
   "id": "guardrails-and-sandboxing",
   "title": "Agent Guardrails, NeMo & Code Sandboxing",
-  "summary": "Place policy checkpoints and containment boundaries where they actually work: NeMo Guardrails' five rail stages and its rules for tool integrations, then the isolation ladder from containers to gVisor to Firecracker microVMs for code a model wrote, and how the two layers cover for each other.",
+  "summary": "Study NVIDIA NeMo Guardrails as a concrete implementation of policy checkpoints, then compare containers, gVisor, and Firecracker microVMs as containment boundaries for generated code. The general containment principles transfer across providers; NeMo configuration and rail behavior are implementation-specific.",
   "level": "advanced",
   "reviewCadenceDays": 90,
   "lastVerified": "2026-09-11",
@@ -24,7 +24,8 @@
         "NVIDIA's NeMo Guardrails library is an open-source Python package for blocking, altering, or validating unsafe, off-topic, malicious, or policy-violating user inputs and model responses. It is built from rails, YAML configuration, Colang flows that define conversational and guardrail logic, custom Python actions, and runtime interfaces (a Python SDK and a guardrails server). The same YAML and Colang configuration runs in the library and in the NeMo Guardrails microservice, a container image deployed on Kubernetes with Helm, so a policy developed locally is the policy deployed.",
         "The library sits between the application and the LLM, tools, and retrieval systems it uses, and evaluates each message in the configured order. Input rails inspect the user message before the application LLM is called and can allow, alter, or reject it. Retrieval rails filter or transform retrieved chunks before they enter the prompt. Dialog rails use Colang flows to steer the conversation and decide the next step. Execution rails validate custom actions and tools, including their inputs and outputs. Output rails inspect the generated response and can allow, edit, or block it before it reaches the user. The documentation notes that input and output rails are the most common, which makes the retrieval and execution stages the first places to look for an unguarded path in your own configuration.",
         "What a rail decides with varies. The library supports LLM self-checking, NVIDIA safety models, community models such as LlamaGuard, third-party moderation APIs, heuristic jailbreak detection, and PII detection that either blocks content or masks entities before processing. Every one of these is a classifier or a flow with a decision attached. That makes a rail a policy checkpoint: it judges content that passes through it, and it constrains nothing that does not.",
-        "Guardrails bring their own failure modes, and NeMo's security guidelines name three from its adversarial testing. Over-aggressive moderation can block safe requests, more often when several guardrails are combined; the suggested remedy is flow logic that avoids unnecessary calls, such as running fact-checking only on factual questions. Canonical forms that guide behavior can overgeneralize, so rails miss examples or trigger unexpectedly. And model nondeterminism makes some behavior hard to reproduce, which is why the guidelines recommend thorough evaluation and regression-testing suites. Treat a guardrail as a model component with a false-positive rate and a false-negative rate, not as a switch."
+        "Guardrails bring their own failure modes, and NeMo's security guidelines name three from its adversarial testing. Over-aggressive moderation can block safe requests, more often when several guardrails are combined; the suggested remedy is flow logic that avoids unnecessary calls, such as running fact-checking only on factual questions. Canonical forms that guide behavior can overgeneralize, so rails miss examples or trigger unexpectedly. And model nondeterminism makes some behavior hard to reproduce, which is why the guidelines recommend thorough evaluation and regression-testing suites. Treat a guardrail as a model component with a false-positive rate and a false-negative rate, not as a switch.",
+        "The provider-neutral tag describes the cross-provider safety principles, not a claim that the implementation is vendor-independent. The rail stages, Python interface, YAML, and Colang examples in this lesson specifically use NVIDIA NeMo Guardrails."
       ],
       "code": {
         "language": "python",
@@ -216,7 +217,7 @@
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 3000,
+    "estimatedSeconds": 51,
     "cues": [
       {
         "id": "cue-guard-sandbox-rails-narration",
@@ -278,36 +279,36 @@
         "text": "Begin the check once learners can place each rail stage, state the golden rule, and name one host dependency for gVisor and for Firecracker."
       }
     ],
-    "transcript": "A guardrail is a checkpoint that judges what passes through one stage of the request flow; it constrains nothing that goes around it. Treat the model like a browser the user fully controls: every tool runs in the user's authorization context, credentials stay out of reach, and failures stay silent. Containers, gVisor, and Firecracker put different things between model-written code and the host kernel, and each still leaves some enforcement to the host. A sandbox is not a secure architecture: compose rails before execution, containment during it, and untrusted handling after it, then prove it with planted failures.",
+    "transcript": "A guardrail is a checkpoint that judges what passes through one stage of the request flow; it constrains nothing that goes around it. Treat the model like a browser the user fully controls: every tool runs in the user's authorization context, credentials stay out of reach, and failures stay silent. Containers, gVisor, and Firecracker put different things between model-written code and the host kernel, and each still leaves some enforcement to the host. A sandbox is not a secure architecture: compose rails before execution, containment during it, and untrusted handling after it, then prove it with planted failures. Begin the check once learners can place each rail stage, state the golden rule, and name one host dependency for gVisor and for Firecracker.",
     "captions": [
       {
         "cueId": "cue-guard-sandbox-rails-narration",
         "startSeconds": 0,
-        "endSeconds": 660,
+        "endSeconds": 10,
         "text": "A guardrail is a checkpoint that judges what passes through one stage of the request flow; it constrains nothing that goes around it."
       },
       {
         "cueId": "cue-guard-sandbox-golden-narration",
-        "startSeconds": 690,
-        "endSeconds": 1380,
+        "startSeconds": 10,
+        "endSeconds": 21,
         "text": "Treat the model like a browser the user fully controls: every tool runs in the user's authorization context, credentials stay out of reach, and failures stay silent."
       },
       {
         "cueId": "cue-guard-sandbox-boundary-narration",
-        "startSeconds": 1410,
-        "endSeconds": 2160,
+        "startSeconds": 21,
+        "endSeconds": 31,
         "text": "Containers, gVisor, and Firecracker put different things between model-written code and the host kernel, and each still leaves some enforcement to the host."
       },
       {
         "cueId": "cue-guard-sandbox-architecture-narration",
-        "startSeconds": 2190,
-        "endSeconds": 2820,
+        "startSeconds": 31,
+        "endSeconds": 41,
         "text": "A sandbox is not a secure architecture: compose rails before execution, containment during it, and untrusted handling after it, then prove it with planted failures."
       },
       {
         "cueId": "cue-guard-sandbox-assessment",
-        "startSeconds": 2850,
-        "endSeconds": 3000,
+        "startSeconds": 41,
+        "endSeconds": 51,
         "text": "Begin the check once learners can place each rail stage, state the golden rule, and name one host dependency for gVisor and for Firecracker."
       }
     ],
