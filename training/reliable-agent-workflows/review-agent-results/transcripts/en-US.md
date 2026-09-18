@@ -28,6 +28,24 @@ Sources:
 - <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
+## Narration: Review Authority
+
+An action can succeed and still violate the work order. Review the identity used, the resource it addressed, the permission boundary, and the approval that covered that particular operation. OWASP Excessive Agency distinguishes excessive functionality, permissions, and autonomy; inspect all three instead of treating a tool response as permission. Use a synthetic account-isolation case to confirm that the action cannot cross into another account. Check the downstream authorization decision as well as the bridge arguments. If an approval allowed a draft, evidence of delivery establishes an effect but not authority to send. Record the failed boundary and escalate to the responsible owner; a reviewer must not invent permission to reverse or repeat the action.
+
+Sources:
+
+- <https://genai.owasp.org/llmrisk/llm062025-excessive-agency/>
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Narration: Review Tests
+
+Record the exact artifact revision, test inputs, environment, expected outcome, and observed outcome. Reproduce the check that matters to the acceptance criterion. A formatting test cannot establish factual accuracy, and a successful unit test cannot establish that a deployment reached users. Compare the test scope with the claim before recording the criterion as verified. Include failure cases that could invalidate acceptance: an unsupported citation, denied operation, incorrect account, unavailable dependency, or uncertain write result. Keep unavailable evidence marked unknown rather than converting it into a pass. When a repair changes behavior, repeat the affected check and connected checks that could regress. Keep the earlier result so the evidence shows what changed and why the final decision is justified.
+
+Sources:
+
+- <https://genai.owasp.org/llmrisk/llm062025-excessive-agency/>
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
 ## Narration: Review Decision
 
 Use three review outcomes deliberately. Accept when every required criterion has supporting evidence and remaining risk is within the agreed boundary. Request changes when you can describe a reproducible defect or a specific missing artifact that the author can supply. Escalate when deciding requires authority you do not have, the external outcome cannot yet be determined, or the possible impact exceeds your review scope. Do not average away a failed mandatory criterion with several successful ones. A useful decision names the affected requirement, the evidence, its practical consequence, and the next check needed. Keep the original result and findings so a revision can be compared honestly. When the author returns, check the changed criteria and any connected behavior that the change could affect. Record what was retested instead of implying that an entire system was requalified.
