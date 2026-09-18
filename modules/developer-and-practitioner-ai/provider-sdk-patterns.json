@@ -1,7 +1,7 @@
 {
   "id": "provider-sdk-patterns",
   "title": "Unified Multi-Provider SDK Patterns",
-  "summary": "Build a thin adapter over the native Anthropic, OpenAI, and Google SDKs: normalize three different response shapes and stop signals, keep model ids and state policy in configuration, and treat OpenAI-compatible endpoints as a test harness because they silently drop guarantees.",
+  "summary": "For intermediate developers, this module teaches you to build and test a thin adapter over the native Anthropic, OpenAI, and Google SDKs. After completing it, you can normalize provider response shapes, stop signals, usage, and storage behavior without assuming that different compatibility endpoints drop the same guarantees.",
   "level": "intermediate",
   "reviewCadenceDays": 30,
   "lastVerified": "2026-09-13",
@@ -15,8 +15,8 @@
   "objectives": [
     "Map the native request and response shapes of the Claude Messages API, the OpenAI Responses API, and the Gemini generateContent and Interactions APIs onto one internal contract.",
     "Normalize stop signals and token usage so that truncation, refusal, pauses, and tool requests are never mistaken for a completed answer.",
-    "Explain what an OpenAI-compatible endpoint silently ignores when it fronts Claude or Gemini, and decide when such a layer is acceptable.",
-    "Keep model identifiers, API surface, and conversation-storage policy in configuration that a contract test verifies against the provider's current documentation."
+    "Distinguish Anthropic's documented OpenAI compatibility limitations from Google's different documented compatibility behavior and decide when a compatibility layer is acceptable.",
+    "Keep model identifiers, API surface, and conversation-storage policy in configuration that a contract test verifies against the provider's documentation."
   ],
   "prerequisites": [],
   "sections": [
@@ -25,8 +25,8 @@
       "title": "Three SDKs, three different ideas of a response",
       "paragraphs": [
         "A portable client starts by admitting that the providers do not agree on what a response is. The Claude Messages API takes the system prompt as a top-level `system` parameter and prior turns in a `messages` array, and returns an assistant message whose `content` is an array of typed blocks such as `text` and `tool_use`. Anthropic describes the Messages API as usable for single queries or stateless multi-turn conversations: your application resends whatever history the model should see.",
-        "The OpenAI Responses API -- which OpenAI recommends for all new projects while Chat Completions remains supported -- returns an `output` array of Items. A `message` is one Item type; `reasoning`, `function_call`, and `function_call_output` are others, and OpenAI's own migration guide lists 'treating every output entry as a message' as a common error. The SDK's `output_text` helper joins the text for you, but only the Items tell you what else happened. Responses are stored by default unless you send `store: false`.",
-        "Google currently documents two Gemini surfaces. `generateContent` returns `candidates`, each with `content.parts` and a `finishReason`. The Interactions API returns an Interaction with a `status` and a `steps` timeline (`user_input`, `function_call`, `model_output`, and others), stores interactions by default (55 days on the paid tier, 1 day on the free tier), and has been generally available since June 2026. Google's Interactions overview recommends it for all new projects and calls `generateContent` legacy but still fully supported. An adapter is how you make that choice once, in one place, and reverse it later without touching any caller."
+        "The OpenAI Responses API, which OpenAI recommends for new projects while Chat Completions remains supported, returns an `output` array of Items. A `message` is one Item type; `reasoning`, `function_call`, and `function_call_output` are others, and OpenAI's migration guide lists treating every output entry as a message as a common error. The SDK's `output_text` helper joins the text for you, but only the Items tell you what else happened. Responses are stored by default unless you send `store: false`.",
+        "Google documents two Gemini surfaces. `generateContent` returns `candidates`, each with `content.parts` and a `finishReason`. The Interactions API returns an Interaction with a `status` and a `steps` timeline containing entries such as `user_input`, `function_call`, and `model_output`. Google's Interactions overview recommends it for new projects and calls `generateContent` legacy but still supported. An adapter lets you make that choice once, in one place, and reverse it later without touching every caller."
       ],
       "callout": "The SDK is not the abstraction. The abstraction is the internal contract you write; each SDK sits behind an adapter that fills it.",
       "code": {
@@ -39,10 +39,10 @@
       "id": "normalize-stop-and-usage",
       "title": "Normalize stop signals before you normalize text",
       "paragraphs": [
-        "The most expensive portability bug is a truncated or refused answer that flows downstream as if it were complete. Each provider signals this differently. Claude sets `stop_reason` to one of `end_turn`, `max_tokens`, `stop_sequence`, `tool_use`, `pause_turn`, `refusal`, or `model_context_window_exceeded`. The Responses API marks a cut-off answer with `status: \"incomplete\"` and an `incomplete_details.reason` such as `max_output_tokens`, and reports a safety refusal as a `refusal` content item instead of text. Gemini's `generateContent` reports a `finishReason` (`STOP` on a normal finish), and an Interaction waiting on your function result comes back with `status: \"requires_action\"`.",
-        "Map every native value into your own outcome, and make the mapping total: an unknown value becomes `other` and fails closed; it never defaults to `complete`. Keep the raw value as well, because 'why did this stop' is the first question in every incident review. `pause_turn` deserves its own outcome: Anthropic documents it as a paused long-running turn that you can send back as-is to let the model continue, which is neither success nor failure.",
-        "Usage needs the same treatment. Field names differ -- `usage.input_tokens` and `output_tokens` on Claude and on OpenAI Responses, `usageMetadata.promptTokenCount` and `candidatesTokenCount` on Gemini `generateContent` -- and so does their meaning. Anthropic notes that its counts will not match the visible content one-to-one and that total input is the sum of `input_tokens`, `cache_creation_input_tokens`, and `cache_read_input_tokens`; OpenAI notes that chaining with `previous_response_id` still bills the earlier input tokens. Store raw usage beside any normalized figure so a cost comparison can be audited.",
-        "Streaming multiplies the differences. Responses streaming emits typed server-sent events such as `response.output_text.delta`, `response.function_call_arguments.delta`, and `response.completed`; Gemini streams structured output as partial JSON strings that you concatenate; Claude's `stop_reason` is null in the `message_start` event and set later in the stream. A streaming adapter should emit the same internal events whatever the source, and declare an outcome only once the final stop signal has arrived."
+        "The most expensive portability bug is a truncated or refused answer that flows downstream as if it were complete. Each provider signals this differently. Claude sets `stop_reason` to a documented value such as `end_turn`, `max_tokens`, `stop_sequence`, `tool_use`, `pause_turn`, `refusal`, or `model_context_window_exceeded`. The Responses API marks a cut-off answer with `status: \"incomplete\"` and can provide an `incomplete_details.reason` such as `max_output_tokens`; a safety refusal appears as a `refusal` content item instead of ordinary text. Gemini's `generateContent` reports a `finishReason`, with `STOP` indicating a normal finish, and an Interaction waiting on a function result has `status: \"requires_action\"`.",
+        "Map every native value into your own outcome, and make the mapping total: an unknown value becomes `other` and fails closed; it never defaults to `complete`. Keep the raw value as well, because it is needed to investigate why a response stopped. `pause_turn` deserves its own outcome: Anthropic documents it as a paused long-running turn that can be sent back to let the model continue, which is neither success nor failure.",
+        "Usage needs the same treatment. Field names differ: `usage.input_tokens` and `output_tokens` on Claude and OpenAI Responses, and `usageMetadata.promptTokenCount` and `candidatesTokenCount` on Gemini `generateContent`. Their accounting also differs. Anthropic notes that its counts do not match visible content one-to-one and that total input includes `input_tokens`, `cache_creation_input_tokens`, and `cache_read_input_tokens`. OpenAI notes that chaining with `previous_response_id` still bills earlier input tokens. Store raw usage beside any normalized figure so a cost comparison can be audited.",
+        "Streaming multiplies the differences. Responses streaming emits typed server-sent events such as `response.output_text.delta`, `response.function_call_arguments.delta`, and `response.completed`; Gemini can stream structured output as partial JSON strings that must be concatenated; Claude's `stop_reason` is null in the `message_start` event and set later in the stream. A streaming adapter should emit the same internal events whatever the source, and declare an outcome only after the final stop signal arrives."
       ],
       "code": {
         "language": "typescript",
@@ -54,30 +54,31 @@
       "id": "compatibility-layers-drop-guarantees",
       "title": "OpenAI-compatible endpoints are a test harness, not an abstraction",
       "paragraphs": [
-        "Both Anthropic and Google let the official OpenAI SDK talk to their models: change the base URL, the API key, and the model name. That looks like a free 'unified' client -- write against one SDK, swap three strings. Read what each owner says about it before shipping one.",
-        "Anthropic states that its compatibility layer is primarily intended to test and compare model capabilities and is not considered a long-term or production-ready solution for most use cases. On that layer the `strict` flag on function tools is ignored, so tool arguments are not guaranteed to follow your schema; `response_format` is ignored; `n` must be 1; `temperature` above 1 is capped at 1; every system or developer message is hoisted and concatenated into one leading system message; `choices[].message.refusal` is always empty; and prompt caching is unavailable. Most unsupported fields are silently ignored rather than rejected.",
-        "Google describes its OpenAI compatibility for Gemini as still in beta. It maps `reasoning_effort` onto Gemini thinking levels or budgets, exposes Gemini-only features through an `extra_body` field, and on image generation silently ignores parameters it does not list. Google itself recommends calling the Gemini API directly if you are not already using the OpenAI libraries.",
-        "The failure mode is quiet. A request that relied on `strict` or `response_format` still returns 200 and still parses most of the time, so nothing breaks until a malformed argument or a missing refusal signal reaches production. Use compatibility endpoints for what their owners say they are for -- side-by-side evaluation -- and send production traffic through native adapters. If you do keep one, write a contract test for every guarantee your code depends on and run it against that route, because the endpoint will not tell you it dropped one."
+        "Both Anthropic and Google let the official OpenAI SDK talk to their models by changing the connection details and model name. That can look like a unified client, but the two compatibility endpoints do not document identical behavior. Read each provider's limitations before using either route.",
+        "Anthropic states that its compatibility layer is primarily intended to test and compare model capabilities and is not considered a long-term or production-ready solution for most use cases. On that layer the `strict` flag on function tools is ignored, so tool arguments are not guaranteed to follow your schema; `response_format` is ignored; `n` must be 1; `temperature` above 1 is capped at 1; system and developer messages are hoisted and concatenated into one leading system message; `choices[].message.refusal` is always empty; and prompt caching is unavailable. Anthropic also says unsupported fields are generally ignored rather than rejected.",
+        "Google documents different behavior for its OpenAI compatibility route. It maps `reasoning_effort` onto Gemini thinking settings, exposes Gemini-specific features through `extra_body`, and documents ignored parameters in its image-generation compatibility behavior. Google recommends calling the Gemini API directly if you are not already using the OpenAI libraries. The supplied Google material does not establish that Gemini compatibility ignores `strict` tool schemas or `response_format`, so this module does not attribute those Anthropic-specific limitations to Google.",
+        "The failure mode on Anthropic's route is quiet. A request that relies on `strict` or `response_format` can still succeed at the protocol level even though the field is ignored, so a malformed argument or incorrectly shaped answer can reach production. Use the compatibility routes only for behavior their respective documentation supports. If you retain one, write a contract test for every guarantee your application needs rather than assuming that Anthropic and Google drop the same features.",
+        "Update note for 2026-09-18: the source URLs and their 2026-09-13 verification dates remain within the 30-day review cadence. This correction changes the earlier narration and transcript, which incorrectly said both Claude and Gemini compatibility endpoints silently ignore `strict` tool schemas and `response_format`. Those specific limitations are now attributed only to Anthropic; Google's separately documented behavior remains unchanged."
       ],
-      "callout": "A compatibility endpoint that ignores a field returns the same HTTP 200 as one that honors it. Only a test that depends on the guarantee can tell the difference.",
+      "callout": "Compatibility is provider-specific. A limitation documented for Anthropic must not be copied to Google's route without Google documentation that supports it.",
       "code": {
         "language": "typescript",
         "label": "Guarantees are tests, not assumptions",
-        "code": "// Every guarantee the application depends on, and the request field it rides on.\nconst guarantees = [\n  { name: \"tool arguments match the schema\", field: \"tools[].function.strict\" },\n  { name: \"final answer matches a JSON schema\", field: \"response_format\" },\n  { name: \"a refusal is machine-detectable\", field: \"choices[].message.refusal\" },\n];\n\n// Documented behavior of Claude behind the OpenAI SDK compatibility layer\n// (read 2026-09-11, platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk):\n//   tools[].function.strict     -> ignored\n//   response_format             -> ignored\n//   choices[].message.refusal   -> always empty\n// All three guarantees fail on that route. On the native Messages API, use\n// output_config.format and strict tool use instead, behind your own adapter."
+        "code": "// Every guarantee the application depends on, and the request field it rides on.\nconst guarantees = [\n  { name: \"tool arguments match the schema\", field: \"tools[].function.strict\" },\n  { name: \"final answer matches a JSON schema\", field: \"response_format\" },\n  { name: \"a refusal is machine-detectable\", field: \"choices[].message.refusal\" },\n];\n\n// Documented behavior of Claude behind Anthropic's OpenAI SDK compatibility layer:\n//   tools[].function.strict     -> ignored\n//   response_format             -> ignored\n//   choices[].message.refusal   -> always empty\n// These guarantees fail on that route. Do not assign the same behavior to\n// Google's compatibility route unless Google's documentation establishes it."
       }
     },
     {
       "id": "configuration-and-state-policy",
       "title": "Model ids, API surface, and storage policy belong in configuration",
       "paragraphs": [
-        "Model identifiers change faster than code. As of 2026-09-11 the providers' own model pages list, among others, `claude-opus-5` and `claude-sonnet-5` on Anthropic (which states that every Claude model ID is a pinned snapshot, including the dateless IDs used from the 4.6 generation on), `gpt-5.6-terra` on OpenAI (described as balancing intelligence and cost), and `gemini-3.8-flash` on Google (listed as stable). Put the id in configuration, record where and when it was verified, and fail startup or CI when it is missing -- never let an adapter fall back to a hardcoded default that nobody rereads. Anthropic's Models API returns `max_input_tokens`, `max_tokens`, and a `capabilities` object for each model, which a startup check can use.",
-        "Documentation can disagree with itself, which is exactly why the check belongs in code. Google's models page lists `gemini-3.8-flash` as stable and the Interactions guides use it in their examples, and the supported-models table on the Interactions overview lists it too as of this review -- but provider surfaces and their lifecycle labels change (`generateContent` is already labelled legacy), so a documentation cross-check can drift again. A contract test that makes one real call per configured surface-and-model pair settles that for your project on the day you deploy; a comment in the source does not.",
-        "Treat state and retention as configuration too, because the defaults differ. The Claude Messages API keeps no conversation for you. The Responses API stores responses unless you send `store: false`, and OpenAI enforces `store: false` automatically for Zero Data Retention organizations. The Gemini Interactions API stores interactions by default; setting `store=false` also disables `previous_interaction_id` chaining and background execution, and when you do chain, `tools`, `system_instruction`, and `generation_config` are interaction-scoped and must be resent on every call. A unified client that exposes one `store` switch has to translate it per surface, and must refuse a combination the surface cannot honor rather than quietly keep data your policy said to discard."
+        "Model identifiers and available capabilities can change faster than application code. Put each identifier in configuration, record where and when it was verified, and fail startup or continuous integration when it is missing. Never let an adapter fall back to a hardcoded default that nobody reviews. Anthropic's Models API can provide model metadata that a startup check can inspect.",
+        "Documentation can change, which is why the check belongs in code. Provider surfaces and lifecycle labels can drift after a design decision is recorded. A contract test that makes one real call per configured surface-and-model pair establishes whether that pair works for your project on the day you deploy; a source-code comment does not.",
+        "Treat state and retention as configuration too, because the defaults differ. The Claude Messages API expects your application to resend the history the model should see. The Responses API stores responses unless you send `store: false`. The Gemini Interactions API stores interactions by default; setting `store=false` disables `previous_interaction_id` chaining, and interaction-scoped settings must be resent when chaining. A unified client that exposes one `store` switch has to translate it per surface and reject a combination the surface cannot honor rather than quietly retaining data contrary to policy."
       ],
       "code": {
         "language": "typescript",
         "label": "Routes are data with provenance",
-        "code": "interface Route {\n  provider: \"anthropic\" | \"openai\" | \"google\";\n  surface: \"messages\" | \"responses\" | \"generateContent\" | \"interactions\";\n  model: string;        // required -- no default in code\n  store: boolean;       // translated per surface; rejected where it cannot be honored\n  verifiedOn: string;   // YYYY-MM-DD the id was checked\n  verifiedAt: string;   // the models page it was checked against\n}\n\n// Example values as read on 2026-09-11 -- load them from configuration:\n//   { provider: \"anthropic\", surface: \"messages\", model: \"claude-sonnet-5\",\n//     verifiedAt: \"https://platform.claude.com/docs/en/models/overview\" }\n//   { provider: \"openai\", surface: \"responses\", model: \"gpt-5.6-terra\",\n//     verifiedAt: \"https://developers.openai.com/api/docs/models\" }\n//   { provider: \"google\", surface: \"generateContent\", model: \"gemini-3.8-flash\",\n//     verifiedAt: \"https://ai.google.dev/gemini-api/docs/models\" }\n\nexport function assertRoute(r: Route): Route {\n  if (!r.model) throw new Error(`${r.provider}: model id is required; check ${r.verifiedAt}`);\n  if (r.surface === \"messages\" && r.store) {\n    throw new Error(\"Claude Messages keeps no server-side conversation; store:true is not a setting it offers\");\n  }\n  return r;\n}"
+        "code": "interface Route {\n  provider: \"anthropic\" | \"openai\" | \"google\";\n  surface: \"messages\" | \"responses\" | \"generateContent\" | \"interactions\";\n  model: string;        // required; no default in code\n  store: boolean;       // translated per surface; rejected where it cannot be honored\n  verifiedOn: string;   // YYYY-MM-DD the id was checked\n  verifiedAt: string;   // the models page it was checked against\n}\n\nexport function assertRoute(r: Route): Route {\n  if (!r.model) throw new Error(`${r.provider}: model id is required; check ${r.verifiedAt}`);\n  if (r.surface === \"messages\" && r.store) {\n    throw new Error(\"Claude Messages does not offer server-side conversation storage through this setting\");\n  }\n  return r;\n}"
       }
     }
   ],
@@ -85,14 +86,14 @@
     "id": "provider-sdk-patterns-activity",
     "title": "Build and probe a three-provider adapter",
     "instructions": [
-      "Define an internal result contract (outcome, joined text, tool calls with ids, raw stop value, raw usage) and write one adapter each for Claude Messages, OpenAI Responses, and one Gemini surface. State in one paragraph why you chose generateContent or Interactions for Gemini.",
-      "Write a total stop-signal mapping for each adapter and a unit test that feeds it every documented value plus one invented value; the invented value must not map to complete.",
-      "In a test environment, point the OpenAI SDK at Anthropic's compatibility endpoint and send one request that depends on strict tool arguments and one that depends on response_format. Record what the layer did with each.",
+      "Define an internal result contract with outcome, joined text, tool calls with ids, raw stop value, and raw usage. Write one adapter each for Claude Messages, OpenAI Responses, and one Gemini surface. State in one paragraph why you chose generateContent or Interactions for Gemini.",
+      "Write a total stop-signal mapping for each adapter and a unit test that feeds it every documented value plus one invented value. The invented value must not map to complete.",
+      "In a test environment, point the OpenAI SDK at Anthropic's compatibility endpoint and send one request that depends on strict tool arguments and one that depends on response_format. Record what the layer did with each. Do not infer that Google's compatibility endpoint behaves the same way.",
       "Move every model id and storage setting into configuration with a verified-on date and source URL, and add a contract test that fails the build when a configured id is rejected or a storage setting cannot be honored on its surface."
     ],
     "evidence": [
       "Adapter code or a design, plus the stop-signal mapping table and its tests, including the invented-value case.",
-      "A short compatibility-layer finding that names each guarantee silently dropped and the native feature that replaces it.",
+      "A short compatibility-layer finding that separates Anthropic's documented dropped guarantees from Google's separately documented compatibility behavior and names native features only where the source establishes them.",
       "A configuration file listing model ids, surfaces, and storage settings, each with a verified-on date and the URL it was verified against."
     ],
     "reflectionPrompt": "Which provider difference would your adapter have hidden from you if you had normalized the text first and the stop signals second?"
@@ -105,60 +106,72 @@
         "prompt": "A Claude response comes back with stop_reason \"max_tokens\". What should a portable adapter report?",
         "choices": [
           "Complete, because text was returned",
-          "Truncated -- the output reached the token limit and may be incomplete",
+          "Truncated, because the output reached a token limit and may be incomplete",
           "Refused",
           "A tool request"
         ],
         "answerIndex": 1,
-        "explanation": "\"max_tokens\" means the requested limit or the model maximum was reached. Reporting it as complete lets a partial answer flow downstream."
+        "explanation": "\"max_tokens\" indicates that generation reached a token limit, so the returned text may be partial. The adapter must report `truncated` rather than `complete`."
       },
       {
         "id": "q-dev-sdk-2",
-        "prompt": "You call Claude through the OpenAI SDK compatibility endpoint with a function tool marked strict: true. What does Anthropic document about that flag?",
+        "prompt": "You call Claude through Anthropic's OpenAI SDK compatibility endpoint with a function tool marked strict: true. What does Anthropic document about that flag?",
         "choices": [
           "It is enforced exactly as it is on OpenAI",
           "It is ignored, so tool arguments are not guaranteed to match the schema",
-          "It returns a 400 error",
+          "It always returns a 400 error",
           "It reroutes the request to the native Messages API"
         ],
         "answerIndex": 1,
-        "explanation": "The compatibility layer ignores strict (and response_format). Guaranteed schema conformance requires structured outputs or strict tool use on the native Claude API."
+        "explanation": "Anthropic documents that its compatibility layer ignores `strict`. Code that requires schema-conforming tool arguments must not assume this route preserves that guarantee."
       },
       {
         "id": "q-dev-sdk-3",
-        "prompt": "Why is \"treat every item in response.output as a message\" a bug in an OpenAI Responses adapter?",
+        "prompt": "Why is treating every item in response.output as a message a bug in an OpenAI Responses adapter?",
         "choices": [
-          "output only ever contains one item",
-          "reasoning, function_call, and other Items are distinct types; only message Items carry the assistant text",
+          "The output array only ever contains one item",
+          "Reasoning, function_call, and other Items are distinct types; a message is only one Item type",
           "Messages are returned in a separate choices field",
           "Items are only returned when streaming"
         ],
         "answerIndex": 1,
-        "explanation": "OpenAI's migration guide lists this as a common error: Items are a union of types, and a message is only one of them."
+        "explanation": "The Responses output is a typed collection. Reasoning and function-call Items must be handled according to their own types rather than parsed as assistant messages."
       },
       {
         "id": "q-dev-sdk-4",
         "prompt": "Your policy forbids server-side conversation storage features. Which statement about the default behavior is accurate?",
         "choices": [
           "All three APIs keep nothing server-side by default",
-          "OpenAI Responses and Gemini Interactions store by default and need store set to false; Claude Messages relies on the history your application resends",
+          "OpenAI Responses and Gemini Interactions store by default and need store set to false; Claude Messages relies on the history the application resends",
           "Only Claude stores conversations by default",
-          "Storage is controlled by the model id"
+          "Storage is controlled only by the model id"
         ],
         "answerIndex": 1,
-        "explanation": "Responses are stored unless store is false, Interactions are stored by default (and store=false disables previous_interaction_id chaining), and the Messages API is used for stateless multi-turn conversations."
+        "explanation": "Responses and Interactions document storage by default with a `store` control, while a Messages conversation is formed from the history the application sends."
       },
       {
         "id": "q-dev-sdk-5",
-        "prompt": "Google's Interactions overview recommends Interactions for all new projects and calls generateContent legacy but still fully supported. What is the adapter-level response?",
+        "prompt": "Google's Interactions overview recommends Interactions for new projects and describes generateContent as legacy but supported. What should the adapter designer do?",
         "choices": [
-          "Migrate immediately because generateContent is being removed",
-          "Make the surface a configuration choice behind one internal contract, record the reason, and cover the chosen surface with contract tests",
-          "Use the OpenAI compatibility endpoint instead",
-          "Hardcode generateContent and remove the adapter"
+          "Assume generateContent has already been removed",
+          "Make the surface a configuration choice behind one internal contract, record the reason, and test the chosen surface",
+          "Use an OpenAI compatibility endpoint without testing it",
+          "Hardcode generateContent in every caller"
         ],
         "answerIndex": 1,
-        "explanation": "Keeping the surface behind an adapter makes the choice reversible; provider surfaces and their lifecycle labels change even after general availability, so pin the decision in one place rather than in every caller."
+        "explanation": "Keeping the surface behind an adapter makes the decision reversible. A contract test then checks that the configured surface still behaves as the application requires."
+      },
+      {
+        "id": "q-dev-sdk-6",
+        "prompt": "Which compatibility claim does this module support?",
+        "choices": [
+          "Anthropic and Google both document that strict tool schemas and response_format are ignored",
+          "Anthropic documents that strict and response_format are ignored, while the supplied Google material documents different compatibility behavior",
+          "Google documents that every unsupported field returns an error",
+          "All compatibility endpoints preserve identical guarantees"
+        ],
+        "answerIndex": 1,
+        "explanation": "The module attributes ignored `strict` and `response_format` fields only to Anthropic. Google's material describes other mappings and limitations, so identical behavior must not be assumed."
       }
     ]
   },
@@ -244,7 +257,7 @@
         "id": "cue-dev-sdk-shapes",
         "kind": "narration",
         "sectionId": "three-native-shapes",
-        "text": "Each SDK returns a different shape -- content blocks, output Items, candidates, or steps -- so the application should depend on one internal contract and put each SDK behind an adapter."
+        "text": "Each SDK returns a different shape: content blocks, output Items, candidates, or steps. The application should depend on one internal contract and put each SDK behind an adapter."
       },
       {
         "id": "cue-dev-sdk-stops",
@@ -269,19 +282,19 @@
         "id": "cue-dev-sdk-compat",
         "kind": "narration",
         "sectionId": "compatibility-layers-drop-guarantees",
-        "text": "OpenAI-compatible endpoints for Claude and Gemini silently ignore features such as strict tool schemas and response_format, so treat them as an evaluation harness, not a production abstraction."
+        "text": "Anthropic documents that its OpenAI-compatible endpoint ignores strict tool schemas and response_format. Google's compatibility documentation describes different mappings and limitations, so do not assume the two routes drop the same guarantees."
       },
       {
         "id": "cue-dev-sdk-compat-prompt",
         "kind": "learner-prompt",
         "sectionId": "compatibility-layers-drop-guarantees",
-        "text": "Ask learners which of their current requests would still return HTTP 200 but lose a guarantee if routed through a compatibility endpoint."
+        "text": "Ask learners which current requests depend on a compatibility guarantee, which provider documents that guarantee, and what contract test would detect its loss."
       },
       {
         "id": "cue-dev-sdk-config",
         "kind": "narration",
         "sectionId": "configuration-and-state-policy",
-        "text": "Keep model ids, API surface, and storage policy in configuration, and let a contract test -- not a code comment -- prove them against the provider on the day you deploy."
+        "text": "Keep model ids, API surface, and storage policy in configuration, and let a contract test, not a code comment, prove them against the provider on the day you deploy."
       },
       {
         "id": "cue-dev-sdk-config-pause",
@@ -292,45 +305,45 @@
       {
         "id": "cue-dev-sdk-activity",
         "kind": "learner-prompt",
-        "text": "Guide the three adapters, the compatibility-layer probe, and the configuration contract test."
+        "text": "Guide the three adapters, the Anthropic compatibility-layer probe, and the configuration contract test."
       },
       {
         "id": "cue-dev-sdk-assessment",
         "kind": "assessment-handoff",
-        "text": "Begin the check once learners can map a stop signal from each provider and name one guarantee a compatibility endpoint drops."
+        "text": "Begin the check once learners can map a stop signal from each provider and distinguish Anthropic's documented compatibility limitations from Google's documented behavior."
       }
     ],
-    "transcript": "Each SDK returns a different shape -- content blocks, output Items, candidates, or steps -- so the application should depend on one internal contract and put each SDK behind an adapter. Map every native stop signal into your own outcome, fail closed on values you do not recognize, and keep the raw stop and usage values for audit. OpenAI-compatible endpoints for Claude and Gemini silently ignore features such as strict tool schemas and response_format, so treat them as an evaluation harness, not a production abstraction. Keep model ids, API surface, and storage policy in configuration, and let a contract test -- not a code comment -- prove them against the provider on the day you deploy.",
+    "transcript": "Each SDK returns a different shape: content blocks, output Items, candidates, or steps. The application should depend on one internal contract and put each SDK behind an adapter. Map every native stop signal into your own outcome, fail closed on values you do not recognize, and keep the raw stop and usage values for audit. Anthropic documents that its OpenAI-compatible endpoint ignores strict tool schemas and response_format. Google's compatibility documentation describes different mappings and limitations, so do not assume the two routes drop the same guarantees. Keep model ids, API surface, and storage policy in configuration, and let a contract test, not a code comment, prove them against the provider on the day you deploy. Begin the check once learners can map a stop signal from each provider and distinguish Anthropic's documented compatibility limitations from Google's documented behavior.",
     "captions": [
       {
         "cueId": "cue-dev-sdk-shapes",
         "startSeconds": 0,
-        "endSeconds": 637,
-        "text": "Each SDK returns a different shape -- content blocks, output Items, candidates, or steps -- so the application should depend on one internal contract and put each SDK behind an adapter."
+        "endSeconds": 12,
+        "text": "Each SDK returns a different shape: content blocks, output Items, candidates, or steps. The application should depend on one internal contract and put each SDK behind an adapter."
       },
       {
         "cueId": "cue-dev-sdk-stops",
-        "startSeconds": 667,
-        "endSeconds": 1304,
+        "startSeconds": 12,
+        "endSeconds": 23,
         "text": "Map every native stop signal into your own outcome, fail closed on values you do not recognize, and keep the raw stop and usage values for audit."
       },
       {
         "cueId": "cue-dev-sdk-compat",
-        "startSeconds": 1334,
-        "endSeconds": 1971,
-        "text": "OpenAI-compatible endpoints for Claude and Gemini silently ignore features such as strict tool schemas and response_format, so treat them as an evaluation harness, not a production abstraction."
+        "startSeconds": 23,
+        "endSeconds": 42,
+        "text": "Anthropic documents that its OpenAI-compatible endpoint ignores strict tool schemas and response_format. Google's compatibility documentation describes different mappings and limitations, so do not assume the two routes drop the same guarantees."
       },
       {
         "cueId": "cue-dev-sdk-config",
-        "startSeconds": 2001,
-        "endSeconds": 2638,
-        "text": "Keep model ids, API surface, and storage policy in configuration, and let a contract test -- not a code comment -- prove them against the provider on the day you deploy."
+        "startSeconds": 42,
+        "endSeconds": 54,
+        "text": "Keep model ids, API surface, and storage policy in configuration, and let a contract test, not a code comment, prove them against the provider on the day you deploy."
       },
       {
         "cueId": "cue-dev-sdk-assessment",
-        "startSeconds": 2700,
-        "endSeconds": 3000,
-        "text": "Begin the check once learners can map a stop signal from each provider and name one guarantee a compatibility endpoint drops."
+        "startSeconds": 54,
+        "endSeconds": 66,
+        "text": "Begin the check once learners can map a stop signal from each provider and distinguish Anthropic's documented compatibility limitations from Google's documented behavior."
       }
     ],
     "reducedMotionAlternative": "Present the response-shape comparison and the stop-signal mapping as static tables with focus highlighting instead of animated sequences."

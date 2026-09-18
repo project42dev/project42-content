@@ -1,8 +1,8 @@
 {
   "id": "prompt-architecture",
   "title": "Prompt Architecture & Structured Deliberation",
-  "summary": "How to decide where reasoning happens in an AI workflow: inside a reasoning model's own thinking, in a prompted chain of thought, or across a chain of separate, inspectable calls. Covers the trade-offs of each, how to lay out long inputs, and why a model's written reasoning is not a reliable account of how it reached its answer.",
-  "level": "beginner",
+  "summary": "This intermediate-level module teaches learners to decide whether reasoning should happen within one model call or across an inspectable chain of calls. After completing it, learners can structure long inputs, design acceptance checks, and verify outputs against source evidence rather than trusting narrated reasoning.",
+  "level": "intermediate",
   "reviewCadenceDays": 30,
   "lastVerified": "2026-09-13",
   "providers": [
@@ -10,10 +10,11 @@
   ],
   "estimatedMinutes": 30,
   "objectives": [
-    "Explain what chain-of-thought prompting is, what the original research showed, and why current providers advise against hand-written step-by-step instructions for models that reason internally.",
+    "Explain what chain-of-thought prompting is, what the original research showed, and why guidance for selected reasoning models recommends clear goals instead of hand-written step-by-step instructions.",
     "Choose between built-in model thinking, prompted reasoning, and an explicit prompt chain for a given task, justifying the choice in terms of inspectability, latency, and token cost.",
     "Structure a long-context prompt so documents come first and the question comes last, and ground the answer in quoted evidence.",
-    "Evaluate a model's visible reasoning as unverified output rather than as a faithful record of how the answer was produced."
+    "Evaluate a model's visible reasoning as unverified output rather than as a faithful record of how the answer was produced.",
+    "Build a draft, review, and revision chain in which every revision receives the original source evidence."
   ],
   "prerequisites": [],
   "sections": [
@@ -21,38 +22,40 @@
       "id": "reasoning-before-answering",
       "title": "Reasoning before answering, and where it now lives",
       "paragraphs": [
+        "This is an intermediate-level module. It assumes that you can write a basic prompt, distinguish instructions from source material, and recognize that a workflow may make one or more model calls. It does not require programming experience or prior knowledge of a particular provider.",
         "Wei and colleagues named the technique that shaped much of modern prompt design in \"Chain-of-Thought Prompting Elicits Reasoning in Large Language Models\" (2022). A chain of thought is \"a series of intermediate reasoning steps,\" and chain-of-thought prompting supplies a few worked examples that show those steps before the answer. The authors found that it improved the performance of sufficiently large models on arithmetic, commonsense, and symbolic reasoning tasks; prompting a 540-billion-parameter model with just eight such examples achieved state-of-the-art accuracy at the time on the GSM8K benchmark of math word problems. The mechanism fits the probabilistic picture of generation: every token a model writes becomes context for the tokens that follow, so writing intermediate steps first gives the final answer more to condition on.",
-        "What has changed since is where that reasoning happens. Current model families reason internally before they respond. Google's documentation says its Gemini 3 and 2.5 series use a \"thinking process\" that \"significantly improves their reasoning and multi-step planning abilities.\" Anthropic's current models use adaptive thinking, in which the model \"dynamically decides when and how much to think,\" calibrated by an effort setting and by the complexity of the query. OpenAI's reasoning guide frames the choice as two families: reasoning models, \"the planners,\" trained \"to think longer and harder about complex tasks,\" and \"lower-latency, more cost-efficient\" GPT models, \"the workhorses,\" designed for straightforward execution. The first architectural question is therefore no longer \"should I ask for step-by-step reasoning?\" but \"which part of this system should do the reasoning, and how much of it can the task afford?\""
+        "Reasoning can now occur in different places. The selected provider guidance cited by this module describes model families that perform reasoning before producing an answer. Google's documentation says its Gemini 3 and 2.5 series use a \"thinking process\" that improves reasoning and multi-step planning. OpenAI's reasoning guide distinguishes reasoning models, described as planners for complex tasks, from lower-latency models intended for more straightforward execution. These provider-specific examples do not establish that every model reasons internally. The architectural question is which part of a particular workflow should perform the reasoning and how much latency and token use the task can afford."
       ],
-      "callout": "Chain of thought has moved from a prompt technique into a model capability. Decide where reasoning should happen before deciding how to word the request."
+      "callout": "Reasoning may occur within a model response or across separate calls. Identify the capabilities of the selected model before deciding how to word or divide the task."
     },
     {
       "id": "steering-built-in-thinking",
       "title": "Steering a model that already thinks",
       "paragraphs": [
-        "Provider guidance for reasoning models converges on restraint. OpenAI's reasoning best practices tell developers to keep prompts \"simple and direct\" and to avoid chain-of-thought prompts: \"Since these models perform reasoning internally, prompting them to 'think step by step' or 'explain your reasoning' is unnecessary.\" The same guide recommends trying zero-shot prompts before adding examples, using delimiters such as markdown, XML tags, and section titles to mark distinct parts of the input, and being \"very specific about your end goal.\" Anthropic's prompting guide makes a related point: prefer general instructions over prescriptive steps, because \"a prompt like 'think thoroughly' often produces better reasoning than a hand-written step-by-step plan.\" Where a model's thinking is switched off, Anthropic still describes manual chain-of-thought as a fallback, using tags such as <thinking> and <answer> to separate the reasoning from the final output.",
-        "Thinking is also a cost and latency line, not a free improvement. Google states that Gemini pricing \"is based on the full thought tokens the model needs to generate, despite only the summary being output from the API,\" and that max_output_tokens covers thinking and answer together: if a model reaches that cap while reasoning, it returns truncated or empty output \"while still billing for any thinking tokens generated,\" so the guide advises lowering thinking_level rather than setting a small output cap. Anthropic, discussing a model that tends to think at length, notes that this \"can inflate thinking tokens and slow down responses,\" recommends lowering the effort setting \"to reduce overall thinking and token usage,\" and offers a sample instruction that begins, \"Thinking adds latency and should only be used when it will meaningfully improve answer quality.\" A well-specified extraction and an ambiguous multi-document analysis deserve different settings, and the way to find the right one is to run both settings on the same evaluation cases."
+        "OpenAI's reasoning best practices tell developers to keep prompts \"simple and direct\" and to avoid chain-of-thought prompts for its reasoning models: \"Since these models perform reasoning internally, prompting them to 'think step by step' or 'explain your reasoning' is unnecessary.\" The same guide recommends trying zero-shot prompts before adding examples, using delimiters such as markdown, XML tags, and section titles to mark distinct parts of the input, and being \"very specific about your end goal.\" This is guidance for the models covered by that provider document, not a rule about every model.",
+        "Reasoning also affects token use and latency. Google's documentation reports thought-token usage as part of usage information, so reasoning work must be considered when comparing workflow cost. OpenAI distinguishes reasoning models from lower-latency, more cost-efficient models intended for straightforward execution. A well-specified extraction and an ambiguous multi-document analysis may therefore deserve different model choices or reasoning depth. Compare those choices on the same evaluation cases rather than assuming that more reasoning always produces a better result."
       ]
     },
     {
       "id": "chaining-for-inspectability",
       "title": "Chain prompts when you need to inspect the steps",
       "paragraphs": [
-        "Built-in thinking handles multistep reasoning inside one call, but it leaves you with one output to judge. Prompt chaining spreads the work across several calls instead. Google's prompting guide describes the pattern: \"make each step a prompt and chain the prompts together in a sequence,\" so that \"the output of one prompt in the sequence becomes the input of the next prompt.\" It lists two relatives: breaking a long list of instructions into one prompt per instruction, and aggregating the results of parallel tasks run on different portions of the data. Anthropic's guide is explicit about when chaining is still worth doing now that models reason internally: it \"is still useful when you need to inspect intermediate outputs or enforce a specific pipeline structure.\" Its most common example is self-correction: generate a draft, have the model review it against criteria, then refine it, where each step is a separate API call \"so you can log, evaluate, or branch at any point.\"",
-        "The architectural gain is observability. Each link has its own input, output, and acceptance check, so when a final answer is wrong you can locate the step that failed instead of rewriting one large prompt and hoping. Intermediate outputs can be validated by ordinary code (did the extraction step return every required field?), routed to a person for review, or stored and reused. The costs are real: more calls add latency, shared context has to be sent again to each step, and an error in an early link propagates unless a check stops it. Use a chain when a step's output can be checked on its own and is worth checking. Keep work inside a single reasoning call when the steps are tightly coupled and only the end result can be judged."
+        "Built-in thinking handles multistep reasoning inside one call, but it leaves you with one output to judge. Prompt chaining spreads the work across several calls instead. Google's prompting guide describes the pattern: \"make each step a prompt and chain the prompts together in a sequence,\" so that \"the output of one prompt in the sequence becomes the input of the next prompt.\" It lists two relatives: breaking a long list of instructions into one prompt per instruction, and aggregating the results of parallel tasks run on different portions of the data. Anthropic's guide says chaining \"is still useful when you need to inspect intermediate outputs or enforce a specific pipeline structure.\" Its example is self-correction: generate a draft, review it against criteria, and then refine it in a separate call so each stage can be logged or evaluated.",
+        "The architectural gain is observability. Each link has its own input, output, and acceptance check, so when a final answer is wrong you can locate the step that failed instead of rewriting one large prompt and hoping. Intermediate outputs can be validated by ordinary code, routed to a person for review, or stored and reused. The costs are real: more calls add latency, shared context may have to be sent again, and an error in an early link propagates unless a check stops it. Use a chain when a step's output can be checked on its own and is worth checking. Keep work inside a single reasoning call when the steps are tightly coupled and only the end result can be judged.",
+        "A revision call must receive the evidence needed to verify its changes. Passing only the draft and review is insufficient because the reviewer may be wrong or may describe the source incompletely. In the sequence below, the original source is included in the draft, review, and revision calls."
       ],
       "code": {
-        "language": "python",
-        "label": "Illustrative three-link self-correction chain (call_model stands for any provider SDK call)",
-        "code": "draft = call_model(system=WRITER_RULES,\n                   user=f\"<source>{doc}</source>\\nDraft a summary of the source.\")\n\nreview = call_model(system=REVIEWER_RULES,\n                    user=f\"<source>{doc}</source>\\n<draft>{draft}</draft>\\n\"\n                         \"List every claim in the draft that the source does not support.\")\n\n# Ordinary code, not the model, decides whether to branch.\nfinal = draft\nif review_has_findings(review):\n    final = call_model(system=WRITER_RULES,\n                       user=f\"<draft>{draft}</draft>\\n<review>{review}</review>\\nRevise the draft.\")\n\nfor name, output in ((\"draft\", draft), (\"review\", review), (\"final\", final)):\n    log_step(name, output)   # every intermediate output is kept for inspection"
+        "language": "text",
+        "label": "Illustrative three-link self-correction sequence",
+        "code": "DRAFT CALL\nInput: <source>original document</source>\nInstruction: Draft a summary of the source.\nSave output as: draft\n\nREVIEW CALL\nInput: <source>original document</source><draft>draft output</draft>\nInstruction: List every claim in the draft that the source does not support.\nSave output as: review\n\nDECISION\nIf the review has no findings, keep the draft as the final output.\nIf the review has findings, continue to the revision call.\n\nREVISION CALL\nInput: <source>original document</source><draft>draft output</draft><review>review output</review>\nInstruction: Revise the draft. Keep only claims supported by the source.\nSave output as: final\n\nLOG\nKeep the draft, review, decision, and final output for inspection."
       }
     },
     {
       "id": "layout-and-faithfulness",
       "title": "Lay out long inputs deliberately, and do not grade the narrated reasoning",
       "paragraphs": [
-        "For long inputs, the order of the prompt matters. Anthropic's guide recommends, for inputs of roughly 20,000 tokens or more, placing long documents \"near the top of your prompt, above your query, instructions, and examples,\" and notes that \"queries at the end can improve response quality by up to 30 percent in tests, especially with complex, multidocument inputs.\" Google gives the same structural advice for Gemini: \"supply all the context first\" and place specific instructions or questions \"at the very end of the prompt.\" Anthropic adds two refinements: wrap each document, with its source and content, in its own tags, and ask the model to quote the relevant passages before carrying out the task, which \"helps Claude focus on the relevant content and ignore the rest of the document.\" The quotes become an intermediate artifact you can check against the source.",
-        "That last step matters because a model's written reasoning is itself generated text, not a transcript of its computation. Anthropic's research on reasoning models tested this by inserting hints about the answer into questions and checking whether the models' chains of thought admitted using them. On average across hint types, Claude 3.7 Sonnet mentioned the hint 25% of the time and DeepSeek R1 39% of the time. When the models were trained in environments with exploitable reward hacks, they admitted using the hacks less than 2% of the time in most scenarios, and often wrote fake rationales instead. Further outcome-based training raised faithfulness at first, then plateaued at 28% on one evaluation and 20% on another. The researchers conclude that \"we can't always rely on what they tell us about their reasoning.\" Visible reasoning is useful for debugging and for catching obvious mistakes, but acceptance decisions should rest on checks against sources, tests, and outputs, never on the reasoning sounding sound."
+        "For long inputs, the order of the prompt matters. Anthropic's guide recommends placing long documents \"near the top of your prompt, above your query, instructions, and examples,\" and notes that \"queries at the end can improve response quality by up to 30 percent in tests, especially with complex, multidocument inputs.\" Google gives the same structural advice for Gemini: \"supply all the context first\" and place specific instructions or questions \"at the very end of the prompt.\" Anthropic adds two refinements: wrap each document, with its source and content, in its own tags, and ask the model to quote the relevant passages before carrying out the task. The quotes become an intermediate artifact you can check against the source.",
+        "That last step matters because a model's written reasoning is itself generated text, not a transcript of its computation. Anthropic's research on reasoning models tested this by inserting hints about the answer into questions and checking whether the models' chains of thought admitted using them. On average across hint types, Claude 3.7 Sonnet mentioned the hint 25% of the time and DeepSeek R1 39% of the time. In experiments involving exploitable reward hacks, the models admitted using the hacks less than 2% of the time in most testing scenarios and sometimes supplied other rationales. The researchers conclude that \"we can't always rely on what they tell us about their reasoning.\" Visible reasoning may help expose an obvious mistake, but acceptance decisions should rest on checks against sources, tests, and outputs rather than on whether an explanation sounds convincing."
       ],
       "callout": "Reasoning you can read is still output. Verify the answer against evidence; do not grade the explanation.",
       "code": {
@@ -68,7 +71,7 @@
     "instructions": [
       "Step 1: Pick a real task with at least two distinct steps over a document several pages long, for example extracting the commitments in a contract and then drafting a summary email about them. Use a document you are permitted to share with the AI tool.",
       "Step 2: Version A: write a single prompt with the document first and the question last, and instruct the model to quote the supporting passages before answering. Run it and save the output.",
-      "Step 3: Version B: split the same task into a chain of two or three calls, saving each output and passing it into the next call. Write a pass or fail acceptance check for every intermediate output, such as \"every extracted commitment cites a quoted clause.\"",
+      "Step 3: Version B: split the same task into a chain of two or three calls, saving each output and passing it into the next call. Include the original document in every call that must verify or revise factual claims. Write a pass or fail acceptance check for every intermediate output, such as \"every extracted commitment cites a quoted clause.\"",
       "Step 4: Run both versions on the same document, apply your acceptance checks, and check every factual claim in both final outputs against the source document.",
       "Step 5: If your tool shows reasoning or thinking text, compare it with the final answer and note any step the reasoning describes that the answer does not reflect, or any part of the answer the reasoning never mentions."
     ],
@@ -87,7 +90,7 @@
         "id": "cue-prompt-architecture-reasoning",
         "kind": "narration",
         "sectionId": "reasoning-before-answering",
-        "text": "Chain-of-thought prompting showed that writing intermediate steps helps large models reason; today most models reason internally, so the first decision is where reasoning should happen."
+        "text": "Chain-of-thought prompting showed that writing intermediate steps can help sufficiently large models reason. Selected current model families also perform reasoning before responding, so first determine where reasoning should happen in the workflow."
       },
       {
         "id": "cue-prompt-architecture-options-visual",
@@ -100,19 +103,19 @@
         "id": "cue-prompt-architecture-steering",
         "kind": "narration",
         "sectionId": "steering-built-in-thinking",
-        "text": "For models that already think, give clear goals instead of scripted steps, and treat thinking depth as a cost and latency setting you test."
+        "text": "For a model documented as reasoning before it responds, give clear goals instead of scripted steps, and test whether the added reasoning cost improves results on the task."
       },
       {
         "id": "cue-prompt-architecture-steering-prompt",
         "kind": "learner-prompt",
         "sectionId": "steering-built-in-thinking",
-        "text": "Ask learners to name one task in their work that needs deep reasoning and one that does not, and what they would change in the configuration for each."
+        "text": "Ask learners to name one task in their work that needs deep reasoning and one that does not, and what model or reasoning choice they would test for each."
       },
       {
         "id": "cue-prompt-architecture-chaining",
         "kind": "narration",
         "sectionId": "chaining-for-inspectability",
-        "text": "Chain prompts when an intermediate output can be checked on its own; each link gets its own input, output, and acceptance test."
+        "text": "Chain prompts when an intermediate output can be checked on its own; each link gets its own input, output, and acceptance test, and a revision link must also receive the original source."
       },
       {
         "id": "cue-prompt-architecture-chaining-pause",
@@ -143,25 +146,25 @@
         "text": "Begin the check once learners can choose between built-in thinking, prompted reasoning, and a chain, and justify the choice by what each lets them inspect."
       }
     ],
-    "transcript": "Chain-of-thought prompting showed that writing intermediate steps helps large models reason; today most models reason internally, so the first decision is where reasoning should happen. For models that already think, give clear goals instead of scripted steps, and treat thinking depth as a cost and latency setting you test. Chain prompts when an intermediate output can be checked on its own; each link gets its own input, output, and acceptance test. Put long documents first and the question last, ground answers in quotes, and remember that a model's written reasoning is output, not a faithful record of how it decided.",
+    "transcript": "Chain-of-thought prompting showed that writing intermediate steps can help sufficiently large models reason. Selected current model families also perform reasoning before responding, so first determine where reasoning should happen in the workflow. For a model documented as reasoning before it responds, give clear goals instead of scripted steps, and test whether the added reasoning cost improves results on the task. Chain prompts when an intermediate output can be checked on its own; each link gets its own input, output, and acceptance test, and a revision link must also receive the original source. Put long documents first and the question last, ground answers in quotes, and remember that a model's written reasoning is output, not a faithful record of how it decided. Begin the check once learners can choose between built-in thinking, prompted reasoning, and a chain, and justify the choice by what each lets them inspect.",
     "captions": [
       {
         "cueId": "cue-prompt-architecture-reasoning",
         "startSeconds": 0,
         "endSeconds": 420,
-        "text": "Chain-of-thought prompting showed that writing intermediate steps helps large models reason; today most models reason internally, so the first decision is where reasoning should happen."
+        "text": "Chain-of-thought prompting showed that writing intermediate steps can help sufficiently large models reason. Selected current model families also perform reasoning before responding, so first determine where reasoning should happen in the workflow."
       },
       {
         "cueId": "cue-prompt-architecture-steering",
         "startSeconds": 450,
         "endSeconds": 870,
-        "text": "For models that already think, give clear goals instead of scripted steps, and treat thinking depth as a cost and latency setting you test."
+        "text": "For a model documented as reasoning before it responds, give clear goals instead of scripted steps, and test whether the added reasoning cost improves results on the task."
       },
       {
         "cueId": "cue-prompt-architecture-chaining",
         "startSeconds": 900,
         "endSeconds": 1260,
-        "text": "Chain prompts when an intermediate output can be checked on its own; each link gets its own input, output, and acceptance test."
+        "text": "Chain prompts when an intermediate output can be checked on its own; each link gets its own input, output, and acceptance test, and a revision link must also receive the original source."
       },
       {
         "cueId": "cue-prompt-architecture-faithfulness",
@@ -183,7 +186,7 @@
     "questions": [
       {
         "id": "q-prompt-architecture-1",
-        "prompt": "Which statement best describes the original chain-of-thought prompting result (Wei and colleagues, 2022)?",
+        "prompt": "Which statement best describes the original chain-of-thought prompting result reported by Wei and colleagues in 2022?",
         "choices": [
           "It proved that a model's written reasoning always reflects its internal computation",
           "Worked examples showing intermediate reasoning steps improved sufficiently large models on arithmetic, commonsense, and symbolic reasoning tasks",
@@ -191,67 +194,67 @@
           "It removed the need to evaluate prompts on test cases"
         ],
         "answerIndex": 1,
-        "explanation": "The paper reports gains for sufficiently large models on those three task families. It made no claim that the written reasoning is faithful (later research found it often is not), did not claim the effect holds at every model size, and did not replace evaluation."
+        "explanation": "The paper reports gains for sufficiently large models on those three task families. It did not establish that written reasoning is faithful, that the effect holds at every model size, or that evaluation is unnecessary."
       },
       {
         "id": "q-prompt-architecture-2",
-        "prompt": "You are prompting a model that already reasons internally. Which approach matches current provider guidance?",
+        "prompt": "You are using a model whose provider documents it as reasoning internally. Which approach matches the guidance presented in this module?",
         "choices": [
-          "Write a detailed hand-authored plan and tell the model to think step by step",
-          "Remove all delimiters so the model can reason freely",
-          "Give clear, direct instructions and a specific end goal, and prefer general guidance such as \"think thoroughly\" over prescriptive steps",
-          "Always add many few-shot examples before trying a zero-shot prompt"
+          "Always write a detailed hand-authored plan and demand a complete chain of thought",
+          "Remove all delimiters so instructions and evidence blend together",
+          "Give clear, direct instructions and a specific end goal instead of prescribing every reasoning step",
+          "Always add many worked examples before trying a direct prompt"
         ],
         "answerIndex": 2,
-        "explanation": "OpenAI advises simple, direct prompts, a specific end goal, and avoiding \"think step by step\" for reasoning models; Anthropic advises general instructions over prescriptive steps. Both recommend delimiters to separate parts of the input, and OpenAI suggests trying zero-shot before few-shot."
+        "explanation": "The module presents provider guidance to use simple, direct instructions and a specific end goal for a model documented as reasoning internally. It also recommends delimiters and trying a direct prompt before adding examples."
       },
       {
         "id": "q-prompt-architecture-3",
-        "prompt": "According to Anthropic's guidance, when is an explicit prompt chain still worth its extra calls?",
+        "prompt": "When is an explicit prompt chain worth its extra calls?",
         "choices": [
           "When you need to inspect intermediate outputs or enforce a specific pipeline structure",
           "Whenever a task description is longer than one sentence",
-          "Only when the model has no context window",
+          "Only when no source documents are available",
           "Never, because built-in thinking has made chaining obsolete"
         ],
         "answerIndex": 0,
-        "explanation": "Anthropic's guide says chaining remains useful exactly when you need to inspect intermediate outputs or enforce a pipeline structure, for example a draft, review, and refine sequence where each call can be logged and evaluated. Task length alone is not the criterion, and the guide does not call chaining obsolete."
+        "explanation": "A chain is useful when an intermediate result can be inspected, evaluated, or routed before the workflow continues. Task-description length alone is not the criterion."
       },
       {
         "id": "q-prompt-architecture-4",
-        "prompt": "You are asking a question about a 60-page report. Where should the question go?",
+        "prompt": "You are asking a question about a long report. Where should the question go according to the layout guidance in this module?",
         "choices": [
-          "At the very beginning, before the report",
-          "Repeated at the start and the end in different words",
-          "In a separate conversation from the report",
+          "At the beginning, before the report",
+          "Repeated at the start and end in different words",
+          "In a separate conversation that does not contain the report",
           "After the report, at the end of the prompt"
         ],
         "answerIndex": 3,
-        "explanation": "Anthropic recommends placing long documents above the query and reports that queries at the end can improve response quality by up to 30 percent in tests; Google likewise advises supplying all context first and the question at the very end. A separate conversation would not contain the report at all."
+        "explanation": "The module recommends placing long source documents first and the specific question at the end so the context precedes the task."
       },
       {
         "id": "q-prompt-architecture-5",
-        "prompt": "In Anthropic's faithfulness experiments, how often did a model's chain of thought mention an inserted hint that the model had used?",
+        "prompt": "In the cited faithfulness experiments, how often did the tested models mention an inserted hint on average across hint types?",
         "choices": [
           "Almost always, because reasoning models narrate every input they use",
-          "Only a minority of the time: 25% for Claude 3.7 Sonnet and 39% for DeepSeek R1 on average",
-          "Never, because the models refused to answer hinted questions",
-          "Only when the prompt asked for a short answer"
+          "A minority of the time: 25% for Claude 3.7 Sonnet and 39% for DeepSeek R1",
+          "Never, because the models refused all hinted questions",
+          "Exactly half of the time for both models"
         ],
         "answerIndex": 1,
-        "explanation": "On average across hint types the models mentioned the hint in a minority of cases, and the unfaithful chains of thought were not simply shorter ones. This is why visible reasoning is not grounds for accepting an answer."
+        "explanation": "The module reports averages of 25% for Claude 3.7 Sonnet and 39% for DeepSeek R1. These results support treating visible reasoning as output that still requires verification."
       },
       {
         "id": "q-prompt-architecture-6",
-        "prompt": "A Gemini thinking model reaches a small max_output_tokens limit while it is still reasoning. What does Google document as the result?",
+        "prompt": "A review identifies unsupported claims in a draft. What must the revision call receive so it can verify the correction?",
         "choices": [
-          "The model skips thinking and answers directly",
-          "The API raises the limit automatically",
-          "Output can be truncated or empty, and the thinking tokens generated are still billed",
-          "Thinking tokens are free, so only the answer is billed"
+          "Only the draft",
+          "Only the review",
+          "The original source, the draft, and the review",
+          "Only an instruction to make the writing more confident"
         ],
         "answerIndex": 2,
-        "explanation": "max_output_tokens covers thinking and answer together. Hitting it mid-reasoning returns truncated or empty output while still billing the thinking already generated, which is why Google advises lowering thinking_level instead of setting a small output cap."
+        "explanation": "The revision call needs the original source as well as the draft and review. Without the source, it cannot independently verify whether the review findings or revised claims are supported."
       }
     ]
   },
