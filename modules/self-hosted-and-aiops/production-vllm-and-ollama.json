@@ -4,7 +4,7 @@
   "summary": "What happens underneath the API: iteration-level scheduling and PagedAttention, vLLM's prefill budget, prefix cache and preemption, Ollama's slot-reserved context, queue and residency model, and how to run either engine on a restricted network without trusting defaults you have not checked.",
   "level": "advanced",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-18",
   "providers": [
     "provider-neutral"
   ],
@@ -23,7 +23,7 @@
       "paragraphs": [
         "Generating text is two different workloads. The PagedAttention paper describes the prompt (prefill) phase as parallel matrix-matrix work that uses the GPU efficiently, and the autoregressive generation (decode) phase as one-token-at-a-time matrix-vector work that is memory-bound and accounts for most of a single request's latency. Batching many requests amortizes the cost of moving the weights, but naive batching makes early requests wait for late ones and pads requests of different lengths. Iteration-level scheduling -- which the paper credits to Orca and cellular batching -- removes finished requests and admits new ones after every iteration, so a new request waits for one iteration rather than for a whole batch, and padding disappears.",
         "Iteration-level scheduling does not remove the real limit: the number of requests that can be batched together is still constrained by the memory holding their KV caches, so throughput is memory-bound. PagedAttention attacks that limit by storing each request's KV cache in fixed-size blocks that need not be contiguous, allocated on demand like pages of virtual memory. Waste is confined to a request's last block, and blocks can be shared -- with copy-on-write -- between parallel samples or beam-search candidates. The paper reports 2-4x higher throughput than FasterTransformer and Orca at the same latency, with larger gains for longer sequences, larger models, and more complex decoding.",
-        "When memory runs out anyway, something has to give. The paper's scheduler is first-come-first-served and preempts the latest-arriving requests first, and it evicts all of a sequence's blocks or none, because a sequence's blocks are always accessed together. Evicted work is either swapped to CPU memory or recomputed later. Admit per iteration, allocate per block, and preempt whole sequences: those three rules are the mechanism behind every vLLM setting in the next section."
+        "When memory runs out anyway, something has to give. The paper's scheduler is first-come-first-served and preempts the latest-arriving requests first, and it evicts all of a sequence's blocks or none, because a sequence's blocks are always accessed together. Evicted work is either swapped to CPU memory or recomputed later. Admit per iteration, allocate per block, and preempt whole sequences: those rules explain scheduling and KV-cache pressure. Prefix-cache reuse and the configured GPU memory limit are separate decisions described below."
       ],
       "callout": "Throughput is bounded by KV-cache memory, not by how many requests you can accept. Paging is what lets the batch grow to the memory you actually have."
     },
@@ -38,7 +38,7 @@
       "code": {
         "language": "bash",
         "label": "A vLLM launch with every capacity decision stated explicitly (example values)",
-        "code": "# Flags are defined in vllm/engine/arg_utils.py; defaults live in vllm/config.\n# --max-model-len          cap context at what the application needs\n# --max-num-seqs           cap concurrently scheduled sequences\n# --max-num-batched-tokens per-step token budget: lower favours inter-token latency,\n#                          higher favours time to first token\n# --gpu-memory-utilization 0.92 is the default; stating it makes the choice reviewable\n# --kv-cache-dtype         auto = model dtype; fp8 halves KV bytes per element\nvllm serve meta-llama/Llama-3.1-8B-Instruct \\\n  --max-model-len 32768 \\\n  --max-num-seqs 64 \\\n  --max-num-batched-tokens 8192 \\\n  --gpu-memory-utilization 0.92 \\\n  --kv-cache-dtype auto\n\n# Then watch: vllm:kv_cache_usage_perc, vllm:num_requests_waiting,\n# vllm:time_to_first_token_seconds, vllm:inter_token_latency_seconds"
+        "code": "# Flags are defined in vllm/engine/arg_utils.py; defaults live in vllm/config.\n# --max-model-len          cap context at what the application needs\n# --max-num-seqs           cap concurrently scheduled sequences\n# --max-num-batched-tokens per-step token budget: lower favours inter-token latency,\n#                          higher favours time to first token\n# --gpu-memory-utilization 0.92 is an explicit example, not an asserted default\n# --kv-cache-dtype         auto = model dtype; fp8 halves KV bytes per element\nvllm serve meta-llama/Llama-3.1-8B-Instruct \\\n  --max-model-len 32768 \\\n  --max-num-seqs 64 \\\n  --max-num-batched-tokens 8192 \\\n  --gpu-memory-utilization 0.92 \\\n  --kv-cache-dtype auto\n\n# Then watch: vllm:kv_cache_usage_perc, vllm:num_requests_waiting,\n# vllm:time_to_first_token_seconds, vllm:inter_token_latency_seconds"
       }
     },
     {
@@ -46,7 +46,7 @@
       "title": "Ollama: reserved slots, queues, and residency",
       "paragraphs": [
         "Ollama documents two levels of concurrency. Several models can be loaded at once if memory allows, up to OLLAMA_MAX_LOADED_MODELS (default three per GPU, or three for CPU inference); on GPUs a new model must fit entirely in VRAM to load alongside the others, otherwise new requests queue until idle models are unloaded to make room. Within one model, OLLAMA_NUM_PARALLEL (default 1) sets how many requests are processed at the same time, and the FAQ is explicit about the cost: parallel processing increases the context size by the number of parallel requests -- a 2K context with 4 parallel requests becomes an 8K context with additional memory -- and required memory scales with OLLAMA_NUM_PARALLEL x OLLAMA_CONTEXT_LENGTH. Past OLLAMA_MAX_QUEUE queued requests (default 512) the server answers with a 503 overloaded error.",
-        "Put numbers on it with the previous module's derivation. Llama 3.1 8B needs 128 KiB of KV cache per token at 16 bits, and Ollama's default KV cache type is f16. With OLLAMA_CONTEXT_LENGTH=8192 and OLLAMA_NUM_PARALLEL=4 the allocation covers 4 x 8,192 = 32,768 tokens, or 32,768 x 128 KiB = 4 GiB of KV cache for this model. Setting OLLAMA_KV_CACHE_TYPE=q8_0 uses approximately half the memory of f16 and q4_0 approximately a quarter, but only when Flash Attention is enabled; the setting is global to all models, and the FAQ warns that models with a high GQA count may lose more precision from cache quantization.",
+        "Put numbers on it with the previous module's derivation. Llama 3.1 8B needs 128 KiB of KV cache per token at 16 bits, and Ollama's default KV cache type is f16. With OLLAMA_CONTEXT_LENGTH=8192 and OLLAMA_NUM_PARALLEL=4 the configured context capacity is 4 x 8,192 = 32,768 tokens, or 32,768 x 128 KiB = 4 GiB of KV cache for this model. This is a capacity estimate, not a measurement of memory resident at every instant; check memory and model residency on the running host. Setting OLLAMA_KV_CACHE_TYPE=q8_0 uses approximately half the memory of f16 and q4_0 approximately a quarter, but only when Flash Attention is enabled; the setting is global to all models, and the FAQ warns that models with a high GQA count may lose more precision from cache quantization.",
         "Check defaults on the running server rather than in the docs, because the docs disagree. As of this module's review, Ollama's FAQ says the default context window is 4096 tokens, while its context-length page lists VRAM-based defaults (4k below 24 GiB, 32k from 24 to 48 GiB, 256k at 48 GiB or more). ollama ps reports each loaded model's SIZE, PROCESSOR (100% GPU, 100% CPU, or a split such as 48%/52% CPU/GPU that means partial offload to system memory), CONTEXT, and UNTIL -- the residency clock. Models stay loaded for 5 minutes by default; keep_alive on /api/generate or /api/chat (a duration, seconds, a negative value to stay loaded, or 0 to unload) overrides OLLAMA_KEEP_ALIVE. Ollama's OpenAI-compatible endpoint has no way to set the context size, so a client on that API gets whatever the model or server default is unless you create a model with PARAMETER num_ctx in a Modelfile."
       ],
       "callout": "Ollama's KV allocation scales with configured slots x context length; vLLM's block usage tracks the tokens actually in flight. Size the two engines differently."
@@ -56,6 +56,7 @@
       "title": "Running either engine on a restricted network",
       "paragraphs": [
         "Ollama binds 127.0.0.1 on port 11434 by default and is exposed on a network only when OLLAMA_HOST changes the bind address. Its FAQ states that prompts and data are not seen by Ollama when models run locally, and that cloud features can be disabled -- setting OLLAMA_NO_CLOUD=1 or disable_ollama_cloud in ~/.ollama/server.json -- at the cost of losing cloud models and web search; the logs then show that cloud is disabled. The documented Docker command publishes port 11434 and mounts a named volume at /root/.ollama, so decide the published address and the volume's location deliberately rather than inheriting them.",
+        "For an Ollama host that will lose network access, pull each required model while connected with ollama pull, then confirm it is present with ollama ls. Preserve the model directory across restarts: Ollama documents the platform-specific defaults and lets you move it with OLLAMA_MODELS; its Docker example persists /root/.ollama in a volume. Set OLLAMA_NO_CLOUD=1 if cloud features must be unavailable, disconnect the host, and test ollama run against each staged model before relying on it. A model that has not been staged cannot be fetched after disconnection. Disabling cloud features and staging local weights solve different parts of offline operation.",
         "vLLM's OpenAI-compatible server carries a warning worth copying into every runbook: the --api-key option (or VLLM_API_KEY) authenticates only endpoints under the /v1, /v2, and /inference prefixes. Other endpoints on the same server are not authenticated -- notably /invocations, which exposes the same inference capabilities as /v1 -- so vLLM tells operators not to rely on --api-key alone and to harden the deployment, for example behind a reverse proxy. The official vllm/vllm-openai CUDA image runs as root by default for backward compatibility, but is prepared to run as a built-in vllm user (UID 2000, GID 0); mount writable caches under /home/vllm when you do.",
         "Disconnected hosts need models and compiled artifacts staged in advance. vLLM's Docker guide mounts the Hugging Face cache into the container so weights persist, and a named volume at VLLM_CACHE_ROOT so torch.compile artifacts are reused instead of rebuilt; VLLM_FORCE_AOT_LOAD=1 makes a cache miss fail loudly instead of silently recompiling. On the Hugging Face side, HF_HUB_OFFLINE=1 stops all HTTP calls to the Hub: only cached files are used, and a missing file raises an error instead of triggering a download. Test the disconnected start before you need it. The endpoint-identity-network-and-secrets module covers the full access design; these are the engine-specific defaults it has to override."
       ]
@@ -213,10 +214,10 @@
       "lastVerified": "2026-09-13"
     },
     {
-      "title": "Metrics (vLLM design documentation source)",
-      "url": "https://github.com/vllm-project/vllm/blob/main/docs/design/metrics.md",
+      "title": "Metrics (vLLM documentation)",
+      "url": "https://docs.vllm.ai/en/latest/design/metrics/",
       "publisher": "vLLM",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-18"
     },
     {
       "title": "OpenAI-Compatible Server (vLLM documentation source)",
@@ -225,10 +226,10 @@
       "lastVerified": "2026-09-13"
     },
     {
-      "title": "Using Docker (vLLM documentation source)",
-      "url": "https://github.com/vllm-project/vllm/blob/main/docs/deployment/docker.md",
+      "title": "Using Docker (vLLM documentation)",
+      "url": "https://docs.vllm.ai/en/latest/deployment/docker/",
       "publisher": "vLLM",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-18"
     },
     {
       "title": "Ollama FAQ",
@@ -259,6 +260,12 @@
       "url": "https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables",
       "publisher": "Hugging Face",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Ollama CLI Reference",
+      "url": "https://docs.ollama.com/cli",
+      "publisher": "Ollama",
+      "lastVerified": "2026-09-18"
     }
   ],
   "instructorScript": {
