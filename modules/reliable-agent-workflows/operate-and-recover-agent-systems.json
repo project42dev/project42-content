@@ -1,0 +1,278 @@
+{
+  "id": "operate-and-recover-agent-systems",
+  "title": "Operate, Recover, and Improve Agent Systems",
+  "summary": "Classify failures across the full agent stack, contain impact, reconcile uncertain actions, recover safely, and turn incidents into verified improvements.",
+  "level": "intermediate",
+  "providers": [
+    "provider-neutral"
+  ],
+  "estimatedMinutes": 56,
+  "objectives": [
+    "Distinguish model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure failures.",
+    "Triage severity and contain unsafe action, data exposure, cost, and cascading retries.",
+    "Recover with reconciliation, idempotency, rollback, replay, and human escalation.",
+    "Convert operational evidence into tests, controls, runbook updates, and measured improvement."
+  ],
+  "prerequisites": [
+    "review-agent-results"
+  ],
+  "sections": [
+    {
+      "id": "classify-before-changing",
+      "title": "Classify the failed boundary before changing the model",
+      "paragraphs": [
+        "Model failures include unsupported or incorrect generation. Prompt failures encode ambiguous or conflicting behavior. Tool failures include bad contracts, authorization, execution, or postconditions. Retrieval and data failures include missing, stale, poisoned, malformed, or cross-tenant evidence.",
+        "Policy failures allow forbidden action or block required escalation. Orchestration failures misroute, loop, race, or lose state. Infrastructure failures include capacity, network, dependency, credential, storage, and deployment faults. Several classes can occur in one incident, so record evidence instead of forcing one convenient cause."
+      ]
+    },
+    {
+      "id": "triage-and-contain",
+      "title": "Triage impact and contain first",
+      "paragraphs": [
+        "Assess affected users, tenants, data, permissions, external actions, money, availability, and legal or safety obligations. Set severity from actual and credible potential impact, not from how fluent the agent output looks.",
+        "Contain by pausing the workflow or one tool, revoking credentials, disabling a route, reducing concurrency, switching to a safe fallback, or requiring manual approval. Preserve secret-safe traces, configuration versions, request IDs, and postcondition evidence before mutable state disappears."
+      ],
+      "callout": "When the real-world outcome is unknown, do not classify the action as failed and retry it blindly."
+    },
+    {
+      "id": "reconcile-and-recover",
+      "title": "Reconcile before retry, rollback, or replay",
+      "paragraphs": [
+        "A transport timeout does not prove that a write failed. Query the system of record with an idempotency key or correlation ID, compare the intended and actual postcondition, then choose accept, compensate, retry, rollback, or escalate.",
+        "Retry only transient failures with exponential backoff, jitter, provider guidance, and a total budget. Do not retry validation, authorization, policy, or deterministic conflict failures unchanged. Roll back through a tested reversible path and verify the restored state."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Recovery decision",
+        "code": "if outcome == UNKNOWN: reconcile system_of_record\nif unauthorized or policy_blocked: stop + escalate\nif transient and retry_budget > 0: backoff + idempotent retry\nif harmful change and rollback_tested: rollback + verify\notherwise: preserve evidence + human decision"
+      }
+    },
+    {
+      "id": "runbook-and-communication",
+      "title": "Give responders a decision-ready runbook",
+      "paragraphs": [
+        "A runbook names triggers, severity, owner, communication channel, dashboards and queries, containment choices, credentials and approvals, reconciliation steps, rollback or fallback, validation, escalation, and closure criteria. Commands should be safe to copy and explicit about targets.",
+        "Status updates distinguish confirmed facts, hypotheses, actions, impact, and next decision. Notify affected people under the organization's incident and privacy obligations without exposing secrets or unsupported blame."
+      ]
+    },
+    {
+      "id": "learn-and-improve",
+      "title": "Close only after recovery evidence and prevention work",
+      "paragraphs": [
+        "Verify user-visible recovery, external postconditions, queues and retries, permissions, data isolation, cost, and monitoring. A green health endpoint alone may miss incomplete work or a duplicated side effect.",
+        "Write a blameless timeline and contributing factors, add the smallest reproducing case to the evaluation suite, improve the control at the failed boundary, rehearse the changed runbook, and measure recurrence. Track follow-up work to completion rather than treating the post-incident review as closure."
+      ]
+    }
+  ],
+  "activity": {
+    "id": "activity-agent-incident-runbook",
+    "title": "Triage and recover a multi-boundary agent incident",
+    "instructions": [
+      "Use a scenario where an agent times out after a consequential tool call, retrieves stale data, and produces an unsupported completion claim.",
+      "Build a timeline and classify model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure evidence without assuming one root cause.",
+      "Write the severity, containment, reconciliation, retry, rollback, communication, escalation, validation, and closure steps.",
+      "Convert the incident into regression cases, a control change, a runbook rehearsal, an owner, and a recurrence metric."
+    ],
+    "evidence": [
+      "A failure-classification matrix, incident timeline, impact and severity decision, and executable triage/recovery runbook.",
+      "Reconciliation and rollback evidence plus tracked evaluation, control, rehearsal, and monitoring improvements."
+    ],
+    "reflectionPrompt": "Which symptom looked like a model failure until the trace exposed a different failed boundary?"
+  },
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 1680,
+    "cues": [
+      {
+        "id": "cue-operations-classify",
+        "kind": "narration",
+        "sectionId": "classify-before-changing",
+        "text": "Classify model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure evidence before choosing a fix."
+      },
+      {
+        "id": "cue-operations-contain",
+        "kind": "narration",
+        "sectionId": "triage-and-contain",
+        "text": "Assess actual and potential impact, contain unsafe behavior, and preserve secret-safe evidence before it changes."
+      },
+      {
+        "id": "cue-operations-recover",
+        "kind": "narration",
+        "sectionId": "reconcile-and-recover",
+        "text": "Reconcile unknown outcomes before bounded retry, compensation, rollback, replay, or escalation."
+      },
+      {
+        "id": "cue-operations-visual",
+        "kind": "visual",
+        "sectionId": "reconcile-and-recover",
+        "text": "Move an uncertain tool action through contain, reconcile, decide, recover, verify, and close states.",
+        "accessibilityAlternative": "A static decision table lists evidence and allowed actions for contain, reconcile, decide, recover, verify, and close. Reduced-motion mode shows every state."
+      },
+      {
+        "id": "cue-operations-runbook",
+        "kind": "narration",
+        "sectionId": "runbook-and-communication",
+        "text": "Use a target-specific runbook and communicate confirmed facts, hypotheses, impact, actions, and required decisions separately."
+      },
+      {
+        "id": "cue-operations-improve",
+        "kind": "narration",
+        "sectionId": "learn-and-improve",
+        "text": "Close after user-visible recovery, then turn the incident into regression tests, control changes, rehearsal, and recurrence measures."
+      },
+      {
+        "id": "cue-operations-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "reconcile-and-recover",
+        "text": "Ask learners why a timeout after a write must be classified as unknown rather than failed."
+      },
+      {
+        "id": "cue-operations-pause",
+        "kind": "pause",
+        "sectionId": "runbook-and-communication",
+        "text": "Allow three minutes to add one exact rollback target and one human escalation trigger."
+      },
+      {
+        "id": "cue-operations-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "learn-and-improve",
+        "text": "Check that closure proves the external postcondition and assigns every prevention action."
+      },
+      {
+        "id": "cue-operations-activity",
+        "kind": "learner-prompt",
+        "text": "Guide failure classification, containment, reconciliation, rollback, communication, and prevention work."
+      },
+      {
+        "id": "cue-operations-assessment",
+        "kind": "assessment-handoff",
+        "text": "Begin the check after the learner can recover without duplicate impact or unsupported completion claims."
+      }
+    ],
+    "transcript": "Classify model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure evidence before choosing a fix. Assess actual and potential impact, contain unsafe behavior, and preserve secret-safe evidence before it changes. Reconcile unknown outcomes before bounded retry, compensation, rollback, replay, or escalation. Use a target-specific runbook and communicate confirmed facts, hypotheses, impact, actions, and required decisions separately. Close after user-visible recovery, then turn the incident into regression tests, control changes, rehearsal, and recurrence measures.",
+    "captions": [
+      {
+        "cueId": "cue-operations-classify",
+        "startSeconds": 0,
+        "endSeconds": 300,
+        "text": "Classify model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure evidence before choosing a fix."
+      },
+      {
+        "cueId": "cue-operations-contain",
+        "startSeconds": 330,
+        "endSeconds": 630,
+        "text": "Assess actual and potential impact, contain unsafe behavior, and preserve secret-safe evidence before it changes."
+      },
+      {
+        "cueId": "cue-operations-recover",
+        "startSeconds": 660,
+        "endSeconds": 990,
+        "text": "Reconcile unknown outcomes before bounded retry, compensation, rollback, replay, or escalation."
+      },
+      {
+        "cueId": "cue-operations-runbook",
+        "startSeconds": 1020,
+        "endSeconds": 1320,
+        "text": "Use a target-specific runbook and communicate confirmed facts, hypotheses, impact, actions, and required decisions separately."
+      },
+      {
+        "cueId": "cue-operations-improve",
+        "startSeconds": 1350,
+        "endSeconds": 1620,
+        "text": "Close after user-visible recovery, then turn the incident into regression tests, control changes, rehearsal, and recurrence measures."
+      }
+    ],
+    "reducedMotionAlternative": "Present failure classification and recovery as static decision and runbook tables with focus highlighting."
+  },
+  "knowledgeCheck": {
+    "passPercent": 80,
+    "questions": [
+      {
+        "id": "q-review-agent-1",
+        "prompt": "An agent gives the wrong answer because the retriever returned an expired policy. What is the primary failed boundary?",
+        "choices": [
+          "Retrieval or data freshness",
+          "Model style",
+          "Infrastructure capacity",
+          "User interface"
+        ],
+        "answerIndex": 0,
+        "explanation": "The evidence source was stale; changing model wording would not repair the failed retrieval/data boundary."
+      },
+      {
+        "id": "q-review-agent-2",
+        "prompt": "A write request times out after reaching the server. What should happen before retry?",
+        "choices": [
+          "Assume failure",
+          "Change models",
+          "Reconcile the idempotency key and actual postcondition",
+          "Retry without a limit"
+        ],
+        "answerIndex": 2,
+        "explanation": "The outcome is unknown until the system of record proves whether the side effect occurred."
+      },
+      {
+        "id": "q-review-agent-3",
+        "prompt": "Which failure should not be retried unchanged?",
+        "choices": [
+          "A transient 503 within budget",
+          "A validation or authorization rejection",
+          "A connection reset before any request",
+          "A provider-directed retry-after response"
+        ],
+        "answerIndex": 1,
+        "explanation": "Deterministic validation and authorization failures require corrected input or authority, not repetition."
+      },
+      {
+        "id": "q-review-agent-4",
+        "prompt": "What is the first priority when an agent may still be taking unsafe actions?",
+        "choices": [
+          "Write the postmortem",
+          "Increase concurrency",
+          "Contain the workflow or affected capability",
+          "Tune the prompt"
+        ],
+        "answerIndex": 2,
+        "explanation": "Containment limits ongoing impact before diagnosis and long-term remediation."
+      },
+      {
+        "id": "q-review-agent-5",
+        "prompt": "Which failure map correctly separates system boundaries?",
+        "choices": [
+          "Unsupported claim: model; conflicting instruction: prompt; bad action contract: tool; stale source: retrieval or data; forbidden action: policy; provider outage: infrastructure",
+          "Every failure is a model failure",
+          "A provider outage is a prompt failure and stale data is infrastructure",
+          "Authorization and tool execution are the same as output style"
+        ],
+        "answerIndex": 0,
+        "explanation": "Useful triage identifies the first failed boundary instead of treating every symptom as a model problem."
+      }
+    ]
+  },
+  "sources": [
+    {
+      "title": "Incident Response Recommendations and Considerations for Cybersecurity Risk Management",
+      "url": "https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf",
+      "publisher": "NIST",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Claude API errors",
+      "url": "https://platform.claude.com/docs/en/api/errors",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "OpenAI API error codes",
+      "url": "https://developers.openai.com/api/docs/guides/error-codes",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Artificial Intelligence Risk Management Framework",
+      "url": "https://www.nist.gov/itl/ai-risk-management-framework",
+      "publisher": "NIST",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}
