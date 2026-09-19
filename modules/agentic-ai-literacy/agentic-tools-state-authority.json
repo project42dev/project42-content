@@ -13,7 +13,8 @@
     "Locate the executor and authorization boundary for each tool.",
     "Separate model context, workflow state, memory, and audit evidence.",
     "Distinguish attempted, accepted, completed, failed, and unknown effects.",
-    "Identify where human approval and recovery authority remain."
+    "Identify where human approval and recovery authority remain.",
+    "Use exact request fingerprints, target-correlated receipts, and reconciliation to prevent false completion and duplicate effects."
   ],
   "prerequisites": [
     "agentic-control-flow"
@@ -23,16 +24,24 @@
       "id": "authority-tools",
       "title": "The executor owns the effect",
       "paragraphs": [
+        "The result must distinguish refusal, validation failure, accepted work, completed effect, timeout, and unknown outcome. A timeout after a possible write cannot safely be retried until reconciled.",
         "A trusted executor validates the typed request, caller, resolved target, permission, approval, budget, and idempotency key before acting. The model does not grant itself access.",
-        "The result must distinguish refusal, validation failure, accepted work, completed effect, timeout, and unknown outcome. A timeout after a possible write cannot safely be retried until reconciled."
-      ]
+        "A trusted executor validates the typed request, caller, independently resolved target, permission, approval, budget, and idempotency key before acting. The model proposes an action but does not grant itself access or authorize its own proposal.",
+        "Results must distinguish pre-effect refusal or validation failure, accepted work, completed effect, reliably observed failure, and UNKNOWN outcome. A timeout or other exception after a possible write cannot safely be treated as failure or retried until the effect is reconciled.",
+        "Treat model output as a proposal, not authorization. The trusted executor resolves the target independently, checks caller identity and permission, verifies exact approval from an authorized human through trusted policy, checks budget, binds an idempotency key to the request, invokes the tool, and verifies the effect against target evidence.",
+        "Accepted means the executor admitted a request and recorded work in progress. Completed means a valid target observation establishes the required postcondition and a receipt correlated to the request. Failed means a reliable, well-formed target observation establishes that the required postcondition is not present. UNKNOWN means a possible effect cannot be classified because execution or observation is uncertain, including when inspection is missing, malformed, or throws. A pre-effect refusal or validation failure is different from post-effect failure or uncertainty.",
+        "Bind each key to an immutable fingerprint of action, target, reason, caller, and key. Reusing a key with a changed fingerprint is rejected. A matching key in unknown or failed state cannot become completed merely because it was seen before. Only a verified completed record with the exact fingerprint may return completed-deduplicated."
+      ],
+      "callout": "Boundary flow: proposal -> strict typed validation -> caller and resolved-target checks -> independent exact approval -> budget and idempotency -> accepted -> execution -> valid correlated observation -> completed, reliably observed failed, or UNKNOWN. Missing, malformed, or unavailable post-effect observation produces UNKNOWN."
     },
     {
       "id": "authority-state",
       "title": "State has different purposes and owners",
       "paragraphs": [
         "Working context helps the current decision. Durable workflow state survives restart. Memory retains governed facts or preferences. Audit evidence records accountable events. Treating all four as a chat transcript creates privacy and recovery failures.",
-        "For each state class, record writer, reader, source, version, retention, correction, deletion, and conflict behavior."
+        "For each state class, record writer, reader, source, version, retention, correction, deletion, and conflict behavior.",
+        "Working context is temporary and orchestration-owned. The model and executor adapter may read it, but it is not evidence. Workflow state records validated requests, approval references, budget, keys, and statuses for resumption. Memory contains governed facts or preferences with a steward and correction process. Audit evidence is append-oriented accountability data that reviewers can inspect and that failures must not silently rewrite.",
+        "The supplied exercise models workflow state, memory, and audit evidence in memory only. It does not survive process restart and does not claim restart durability. A production restart claim would require actual persistent storage and a separate-process recovery test."
       ]
     },
     {
@@ -40,7 +49,9 @@
       "title": "Approval binds a person to an exact action",
       "paragraphs": [
         "A meaningful approval identifies the action, target, parameters, evidence, approver authority, time, expiry, and permitted variation. Confidence or prior approval does not authorize a changed target.",
-        "People retain authority over scope, consequential effects, exceptions, learner assessment, and publication. A model can recommend but cannot create that authority."
+        "People retain authority over scope, consequential effects, exceptions, learner assessment, and publication. A model can recommend but cannot create that authority.",
+        "The fictional fixture treats Maya as the human records coordinator. The trusted policy, not the model, issues her approval for the exact tuple archive, DOC-17, training-retention, assistant-session-44. The executor checks the approver, authority, issue time, expiry, request fields, and independently resolved target.",
+        "Jointly changing an untrusted request and an approval object to DOC-18 still fails. Matching untrusted text does not create authority because the independent policy permits only DOC-17. A changed target, expired approval, unauthorized caller, or invented approval is rejected before any effect."
       ]
     },
     {
@@ -48,8 +59,109 @@
       "title": "Unknown outcomes require reconciliation",
       "paragraphs": [
         "Recovery starts from observed state, not from the agent's narrative. Inspect the real target, correlate the request, classify effects, and choose resume, retry, compensate, roll back, or escalate.",
-        "A truthful agentic system can end failed, blocked, cancelled, budget-exceeded, needs-approval, or unknown. Converting uncertainty to success hides risk."
+        "A truthful agentic system can end failed, blocked, cancelled, budget-exceeded, needs-approval, or unknown. Converting uncertainty to success hides risk.",
+        "After a timeout that could follow a write, the executor must record UNKNOWN immediately, even if inspection is missing, malformed, or throws. That is post-effect uncertainty, not a pre-effect rejection, and budget or workflow mutations must not be rolled back as though execution never started.",
+        "Reconciliation requires the exact workflow record and fingerprint, the exact target postcondition, and a target receipt correlated to the request key. A historical row with matching status and reason but no correlated receipt does not prove causality. Unavailable or malformed inspection preserves UNKNOWN and calls for escalation.",
+        "Only verified completed state may be deduplicated. An unknown same-key retry is blocked pending reconciliation. A failed same-key retry is also blocked and cannot be reported as success. If reliable evidence establishes no effect and policy permits retry, recovery may retry with the original key. A new key is a new request and can permit duplication."
       ]
+    },
+    {
+      "id": "authority-case",
+      "title": "Worked case: archive one fictional document",
+      "paragraphs": [
+        "Maya is a human records coordinator in the fictional Northstar training archive. No real service, account, authentication system, customer data, or live model is involved. The assistant proposes this typed request: action=archive, target=DOC-17, reason=training-retention, caller=assistant-session-44, key=archive-DOC-17-20260919.",
+        "The trusted executor validates runtime fields, resolves DOC-17 independently in the local fixture, checks the caller, verifies the exact approval issued by the independent fixture policy, checks approval time and expiry, checks budget, and binds the key to the immutable fingerprint (archive, DOC-17, training-retention, assistant-session-44, archive-DOC-17-20260919). The model proposes; it does not authorize.",
+        "The exact approval fields are approver=Maya, authority=records-coordinator, action=archive, target=DOC-17, reason=training-retention, issued_at=100, expires_at=110. The policy permits only action=archive, target=DOC-17, reason=training-retention, caller=assistant-session-44. A matching learner-created approval is not sufficient because the trusted policy must issue the approval.",
+        "Before invoking the target, the executor reserves one budget unit, stores the workflow record with status=accepted and receipt=None, and appends an accepted audit event. Accepted proves admission only. The fictional target changes DOC-17 from status=active to status=archived, stores reason=training-retention and receipt=archive-DOC-17-20260919, and increments writes. The executor returns completed only after inspection finds all required fields and the exact postcondition.",
+        "In the timeout path, the target writes and then raises TimeoutError. The executor records status=unknown immediately. Inspection is not assumed to work. If later inspection is unavailable, malformed, or uncorrelated, reconciliation remains unresolved. If it later returns status=archived, reason=training-retention, and receipt=archive-DOC-17-20260919 for the exact workflow fingerprint and target, reconciliation changes the record to completed without a second write. A later exact same-key execution returns completed-deduplicated.",
+        "The string tool-attestation: archive submitted is a fictional adapter message, not effect evidence. Evidence is the inspected target row plus the receipt correlated to the immutable request fingerprint. The target is a local dictionary, so all evidence is bounded to the running process. This exercise does not demonstrate restart durability, deployment authorization, authentication, or live provider behavior."
+      ]
+    },
+    {
+      "id": "authority-state-map",
+      "title": "State-class lifecycle map",
+      "paragraphs": [
+        "This map describes the fictional offline exercise. Each state class has a distinct owner, writer, reader, source, version, retention, correction, deletion, conflict behavior, and limitation.",
+        "Working context: owner=orchestration loop; writers=current run; readers=model and executor adapter; source=current typed proposal and retrieved fixture data; version=run-context revision; retention=short-lived run window; correction=replace unverified context with verified data; deletion=clear after the configured lifetime; conflict=trusted executor source wins or escalation; limitation=context is not completion evidence.",
+        "Workflow state: owner=workflow service; writers=trusted executor; readers=execution and recovery handlers; source=validated requests and executor decisions; version=workflow revision; retention=workflow policy; correction=explicit transition or migration; deletion=policy-controlled; conflict=reject or escalate inconsistent revisions; limitation=the exercise stores records only in memory and cannot resume after process restart.",
+        "Memory: owner=designated data steward; writers=approved memory operations; readers=authorized workflows; source=governed human or system record; version=memory-record revision; retention=declared purpose and policy; correction=source-of-truth process; deletion=policy-controlled; conflict=source comparison or human review; limitation=a stored role or preference does not prove a tool effect.",
+        "Audit evidence: owner=accountability function; writers=executor and recovery path; readers=authorized reviewers and incident responders; source=attributable runtime events and correlated observations; version=event-schema revision; retention=audit policy; correction=append a correction event rather than silently rewriting history; deletion=restricted by policy; conflict=preserve and escalate; limitation=an adapter attestation is not target evidence.",
+        "The exercise models workflow state, memory, and audit evidence in process memory only. It does not claim persistence, restart durability, deployment authorization, authentication, or a live model. A production restart claim would require persistent storage and a separate-process recovery test."
+      ]
+    },
+    {
+      "id": "authority-transfer",
+      "title": "Provider-neutral transfer",
+      "paragraphs": [
+        "The boundary is architectural, not proof supplied by a brand. Whether a proposal originates from Meta/Llama, DeepSeek, Qwen, Mistral, Phi, NVIDIA, Z.ai, or a hosted deployment, it remains a proposal until a trusted executor enforces identity, target, permission, exact approval, budget, idempotency, evidence, and recovery.",
+        "Provider documentation can describe message and tool-call interfaces. An interface does not itself prove authorization, target correctness, completion, or safe reconciliation. Changing providers may change syntax, latency, or integration details, but provider selection alone should not change the authority decision.",
+        "Apply the same questions to any deployment: Who resolves identity and target? Who can issue approval? Where is the immutable fingerprint stored? What evidence establishes the effect? What happens when inspection is unavailable? A provider name is not an answer to any of those control questions."
+      ]
+    },
+    {
+      "id": "authority-exercise",
+      "title": "Offline Python exercise: enforce the boundary",
+      "paragraphs": [
+        "Save the following as authority_exercise.py and run it with Python 3. It uses only the standard library and fictional local data. Setup is automatic, it makes no network or filesystem changes, and cleanup consists only of ending the process. Its state is deliberately in memory and does not survive restart.",
+        "The assertion suite calls the full executor and reconciliation boundaries. It tests UNKNOWN after a possible write when inspection raises, returns None, returns a non-dictionary value, omits required dictionary fields, or returns fields with invalid types. It also tests an arbitrary exception after a write, safe same-key blocking before reconciliation, eventual correlated reconciliation, reliably observed failed postconditions, completed deduplication, changed-payload reuse, malformed fields, whitespace keys, bool time and expiry, budget, jointly mutated target and approval, and wrong or uncorrelated reconciliation evidence.",
+        "A well-formed observation with an active status is reliable contrary evidence, so the exercise classifies that path as failed. An absent, malformed, or unavailable observation is not contrary evidence and leaves the post-effect result unknown. Every exception after invocation is classified so that no request remains accepted forever. Timeout is recorded as unknown before any later inspection attempt.",
+        "Pre-effect rejections must leave deep target state, writes, budget, records, and audit unchanged. Post-effect UNKNOWN preserves the accepted record, reserved budget, audit history, and any target write that may already have occurred. The expected-output section is derived by tracing the program and is not a claim that the code was executed during authoring.",
+        "Two controls are distinct. Executor-level idempotency prevents a verified completed same-key request from invoking the target again. The target's already-archived guard prevents another archive write to the same row. Neither control proves that an arbitrary new key is safe, and the exercise makes no such claim."
+      ],
+      "code": {
+        "language": "python",
+        "label": "authority_exercise.py",
+        "code": "from dataclasses import dataclass\nfrom copy import deepcopy\nfrom typing import Any\n\n\nclass ControlledFailure(Exception):\n    pass\n\n\n@dataclass(frozen=True)\nclass Request:\n    action: str\n    target: str\n    reason: str\n    caller: str\n    key: str\n\n\n@dataclass(frozen=True)\nclass Approval:\n    approver: str\n    authority: str\n    action: str\n    target: str\n    reason: str\n    issued_at: int\n    expires_at: int\n\n\nclass FixturePolicy:\n    permitted = ('archive', 'DOC-17', 'training-retention',\n                 'assistant-session-44')\n\n    def issue(self, request, now):\n        if not isinstance(request, Request):\n            raise ControlledFailure('approval-policy-denied')\n        if (request.action, request.target, request.reason,\n                request.caller) != self.permitted:\n            raise ControlledFailure('approval-policy-denied')\n        if not isinstance(now, int) or isinstance(now, bool):\n            raise ControlledFailure('approval-policy-denied')\n        return Approval('Maya', 'records-coordinator', 'archive', 'DOC-17',\n                        'training-retention', now, now + 10)\n\n\nclass ArchiveTarget:\n    def __init__(self):\n        self.rows = {\n            'DOC-17': {\n                'status': 'active',\n                'reason': None,\n                'receipt': None\n            }\n        }\n        self.writes = 0\n        self.timeout_once = False\n        self.write_exception_once = False\n        self.fail_postcondition_once = False\n        self.inspect_mode = 'normal'\n\n    def archive(self, request):\n        row = self.rows.get(request.target)\n        if row is None:\n            raise ControlledFailure('target-not-found')\n        if row['status'] != 'archived':\n            row.update(status='archived', reason=request.reason,\n                       receipt=request.key)\n            self.writes += 1\n        if self.timeout_once:\n            self.timeout_once = False\n            raise TimeoutError('fixture-timeout-after-possible-write')\n        if self.write_exception_once:\n            self.write_exception_once = False\n            raise RuntimeError('fixture-arbitrary-error-after-possible-write')\n        return 'tool-attestation: archive submitted'\n\n    def inspect(self, target):\n        if self.inspect_mode == 'raise':\n            raise OSError('fixture-inspection-unavailable')\n        if self.inspect_mode == 'none':\n            return None\n        if self.inspect_mode == 'malformed':\n            return []\n        if self.inspect_mode == 'malformed_dict':\n            return {'status': 'archived'}\n        if self.inspect_mode == 'malformed_types':\n            return {'status': 'archived', 'reason': [], 'receipt': 17}\n        row = self.rows.get(target)\n        return None if row is None else deepcopy(row)\n\n\nclass Executor:\n    def __init__(self, target, policy, budget=2):\n        self.target = target\n        self.policy = policy\n        self.budget = budget\n        self.records = {}\n        self.audit = []\n\n    @staticmethod\n    def _string(value):\n        return isinstance(value, str) and bool(value.strip())\n\n    def _valid_request(self, value):\n        return (isinstance(value, Request) and all(\n            self._string(getattr(value, name))\n            for name in ('action', 'target', 'reason', 'caller', 'key')))\n\n    def _valid_approval(self, value):\n        return (isinstance(value, Approval) and all(\n            self._string(getattr(value, name))\n            for name in ('approver', 'authority', 'action', 'target', 'reason')) and\n            isinstance(value.issued_at, int) and\n            not isinstance(value.issued_at, bool) and\n            isinstance(value.expires_at, int) and\n            not isinstance(value.expires_at, bool))\n\n    @staticmethod\n    def _fingerprint(request):\n        return (request.action, request.target, request.reason,\n                request.caller, request.key)\n\n    @staticmethod\n    def _valid_observation(row):\n        if not isinstance(row, dict):\n            return False\n        if not all(name in row for name in ('status', 'reason', 'receipt')):\n            return False\n        if not isinstance(row['status'], str) or not row['status'].strip():\n            return False\n        if row['reason'] is not None and not isinstance(row['reason'], str):\n            return False\n        if row['receipt'] is not None and not isinstance(row['receipt'], str):\n            return False\n        return True\n\n    @classmethod\n    def _postcondition(cls, row, request):\n        return (cls._valid_observation(row) and\n                row['status'] == 'archived' and\n                row['reason'] == request.reason and\n                row['receipt'] == request.key)\n\n    def _snapshot(self):\n        return (deepcopy(self.target.rows), self.target.writes, self.budget,\n                deepcopy(self.records), list(self.audit))\n\n    def _same_snapshot(self, before):\n        return before == (self.target.rows, self.target.writes, self.budget,\n                          self.records, self.audit)\n\n    def _preflight(self, request, approval, now):\n        if not self._valid_request(request) or not self._valid_approval(approval):\n            raise ControlledFailure('malformed-input')\n        if not isinstance(now, int) or isinstance(now, bool):\n            raise ControlledFailure('malformed-time')\n        if request.caller != 'assistant-session-44':\n            raise ControlledFailure('unauthorized-caller')\n        if request.action != 'archive' or request.target not in self.target.rows:\n            raise ControlledFailure('validation-failed')\n        if (approval.approver, approval.authority) != (\n                'Maya', 'records-coordinator'):\n            raise ControlledFailure('approver-not-authorized')\n        if approval.issued_at > now or now >= approval.expires_at:\n            raise ControlledFailure('approval-expired')\n        if (request.action, request.target, request.reason) != (\n                approval.action, approval.target, approval.reason):\n            raise ControlledFailure('approval-mismatch')\n        issued = self.policy.issue(request, approval.issued_at)\n        if issued != approval:\n            raise ControlledFailure('approval-not-issued-by-trusted-policy')\n        fingerprint = self._fingerprint(request)\n        old = self.records.get(request.key)\n        if old is not None:\n            if old.get('fingerprint') != fingerprint:\n                raise ControlledFailure('key-payload-mismatch')\n            if old.get('status') == 'completed':\n                return 'completed-deduplicated'\n            if old.get('status') in ('unknown', 'failed'):\n                raise ControlledFailure('reconcile-before-retry')\n            raise ControlledFailure('key-in-progress')\n        if self.budget < 1:\n            raise ControlledFailure('budget-exceeded')\n        return None\n\n    def _record_unknown(self, request, event):\n        self.records[request.key]['status'] = 'unknown'\n        self.audit.append(event + ':' + request.key)\n        return 'unknown'\n\n    def execute(self, request: Any, approval: Any, now: Any):\n        before = self._snapshot()\n        try:\n            prior = self._preflight(request, approval, now)\n        except (ControlledFailure, TypeError, AttributeError) as error:\n            assert self._same_snapshot(before)\n            return 'rejected:' + str(error)\n        if prior is not None:\n            assert self._same_snapshot(before)\n            return prior\n\n        fingerprint = self._fingerprint(request)\n        self.budget -= 1\n        self.records[request.key] = {\n            'fingerprint': fingerprint,\n            'status': 'accepted',\n            'receipt': None\n        }\n        self.audit.append('accepted:' + request.key)\n\n        try:\n            self.target.archive(request)\n        except TimeoutError:\n            return self._record_unknown(request, 'unknown-timeout')\n        except Exception:\n            return self._record_unknown(request, 'unknown-tool-exception')\n\n        try:\n            row = self.target.inspect(request.target)\n        except Exception:\n            return self._record_unknown(request, 'unknown-inspection')\n\n        if self.target.fail_postcondition_once:\n            self.target.fail_postcondition_once = False\n            row = {'status': 'active', 'reason': None, 'receipt': None}\n\n        if not self._valid_observation(row):\n            return self._record_unknown(request, 'unknown-observation')\n\n        if not self._postcondition(row, request):\n            self.records[request.key]['status'] = 'failed'\n            self.audit.append('failed-postcondition:' + request.key)\n            return 'failed'\n\n        self.records[request.key].update(\n            status='completed', receipt=request.key)\n        self.audit.append('completed:' + request.key)\n        return 'completed'\n\n    def reconcile(self, request: Any):\n        if not self._valid_request(request):\n            return 'unknown-needs-escalation'\n        record = self.records.get(request.key)\n        if not isinstance(record, dict):\n            return 'unknown-needs-escalation'\n        if record.get('fingerprint') != self._fingerprint(request):\n            return 'unknown-needs-escalation'\n        if record.get('status') != 'unknown':\n            return 'unknown-needs-escalation'\n        try:\n            row = self.target.inspect(request.target)\n        except Exception:\n            return 'unknown-needs-escalation'\n        if not self._valid_observation(row):\n            return 'unknown-needs-escalation'\n        if not self._postcondition(row, request):\n            return 'unknown-needs-escalation'\n        record.update(status='completed', receipt=request.key)\n        self.audit.append('reconciled-completed:' + request.key)\n        return 'completed-after-reconciliation'\n\n\ndef setup(budget=2, key='archive-DOC-17-20260919'):\n    target = ArchiveTarget()\n    executor = Executor(target, FixturePolicy(), budget)\n    request = Request('archive', 'DOC-17', 'training-retention',\n                      'assistant-session-44', key)\n    approval = executor.policy.issue(request, 100)\n    return target, executor, request, approval\n\n\ndef assert_unchanged(executor, before):\n    assert executor._same_snapshot(before)\n\n\ndef assertion_suite():\n    # Timeout after a possible write is UNKNOWN before any inspection.\n    target, executor, request, approval = setup()\n    target.timeout_once = True\n    target.inspect_mode = 'raise'\n    assert executor.execute(request, approval, 100) == 'unknown'\n    assert target.writes == 1\n    assert executor.records[request.key]['status'] == 'unknown'\n    assert executor.execute(request, approval, 100) == \\\n        'rejected:reconcile-before-retry'\n    target.inspect_mode = 'normal'\n    assert executor.reconcile(request) == \\\n        'completed-after-reconciliation'\n    assert executor.execute(request, approval, 100) == \\\n        'completed-deduplicated'\n    assert target.writes == 1\n\n    # Successful writes with unreadable observations remain UNKNOWN.\n    observation_modes = (\n        'none', 'raise', 'malformed', 'malformed_dict', 'malformed_types'\n    )\n    for index, mode in enumerate(observation_modes):\n        key = 'archive-DOC-17-observation-' + str(index)\n        target, executor, request, approval = setup(key=key)\n        target.inspect_mode = mode\n        assert executor.execute(request, approval, 100) == 'unknown'\n        assert target.writes == 1\n        assert executor.records[request.key]['status'] == 'unknown'\n        assert executor.execute(request, approval, 100) == \\\n            'rejected:reconcile-before-retry'\n        target.inspect_mode = 'normal'\n        assert executor.reconcile(request) == \\\n            'completed-after-reconciliation'\n        assert executor.execute(request, approval, 100) == \\\n            'completed-deduplicated'\n        assert target.writes == 1\n\n    # An arbitrary exception after a possible write cannot leave accepted forever.\n    target, executor, request, approval = setup(\n        key='archive-DOC-17-arbitrary-exception')\n    target.write_exception_once = True\n    assert executor.execute(request, approval, 100) == 'unknown'\n    assert target.writes == 1\n    assert executor.records[request.key]['status'] == 'unknown'\n    assert executor.execute(request, approval, 100) == \\\n        'rejected:reconcile-before-retry'\n    assert executor.reconcile(request) == \\\n        'completed-after-reconciliation'\n    assert executor.execute(request, approval, 100) == \\\n        'completed-deduplicated'\n    assert target.writes == 1\n\n    # A reliable active-row observation is failed, not UNKNOWN or success.\n    target, executor, request, approval = setup(\n        key='archive-DOC-17-failed')\n    target.fail_postcondition_once = True\n    assert executor.execute(request, approval, 100) == 'failed'\n    assert executor.records[request.key]['status'] == 'failed'\n    assert executor.execute(request, approval, 100) == \\\n        'rejected:reconcile-before-retry'\n\n    # A reused key with changed payload is rejected.\n    target, executor, request, approval = setup(\n        key='archive-DOC-17-shared')\n    assert executor.execute(request, approval, 100) == 'completed'\n    changed = Request('archive', 'DOC-17', 'other-reason',\n                      'assistant-session-44', request.key)\n    changed_approval = Approval(\n        'Maya', 'records-coordinator', 'archive', 'DOC-17',\n        'other-reason', 100, 110)\n    before = executor._snapshot()\n    assert executor.execute(changed, changed_approval, 100) == \\\n        'rejected:approval-policy-denied'\n    assert_unchanged(executor, before)\n\n    # Full-executor malformed and authorization checks have no side effects.\n    cases = []\n    target, executor, request, approval = setup()\n    cases.append(({'action': 'archive'}, approval, 100,\n                  'rejected:malformed-input'))\n    cases.append((Request('archive', 'DOC-17', 'training-retention',\n                          'assistant-session-44', '   '),\n                  approval, 100, 'rejected:malformed-input'))\n    bool_expiry = Approval(\n        'Maya', 'records-coordinator', 'archive', 'DOC-17',\n        'training-retention', 100, True)\n    cases.append((request, bool_expiry, 100, 'rejected:malformed-input'))\n    cases.append((request, approval, True, 'rejected:malformed-time'))\n    unauthorized = Request(\n        'archive', 'DOC-17', 'training-retention',\n        'unknown-caller', 'archive-DOC-17-unauth')\n    cases.append((unauthorized, approval, 100,\n                  'rejected:unauthorized-caller'))\n    expired = Approval(\n        'Maya', 'records-coordinator', 'archive', 'DOC-17',\n        'training-retention', 90, 100)\n    cases.append((request, expired, 100, 'rejected:approval-expired'))\n    for req, app, now, expected in cases:\n        before = executor._snapshot()\n        assert executor.execute(req, app, now) == expected\n        assert_unchanged(executor, before)\n\n    # Jointly mutated request and approval still fail independent policy.\n    changed = Request(\n        'archive', 'DOC-18', 'training-retention',\n        'assistant-session-44', 'archive-DOC-18-20260919')\n    changed_approval = Approval(\n        'Maya', 'records-coordinator', 'archive', 'DOC-18',\n        'training-retention', 100, 110)\n    before = executor._snapshot()\n    assert executor.execute(changed, changed_approval, 100) == \\\n        'rejected:validation-failed'\n    assert_unchanged(executor, before)\n\n    # Budget exhaustion is checked before acceptance or target execution.\n    target, executor, request, approval = setup(budget=0)\n    before = executor._snapshot()\n    assert executor.execute(request, approval, 100) == \\\n        'rejected:budget-exceeded'\n    assert_unchanged(executor, before)\n\n    # Bad reconciliation inputs and observations preserve UNKNOWN.\n    target, executor, request, approval = setup()\n    target.timeout_once = True\n    assert executor.execute(request, approval, 100) == 'unknown'\n    record_before = deepcopy(executor.records)\n    audit_before = list(executor.audit)\n    assert executor.reconcile(None) == 'unknown-needs-escalation'\n    assert executor.reconcile({}) == 'unknown-needs-escalation'\n    wrong_key = Request(\n        'archive', 'DOC-17', 'training-retention',\n        'assistant-session-44', 'wrong-key')\n    wrong_target = Request(\n        'archive', 'DOC-18', 'training-retention',\n        'assistant-session-44', request.key)\n    assert executor.reconcile(wrong_key) == 'unknown-needs-escalation'\n    assert executor.reconcile(wrong_target) == 'unknown-needs-escalation'\n    for mode in ('malformed', 'none', 'raise',\n                 'malformed_dict', 'malformed_types'):\n        target.inspect_mode = mode\n        assert executor.reconcile(request) == \\\n            'unknown-needs-escalation'\n    target.inspect_mode = 'normal'\n    target.rows['DOC-17']['receipt'] = 'historical-other-key'\n    assert executor.reconcile(request) == 'unknown-needs-escalation'\n    assert executor.records[request.key]['status'] == 'unknown'\n    assert executor.audit == audit_before\n    assert executor.records == record_before\n\n    # Restoring exact correlated evidence permits eventual reconciliation.\n    target.rows['DOC-17'].update(\n        status='archived', reason=request.reason, receipt=request.key)\n    writes_before = target.writes\n    assert executor.reconcile(request) == \\\n        'completed-after-reconciliation'\n    assert executor.execute(request, approval, 100) == \\\n        'completed-deduplicated'\n    assert target.writes == writes_before\n\n\ndef run_demo():\n    target, executor, request, approval = setup()\n    target.timeout_once = True\n    target.inspect_mode = 'raise'\n    print('accepted != completed: accepted is recorded before the tool result')\n    print('timeout with inspection unavailable:',\n          executor.execute(request, approval, 100))\n    print('status after timeout:', executor.records[request.key]['status'])\n    print('writes after timeout:', target.writes)\n    print('blind same-key retry:',\n          executor.execute(request, approval, 100))\n    target.inspect_mode = 'normal'\n    print('reconciliation:', executor.reconcile(request))\n    print('same-key retry after completion:',\n          executor.execute(request, approval, 100))\n    print('writes after reconciliation and retry:', target.writes)\n\n    changed = Request(\n        'archive', 'DOC-18', 'training-retention',\n        'assistant-session-44', 'archive-DOC-18-20260919')\n    changed_approval = Approval(\n        'Maya', 'records-coordinator', 'archive', 'DOC-18',\n        'training-retention', 100, 110)\n    print('changed target jointly mutated:',\n          executor.execute(changed, changed_approval, 100))\n\n    expired = Approval(\n        'Maya', 'records-coordinator', 'archive', 'DOC-17',\n        'training-retention', 90, 100)\n    print('expired approval:', executor.execute(request, expired, 100))\n\n    unauthorized = Request(\n        'archive', 'DOC-17', 'training-retention',\n        'unknown-caller', 'archive-DOC-17-unauth')\n    print('unauthorized caller:',\n          executor.execute(unauthorized, approval, 100))\n\n    malformed = Request(\n        'archive', 'DOC-17', 'training-retention',\n        'assistant-session-44', '   ')\n    print('whitespace key:',\n          executor.execute(malformed, approval, 100))\n    assertion_suite()\n    print('assertions: passed')\n\n\nif __name__ == '__main__':\n    run_demo()\n"
+      }
+    },
+    {
+      "id": "authority-output",
+      "title": "Expected output",
+      "paragraphs": [
+        "This is the complete expected stdout for the supplied program in a clean Python 3 process. It is derived by tracing the printed function results and is not a claim that the program was executed during authoring."
+      ],
+      "code": {
+        "language": "text",
+        "label": "expected stdout",
+        "code": "accepted != completed: accepted is recorded before the tool result\ntimeout with inspection unavailable: unknown\nstatus after timeout: unknown\nwrites after timeout: 1\nblind same-key retry: rejected:reconcile-before-retry\nreconciliation: completed-after-reconciliation\nsame-key retry after completion: completed-deduplicated\nwrites after reconciliation and retry: 1\nchanged target jointly mutated: rejected:validation-failed\nexpired approval: rejected:approval-expired\nunauthorized caller: rejected:unauthorized-caller\nwhitespace key: rejected:malformed-input\nassertions: passed"
+      }
+    },
+    {
+      "id": "authority-learner-task",
+      "title": "Independent changed-input task",
+      "paragraphs": [
+        "Complete this task before reading the key. Use a fresh local fixture and add fictional DOC-18 as an active row so target resolution succeeds. First submit the exact request action=archive, target=DOC-18, reason=legal-hold, caller=reviewer-session-9, key=archive-DOC-18-legal-20260919, together with a textually matching approval: approver=Maya, authority=records-coordinator, action=archive, target=DOC-18, reason=legal-hold, issued_at=100, expires_at=110. Submit both to the full executor. Apply ordered first-failure semantics. The caller check occurs before the independent policy check, so this exact changed-input task must return rejected:unauthorized-caller, not rejected:approval-policy-denied. Confirm that target state, writes, budget, workflow records, and audit events are unchanged.",
+        "Do not silently replace the original changed-input case. As a controlled comparison, create a separate fresh DOC-18 active row and use the permitted caller assistant-session-44 with the matching approval fields above. Target resolution and caller validation should now pass, allowing the independent fixture policy to reject the tuple as rejected:approval-policy-denied. Confirm that this rejection also occurs before budget reservation or target mutation.",
+        "Then create a fresh DOC-17 failed-postcondition case with request action=archive, target=DOC-17, reason=training-retention, caller=assistant-session-44, key=archive-DOC-17-independent-failed and the exact Maya approval issued_at=100, expires_at=110. Set fail_postcondition_once before execution. The first result must be failed. An immediate same-key call must return rejected:reconcile-before-retry, not completed-deduplicated.",
+        "Finally create a fresh timeout-after-write case with key archive-DOC-17-independent-timeout. Set inspection unavailable for the execute call. Record UNKNOWN, then test malformed input, wrong key, wrong target, unavailable inspection, and a missing or uncorrelated receipt during reconciliation. Restore the exact archived row, reason, and request receipt only at the end. Reconcile to completed-after-reconciliation and confirm that an exact same-key execute does not increase writes.",
+        "For every path, report the complete typed request, every approval field, resolved target, trusted policy decision, executor result, target before and after, writes before and after, budget before and after, immutable fingerprint, workflow status, receipt, audit events, reconciliation observation, and recovery decision. Send at least one malformed dictionary and one bool execution time through the full executor. Prove with a deep snapshot that each pre-effect rejection leaves target state, writes, budget, records, and audit unchanged."
+      ],
+      "callout": "Hints: compare request, resolved target, approval, caller, and independent policy separately. Validate runtime values rather than relying on dataclass annotations. Record UNKNOWN after a possible effect and before inspection. Require the exact fingerprint, valid postcondition, and correlated receipt. Deduplicate only verified completed records. Feedback: if the original DOC-18 request returns approval-policy-denied, caller ordering was skipped; if the controlled assistant-session-44 comparison succeeds, the independent policy was not consulted; if UNKNOWN becomes rejection after a possible write, pre-effect and post-effect outcomes were mixed; if failed becomes completed, the status gate is missing."
+    },
+    {
+      "id": "authority-learner-evidence",
+      "title": "Changed-input evidence template",
+      "paragraphs": [
+        "Copy this template for each independent path. Do not substitute a narrative claim for the observed fields."
+      ],
+      "code": {
+        "language": "text",
+        "label": "learner evidence template",
+        "code": "case: ...\nrequest: action=..., target=..., reason=..., caller=..., key=...\napproval: approver=..., authority=..., action=..., target=..., reason=..., issued_at=..., expires_at=...\nresolved target: ...\ntrusted policy decision: ...\nexecutor result: ...\ntarget before: ...\ntarget after: ...\nwrites before/after: ...\nbudget before/after: ...\nrequest fingerprint: (action, target, reason, caller, key)\nworkflow record: status=..., receipt=...\naudit before/after: ...\nreconciliation observation: ...\nrecovery decision: ..."
+      }
+    },
+    {
+      "id": "authority-learner-key",
+      "title": "Task key and recovery decisions",
+      "paragraphs": [
+        "For the exact learner request action=archive, target=DOC-18, reason=legal-hold, caller=reviewer-session-9, key=archive-DOC-18-legal-20260919, and matching approval approver=Maya, authority=records-coordinator, action=archive, target=DOC-18, reason=legal-hold, issued_at=100, expires_at=110, the executor returns rejected:unauthorized-caller. It occurs before the independent policy call, budget reservation, workflow record creation, audit append, or target mutation. Do not relabel this result approval-policy-denied.",
+        "For the separate fresh DOC-18 comparison, use caller=assistant-session-44 while keeping action=archive, target=DOC-18, reason=legal-hold, and key=archive-DOC-18-legal-20260919. With a textually matching Maya approval, caller and target checks pass, but the trusted fixture policy permits only the tuple archive, DOC-17, training-retention, assistant-session-44. The result is rejected:approval-policy-denied with no mutation.",
+        "For the failed-postcondition fixture, the first result is failed and the record status is failed. A matching same-key retry does not imply success. It returns rejected:reconcile-before-retry. Recovery requires evidence and an authorized decision such as correction, compensation, escalation, or a separately permitted retry.",
+        "For timeout after a possible write, execution returns unknown even when inspection is unavailable. Malformed input, wrong key, wrong target, unavailable inspection, malformed observation, and a row with no matching receipt return unknown-needs-escalation without changing the unknown record. Only the exact workflow record and fingerprint, resolved target, archived status, exact reason, and receipt correlated to the request key justify completed-after-reconciliation.",
+        "After verified reconciliation, the exact same request may return completed-deduplicated without invoking the target again. A new key lacks executor-level continuity. The fixture's already-archived guard may suppress another local archive write, but that behavior is not evidence that arbitrary new keys are safe.",
+        "The result vocabulary is ordered and distinct: pre-effect rejection or validation failure means no effect was admitted; accepted means work was admitted and recorded but not proven effective; completed requires valid target evidence and a correlated receipt; failed requires reliable contrary target evidence; UNKNOWN means execution or observation remains uncertain. A model response, adapter attestation, matching text, or historical row without a correlated receipt is not completion evidence."
+      ],
+      "callout": "Recovery is evidence-dependent. Resume only when the step is known not to have started. Retry with the original key only when evidence establishes no effect and policy permits it. Compensate when an undesired effect needs a safe counter-effect. Roll back only when supported by the fixture or system. Escalate when inspection is unavailable, malformed, conflicting, wrong-target, or causally uncorrelated."
     }
   ],
   "activity": {
@@ -59,64 +171,129 @@
       "Choose one tool-using experience and trace a proposed action through validation, authorization, execution, result, and postcondition.",
       "Map working context, durable state, memory, and audit evidence to their owners and lifecycle controls.",
       "Define the exact human approval boundary and at least two terminal outcomes other than success.",
-      "Challenge the design with an unauthorized target and a timeout after a possible write."
+      "Challenge the design with an unauthorized target and a timeout after a possible write.",
+      "Choose one fictional or controlled tool-using experience and trace a proposed action through runtime validation, caller identity, independently resolved target, permission, exact human approval, budget, idempotency, execution, observation, and recovery. Do not use a live service or real customer data.",
+      "Map working context, workflow state, memory, and audit evidence to their owners and lifecycle controls. For each class, identify writer, reader, source, version, retention, correction, deletion, conflict handling, and limitation. State explicitly that this exercise stores state in memory only.",
+      "Use the worked case before attempting the independent task. In the original changed-input task, submit the exact DOC-18/legal-hold/reviewer-session-9 request and matching approval. Explain why ordered first-failure semantics produce rejected:unauthorized-caller. Then run the separate fresh DOC-18 comparison with permitted caller assistant-session-44 to reach rejected:approval-policy-denied.",
+      "Create at least two non-success traces: a reliable failed postcondition and a timeout after a possible write. For the timeout, preserve UNKNOWN through malformed, unavailable, wrong-target, wrong-key, and uncorrelated observations. Reconcile only after exact target evidence and the correlated receipt are restored.",
+      "Record exact request and approval fields, trusted policy decision, resolved target, fingerprint, target before and after, writes, budget, workflow status, receipt, audit events, and recovery decision. Include deep no-mutation checks for pre-effect rejections."
     ],
     "evidence": [
       "A responsibility map for identity, tools, state, approval, verification, and recovery.",
-      "Failure traces showing fail-closed authorization and reconciliation before retry."
+      "Failure traces showing fail-closed authorization and reconciliation before retry.",
+      "A numbered responsibility and evidence map covering validation, caller, target, approval, budget, fingerprint, execution, postcondition, and reconciliation.",
+      "The original changed DOC-18 task result rejected:unauthorized-caller, plus the separate permitted-caller DOC-18 comparison result rejected:approval-policy-denied.",
+      "Exact traces for expiry, malformed fields, whitespace key, bool time, bool expiry, budget exhaustion, changed fingerprint, failed retry, unknown retry, completed retry, and bad reconciliation evidence.",
+      "Before-and-after target, writes, budget, records, workflow status, receipt, and audit for each relevant path, with no-mutation proof for pre-effect rejection.",
+      "A provider-neutral explanation that model brands, message formats, and tool-call interfaces do not themselves prove caller identity, target correctness, authorization, completion, or safe recovery."
     ],
-    "reflectionPrompt": "Which boundary would be most dangerous to leave implicit?"
+    "reflectionPrompt": "Which boundary would be most dangerous to leave implicit: identity, target resolution, approval, budget, idempotency, effect observation, state ownership, or recovery? Explain what evidence and authority would make that boundary enforceable."
   },
   "instructorScript": {
     "schemaVersion": "1.0",
-    "estimatedSeconds": 1440,
+    "estimatedSeconds": 2100,
     "cues": [
       {
         "id": "cue-agentic-authority-tools",
         "kind": "narration",
         "sectionId": "authority-tools",
-        "text": "Follow a proposed tool call through trusted authorization, execution, and postcondition evidence."
+        "text": "A model can propose an action, but that proposal carries no authority by itself. Place the trusted executor at the control boundary. It validates runtime types, identifies the caller, resolves the target from a trusted source, checks permission and exact human approval, reserves budget, and binds the idempotency key to an immutable fingerprint. Accepted means only that the executor admitted and recorded the work. Completed requires a valid observation of the target postcondition and a receipt correlated to this request. Failed requires a reliable observation showing that the postcondition is absent. If the executor cannot observe the target reliably after a possible effect, the truthful status is UNKNOWN. A matching key is not automatic success. Only an exact fingerprint already in verified completed state may return completed-deduplicated. Take five minutes to label who owns proposal, authorization, execution, observation, and recovery."
       },
       {
         "id": "cue-agentic-authority-visual",
         "kind": "visual",
         "sectionId": "authority-tools",
-        "text": "Show proposal, validation, authorization, execution, result, and postcondition as separate boundaries.",
-        "accessibilityAlternative": "An ordered text flow identifies the responsible component and possible failure state at every boundary. Reduced-motion mode displays the full flow."
+        "text": "Static text flow: proposal -> strict typed validation -> caller check -> resolved target -> permission and independent exact approval -> budget and immutable key fingerprint -> accepted -> execution -> valid correlated observation -> completed, reliably observed failed, or UNKNOWN.",
+        "accessibilityAlternative": "An ordered text list separates proposal, validation, authorization, admission, execution, observation, and recovery. Missing or malformed post-effect evidence leads to UNKNOWN. No motion or interactive graphic is required."
       },
       {
         "id": "cue-agentic-authority-state",
         "kind": "narration",
         "sectionId": "authority-state",
-        "text": "Separate working context, workflow state, memory, and audit evidence."
+        "text": "The system has four state classes with different jobs. Working context is temporary material for the current decision. The orchestration loop owns it, the current run writes it, and the model or adapter may read it. It is cleared after its short retention window and is never completion evidence. Workflow state records validated requests, fingerprints, budgets, and status transitions so execution and recovery can continue. The trusted executor writes it, and corrections occur through explicit transitions rather than silent edits. Memory stores governed facts or preferences under a data steward, with declared purpose, retention, correction, and deletion rules. Audit evidence preserves attributable events for reviewers. Corrections are appended rather than rewriting history. For each class, name owner, writer, reader, source, version, retention, correction, deletion, conflict behavior, and limitation. This exercise stores everything in memory, so it demonstrates none of the durability needed for restart recovery."
       },
       {
         "id": "cue-agentic-authority-human",
         "kind": "narration",
         "sectionId": "authority-human",
-        "text": "Bind human approval to one exact action and target."
+        "text": "Approval is a precise binding, not a vague expression of confidence. It identifies the authorized person, authority role, action, target, parameters, evidence, issue time, and expiry. In this fictional fixture, Maya is the records coordinator, but the trusted policy is what issues and verifies her approval for archive, DOC-17, training-retention, and assistant-session-44. A Python Approval object is only fixture data. It is not evidence of real authentication, identity proofing, or organizational authority. The model cannot create Maya's authority or expand the policy. Consider a request and approval that both change the target to DOC-18. Their text agrees, but both objects are learner-controlled. The independent policy still permits only DOC-17, so the executor rejects the request. Spend two minutes identifying which fields must be rebound if action, target, reason, caller, or execution time changes."
       },
       {
         "id": "cue-agentic-authority-recovery",
         "kind": "narration",
         "sectionId": "authority-recovery",
-        "text": "Demonstrate reconciliation of an unknown external effect before retry."
+        "text": "Recovery begins with the target and workflow record, not with the model's story. Separate three moments. A validation rejection occurs before any effect. Accepted records admission before the target call. After invocation, a write may have happened even if the call times out or throws. The executor therefore records UNKNOWN immediately when an exception follows a possible write. If a later inspection raises, returns None, omits required fields, or has invalid field types, it cannot prove either success or failure. UNKNOWN remains. Failed is narrower: a well-formed, reliable observation must show a contrary postcondition, such as an active row where an archived row was required. Reconciliation then checks the exact workflow record, immutable fingerprint, resolved target, status, reason, and receipt. A historical row without this request's receipt does not prove causality. If exact evidence remains unavailable, preserve UNKNOWN and escalate rather than retrying blindly."
+      },
+      {
+        "id": "cue-agentic-authority-case",
+        "kind": "narration",
+        "sectionId": "authority-case",
+        "text": "Trace the worked case in order. Maya requests that fictional DOC-17 be archived for training-retention. Assistant-session-44 proposes key archive-DOC-17-20260919. The executor validates the typed fields, resolves DOC-17 in the fixture, verifies caller and independent policy, confirms that approval is current, checks budget, and stores the fingerprint. It then records accepted and reserves one budget unit before invoking the target. The target changes status to archived, records the exact reason, stores the key as its receipt, and increments writes. The string tool-attestation: archive submitted is only an adapter claim. It cannot establish completion. In the timeout path, the write occurs and then TimeoutError is raised. The record becomes unknown before inspection. Six minutes of trace practice starts now: mark the write, budget, record, and audit changes, then show how exact later evidence produces completed-after-reconciliation without a second write."
+      },
+      {
+        "id": "cue-agentic-authority-state-map",
+        "kind": "narration",
+        "sectionId": "authority-state-map",
+        "text": "Use the lifecycle map as a control review. Working context expires with the run and can be replaced by verified data. Workflow state needs explicit revisions and transitions because it drives retry and reconciliation decisions. Memory needs a steward because a preference or role can outlive the conversation and may require correction or deletion. Audit evidence is append-oriented because accountable history should not be silently rewritten. Conflicts in context defer to trusted sources. Workflow revision conflicts are rejected or escalated. Memory conflicts require source comparison or human review. Audit conflicts are preserved for investigation. The checkpoint answer is that none of these state classes substitutes for target evidence. A workflow record saying accepted does not prove an archive occurred, memory saying Maya is a coordinator does not authenticate an approval, and an audit event from an adapter does not replace a correlated target receipt."
+      },
+      {
+        "id": "cue-agentic-authority-transfer",
+        "kind": "narration",
+        "sectionId": "authority-transfer",
+        "text": "This boundary is provider-neutral. A proposal may come from Meta or Llama, DeepSeek, Qwen, Mistral, Phi, NVIDIA, Z.ai, or a hosted model interface. Provider documentation can describe message formats, tool-call syntax, and response handling. Those interfaces do not by themselves prove caller identity, target resolution, authorization, completion, or safe recovery. When a provider changes, syntax, latency, and integration details may change. The authority decision should not change merely because the brand changed. Ask the same questions in every deployment: Who resolves identity and target? Who issues approval? Where is the immutable fingerprint stored? Which target observation proves the effect? What preserves uncertainty when inspection fails? The concrete checkpoint answer is that a provider name answers none of those enforcement questions."
+      },
+      {
+        "id": "cue-agentic-authority-exercise",
+        "kind": "narration",
+        "sectionId": "authority-exercise",
+        "text": "Save the displayed code as authority_exercise.py. The exact demo command is python authority_exercise.py. It uses only Python's standard library and fictional in-memory data. No execution during authoring is claimed. Allow ten minutes for learners to run it locally and inspect the assertions. The visible demo follows the original timeout path, so its stdout remains the target shown in the next section. The silent assertions go further. A successful write followed by inspect mode none, raise, malformed list, incomplete dictionary, or invalid field types must return unknown with writes equal to one. Blind same-key execution is blocked. Restoring normal, correlated inspection permits reconciliation, and the next same-key call deduplicates. An arbitrary RuntimeError after the possible write follows the same unknown path. By contrast, the injected well-formed active row is reliable contrary evidence and returns failed. Preflight negative cases compare deep snapshots and must not mutate target, writes, budget, records, or audit."
+      },
+      {
+        "id": "cue-agentic-authority-output",
+        "kind": "narration",
+        "sectionId": "authority-output",
+        "text": "The output target is exact. After running python authority_exercise.py, the first line is accepted != completed: accepted is recorded before the tool result. The next results are unknown, status unknown, and writes 1. Blind same-key retry is rejected:reconcile-before-retry. Reconciliation returns completed-after-reconciliation. The completed same-key call returns completed-deduplicated, and writes remains 1. The changed DOC-18 target returns rejected:validation-failed. Expired approval returns rejected:approval-expired. The unauthorized caller returns rejected:unauthorized-caller. The whitespace key returns rejected:malformed-input. The final line is assertions: passed. That final line is expected only if every silent assertion completes. The output is a derived target, not a statement that the author executed the program."
+      },
+      {
+        "id": "cue-agentic-authority-learner-task",
+        "kind": "learner-prompt",
+        "sectionId": "authority-learner-task",
+        "text": "Work independently before opening the key. First submit action=archive, target=DOC-18, reason=legal-hold, caller=reviewer-session-9, key=archive-DOC-18-legal-20260919 with approval approver=Maya, authority=records-coordinator, action=archive, target=DOC-18, reason=legal-hold, issued_at=100, expires_at=110. Use the full executor and apply ordered first-failure semantics. The expected result is rejected:unauthorized-caller, not approval-policy-denied. Then use a separate fresh DOC-18 row with caller=assistant-session-44 and the same matching approval to reach the independent policy result approval-policy-denied. Also test fresh DOC-17 failed and timeout cases, malformed input, bool execution time, and reconciliation evidence. Record every request, approval field, policy decision, target state, write count, budget, fingerprint, workflow record, receipt, audit event, and recovery decision."
+      },
+      {
+        "id": "cue-agentic-authority-learner-task-narration",
+        "kind": "narration",
+        "sectionId": "authority-learner-task",
+        "text": "The original independent task changes the target, reason, and caller. Adding DOC-18 makes resolution possible, but reviewer-session-9 fails first at caller authorization, so the observed result is rejected:unauthorized-caller. Keep that result. In a separate controlled comparison, use permitted caller assistant-session-44 with the DOC-18/legal-hold request and matching Maya approval. Caller and target checks then pass, exposing the independent policy rejection approval-policy-denied. The failed key must remain failed and block same-key retry. The timeout key must remain unknown through unreliable observations until exact archived status, reason, and correlated receipt are restored."
+      },
+      {
+        "id": "cue-agentic-authority-learner-evidence",
+        "kind": "narration",
+        "sectionId": "authority-learner-evidence",
+        "text": "Evidence must expose ordered decisions that a narrative can hide. Write the complete request and every approval field. State caller validation, target resolution, and independent policy decision separately. For the original DOC-18 task, report rejected:unauthorized-caller as the first failure and show no mutation. For the separate permitted-caller comparison, report rejected:approval-policy-denied and show the same no-mutation result. Preserve target before and after, writes, budget, fingerprint, workflow status, receipt, and audit order. For reconciliation, include the exact observation and recovery decision. A matching text object or historical row without a correlated receipt is not completion evidence."
+      },
+      {
+        "id": "cue-agentic-authority-learner-key",
+        "kind": "narration",
+        "sectionId": "authority-learner-key",
+        "text": "Compare the trace with the key. The exact reviewer-session-9 DOC-18 request is rejected:unauthorized-caller because caller validation precedes policy evaluation. The separate assistant-session-44 DOC-18 request reaches rejected:approval-policy-denied because the trusted policy permits only DOC-17, training-retention, and assistant-session-44. The injected active-row observation is reliable contrary evidence, so its result is failed. Timeout after a possible write is unknown, not rejection or failure. Wrong input, wrong fingerprint, wrong target, missing receipt, malformed observation, and inspection errors preserve unknown-needs-escalation. Exact correlated evidence permits completed-after-reconciliation without another write; only then may the exact same key deduplicate."
       },
       {
         "id": "cue-agentic-authority-checkpoint",
         "kind": "checkpoint",
         "sectionId": "authority-recovery",
-        "text": "Check whether the learner reconciles a possible write instead of retrying blindly."
+        "text": "Checkpoint answer: after a timeout or arbitrary exception that may follow a write, immediately record UNKNOWN so the request never remains accepted indefinitely. Do not retry blindly. Reconcile the exact workflow record and immutable fingerprint against a valid observation of the resolved target. Require archived status, the exact reason, and the receipt correlated to the original key. If inspection is missing, malformed, unavailable, wrong-target, or wrong-receipt, preserve UNKNOWN and escalate. A valid active row can establish failed because it is reliable contrary evidence. Unknown and failed statuses cannot be reported as completed-deduplicated."
       },
       {
         "id": "cue-agentic-authority-activity",
         "kind": "learner-prompt",
-        "text": "Guide the responsibility map and two failure challenges."
+        "sectionId": "authority-learner-task",
+        "text": "Build the responsibility and evidence map now. Trace one fictional proposed action through runtime validation, caller identity, trusted target resolution, exact human approval, budget, fingerprint storage, execution, target observation, and recovery. Include both DOC-18 first-failure paths: reviewer-session-9 must be rejected:unauthorized-caller, while a separate permitted assistant-session-44 comparison must be rejected:approval-policy-denied. Map all four state classes and state that the fixture is in-memory only. Include a reliable failed outcome and an UNKNOWN timeout outcome, and identify when escalation replaces blind retry."
       },
       {
         "id": "cue-agentic-authority-assessment",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can locate enforcement and human authority."
+        "text": "Begin assessment when the learner can locate executor enforcement, Maya's bounded fictional authority, the four state owners, and the evidence needed for completion. Require explanations, not only selected answers. The passing threshold is 80 percent. A passing explanation distinguishes pre-effect rejection from accepted admission, reliably observed failed, and post-effect UNKNOWN. It explains why UNKNOWN blocks blind retry, why failed is not deduplicated, why an exact receipt establishes stronger causal evidence than an adapter attestation, why a changed fingerprint must be rejected, and why changing model providers does not create authorization or recovery controls."
       }
     ]
   },
@@ -182,6 +359,78 @@
         ],
         "answerIndex": 1,
         "explanation": "Unknown preserves uncertainty and triggers reconciliation."
+      },
+      {
+        "id": "q-agentic-authority-6",
+        "prompt": "An untrusted request and approval both change DOC-17 to DOC-18. What should the executor do?",
+        "choices": [
+          "Accept because the texts match",
+          "Ask the model to self-approve",
+          "Reject because independent policy does not authorize the resolved DOC-18 target",
+          "Ignore target resolution"
+        ],
+        "answerIndex": 2,
+        "explanation": "Jointly mutated untrusted objects cannot expand the independent policy or human authority."
+      },
+      {
+        "id": "q-agentic-authority-7",
+        "prompt": "A key has status unknown and its fingerprint matches an immediate retry. What is correct?",
+        "choices": [
+          "Return completed-deduplicated",
+          "Perform a blind write",
+          "Reject the execute call pending reconciliation",
+          "Change unknown to failed"
+        ],
+        "answerIndex": 2,
+        "explanation": "A matching fingerprint does not resolve a possible effect. UNKNOWN requires reconciliation."
+      },
+      {
+        "id": "q-agentic-authority-8",
+        "prompt": "A key has status failed and its fingerprint matches a retry. What is correct?",
+        "choices": [
+          "Return completed-deduplicated",
+          "Treat it as verified success",
+          "Block blind retry and choose an evidence-based recovery path",
+          "Delete the failure"
+        ],
+        "answerIndex": 2,
+        "explanation": "Failed is not completed and cannot be converted to success through key reuse."
+      },
+      {
+        "id": "q-agentic-authority-9",
+        "prompt": "Which observation establishes completion in the exercise?",
+        "choices": [
+          "The model says done",
+          "The adapter returns tool-attestation: archive submitted",
+          "Inspection shows the exact postcondition and receipt correlated to the request fingerprint",
+          "A historical row has the same status only"
+        ],
+        "answerIndex": 2,
+        "explanation": "Completion requires observed effect evidence and request correlation."
+      },
+      {
+        "id": "q-agentic-authority-10",
+        "prompt": "Inspection raises after a timeout that may have followed a write. What status is truthful?",
+        "choices": [
+          "Rejected with all state rolled back",
+          "Completed",
+          "UNKNOWN pending later reconciliation or escalation",
+          "Validation failure"
+        ],
+        "answerIndex": 2,
+        "explanation": "Inspection failure does not erase a possible effect. The workflow must preserve post-effect uncertainty."
+      },
+      {
+        "id": "q-agentic-authority-11",
+        "prompt": "What does changing from one model provider to another prove about authorization?",
+        "choices": [
+          "The new brand proves authorization",
+          "Nothing by itself; trusted enforcement still must be implemented and tested",
+          "All providers have identical recovery behavior",
+          "Approval is no longer needed"
+        ],
+        "answerIndex": 1,
+        "explanation": "Provider-neutral boundaries are architectural controls, not properties proven by a brand."
       }
     ]
   },
