@@ -33,19 +33,33 @@
       "title": "Use the smallest useful evidence loop",
       "paragraphs": [
         "For each plan step, inspect the relevant contract and existing tests, make one coherent change, run the narrowest meaningful check, inspect the diff, and then run the broader affected suite. Record observed results rather than claiming success from code appearance. Keep unrelated user changes intact.",
-        "When a check fails, classify whether the defect is in the implementation, test, environment, dependency, or assumption. Fix the cause, rerun the failing check, and retain enough output for reproduction. Do not weaken assertions or delete safeguards merely to obtain a green result."
+        "When a check fails, classify whether the defect is in the implementation, test, environment, dependency, or assumption. Fix the cause, rerun the failing check, and retain enough output for reproduction. Do not weaken assertions or delete safeguards merely to obtain a green result.",
+        "This worked exercise uses only local Python 3 standard-library features. It has no database, network request, production data, package download, secret, remote write, or destructive command. All correctness claims are independently testable without a paid account."
       ]
+    },
+    {
+      "id": "filled-evidence-record",
+      "title": "Filled worked evidence record",
+      "paragraphs": [
+        "This record is filled with expected observations for the synthetic exercise. It is not a claim of actual execution. Actual Python version, hashes, exit codes, stdout, and stderr remain UNKNOWN until a learner runs the commands. The runtime recorder supplied later computes those fields rather than asking a person to invent them."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Filled implementation evidence record",
+        "code": "Plan step and criterion: Correct retryable reservation -> conserve stock, bind each request ID to its validated item and integer quantity, reconcile a committed unknown outcome, reject malformed input before mutation, and support local snapshot recovery.\nBaseline: Synthetic fixture with total_stock=5 and quantity=2. Expected command runs 7 tests and exits nonzero with 5 failures. Actual result: UNKNOWN until execution.\nFiles changed: buggy_inventory.py -> inventory.py; regression coverage in test_inventory.py; fixture.json remains the bound input.\nNew dependency/file/command: No dependency. evidence.py uses hashlib, json, pathlib, subprocess, sys, argparse, and unittest from the Python standard library.\nNarrow verification: python3 -m unittest -v test_inventory.py -> expected 7 tests, exit 0. Actual result: UNKNOWN.\nAffected-suite verification: Run the explicit commands in this lesson rather than discovery, because deliberately failing baseline and wrong-fix tests remain beside the corrected tests.\nDiff inspection: Expected scope is the supplied local exercise files. Credentials and generated noise should be absent. Actual diff: UNKNOWN.\nFailure found: Expected baseline product defects are double reservation, missing request conflict, and acceptance of bool, fractional, or empty-ID inputs. Smallest correction: validate first, compare the prior validated payload, and return the prior reservation only on an exact match.\nSafety check: Exercise design has local file reads and evidence JSON writes only. Actual permissions and environment: UNKNOWN.\nRecovery tested or reviewed: test_snapshot_restore_is_recovery_path is expected to restore both reserved count and request records. Actual result: UNKNOWN.\nRemaining uncertainty: Python version, platform, exact runtime hashes, command output, and exit statuses -> run the commands and retain evidence.json plus failed logs.\nEvidence references: fixture.json, buggy_inventory.py, test_buggy_inventory.py, inventory.py, test_inventory.py, evidence.py, and command logs."
+      }
     },
     {
       "id": "record-evidence-loop",
       "title": "Record each implementation increment",
       "paragraphs": [
-        "Evidence should connect the requested criterion to the changed artifact and to a reproducible observation. Redact sensitive output and summarize large logs while preserving the exact command, version, failure signature, and result."
+        "Evidence should connect the requested criterion to the changed artifact and to a reproducible observation. Redact sensitive output and summarize large logs while preserving the exact command, version, failure signature, and result.",
+        "Use this reusable template after reading the filled example. Expected results state the oracle before execution. Observed results must come from the process that actually ran the command."
       ],
       "code": {
         "language": "text",
-        "label": "Implementation evidence record",
-        "code": "Plan step and criterion: [STEP -> ACCEPTANCE CRITERION]\nBaseline: [COMMIT, TEST RESULT, OR OBSERVED STATE]\nFiles changed: [PATH -> PURPOSE]\nNew dependency/file/command: [ITEM -> RATIONALE | NONE]\nNarrow verification: [COMMAND -> EXIT/RESULT]\nAffected-suite verification: [COMMAND -> EXIT/RESULT]\nDiff inspection: [IN-SCOPE, UNRELATED CHANGES PRESERVED, SECRETS ABSENT]\nFailure found: [SIGNATURE -> CLASSIFICATION -> FIX | NONE]\nSafety check: [PERMISSION, DATA, AND SIDE-EFFECT RESULT]\nRecovery tested or reviewed: [METHOD -> RESULT]\nRemaining uncertainty: [UNKNOWN -> NEXT CHECK]\nEvidence references: [LOG, TEST, REVIEW, OR CHANGE ID]"
+        "label": "Reusable implementation evidence record template",
+        "code": "Plan step and criterion: [STEP -> ACCEPTANCE CRITERION]\nBaseline: [COMMIT, TEST RESULT, OR OBSERVED STATE]\nFiles changed: [PATH -> PURPOSE]\nNew dependency/file/command: [ITEM -> RATIONALE | NONE]\nNarrow verification: [COMMAND -> EXPECTED RESULT -> OBSERVED EXIT/RESULT]\nAffected-suite verification: [COMMAND -> EXPECTED RESULT -> OBSERVED EXIT/RESULT]\nDiff inspection: [IN-SCOPE, UNRELATED CHANGES PRESERVED, SECRETS ABSENT]\nFailure found: [SIGNATURE -> CLASSIFICATION -> FIX | NONE]\nSafety check: [PERMISSION, DATA, AND SIDE-EFFECT RESULT]\nRecovery tested or reviewed: [METHOD -> RESULT]\nRemaining uncertainty: [UNKNOWN -> NEXT CHECK]\nEvidence references: [HASH-BOUND RECORD, LOG, TEST, REVIEW, OR CHANGE ID]"
       }
     },
     {
@@ -53,7 +67,256 @@
       "title": "Expected evidence and verification",
       "paragraphs": [
         "The expected evidence is a chain from acceptance criterion to changed files, narrow verification, affected-suite verification, diff inspection, safety check, and recovery path. A passing check without that trace is incomplete evidence.",
-        "Before handoff, reproduce the main user journey from a clean install or isolated checkout, compare the final diff with the approved plan, scan for credentials and generated noise, and list any untested behavior. Require independent review when consequence, security sensitivity, or repository policy warrants it."
+        "Before handoff, reproduce the main user journey from an isolated checkout, compare the final diff with the approved plan, scan for credentials and generated noise, and list any untested behavior. Require independent review when consequence, security sensitivity, or repository policy warrants it.",
+        "NIST Secure Software Development Framework guidance is the first-party security reference for the evidence-loop context: https://csrc.nist.gov/pubs/sp/800/218/final"
+      ]
+    },
+    {
+      "id": "worked-case-contract",
+      "title": "Worked case: state the contract before changing code",
+      "paragraphs": [
+        "The synthetic service starts with five units of stock. A validated reservation request contains a nonempty string request ID, a nonempty string item, and a positive integer quantity. Python bool values are not quantities even though bool is a subclass of int. Floating-point values, NaN, fractions, zero, negative values, and quantities greater than available stock are invalid.",
+        "A successful first request moves its quantity from available stock to reserved stock. Independent accounting requires reserved to equal the sum of quantities in reservation records, reserved and available to remain nonnegative integers, and that record sum plus available equal total stock.",
+        "A request ID is bound to the validated Python payload tuple `(item, quantity)`. This is exact equality for the two validated values. It is not a claim of byte-for-byte serialized equivalence. Reusing the ID with either value changed raises RequestConflict before mutation. Reusing it with the same payload returns the original reservation without changing stock.",
+        "In this fixture, an unknown outcome means the reservation is committed locally and then UnknownOutcome is raised before the caller receives the result. Replaying the same request reconciles the committed operation without reserving again.",
+        "Malformed input, invalid quantity, and over-reservation are rejected before mutation. A snapshot copies reserved stock and the request map; restore replaces both, providing a local recovery path without external side effects."
+      ],
+      "callout": "Decision trace: conservation -> compare the sum of reservation records with stored reserved stock and available stock; exact binding -> validate strict types and compare item plus quantity; unknown outcome -> commit before raising and reconcile through the stored request; denial safety -> compare snapshots before and after rejection; recovery -> restore both pieces of mutable state."
+    },
+    {
+      "id": "fixture",
+      "title": "Synthetic fixture",
+      "paragraphs": [
+        "Save this complete local fixture as fixture.json. It is authored teaching data, not production data."
+      ],
+      "code": {
+        "language": "json",
+        "label": "fixture.json",
+        "code": "{\n  \"total_stock\": 5,\n  \"request\": {\n    \"request_id\": \"req-001\",\n    \"item\": \"blue-pencil\",\n    \"quantity\": 2\n  }\n}\n"
+      }
+    },
+    {
+      "id": "before-defect",
+      "title": "Before code: a small plausible defect",
+      "paragraphs": [
+        "Save this complete deliberately defective implementation as buggy_inventory.py. It reserves on every call, overwrites an existing request record, and performs permissive comparisons without strict input validation."
+      ],
+      "code": {
+        "language": "python",
+        "label": "buggy_inventory.py",
+        "code": "from dataclasses import dataclass\n\n\nclass RequestConflict(Exception):\n    pass\n\n\nclass UnknownOutcome(Exception):\n    pass\n\n\n@dataclass(frozen=True)\nclass Reservation:\n    request_id: str\n    item: str\n    quantity: int\n\n\nclass Inventory:\n    def __init__(self, total_stock):\n        self.total_stock = total_stock\n        self.reserved = 0\n        self.requests = {}\n\n    @property\n    def available(self):\n        return self.total_stock - self.reserved\n\n    def reserve(self, request_id, item, quantity, simulate_unknown=False):\n        if quantity <= 0 or quantity > self.available:\n            raise ValueError(\"quantity is unavailable\")\n        reservation = Reservation(request_id, item, quantity)\n        self.reserved += quantity\n        self.requests[request_id] = reservation\n        if simulate_unknown:\n            raise UnknownOutcome(\"the caller did not receive the result\")\n        return reservation\n\n    def replay(self, request_id, item, quantity):\n        return self.reserve(request_id, item, quantity)\n"
+      }
+    },
+    {
+      "id": "baseline-tests",
+      "title": "Seven baseline tests that expose the defect",
+      "paragraphs": [
+        "Save this complete file as test_buggy_inventory.py. Exactly seven test methods are defined. Under the supplied fixture, the shallow first-reservation and ordinary invalid-quantity tests are expected to pass. Replay, changed-payload, bool, fractional, and empty-ID tests are expected to fail.",
+        "The expected summary is 7 tests run with 5 failures and a nonzero process exit. This is a reasoned test oracle, not an observed run. Preserve the actual output even if it differs."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_buggy_inventory.py",
+        "code": "import json\nimport unittest\n\nfrom buggy_inventory import Inventory, RequestConflict, UnknownOutcome\n\n\nwith open(\"fixture.json\", encoding=\"utf-8\") as handle:\n    FIXTURE = json.load(handle)\n\n\nclass BuggyInventoryTests(unittest.TestCase):\n    def test_first_reservation_has_expected_fixture_values(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        result = inventory.reserve(**FIXTURE[\"request\"])\n        quantity = FIXTURE[\"request\"][\"quantity\"]\n        self.assertEqual(result.quantity, quantity)\n        self.assertEqual(inventory.available, FIXTURE[\"total_stock\"] - quantity)\n\n    def test_unknown_outcome_replay_does_not_double_reserve(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        with self.assertRaises(UnknownOutcome):\n            inventory.reserve(**FIXTURE[\"request\"], simulate_unknown=True)\n        inventory.replay(**FIXTURE[\"request\"])\n        quantity = FIXTURE[\"request\"][\"quantity\"]\n        self.assertEqual(inventory.reserved, quantity)\n        self.assertEqual(inventory.available, FIXTURE[\"total_stock\"] - quantity)\n\n    def test_same_id_with_changed_payload_is_rejected(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        inventory.reserve(**FIXTURE[\"request\"])\n        changed = dict(FIXTURE[\"request\"])\n        changed[\"quantity\"] = 1\n        with self.assertRaises(RequestConflict):\n            inventory.reserve(**changed)\n\n    def test_zero_negative_and_excessive_quantities_are_rejected(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        for request in [\n            (\"zero\", \"blue-pencil\", 0),\n            (\"negative\", \"blue-pencil\", -1),\n            (\"excess\", \"blue-pencil\", FIXTURE[\"total_stock\"] + 1),\n        ]:\n            with self.assertRaises(ValueError):\n                inventory.reserve(*request)\n        self.assertEqual(inventory.reserved, 0)\n\n    def test_bool_quantity_is_rejected(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        with self.assertRaises(TypeError):\n            inventory.reserve(\"bool\", \"blue-pencil\", True)\n\n    def test_fractional_quantity_is_rejected(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        with self.assertRaises(TypeError):\n            inventory.reserve(\"fraction\", \"blue-pencil\", 1.5)\n\n    def test_empty_request_id_is_rejected(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        with self.assertRaises(ValueError):\n            inventory.reserve(\"\", \"blue-pencil\", 1)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "baseline-expected-output",
+      "title": "Expected baseline failure evidence",
+      "paragraphs": [
+        "Run `python3 -m unittest -v test_buggy_inventory.py`. The exact traceback formatting depends on the Python version. The stable expected facts are seven tests, five failures, and a nonzero exit. Actual stdout, stderr, Python version, and exit code are UNKNOWN until execution."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Expected baseline summary, synthetic and not observed",
+        "code": "Expected passing tests:\n  test_first_reservation_has_expected_fixture_values\n  test_zero_negative_and_excessive_quantities_are_rejected\n\nExpected failing tests:\n  test_unknown_outcome_replay_does_not_double_reserve\n    reason: replay reserves quantity 2 again, leaving reserved=4 and available=1 instead of reserved=2 and available=3\n  test_same_id_with_changed_payload_is_rejected\n    reason: RequestConflict is not raised\n  test_bool_quantity_is_rejected\n    reason: True is accepted as quantity 1\n  test_fractional_quantity_is_rejected\n    reason: 1.5 is accepted\n  test_empty_request_id_is_rejected\n    reason: an empty request ID is accepted\n\nExpected summary: Ran 7 tests; FAILED (failures=5); process exit is nonzero.\nActual summary: UNKNOWN until execution.\n"
+      }
+    },
+    {
+      "id": "smallest-correction",
+      "title": "After code: make the smallest coherent correction",
+      "paragraphs": [
+        "Save this complete corrected implementation as inventory.py. Validation occurs before request lookup or mutation. A prior request is returned only when its validated item and quantity equal the new validated payload. State is committed before an optional UnknownOutcome is raised.",
+        "The implementation keeps available as a derived property, but the tests do not rely on the algebraic expression alone. They independently sum reservation records and compare that sum with reserved stock before checking conservation."
+      ],
+      "code": {
+        "language": "python",
+        "label": "inventory.py",
+        "code": "from dataclasses import dataclass\n\n\nclass RequestConflict(Exception):\n    pass\n\n\nclass UnknownOutcome(Exception):\n    pass\n\n\n@dataclass(frozen=True)\nclass Reservation:\n    request_id: str\n    item: str\n    quantity: int\n\n\nclass Inventory:\n    def __init__(self, total_stock):\n        if type(total_stock) is not int:\n            raise TypeError(\"total stock must be an integer\")\n        if total_stock < 0:\n            raise ValueError(\"total stock cannot be negative\")\n        self.total_stock = total_stock\n        self.reserved = 0\n        self.requests = {}\n\n    @property\n    def available(self):\n        return self.total_stock - self.reserved\n\n    @staticmethod\n    def _validate_text(name, value):\n        if type(value) is not str:\n            raise TypeError(f\"{name} must be a string\")\n        if value == \"\":\n            raise ValueError(f\"{name} cannot be empty\")\n\n    @classmethod\n    def _validate_request(cls, request_id, item, quantity, simulate_unknown):\n        cls._validate_text(\"request ID\", request_id)\n        cls._validate_text(\"item\", item)\n        if type(quantity) is not int:\n            raise TypeError(\"quantity must be an integer and not bool\")\n        if quantity <= 0:\n            raise ValueError(\"quantity must be positive\")\n        if type(simulate_unknown) is not bool:\n            raise TypeError(\"simulate_unknown must be bool\")\n\n    @staticmethod\n    def _payload(item, quantity):\n        return item, quantity\n\n    def reserve(self, request_id, item, quantity, simulate_unknown=False):\n        self._validate_request(request_id, item, quantity, simulate_unknown)\n        payload = self._payload(item, quantity)\n        prior = self.requests.get(request_id)\n        if prior is not None:\n            if self._payload(prior.item, prior.quantity) != payload:\n                raise RequestConflict(\"request ID is bound to a different payload\")\n            return prior\n        if quantity > self.available:\n            raise ValueError(\"quantity is unavailable\")\n        reservation = Reservation(request_id, item, quantity)\n        self.reserved += quantity\n        self.requests[request_id] = reservation\n        if simulate_unknown:\n            raise UnknownOutcome(\"the caller did not receive the result\")\n        return reservation\n\n    def replay(self, request_id, item, quantity):\n        return self.reserve(request_id, item, quantity)\n\n    def snapshot(self):\n        return self.reserved, dict(self.requests)\n\n    def restore(self, snapshot):\n        reserved, requests = snapshot\n        self.reserved = reserved\n        self.requests = dict(requests)\n"
+      }
+    },
+    {
+      "id": "correct-tests",
+      "title": "Correct tests, independent oracles, negative cases, and recovery",
+      "paragraphs": [
+        "Save this complete file as test_inventory.py. All fixture-dependent assertions derive their quantities and expected availability from fixture.json, so the changed-input task does not require hardcoded assertion edits.",
+        "The accounting helper first verifies that all recorded quantities are strict integers, sums the records independently, compares the sum with stored reserved stock, checks nonnegative integer state, and only then checks total conservation. This avoids treating `reserved + (total - reserved) == total` as sufficient evidence.",
+        "Denial tests compare a complete snapshot before and after each malformed, invalid, excessive, or conflicting request. They cover bool, NaN, fractional quantity, wrong metadata types, empty strings, and a non-bool simulation flag."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_inventory.py",
+        "code": "import json\nimport math\nimport unittest\n\nfrom inventory import Inventory, RequestConflict, UnknownOutcome\n\n\nwith open(\"fixture.json\", encoding=\"utf-8\") as handle:\n    FIXTURE = json.load(handle)\n\n\nclass InventoryTests(unittest.TestCase):\n    def assert_accounting(self, inventory):\n        records = list(inventory.requests.values())\n        self.assertTrue(all(type(record.quantity) is int for record in records))\n        recorded_quantity = sum(record.quantity for record in records)\n        self.assertEqual(inventory.reserved, recorded_quantity)\n        self.assertIs(type(inventory.reserved), int)\n        self.assertIs(type(inventory.available), int)\n        self.assertGreaterEqual(inventory.reserved, 0)\n        self.assertGreaterEqual(inventory.available, 0)\n        self.assertEqual(recorded_quantity + inventory.available, inventory.total_stock)\n\n    def assert_denied_without_mutation(self, inventory, exception, *args, **kwargs):\n        before = inventory.snapshot()\n        with self.assertRaises(exception):\n            inventory.reserve(*args, **kwargs)\n        self.assertEqual(inventory.snapshot(), before)\n        self.assert_accounting(inventory)\n\n    def test_first_reservation_uses_fixture_values(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        result = inventory.reserve(**FIXTURE[\"request\"])\n        request = FIXTURE[\"request\"]\n        self.assertEqual(result.request_id, request[\"request_id\"])\n        self.assertEqual(result.item, request[\"item\"])\n        self.assertEqual(result.quantity, request[\"quantity\"])\n        self.assertEqual(inventory.reserved, request[\"quantity\"])\n        self.assertEqual(\n            inventory.available,\n            FIXTURE[\"total_stock\"] - request[\"quantity\"],\n        )\n        self.assert_accounting(inventory)\n\n    def test_unknown_outcome_reconciles_by_replay(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        with self.assertRaises(UnknownOutcome):\n            inventory.reserve(**FIXTURE[\"request\"], simulate_unknown=True)\n        after_commit = inventory.snapshot()\n        result = inventory.replay(**FIXTURE[\"request\"])\n        self.assertEqual(inventory.snapshot(), after_commit)\n        self.assertEqual(result.quantity, FIXTURE[\"request\"][\"quantity\"])\n        self.assertEqual(inventory.reserved, FIXTURE[\"request\"][\"quantity\"])\n        self.assertEqual(\n            inventory.available,\n            FIXTURE[\"total_stock\"] - FIXTURE[\"request\"][\"quantity\"],\n        )\n        self.assert_accounting(inventory)\n\n    def test_same_payload_retry_is_idempotent(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        first = inventory.reserve(**FIXTURE[\"request\"])\n        after_first = inventory.snapshot()\n        second = inventory.reserve(**FIXTURE[\"request\"])\n        self.assertEqual(first, second)\n        self.assertEqual(inventory.snapshot(), after_first)\n        self.assert_accounting(inventory)\n\n    def test_changed_item_or_quantity_conflicts_without_mutation(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        inventory.reserve(**FIXTURE[\"request\"])\n        request = FIXTURE[\"request\"]\n        self.assert_denied_without_mutation(\n            inventory,\n            RequestConflict,\n            request[\"request_id\"],\n            request[\"item\"] + \"-changed\",\n            request[\"quantity\"],\n        )\n        changed_quantity = 1 if request[\"quantity\"] != 1 else 2\n        self.assert_denied_without_mutation(\n            inventory,\n            RequestConflict,\n            request[\"request_id\"],\n            request[\"item\"],\n            changed_quantity,\n        )\n\n    def test_invalid_excessive_and_non_integer_quantities_are_denied(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        invalid = [\n            (ValueError, \"zero\", 0),\n            (ValueError, \"negative\", -1),\n            (ValueError, \"excess\", FIXTURE[\"total_stock\"] + 1),\n            (TypeError, \"true\", True),\n            (TypeError, \"false\", False),\n            (TypeError, \"fraction\", 1.5),\n            (TypeError, \"nan\", math.nan),\n        ]\n        for exception, request_id, quantity in invalid:\n            with self.subTest(request_id=request_id):\n                self.assert_denied_without_mutation(\n                    inventory,\n                    exception,\n                    request_id,\n                    \"blue-pencil\",\n                    quantity,\n                )\n\n    def test_malformed_metadata_is_denied_before_mutation(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        cases = [\n            (ValueError, (\"\", \"item\", 1), {}),\n            (TypeError, (7, \"item\", 1), {}),\n            (ValueError, (\"r-empty-item\", \"\", 1), {}),\n            (TypeError, (\"r-bad-item\", 7, 1), {}),\n            (TypeError, (\"r-bad-flag\", \"item\", 1), {\"simulate_unknown\": 1}),\n        ]\n        for exception, args, kwargs in cases:\n            with self.subTest(args=args, kwargs=kwargs):\n                self.assert_denied_without_mutation(\n                    inventory,\n                    exception,\n                    *args,\n                    **kwargs,\n                )\n\n    def test_snapshot_restore_is_recovery_path(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        before = inventory.snapshot()\n        inventory.reserve(**FIXTURE[\"request\"])\n        self.assertNotEqual(inventory.snapshot(), before)\n        inventory.restore(before)\n        self.assertEqual(inventory.snapshot(), before)\n        self.assertEqual(inventory.reserved, 0)\n        self.assertEqual(inventory.available, FIXTURE[\"total_stock\"])\n        self.assert_accounting(inventory)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "corrected-expected-output",
+      "title": "Expected corrected rerun",
+      "paragraphs": [
+        "Run `python3 -m unittest -v test_inventory.py`. The expected result is seven passing test methods and exit code 0. Subtests remain part of their enclosing test methods. This remains expected rather than observed until execution."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Expected corrected summary, synthetic and not observed",
+        "code": "Expected test methods: 7\nExpected failures: 0\nExpected errors: 0\nExpected process exit: 0\nExpected fixture state after first reservation: reserved=2, available=3\nExpected fixture state after unknown-outcome replay: reserved=2, available=3\nActual output and exit: UNKNOWN until execution.\n"
+      }
+    },
+    {
+      "id": "wrong-fix",
+      "title": "A plausible wrong fix",
+      "paragraphs": [
+        "Save this complete file as wrong_fix.py. It returns a prior reservation whenever an ID exists. That prevents double counting on an exact retry, but it never verifies that the new payload matches the stored one."
+      ],
+      "code": {
+        "language": "python",
+        "label": "wrong_fix.py",
+        "code": "from dataclasses import dataclass\n\n\nclass RequestConflict(Exception):\n    pass\n\n\n@dataclass(frozen=True)\nclass Reservation:\n    request_id: str\n    item: str\n    quantity: int\n\n\nclass Inventory:\n    def __init__(self, total_stock):\n        self.total_stock = total_stock\n        self.reserved = 0\n        self.requests = {}\n\n    @property\n    def available(self):\n        return self.total_stock - self.reserved\n\n    def reserve(self, request_id, item, quantity):\n        if request_id in self.requests:\n            return self.requests[request_id]\n        if quantity <= 0 or quantity > self.available:\n            raise ValueError(\"quantity is unavailable\")\n        reservation = Reservation(request_id, item, quantity)\n        self.requests[request_id] = reservation\n        self.reserved += quantity\n        return reservation\n"
+      }
+    },
+    {
+      "id": "wrong-fix-shallow-test",
+      "title": "Shallow test that the wrong fix makes green",
+      "paragraphs": [
+        "Save this complete file as test_wrong_fix_shallow.py. It checks only exact retry accounting. The expected result is one passing test and exit code 0, which is insufficient evidence for the full contract."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_wrong_fix_shallow.py",
+        "code": "import unittest\n\nfrom wrong_fix import Inventory\n\n\nclass ShallowRetryTest(unittest.TestCase):\n    def test_exact_retry_is_not_double_counted(self):\n        inventory = Inventory(5)\n        first = inventory.reserve(\"r\", \"item\", 2)\n        second = inventory.reserve(\"r\", \"item\", 2)\n        self.assertEqual(first, second)\n        self.assertEqual(inventory.reserved, 2)\n        self.assertEqual(inventory.available, 3)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "wrong-fix-independent-test",
+      "title": "Independent test that rejects the wrong fix",
+      "paragraphs": [
+        "Save this complete file as test_wrong_fix.py. It changes only the quantity for an already-bound request ID and verifies that the whole public state remains unchanged after denial. The expected result is one failed test because RequestConflict is not raised."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_wrong_fix.py",
+        "code": "import unittest\n\nfrom wrong_fix import Inventory, RequestConflict\n\n\nclass IndependentRequestBindingTest(unittest.TestCase):\n    def test_changed_payload_with_same_id_is_rejected(self):\n        inventory = Inventory(5)\n        inventory.reserve(\"r\", \"item\", 2)\n        before = (inventory.reserved, inventory.available, dict(inventory.requests))\n        with self.assertRaises(RequestConflict):\n            inventory.reserve(\"r\", \"item\", 1)\n        after = (inventory.reserved, inventory.available, dict(inventory.requests))\n        self.assertEqual(after, before)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "runtime-evidence",
+      "title": "Bind observed results to runtime file hashes",
+      "paragraphs": [
+        "Save this complete recorder as evidence.py. It computes SHA-256 hashes at runtime, launches the corrected test command as a subprocess, captures the actual exit code, stdout, and stderr, and writes the JSON record even when tests fail. Python documents hashlib and SHA-256 support at https://docs.python.org/3/library/hashlib.html",
+        "The recorder exits with the test subprocess status after preserving the record. Therefore a failed test does not become a successful validation merely because evidence.json was written. When `--compare` names an earlier record, `stale` is true if any bound file hash differs."
+      ],
+      "code": {
+        "language": "python",
+        "label": "evidence.py",
+        "code": "import argparse\nimport hashlib\nimport json\nimport pathlib\nimport subprocess\nimport sys\n\n\nBOUND_FILES = [\n    \"fixture.json\",\n    \"inventory.py\",\n    \"test_inventory.py\",\n]\n\n\ndef sha256_file(path):\n    digest = hashlib.sha256()\n    with open(path, \"rb\") as handle:\n        for block in iter(lambda: handle.read(65536), b\"\"):\n            digest.update(block)\n    return digest.hexdigest()\n\n\ndef current_hashes():\n    return {path: sha256_file(path) for path in BOUND_FILES}\n\n\ndef run_test():\n    command = [sys.executable, \"-m\", \"unittest\", \"-v\", \"test_inventory.py\"]\n    completed = subprocess.run(command, text=True, capture_output=True)\n    return {\n        \"command\": command,\n        \"exitCode\": completed.returncode,\n        \"observed\": \"PASS\" if completed.returncode == 0 else \"FAIL\",\n        \"stdout\": completed.stdout,\n        \"stderr\": completed.stderr,\n    }\n\n\ndef main():\n    parser = argparse.ArgumentParser()\n    parser.add_argument(\"--record\", default=\"evidence.json\")\n    parser.add_argument(\"--compare\")\n    args = parser.parse_args()\n\n    files = current_hashes()\n    result = run_test()\n    record = {\n        \"requirement\": (\n            \"conservation, strict validated payload binding, unknown-outcome \"\n            \"replay, denial without mutation, and snapshot recovery\"\n        ),\n        \"files\": files,\n        \"test\": {\n            \"expected\": \"7 unittest methods pass and the subprocess exits 0\",\n            \"result\": result,\n        },\n        \"stale\": False,\n    }\n\n    if args.compare:\n        old = json.loads(pathlib.Path(args.compare).read_text(encoding=\"utf-8\"))\n        record[\"stale\"] = old.get(\"files\") != files\n        record[\"comparedWith\"] = args.compare\n\n    pathlib.Path(args.record).write_text(\n        json.dumps(record, indent=2) + \"\\n\",\n        encoding=\"utf-8\",\n    )\n    print(\n        json.dumps(\n            {\n                \"record\": args.record,\n                \"stale\": record[\"stale\"],\n                \"observed\": result[\"observed\"],\n                \"testExitCode\": result[\"exitCode\"],\n            }\n        )\n    )\n    return result[\"exitCode\"]\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())\n"
+      }
+    },
+    {
+      "id": "commands-and-rerun",
+      "title": "Exact commands, rerun, stale-result check, and rollback evidence",
+      "paragraphs": [
+        "Save every file under its displayed filename in one isolated directory. Use explicit test module names because the directory intentionally contains tests that should fail. `python3 --version` records the interpreter. If a local system documents `python` as its Python 3 command, substitute it consistently.",
+        "The baseline command is expected to exit nonzero after seven tests with five failures. Preserve that output. The corrected command is expected to pass seven tests. The evidence command reruns the corrected tests itself and records their actual result. Its process exits nonzero if those tests fail, even though it preserves the JSON.",
+        "Rollback evidence is included in the corrected suite. The recovery test snapshots empty state, reserves the fixture quantity, restores the snapshot, and verifies the request records, reserved stock, available stock, strict integer state, and conservation."
+      ],
+      "code": {
+        "language": "text",
+        "label": "command sequence",
+        "code": "python3 --version\npython3 -m unittest -v test_buggy_inventory.py\n# Preserve the nonzero baseline output before applying the correction.\npython3 -m unittest -v test_inventory.py\npython3 evidence.py --record evidence.json\n\n# Demonstrate that a shallow test can pass while an independent test fails.\npython3 -m unittest -v test_wrong_fix_shallow.py\npython3 -m unittest -v test_wrong_fix.py\n\n# After completing the changed-input task:\npython3 -m unittest -v test_inventory.py\npython3 evidence.py --record evidence-after-change.json --compare evidence.json\n"
+      }
+    },
+    {
+      "id": "evidence-output-shape",
+      "title": "Expected evidence output shape",
+      "paragraphs": [
+        "Hashes and captured output cannot be filled truthfully before execution. The following is the supported shape, with UNKNOWN placeholders rather than invented values. A successful pre-change run is expected to report stale false. A successful changed-input comparison is expected to report stale true because fixture.json changed."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Synthetic expected evidence shape, not an actual record",
+        "code": "{\n  \"requirement\": \"conservation, strict validated payload binding, unknown-outcome replay, denial without mutation, and snapshot recovery\",\n  \"files\": {\n    \"fixture.json\": \"UNKNOWN UNTIL RUNTIME\",\n    \"inventory.py\": \"UNKNOWN UNTIL RUNTIME\",\n    \"test_inventory.py\": \"UNKNOWN UNTIL RUNTIME\"\n  },\n  \"test\": {\n    \"expected\": \"7 unittest methods pass and the subprocess exits 0\",\n    \"result\": {\n      \"command\": [\"UNKNOWN PYTHON EXECUTABLE\", \"-m\", \"unittest\", \"-v\", \"test_inventory.py\"],\n      \"exitCode\": \"UNKNOWN UNTIL RUNTIME\",\n      \"observed\": \"UNKNOWN UNTIL RUNTIME\",\n      \"stdout\": \"UNKNOWN UNTIL RUNTIME\",\n      \"stderr\": \"UNKNOWN UNTIL RUNTIME\"\n    }\n  },\n  \"stale\": \"false before a comparison; expected true when compared after the fixture edit\"\n}\n"
+      }
+    },
+    {
+      "id": "execution-versus-product-defect",
+      "title": "Classify execution failures versus product defects",
+      "paragraphs": [
+        "An execution failure means verification did not reach the intended assertion. Examples include a missing file, syntax error in the harness, unavailable Python command, permission error, or wrong working directory. It is evidence about the procedure or environment, not proof that the inventory contract is wrong.",
+        "A product defect means the intended test ran and observed behavior violated the contract. Examples are reserved stock becoming 4 after reserving quantity 2 and replaying it, accepting a changed quantity for the same request ID, or mutating state after rejecting malformed input.",
+        "Preserve both kinds of failure. Record the command, Python version, exit status, stdout, stderr, and failure signature. Repair an execution failure before drawing a product conclusion. Repair a product defect while retaining its regression test. If classification remains uncertain, record UNKNOWN and identify the next discriminating check."
+      ],
+      "callout": "A written evidence file is not proof of success. Read the recorded child exit code and observed label, and reject stale evidence after any bound file changes."
+    },
+    {
+      "id": "changed-input-task",
+      "title": "Changed-input learner task",
+      "paragraphs": [
+        "Change only `fixture.json` request quantity from 2 to 3. Do not edit inventory.py or test_inventory.py. The fixture-driven tests must adapt without hardcoded expected values.",
+        "Trace the decision before editing: requested quantity changes from 2 to 3; first reservation must produce reserved 3 and available 2; replay must preserve reserved 3 and available 2; total stock remains 5; exact request binding and all negative cases remain unchanged; the fixture hash changes, so evidence.json from before the edit is stale.",
+        "Run `python3 -m unittest -v test_inventory.py`, then run `python3 evidence.py --record evidence-after-change.json --compare evidence.json`. Expected results are seven passing tests, recorder test exit 0, and stale true. These are expected outcomes, not claims of actual execution."
+      ]
+    },
+    {
+      "id": "changed-input-solution-fixture",
+      "title": "Changed-input solution: complete fixture",
+      "paragraphs": [
+        "The complete answer changes only the fixture quantity. Save this as fixture.json for the solution run."
+      ],
+      "code": {
+        "language": "json",
+        "label": "fixture.json",
+        "code": "{\n  \"total_stock\": 5,\n  \"request\": {\n    \"request_id\": \"req-001\",\n    \"item\": \"blue-pencil\",\n    \"quantity\": 3\n  }\n}\n"
+      }
+    },
+    {
+      "id": "changed-input-solution-tests",
+      "title": "Changed-input solution: complete runnable test file",
+      "paragraphs": [
+        "This is the complete unchanged, fixture-driven test_inventory.py for the solution. It preserves the independent accounting oracle, strict-type negative tests, payload-conflict tests, no-mutation checks, replay check, and rollback check. With the changed fixture, its expected state is reserved 3 and available 2 after both first reservation and replay."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_inventory.py",
+        "code": "import json\nimport math\nimport unittest\n\nfrom inventory import Inventory, RequestConflict, UnknownOutcome\n\n\nwith open(\"fixture.json\", encoding=\"utf-8\") as handle:\n    FIXTURE = json.load(handle)\n\n\nclass InventoryTests(unittest.TestCase):\n    def assert_accounting(self, inventory):\n        records = list(inventory.requests.values())\n        self.assertTrue(all(type(record.quantity) is int for record in records))\n        recorded_quantity = sum(record.quantity for record in records)\n        self.assertEqual(inventory.reserved, recorded_quantity)\n        self.assertIs(type(inventory.reserved), int)\n        self.assertIs(type(inventory.available), int)\n        self.assertGreaterEqual(inventory.reserved, 0)\n        self.assertGreaterEqual(inventory.available, 0)\n        self.assertEqual(recorded_quantity + inventory.available, inventory.total_stock)\n\n    def assert_denied_without_mutation(self, inventory, exception, *args, **kwargs):\n        before = inventory.snapshot()\n        with self.assertRaises(exception):\n            inventory.reserve(*args, **kwargs)\n        self.assertEqual(inventory.snapshot(), before)\n        self.assert_accounting(inventory)\n\n    def test_first_reservation_uses_fixture_values(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        result = inventory.reserve(**FIXTURE[\"request\"])\n        request = FIXTURE[\"request\"]\n        self.assertEqual(result.request_id, request[\"request_id\"])\n        self.assertEqual(result.item, request[\"item\"])\n        self.assertEqual(result.quantity, request[\"quantity\"])\n        self.assertEqual(inventory.reserved, request[\"quantity\"])\n        self.assertEqual(\n            inventory.available,\n            FIXTURE[\"total_stock\"] - request[\"quantity\"],\n        )\n        self.assert_accounting(inventory)\n\n    def test_unknown_outcome_reconciles_by_replay(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        with self.assertRaises(UnknownOutcome):\n            inventory.reserve(**FIXTURE[\"request\"], simulate_unknown=True)\n        after_commit = inventory.snapshot()\n        result = inventory.replay(**FIXTURE[\"request\"])\n        self.assertEqual(inventory.snapshot(), after_commit)\n        self.assertEqual(result.quantity, FIXTURE[\"request\"][\"quantity\"])\n        self.assertEqual(inventory.reserved, FIXTURE[\"request\"][\"quantity\"])\n        self.assertEqual(\n            inventory.available,\n            FIXTURE[\"total_stock\"] - FIXTURE[\"request\"][\"quantity\"],\n        )\n        self.assert_accounting(inventory)\n\n    def test_same_payload_retry_is_idempotent(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        first = inventory.reserve(**FIXTURE[\"request\"])\n        after_first = inventory.snapshot()\n        second = inventory.reserve(**FIXTURE[\"request\"])\n        self.assertEqual(first, second)\n        self.assertEqual(inventory.snapshot(), after_first)\n        self.assert_accounting(inventory)\n\n    def test_changed_item_or_quantity_conflicts_without_mutation(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        inventory.reserve(**FIXTURE[\"request\"])\n        request = FIXTURE[\"request\"]\n        self.assert_denied_without_mutation(\n            inventory,\n            RequestConflict,\n            request[\"request_id\"],\n            request[\"item\"] + \"-changed\",\n            request[\"quantity\"],\n        )\n        changed_quantity = 1 if request[\"quantity\"] != 1 else 2\n        self.assert_denied_without_mutation(\n            inventory,\n            RequestConflict,\n            request[\"request_id\"],\n            request[\"item\"],\n            changed_quantity,\n        )\n\n    def test_invalid_excessive_and_non_integer_quantities_are_denied(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        invalid = [\n            (ValueError, \"zero\", 0),\n            (ValueError, \"negative\", -1),\n            (ValueError, \"excess\", FIXTURE[\"total_stock\"] + 1),\n            (TypeError, \"true\", True),\n            (TypeError, \"false\", False),\n            (TypeError, \"fraction\", 1.5),\n            (TypeError, \"nan\", math.nan),\n        ]\n        for exception, request_id, quantity in invalid:\n            with self.subTest(request_id=request_id):\n                self.assert_denied_without_mutation(\n                    inventory,\n                    exception,\n                    request_id,\n                    \"blue-pencil\",\n                    quantity,\n                )\n\n    def test_malformed_metadata_is_denied_before_mutation(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        cases = [\n            (ValueError, (\"\", \"item\", 1), {}),\n            (TypeError, (7, \"item\", 1), {}),\n            (ValueError, (\"r-empty-item\", \"\", 1), {}),\n            (TypeError, (\"r-bad-item\", 7, 1), {}),\n            (TypeError, (\"r-bad-flag\", \"item\", 1), {\"simulate_unknown\": 1}),\n        ]\n        for exception, args, kwargs in cases:\n            with self.subTest(args=args, kwargs=kwargs):\n                self.assert_denied_without_mutation(\n                    inventory,\n                    exception,\n                    *args,\n                    **kwargs,\n                )\n\n    def test_snapshot_restore_is_recovery_path(self):\n        inventory = Inventory(FIXTURE[\"total_stock\"])\n        before = inventory.snapshot()\n        inventory.reserve(**FIXTURE[\"request\"])\n        self.assertNotEqual(inventory.snapshot(), before)\n        inventory.restore(before)\n        self.assertEqual(inventory.snapshot(), before)\n        self.assertEqual(inventory.reserved, 0)\n        self.assertEqual(inventory.available, FIXTURE[\"total_stock\"])\n        self.assert_accounting(inventory)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "changed-input-feedback",
+      "title": "Changed-input answer and actionable feedback",
+      "paragraphs": [
+        "Complete expected answer: fixture quantity is 3; inventory.py and the fixture-driven test file are unchanged; first reservation is reserved 3 and available 2; unknown-outcome replay remains reserved 3 and available 2; the independent conservation result is 3 plus 2 equals 5.",
+        "If the corrected tests report `3 != 2`, inspect test_inventory.py for a hardcoded quantity or availability assertion and restore the complete fixture-driven solution above. If availability is 1, inspect whether the operation reserved twice or the fixture was accidentally changed to 4. If a changed payload is accepted, compare both item and quantity before returning a prior result.",
+        "If the comparison reports stale false, confirm that the earlier evidence.json was created before the fixture edit, that fixture.json is in BOUND_FILES, and that `--compare evidence.json` names the pre-edit record. If the recorder exits nonzero, inspect its recorded child exit code, stdout, and stderr rather than treating the existence of the JSON file as success.",
+        "If Python cannot start, a file cannot be imported, or the working directory is wrong, classify that as an execution failure. Preserve the message, repair the procedure, and rerun before evaluating product behavior."
+      ]
+    },
+    {
+      "id": "transfer-across-providers",
+      "title": "Transfer the method across model families and coding agents",
+      "paragraphs": [
+        "The evidence loop is provider-neutral. A practitioner can ask any permitted coding agent to inspect the contract, propose one bounded change, run the exact local command, inspect the diff, and return the hash-bound evidence. The contract and independently runnable tests remain the authority.",
+        "Optional model families include Llama, Qwen, DeepSeek, Mistral, Phi, NVIDIA, and Z.ai, as well as families from other providers. Tool use, local execution, context limits, sandboxing, approvals, and filesystem permissions are deployment-specific. A family name does not establish any of those capabilities.",
+        "The exercise itself requires no vendor account or vendor-specific behavior. If an agent cannot execute locally, a human can run the same standard-library commands and supply the observed evidence. Compare systems by traceability and correctness, not assumed vendor features."
+      ],
+      "callout": "Keep the contract, independent oracle, negative cases, failure classification, runtime hash binding, stale-result check, and recovery test. Change only the deployment-specific interface after checking its documented permissions."
+    },
+    {
+      "id": "source-notes",
+      "title": "Source notes and scope limits",
+      "paragraphs": [
+        "NIST Secure Software Development Framework: https://csrc.nist.gov/pubs/sp/800/218/final",
+        "Python hashlib documentation for SHA-256 support used by evidence.py: https://docs.python.org/3/library/hashlib.html",
+        "GitHub documentation for pull-request and review workflow background: https://docs.github.com/en/pull-requests/get-started/about-pull-requests",
+        "The inventory contract, fixture, implementations, tests, commands, expected failures, and expected passing results are authored teaching material. They are not vendor behavior, production architecture, or claims of actual execution. Actual runtime results remain UNKNOWN until the commands are run."
       ]
     }
   ],
@@ -75,6 +338,12 @@
       "url": "https://learn.chatgpt.com/docs/agent-approvals-security",
       "publisher": "OpenAI",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "hashlib: Secure hashes and message digests",
+      "url": "https://docs.python.org/3/library/hashlib.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
     }
   ]
 }
