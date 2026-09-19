@@ -25,7 +25,9 @@
     "legacy",
     "refactor",
     "characterization",
-    "recovery"
+    "recovery",
+    "ai-assisted-development",
+    "python"
   ],
   "sections": [
     {
@@ -33,12 +35,36 @@
       "title": "Characterize behavior and hidden contracts",
       "paragraphs": [
         "Map entry points, callers, data shapes, side effects, external dependencies, configuration, permissions, concurrency, error handling, deployment, monitoring, and rollback. Use logs, tests, history, schemas, and representative fixtures to distinguish intended contracts from accidents that still have consumers.",
-        "Ask AI to produce a dependency and risk map with evidence references, not an immediate rewrite. Protect unfamiliar code until a characterization test or accountable decision defines what may change."
-      ]
+        "Ask AI to produce a dependency and risk map with evidence references, not an immediate rewrite. Protect unfamiliar code until a characterization test or accountable decision defines what may change.",
+        "In this worked case, the entry point is render_report. Its observable contract includes formatted report lines, treatment of a blank quantity, ValueError behavior for an invalid price, and an audit-file append after successful processing. The audit write is a side effect and must be compared independently from returned text.",
+        "A surprising compatibility edge is that an empty quantity is accepted and rendered as zero. It may look like bad input, but changing it to an error would be a contract change unless the owner authorizes that change and consumers are migrated.",
+        "The miniature uses csv.DictReader with headers item, quantity, and unit_price. Quoted commas in an item remain part of that item, while a blank quantity is an empty string before the legacy expression converts it to zero. The report uses binary floating-point conversion and formatting, so this exercise does not establish a general currency-accuracy policy."
+      ],
+      "code": {
+        "language": "python",
+        "label": "legacy_report.py",
+        "code": "import csv\nimport io\n\n\ndef render_report(csv_text, audit_path=\"audit.log\"):\n    reader = csv.DictReader(io.StringIO(csv_text.strip(\"\\n\")))\n    lines = []\n    count = 0\n\n    for row in reader:\n        item = row[\"item\"]\n        quantity = float(row[\"quantity\"] or 0)\n        unit_price = float(row[\"unit_price\"])\n        total = quantity * unit_price\n        lines.append(\n            f\"{item}: {quantity:g} x ${unit_price:.2f} = ${total:.2f}\"\n        )\n        count += 1\n\n    with open(audit_path, \"a\", encoding=\"utf-8\") as audit:\n        audit.write(f\"processed={count}\\n\")\n\n    return \"\\n\".join(lines)\n"
+      }
     },
     {
       "id": "refactor-slices",
       "title": "Create seams and move in reversible slices",
+      "paragraphs": [
+        "Add deterministic characterization tests around stable boundaries, isolate volatile dependencies behind explicit interfaces, and choose one behavior-preserving slice. Keep data and API migrations backward compatible until every consumer and rollback path is verified.",
+        "Review AI edits for silent dependency, error, permission, performance, or observability changes. Deploy with a bounded canary or shadow path where justified, compare signals, and stop on declared thresholds.",
+        "The first slice below changes only the audit dependency. FileAuditSink preserves the existing append behavior, while AuditSink makes the side effect explicit and testable. The report parsing and formatting rules remain unchanged.",
+        "A shadow or canary simulation is not permission to release a contract change. Bound the population and duration, compare output, errors, side effects, and resource signals, and declare stop thresholds before running it. A human owner must authorize any intentional contract change. If a threshold is crossed, route back to the verified implementation, stop the experiment, and reconcile any side effects.",
+        "The seam must select the default only when audit_sink is None. Truthiness is not the contract: a caller may deliberately provide an object whose __bool__ returns False. The corrected implementation therefore uses an explicit None check."
+      ],
+      "code": {
+        "language": "python",
+        "label": "refactored_report.py",
+        "code": "import csv\nimport io\n\n\nclass AuditSink:\n    def write(self, text):\n        raise NotImplementedError\n\n\nclass FileAuditSink(AuditSink):\n    def __init__(self, path):\n        self.path = path\n\n    def write(self, text):\n        with open(self.path, \"a\", encoding=\"utf-8\") as audit:\n            audit.write(text)\n\n\ndef render_report(csv_text, audit_path=\"audit.log\", audit_sink=None):\n    reader = csv.DictReader(io.StringIO(csv_text.strip(\"\\n\")))\n    lines = []\n    count = 0\n\n    for row in reader:\n        item = row[\"item\"]\n        quantity = float(row[\"quantity\"] or 0)\n        unit_price = float(row[\"unit_price\"])\n        total = quantity * unit_price\n        lines.append(\n            f\"{item}: {quantity:g} x ${unit_price:.2f} = ${total:.2f}\"\n        )\n        count += 1\n\n    sink = FileAuditSink(audit_path) if audit_sink is None else audit_sink\n    sink.write(f\"processed={count}\\n\")\n    return \"\\n\".join(lines)\n"
+      }
+    },
+    {
+      "id": "refactor-plan-template",
+      "title": "Legacy refactor task card",
       "paragraphs": [
         "Add deterministic characterization tests around stable boundaries, isolate volatile dependencies behind explicit interfaces, and choose one behavior-preserving slice. Keep data and API migrations backward compatible until every consumer and rollback path is verified.",
         "Review AI edits for silent dependency, error, permission, performance, or observability changes. Deploy with a bounded canary or shadow path where justified, compare signals, and stop on declared thresholds."
@@ -50,11 +76,117 @@
       }
     },
     {
+      "id": "before-after-diff",
+      "title": "Review the bounded before-and-after diff",
+      "paragraphs": [
+        "Review the diff as a human before treating the refactor as verified. The intended change is limited to dependency injection for the audit side effect. There should be no changed parsing, formatting, error, or count logic.",
+        "The new optional audit_sink argument is backward compatible for callers that still pass only csv_text and audit_path. The default remains a file sink at the same path. The diff does not authorize changing the blank-quantity behavior.",
+        "One necessary correction to the seam is explicit None selection rather than sink = audit_sink or FileAuditSink(audit_path). The latter silently discards a falsey, caller-supplied sink and performs unwanted file I/O. This correction is still within the dependency-seam slice because it preserves the injected dependency contract."
+      ],
+      "code": {
+        "language": "diff",
+        "label": "reviewed audit-seam.diff",
+        "code": "--- legacy_report.py\n+++ refactored_report.py\n@@\n import csv\n import io\n \n+class AuditSink:\n+    def write(self, text):\n+        raise NotImplementedError\n+\n+class FileAuditSink(AuditSink):\n+    def __init__(self, path):\n+        self.path = path\n+\n+    def write(self, text):\n+        with open(self.path, \"a\", encoding=\"utf-8\") as audit:\n+            audit.write(text)\n+\n-def render_report(csv_text, audit_path=\"audit.log\"):\n+def render_report(csv_text, audit_path=\"audit.log\", audit_sink=None):\n@@\n-    with open(audit_path, \"a\", encoding=\"utf-8\") as audit:\n-        audit.write(f\"processed={count}\\n\")\n-\n+    sink = FileAuditSink(audit_path) if audit_sink is None else audit_sink\n+    sink.write(f\"processed={count}\\n\")\n     return \"\\n\".join(lines)\n"
+      }
+    },
+    {
+      "id": "changed-input-task",
+      "title": "Learner task: change the input before reading the key tests",
+      "paragraphs": [
+        "Create a local file named learner_input.csv with the fixture below, then decide whether its behavior is part of the compatibility contract. Do not change either implementation before recording your decision.",
+        "Your changed input introduces a quoted comma in the item name, a decimal quantity, and a blank quantity. Record the expected report text, the expected audit side effect, and whether a blank quantity should remain zero or become an error. Your decision must cite the observed old behavior and identify the owner who would authorize a contract change.",
+        "Run the old and new implementations against your changed input using the same audit-path convention. The key tests in the next section are separate from this task and use frozen inputs, so passing them does not prove that your changed input was handled correctly.",
+        "A compatibility decision for this exercise is required before consulting the answer key. If the owner has not authorized a contract change, preserve the observed blank-as-zero behavior and treat any rejection as a regression."
+      ],
+      "code": {
+        "language": "text",
+        "label": "learner_input.csv",
+        "code": "item,quantity,unit_price\n\"Coffee, dark roast\",1.5,8.00\nTea,,2.25\n"
+      },
+      "callout": "Decision record to complete: observed behavior; expected output; expected side effect; compatibility decision; evidence; contract owner; rollback route."
+    },
+    {
+      "id": "key-tests",
+      "title": "Run characterization, compatibility, consumer, and failure tests",
+      "paragraphs": [
+        "The test file compares each implementation with an independent frozen expected result. It does not merely assert old output equals new output, because two implementations could agree while both are wrong.",
+        "The fixture covers normal formatting and the blank-quantity compatibility edge. A separate invalid-price fixture checks the ValueError class and confirms that neither implementation writes an audit side effect after a failed row. The consumer test checks the stable line shape used by a downstream report consumer.",
+        "The changed-input answer key is exact: the report is Coffee, dark roast: 1.5 x $8.00 = $12.00 followed by Tea: 0 x $2.25 = $0.00, separated by one newline. Each implementation appends processed=2 followed by a newline to its own initially absent audit file. The compatibility decision is to retain blank-as-zero unless the named contract owner authorizes a change.",
+        "The test also independently exercises a falsey injected sink, a sink that captures text, a sink that raises an error, and an existing audit file. These tests establish explicit seam behavior, failure propagation, and append preservation rather than relying only on old-versus-new equality.",
+        "These tests write only named files in the current working directory. They use the Python standard library and do not access a network, model API, production system, operating-system temporary directory, or external service."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_report.py",
+        "code": "import os\n\nimport legacy_report\nimport refactored_report\n\n\nVALID_FIXTURE = \"\"\"item,quantity,unit_price\nApples,2,1.50\nBananas,,0.80\n\"\"\"\n\nINVALID_FIXTURE = \"\"\"item,quantity,unit_price\nBad price,1,not-a-price\n\"\"\"\n\nEXPECTED_OUTPUT = \"Apples: 2 x $1.50 = $3.00\\nBananas: 0 x $0.80 = $0.00\"\nEXPECTED_AUDIT = \"processed=2\\n\"\nEXPECTED_ERROR = (\"ValueError\", \"could not convert string to float: 'not-a-price'\")\n\n\ndef remove_if_present(path):\n    if os.path.exists(path):\n        os.remove(path)\n\n\ndef read_if_present(path):\n    if not os.path.exists(path):\n        return None\n    with open(path, \"r\", encoding=\"utf-8\") as audit:\n        return audit.read()\n\n\ndef outcome(function, fixture, audit_path):\n    remove_if_present(audit_path)\n    try:\n        output = function(fixture, audit_path)\n        error = None\n    except Exception as exc:\n        output = None\n        error = (type(exc).__name__, str(exc))\n    side_effect = read_if_present(audit_path)\n    remove_if_present(audit_path)\n    return output, error, side_effect\n\n\ndef consumer_test(output):\n    lines = output.splitlines()\n    assert len(lines) == 2\n    assert lines[0].startswith(\"Apples: \")\n    assert lines[1].startswith(\"Bananas: \")\n    assert lines[0].endswith(\"$3.00\")\n    assert lines[1].endswith(\"$0.00\")\n\n\nclass CaptureSink:\n    def __init__(self):\n        self.text = []\n\n    def write(self, text):\n        self.text.append(text)\n\n\nclass FalseyCaptureSink(CaptureSink):\n    def __bool__(self):\n        return False\n\n\nclass FailingSink:\n    def write(self, text):\n        raise RuntimeError(\"audit unavailable\")\n\n\ndef main():\n    old_valid = outcome(legacy_report.render_report, VALID_FIXTURE, \"old_valid.audit\")\n    new_valid = outcome(refactored_report.render_report, VALID_FIXTURE, \"new_valid.audit\")\n    frozen_valid = (EXPECTED_OUTPUT, None, EXPECTED_AUDIT)\n    assert old_valid == frozen_valid, (\"old valid\", old_valid, frozen_valid)\n    assert new_valid == frozen_valid, (\"new valid\", new_valid, frozen_valid)\n    consumer_test(new_valid[0])\n\n    old_invalid = outcome(legacy_report.render_report, INVALID_FIXTURE, \"old_invalid.audit\")\n    new_invalid = outcome(refactored_report.render_report, INVALID_FIXTURE, \"new_invalid.audit\")\n    frozen_invalid = (None, EXPECTED_ERROR, None)\n    assert old_invalid == frozen_invalid, (\"old invalid\", old_invalid, frozen_invalid)\n    assert new_invalid == frozen_invalid, (\"new invalid\", new_invalid, frozen_invalid)\n\n    capture = CaptureSink()\n    output = refactored_report.render_report(VALID_FIXTURE, \"unused_capture.audit\", capture)\n    assert output == EXPECTED_OUTPUT\n    assert capture.text == [EXPECTED_AUDIT]\n    remove_if_present(\"unused_capture.audit\")\n\n    falsey = FalseyCaptureSink()\n    falsey_path = \"falsey_should_not_exist.audit\"\n    remove_if_present(falsey_path)\n    refactored_report.render_report(VALID_FIXTURE, falsey_path, falsey)\n    assert falsey.text == [EXPECTED_AUDIT]\n    assert not os.path.exists(falsey_path)\n\n    failure_path = \"failure_should_not_exist.audit\"\n    remove_if_present(failure_path)\n    try:\n        refactored_report.render_report(VALID_FIXTURE, failure_path, FailingSink())\n    except RuntimeError as exc:\n        assert str(exc) == \"audit unavailable\"\n    else:\n        raise AssertionError(\"failing sink error was swallowed\")\n    assert not os.path.exists(failure_path)\n\n    append_path = \"append.audit\"\n    with open(append_path, \"w\", encoding=\"utf-8\") as audit:\n        audit.write(\"earlier=1\\n\")\n    refactored_report.render_report(VALID_FIXTURE, append_path)\n    assert read_if_present(append_path) == \"earlier=1\\n\" + EXPECTED_AUDIT\n    remove_if_present(append_path)\n\n    broken = outcome(refactored_report.render_report, VALID_FIXTURE, \"broken_reference.audit\")\n    assert broken == frozen_valid\n\n    broken_result = outcome(__import__(\"ai_broken_report\").render_report, VALID_FIXTURE, \"broken_ai.audit\")\n    assert broken_result != frozen_valid\n    broken_error = outcome(__import__(\"ai_broken_report\").render_report, INVALID_FIXTURE, \"broken_ai_invalid.audit\")\n    assert broken_error[1] == EXPECTED_ERROR\n\n    print(\"CHARACTERIZATION PASS\")\n    print(\"COMPATIBILITY EDGE PASS\")\n    print(\"CONSUMER TEST PASS\")\n    print(\"NEGATIVE CASE PASS\")\n    print(\"AUDIT SEAM PASS\")\n    print(\"APPEND PRESERVATION PASS\")\n    print(\"BROKEN AI REFACTOR DETECTED\")\n    print(\"EXIT STATUS 0\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+      }
+    },
+    {
+      "id": "changed-input-key",
+      "title": "Answer key and runnable changed-input comparison",
+      "paragraphs": [
+        "Read this section only after completing the changed-input task. The quoted comma is parsed as part of the item because it is inside CSV quotes. The decimal quantity is converted to 1.5. The blank quantity is converted by the legacy expression float(row[\"quantity\"] or 0) to 0.0.",
+        "The exact expected report is two lines: Coffee, dark roast: 1.5 x $8.00 = $12.00 and Tea: 0 x $2.25 = $0.00. The exact audit content for each initially absent audit path is processed=2 followed by a newline. Both old and new implementations must produce these independent expected values.",
+        "The decision is to preserve blank-as-zero for this behavior-preserving slice. A contract owner, not the model or learner, must authorize changing it to an error. Such a change would require consumer migration, a release gate, and a rehearsed recovery route."
+      ],
+      "code": {
+        "language": "python",
+        "label": "changed_input_check.py",
+        "code": "import os\n\nimport legacy_report\nimport refactored_report\n\n\nCHANGED_FIXTURE = \"\"\"item,quantity,unit_price\n\"Coffee, dark roast\",1.5,8.00\nTea,,2.25\n\"\"\"\nEXPECTED_OUTPUT = \"Coffee, dark roast: 1.5 x $8.00 = $12.00\\nTea: 0 x $2.25 = $0.00\"\nEXPECTED_AUDIT = \"processed=2\\n\"\n\n\ndef run(function, path):\n    if os.path.exists(path):\n        os.remove(path)\n    output = function(CHANGED_FIXTURE, path)\n    with open(path, \"r\", encoding=\"utf-8\") as audit:\n        audit_text = audit.read()\n    os.remove(path)\n    return output, audit_text\n\n\ndef main():\n    old_result = run(legacy_report.render_report, \"changed_old.audit\")\n    new_result = run(refactored_report.render_report, \"changed_new.audit\")\n    expected = (EXPECTED_OUTPUT, EXPECTED_AUDIT)\n    assert old_result == expected, (\"old changed input\", old_result, expected)\n    assert new_result == expected, (\"new changed input\", new_result, expected)\n    print(\"CHANGED INPUT OLD PASS\")\n    print(\"CHANGED INPUT NEW PASS\")\n    print(\"CHANGED INPUT EXPECTED RESULT PASS\")\n    print(\"EXIT STATUS 0\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+      }
+    },
+    {
+      "id": "commands",
+      "title": "Run the offline exercise",
+      "paragraphs": [
+        "Place legacy_report.py, refactored_report.py, ai_broken_report.py, test_report.py, and changed_input_check.py in one working directory. Run the commands below from that directory. The expected stdout is shown separately and is a test expectation, not a claim that it was executed here.",
+        "A successful run has exit status 0. The first command prints eight verification lines. The second command prints four changed-input lines. An assertion failure has a nonzero exit status and should be investigated rather than treated as evidence that the refactor is safe.",
+        "The exercise uses only local working-directory artifacts. Before rerunning after an interrupted exercise, remove any named .audit files left by the interruption."
+      ],
+      "code": {
+        "language": "shell",
+        "label": "offline run commands",
+        "code": "python3 test_report.py\npython3 changed_input_check.py"
+      }
+    },
+    {
+      "id": "expected-run-result",
+      "title": "Expected stdout and failure interpretation",
+      "paragraphs": [
+        "The expected stdout for the supplied fixtures is exact. The scripts print EXIT STATUS 0 only after all assertions pass. No actual execution is claimed in this guide.",
+        "If the invalid fixture unexpectedly creates an audit file, inspect the write ordering because a failed parse must not create the success side effect. If the blank-quantity case fails, the proposed refactor changed a compatibility edge and should be rolled back unless a contract owner approved the change.",
+        "The deliberate broken AI refactor is expected to be invoked by test_report.py and detected. Its output differs because it strips item whitespace and rejects blank quantities. The test does not treat that implementation as a candidate replacement."
+      ],
+      "code": {
+        "language": "text",
+        "label": "expected stdout for test_report.py",
+        "code": "CHARACTERIZATION PASS\nCOMPATIBILITY EDGE PASS\nCONSUMER TEST PASS\nNEGATIVE CASE PASS\nAUDIT SEAM PASS\nAPPEND PRESERVATION PASS\nBROKEN AI REFACTOR DETECTED\nEXIT STATUS 0"
+      }
+    },
+    {
+      "id": "deliberate-ai-break",
+      "title": "Diagnose a plausible AI refactor that breaks compatibility",
+      "paragraphs": [
+        "The following complete file is a deliberately unsafe AI-style refactor. It strips whitespace from every item and rejects a blank quantity. Both edits can look like input cleanup, but they alter observable behavior. The blank quantity is a known compatibility edge, and item text may be a user-visible value.",
+        "Run it only against local fixtures if you want to inspect the failure. Compare its output and error behavior with the frozen expected results. Diagnosis is based on the changed contract, not on whether the code appears cleaner. test_report.py invokes this file directly and asserts that its valid-fixture result is not the frozen expected result.",
+        "Rollback is to restore refactored_report.py to the verified implementation, rerun test_report.py and changed_input_check.py, preserve the failing characterization case, and obtain explicit human authorization before considering either behavior change."
+      ],
+      "code": {
+        "language": "python",
+        "label": "ai_broken_report.py",
+        "code": "import csv\nimport io\n\n\nclass FileAuditSink:\n    def __init__(self, path):\n        self.path = path\n\n    def write(self, text):\n        with open(self.path, \"a\", encoding=\"utf-8\") as audit:\n            audit.write(text)\n\n\ndef render_report(csv_text, audit_path=\"audit.log\"):\n    reader = csv.DictReader(io.StringIO(csv_text.strip()))\n    lines = []\n    count = 0\n\n    for row in reader:\n        item = row[\"item\"].strip()\n        quantity = float(row[\"quantity\"])\n        unit_price = float(row[\"unit_price\"])\n        total = quantity * unit_price\n        lines.append(\n            f\"{item}: {quantity:g} x ${unit_price:.2f} = ${total:.2f}\"\n        )\n        count += 1\n\n    FileAuditSink(audit_path).write(f\"processed={count}\\n\")\n    return \"\\n\".join(lines)\n"
+      },
+      "callout": "Rollback trigger: any mismatch with the frozen output, error tuple, or side-effect expectation. Contract-change trigger: a named owner approves a new contract, consumer migration, release gate, and recovery plan."
+    },
+    {
       "id": "verify-refactor",
       "title": "Expected result and verification",
       "paragraphs": [
         "Expected evidence includes the system and dependency map, current-contract record, characterization suite, migration and compatibility plan, bounded diff, security and performance results, canary comparison, monitoring window, owner, and rehearsed rollback.",
-        "Stop when an undocumented consumer breaks, data cannot be reversed, permissions broaden, performance crosses its threshold, or the AI introduces unexplained behavior. Restore the verified route or version, reverse only rehearsed migrations, reconcile data and side effects, and preserve the new characterization case."
+        "Stop when an undocumented consumer breaks, data cannot be reversed, permissions broaden, performance crosses its threshold, or the AI introduces unexplained behavior. Restore the verified route or version, reverse only rehearsed migrations, reconcile data and side effects, and preserve the new characterization case.",
+        "For this offline case, the minimum verification bundle is the two complete implementations, the independent frozen fixtures, the exact expected stdout, the reviewed seam-only diff, the consumer assertion, the falsey-sink assertion, the append-preservation assertion, the changed-input comparison, and the negative-case assertion. Actual execution results are UNKNOWN until a learner runs the supplied commands.",
+        "Use pull-request review to obtain a human review of the bounded diff, and use a bisectable version history or equivalent recovery point so a regression can be localized and reversed. Secure development and recovery practices should be adapted to the system's actual risk and permissions.",
+        "Canary and shadow checks can compare behavior, but this offline exercise does not simulate production traffic, concurrency, deployment permissions, monitoring, resource limits, or real recovery. Those limits must be recorded rather than inferred from a passing local test. A human owner must authorize a contract change, and recovery must use a verified route and only rehearsed data or side-effect reversals."
       ]
     }
   ],
@@ -76,6 +208,36 @@
       "url": "https://git-scm.com/docs/git-bisect",
       "publisher": "Git",
       "lastVerified": "2026-07-26"
+    },
+    {
+      "title": "csv.DictReader",
+      "url": "https://docs.python.org/3/library/csv.html#csv.DictReader",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Built-in Functions: float and open",
+      "url": "https://docs.python.org/3/library/functions.html#float",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "io.StringIO",
+      "url": "https://docs.python.org/3/library/io.html#io.StringIO",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "os.path",
+      "url": "https://docs.python.org/3/library/os.path.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Built-in Exceptions: ValueError",
+      "url": "https://docs.python.org/3/library/exceptions.html#ValueError",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
     }
   ]
 }
