@@ -35,29 +35,268 @@
       "id": "review-the-change",
       "title": "Review the change, not the explanation",
       "paragraphs": [
-        "Read the governing requirements, then inspect the diff and affected code paths independently of the author's summary. Confirm the change is necessary, complete, minimal, and consistent with local patterns. Trace data, authorization, errors, concurrency, persistence, migrations, compatibility, and user-visible failure behavior where relevant.",
-        "AI-generated review comments are candidate findings. Validate each against the actual revision and execution context, remove unsupported claims, and identify material gaps the model did not mention. The change author or an automated reviewer does not replace an authorized independent approver."
-      ]
+        "This worked case is a synthetic local order and refund simulator. It is not a payment system. It makes no network requests, uses no credentials, and writes no external records. Its only operational side effects are mutations to an in-memory order dictionary and a caller-supplied set.",
+        "The governing acceptance criteria for REFUND-17 and fixture revision fixtures-v1 are: only support_admin may refund; only active orders may be refunded; a previously processed refund ID returns Decimal('0.00') and causes no additional mutation; the amount must be well formed, finite, non-Boolean, positive, and no greater than the remaining refundable balance; valid money is quantized to Decimal('0.01') using ROUND_HALF_UP; an amount that quantizes to zero is rejected; every rejection occurs without mutation; and the exercise runs offline using only the Python 3 standard library.",
+        "The money representation contract is explicit. Successful refund results and updated refunded totals are Decimal values. An untouched order loaded from JSON retains its original string value. Inputs are converted with Decimal(str(value)), except that Boolean values are rejected first. ROUND_HALF_UP means a halfway value is rounded away from zero. For example, 1.005 becomes Decimal('1.01'). Negative refund amounts remain invalid even though the rounding convention would turn -1.005 into Decimal('-1.01').",
+        "The raw amount is checked against the remaining balance before quantization. This prevents a value such as 10.001 from being silently accepted against a 10.00 balance merely because it would round to 10.00. After quantization, the amount is checked again so a positive value such as 0.001 cannot become an accepted zero-value refund.",
+        "The original implementation and corrected implementation are behaviorally identical. They are separate files with different public function names so learners can compare the original state, proposed patch, and correction. The proposed AI patch introduces the regression by removing authorization and amount validation and by changing the duplicate return from Decimal('0.00') to the requested amount.",
+        "Trace every path as input to decision to mutation to output. On the proposed duplicate path, the repeated call returns the wrong nonzero amount, but it returns before changing the order or processed-ID set. Therefore the evidence supports a wrong retry response, not a second refund mutation."
+      ],
+      "callout": "A model explanation is not approval. Treat each suggestion as a hypothesis, inspect the exact source revision, and reproduce the trigger and effect independently.",
+      "code": {
+        "language": "text",
+        "label": "REFUND-17-acceptance-criteria.txt",
+        "code": "CHANGE_ID: REFUND-17\nFIXTURE_REVISION: fixtures-v1\nSIMULATOR_SCOPE: local in-memory exercise only\n\n1. role must equal support_admin.\n2. order status must equal active.\n3. A refund_id already in processed_refund_ids returns Decimal('0.00') and causes no additional mutation.\n4. amount must be well formed, finite, non-Boolean, positive, and no greater than the remaining refundable balance.\n5. Convert monetary input through Decimal(str(value)) after rejecting Boolean input.\n6. Quantize accepted currency to Decimal('0.01') with ROUND_HALF_UP.\n7. Check the unrounded amount against the balance before quantization and reject a value that quantizes to Decimal('0.00').\n8. Rejected requests must not change order['refunded'] or processed_refund_ids.\n9. Successful return values and updated refunded totals are Decimal instances.\n10. Tests and fixtures must run offline with Python 3 standard-library modules only."
+      }
     },
     {
       "id": "record-review",
       "title": "Record findings with actionable evidence",
       "paragraphs": [
-        "Prioritize defects that can change correctness, security, privacy, reliability, accessibility, or recoverability. A useful finding names the affected location, triggering condition, observable impact, evidence, and smallest acceptable correction."
+        "A useful finding names the exact location, trigger, observable effect, severity, reproducible evidence, and smallest acceptable correction. Severity must follow the demonstrated behavior rather than an exaggerated description.",
+        "The missing role check is HIGH severity within this simulator because an unauthorized caller can mutate refunded state. The wrong duplicate response is MEDIUM because the repeated call returns a nonzero amount even though it does not apply a second mutation. Missing amount validation is HIGH within the stated contract because zero, negative, and over-balance amounts can mutate state, while malformed and nonfinite handling is also inconsistent with the required ValueError contract.",
+        "The smallest acceptable correction restores the support_admin check before state-changing paths, returns Decimal('0.00') for an existing refund ID, validates amounts before mutation, checks both raw and quantized bounds, and retains exact Decimal arithmetic.",
+        "An AI suggestion that the patch accepts closed orders is rejected because the source contains an active-status check and the independent closed-order test exercises it. A suggestion that Decimal alone makes the patch financially safe is also rejected because Decimal does not provide authorization, bounds checking, or correct duplicate behavior."
       ],
+      "callout": "Do not report duplicate mutation when the source and behavioral state checks show only a wrong return value. Findings must match the observed effect.",
       "code": {
         "language": "text",
-        "label": "AI-assisted review record",
-        "code": "Change and revision: [PR/CHANGE ID, COMMIT]\nAcceptance criteria reviewed: [CRITERIA]\nScope check: [EXPECTED FILES, UNEXPECTED FILES]\nBehavior traced: [INPUT -> DECISION -> SIDE EFFECT -> OUTPUT]\nSecurity/privacy checks: [AUTH, INPUT, SECRET, DATA, DEPENDENCY]\nFailure/retry/recovery checks: [SCENARIOS]\nCompatibility/migration checks: [VERSIONS OR NONE]\nTests inspected and rerun: [COMMAND -> RESULT]\nFinding: [SEVERITY, FILE/LOCATION, TRIGGER, IMPACT, EVIDENCE, FIX]\nAI-suggested findings rejected: [CLAIM -> REASON]\nResidual risk: [RISK -> OWNER]\nDecision: [APPROVE | COMMENT | REQUEST CHANGES]\nReviewer identity and date: [INDEPENDENT REVIEWER, YYYY-MM-DD]"
+        "label": "REFUND-17-filled-review-record.txt",
+        "code": "Change and revision: REFUND-17; proposed_ai_patch.py as rendered in this resource\nFixture revision: fixtures-v1; exact content rendered in fixtures-v1/orders.json\nAcceptance criteria reviewed: REFUND-17 criteria 1 through 10\nScope check: original_order_processing.py, proposed_ai_patch.py, corrected_order_processing.py, test_order.py, and fixtures-v1/orders.json; no network, credentials, database, or external-write code\nBehavior traced: role + status + refund_id + amount -> authorization/status/duplicate/amount decisions -> processed-ID and refunded-total mutation after validation -> Decimal result\nSecurity and privacy: required role check; synthetic data only; no secrets; invalid input must be rejected before mutation\nFailure, retry, and recovery checks: unauthorized role, inactive order, repeated ID, zero, negative, over-balance, malformed, Boolean, NaN, Infinity, sub-cent value, and rounding boundary\nCompatibility and migration: Python 3 standard library; no database, API, or migration\nTest command: python -m unittest test_order.TestOrderProcessing\nPredicted proposed result: five failure reports across three of five methods; learner execution required\nPredicted corrected result: all five methods pass; learner execution required\nActual terminal output: UNKNOWN until the commands are run\n\nFinding 1\nSeverity: HIGH\nLocation: proposed_ai_patch.py, refund_proposed\nTrigger: active order, new refund ID, valid positive amount, role customer\nEffect: unauthorized caller receives success and order['refunded'] and processed_refund_ids are mutated\nEvidence: no role decision exists in the proposed function; independent test expects PermissionError and unchanged state\nSmallest correction: require role == 'support_admin' before any mutation\n\nFinding 2\nSeverity: MEDIUM\nLocation: proposed_ai_patch.py, duplicate branch\nTrigger: repeat a refund_id that was already accepted\nEffect: second call returns the requested amount instead of Decimal('0.00')\nEvidence: branch executes return money(amount); regression test checks return, total, and set cardinality\nMutation statement: the duplicate branch does not itself change the order or set a second time\nSmallest correction: return Decimal('0.00') from the duplicate branch\n\nFinding 3\nSeverity: HIGH\nLocation: proposed_ai_patch.py, amount handling\nTrigger: zero, negative, over-balance, malformed, Boolean, or nonfinite amount\nEffect: the implementation lacks the required consistent validation; several invalid values mutate state, and others raise an exception type outside the contract\nEvidence: source has quantization but no Boolean, finiteness, positivity, or balance decision; supplied negative tests reproduce the discrepancy\nSmallest correction: validate raw input and balance before mutation, quantize with ROUND_HALF_UP, then reject quantized zero or an amount above the balance\n\nAI-suggested finding rejected: 'The patch accepts closed orders.' The source checks status and the closed-order regression test is expected to pass.\nAI-suggested conclusion rejected: 'Using Decimal proves the patch is financially safe.' Decimal arithmetic does not establish authorization, validation, or retry semantics.\nRegression explanation: original_order_processing.py already satisfies REFUND-17. proposed_ai_patch.py introduces the regression by deleting the role check and amount validation and changing the duplicate result. corrected_order_processing.py restores the original behavior.\nResidual risk: processed_refund_ids is caller-owned in-memory state and is neither durable nor transactional. This design is limited to the simulator.\nDecision: REQUEST CHANGES\nReviewer identity and date: independent learner, YYYY-MM-DD"
       }
     },
     {
       "id": "verify-review",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "The expected evidence is an independent review tied to an immutable revision, with reproducible findings, rerun checks, a disposition for each material risk, and an explicit decision.",
-        "After revisions, inspect the new diff instead of assuming comments were resolved, rerun affected checks, and ensure the approval applies to the current head. Do not approve with unresolved critical or high-impact findings. Preserve the review and required approvals in the system of record."
-      ]
+        "Create the rendered files in one empty directory, preserving the fixtures-v1 subdirectory. First run the independent test against proposed_ai_patch.py. Then change only the import in test_order.py to use corrected_order_processing.refund and run the same command again.",
+        "Against the proposed patch, the expected prediction is five failure reports across three test methods: one authorization failure, one duplicate-response failure, and three invalid-amount subtest failures. The authorized refund and closed-order methods are expected to pass. This count is based on the supplied three-value invalid loop and must be verified by learner execution.",
+        "Against the corrected implementation, all five methods and all three invalid-amount subtests are expected to pass. The exact terminal wording and timing are UNKNOWN until execution. A typical unittest summary is predicted to indicate five tests and OK, but this resource does not claim that output was observed.",
+        "The separate expanded negative file covers malformed, Boolean, nonfinite, sub-cent, and rounding-dependent inputs. Its corrected outcome is expected to pass. The exact proposed-patch failure and error count for that expanded file is UNKNOWN without execution because malformed values may raise exceptions different from the required ValueError.",
+        "The duplicate assertion uses Decimal('2.10') for the successful result and updated total. This resolves the inconsistent Decimal-versus-string contract while retaining assertions that the second result is zero, the total remains 2.10, and the set contains one ID."
+      ],
+      "callout": "Expected results are predictions to verify, not invented execution records. Replace them with observed command output only after actually running the exact rendered revision.",
+      "code": {
+        "language": "text",
+        "label": "offline-setup-and-expected-results.txt",
+        "code": "Setup\n1. mkdir refund-review\n2. cd refund-review\n3. mkdir fixtures-v1\n4. Create every file from its separately labeled section.\n\nProposed patch command\npython -m unittest test_order.TestOrderProcessing\n\nPredicted semantic result for proposed_ai_patch.py\n- Five test methods are discovered.\n- test_authorized_refund_uses_exact_currency passes.\n- test_closed_order_is_rejected passes.\n- test_unauthorized_refund_is_rejected_without_mutation fails.\n- test_duplicate_refund_is_applied_once fails because the second return is Decimal('2.10'), while the total remains Decimal('2.10') and set cardinality remains 1.\n- test_invalid_amounts_do_not_mutate has three failing subtests for 0.00, -0.01, and 10.01.\n- Expected summary: FAILED with five failure reports across three methods.\n- This is a prediction requiring learner verification.\n\nCorrected command\nEdit test_order.py so:\nfrom proposed_ai_patch import refund_proposed as refund\nbecomes:\nfrom corrected_order_processing import refund\n\nThen run:\npython -m unittest test_order.TestOrderProcessing\n\nPredicted semantic result for corrected_order_processing.py\n- All five methods pass.\n- Expected summary: OK.\n- Exact terminal text and timing: UNKNOWN until execution.\n\nExpanded corrected-input command\npython -m unittest test_order_expanded_negative.TestExpandedNegativeInputs\n\nPredicted result\n- Every expanded invalid-input subtest passes against corrected_order_processing.py.\n- Actual execution result: UNKNOWN until run."
+      }
+    },
+    {
+      "id": "original-file",
+      "title": "Original implementation before the AI patch",
+      "paragraphs": [
+        "This is the complete original implementation for REFUND-17. It establishes the behavior that existed before the proposed AI change.",
+        "Its logic is intentionally the same as the corrected implementation. The only public-name difference is refund_original, which keeps the files independently importable."
+      ],
+      "callout": "Compare source decisions rather than assuming every shorter rewrite preserves authorization, validation, and duplicate semantics.",
+      "code": {
+        "language": "python",
+        "label": "original_order_processing.py",
+        "code": "from decimal import Decimal, InvalidOperation, ROUND_HALF_UP\n\nCENT = Decimal('0.01')\nZERO = Decimal('0.00')\n\n\ndef _decimal_value(value):\n    if isinstance(value, bool):\n        raise ValueError('Boolean is not a monetary value')\n    try:\n        result = Decimal(str(value))\n    except (InvalidOperation, TypeError, ValueError):\n        raise ValueError('malformed monetary value')\n    if not result.is_finite():\n        raise ValueError('monetary value must be finite')\n    return result\n\n\ndef money(value):\n    result = _decimal_value(value)\n    try:\n        return result.quantize(CENT, rounding=ROUND_HALF_UP)\n    except InvalidOperation:\n        raise ValueError('monetary value cannot be quantized')\n\n\ndef refund_original(order, refund_id, amount, role, processed_refund_ids):\n    if role != 'support_admin':\n        raise PermissionError('support_admin role required')\n    if order['status'] != 'active':\n        raise ValueError('order is not active')\n    if refund_id in processed_refund_ids:\n        return ZERO\n\n    raw_amount = _decimal_value(amount)\n    remaining = money(order['total']) - money(order['refunded'])\n    if raw_amount <= ZERO or raw_amount > remaining:\n        raise ValueError('refund amount is outside remaining balance')\n\n    quantized_amount = money(raw_amount)\n    if quantized_amount <= ZERO or quantized_amount > remaining:\n        raise ValueError('refund amount is outside remaining balance')\n\n    processed_refund_ids.add(refund_id)\n    order['refunded'] = money(order['refunded']) + quantized_amount\n    return quantized_amount"
+      }
+    },
+    {
+      "id": "proposed-file",
+      "title": "Proposed AI patch with introduced regressions",
+      "paragraphs": [
+        "This complete proposed patch is intentionally defective. It retains the active-status check and Decimal quantization but removes the required role, positivity, finiteness, and balance decisions.",
+        "Its duplicate branch returns money(amount) before mutation. The observable defect on that path is a wrong nonzero result, not a second mutation."
+      ],
+      "callout": "A concise implementation can still be incomplete. Trace what was removed as well as what was added.",
+      "code": {
+        "language": "python",
+        "label": "proposed_ai_patch.py",
+        "code": "from decimal import Decimal, ROUND_HALF_UP\n\nCENT = Decimal('0.01')\n\n\ndef money(value):\n    return Decimal(str(value)).quantize(CENT, rounding=ROUND_HALF_UP)\n\n\ndef refund_proposed(order, refund_id, amount, role, processed_refund_ids):\n    if order['status'] != 'active':\n        raise ValueError('order is not active')\n    if refund_id in processed_refund_ids:\n        return money(amount)\n\n    quantized_amount = money(amount)\n    processed_refund_ids.add(refund_id)\n    order['refunded'] = money(order['refunded']) + quantized_amount\n    return quantized_amount"
+      }
+    },
+    {
+      "id": "misleading-test-file",
+      "title": "Misleading passing test",
+      "paragraphs": [
+        "This test exercises only an authorized caller, active order, new refund ID, and valid amount. It is expected to pass against the proposed patch.",
+        "Its passing result would not test unauthorized access, duplicate response semantics, invalid input, balance enforcement, or rejection without mutation. It is therefore insufficient evidence for approval."
+      ],
+      "callout": "A passing test supports only the path and assertions it covers.",
+      "code": {
+        "language": "python",
+        "label": "test_misleading.py",
+        "code": "import unittest\nfrom decimal import Decimal\n\nfrom proposed_ai_patch import refund_proposed\n\n\nclass TestMisleadingHappyPath(unittest.TestCase):\n    def test_admin_can_refund_valid_amount(self):\n        order = {\n            'order_id': 'o-100',\n            'status': 'active',\n            'total': '10.00',\n            'refunded': '0.00',\n        }\n        processed = set()\n\n        result = refund_proposed(\n            order,\n            'r-happy',\n            '1.25',\n            'support_admin',\n            processed,\n        )\n\n        self.assertEqual(result, Decimal('1.25'))\n        self.assertEqual(order['refunded'], Decimal('1.25'))\n        self.assertEqual(processed, {'r-happy'})\n\n\nif __name__ == '__main__':\n    unittest.main()"
+      }
+    },
+    {
+      "id": "complete-file-set",
+      "title": "Synthetic fixture at the reviewed revision",
+      "paragraphs": [
+        "This is the complete local JSON fixture. The exact rendered content and the label fixtures-v1 together identify the fixture revision used by the review.",
+        "No cryptographic digest or repository commit is asserted. If a production review requires immutable identity, the reviewer must record an approved commit or digest after establishing it."
+      ],
+      "callout": "Do not silently edit fixture content while retaining the fixtures-v1 label.",
+      "code": {
+        "language": "json",
+        "label": "fixtures-v1/orders.json",
+        "code": "{\n  \"orders\": [\n    {\n      \"order_id\": \"o-100\",\n      \"status\": \"active\",\n      \"total\": \"10.00\",\n      \"refunded\": \"0.00\"\n    },\n    {\n      \"order_id\": \"o-closed\",\n      \"status\": \"closed\",\n      \"total\": \"10.00\",\n      \"refunded\": \"0.00\"\n    }\n  ]\n}"
+      }
+    },
+    {
+      "id": "corrected-file",
+      "title": "Corrected REFUND-17 implementation",
+      "paragraphs": [
+        "This complete implementation restores the original authorization, duplicate, validation, mutation-ordering, and Decimal behavior.",
+        "It rejects malformed, Boolean, and nonfinite values with ValueError before mutation. It also checks raw bounds before quantization so rounding cannot make an over-balance input acceptable."
+      ],
+      "callout": "Successful monetary values are Decimal instances. Rejected requests leave the fixture's original refunded string and the processed-ID set unchanged.",
+      "code": {
+        "language": "python",
+        "label": "corrected_order_processing.py",
+        "code": "from decimal import Decimal, InvalidOperation, ROUND_HALF_UP\n\nCENT = Decimal('0.01')\nZERO = Decimal('0.00')\n\n\ndef _decimal_value(value):\n    if isinstance(value, bool):\n        raise ValueError('Boolean is not a monetary value')\n    try:\n        result = Decimal(str(value))\n    except (InvalidOperation, TypeError, ValueError):\n        raise ValueError('malformed monetary value')\n    if not result.is_finite():\n        raise ValueError('monetary value must be finite')\n    return result\n\n\ndef money(value):\n    result = _decimal_value(value)\n    try:\n        return result.quantize(CENT, rounding=ROUND_HALF_UP)\n    except InvalidOperation:\n        raise ValueError('monetary value cannot be quantized')\n\n\ndef refund(order, refund_id, amount, role, processed_refund_ids):\n    if role != 'support_admin':\n        raise PermissionError('support_admin role required')\n    if order['status'] != 'active':\n        raise ValueError('order is not active')\n    if refund_id in processed_refund_ids:\n        return ZERO\n\n    raw_amount = _decimal_value(amount)\n    remaining = money(order['total']) - money(order['refunded'])\n    if raw_amount <= ZERO or raw_amount > remaining:\n        raise ValueError('refund amount is outside remaining balance')\n\n    quantized_amount = money(raw_amount)\n    if quantized_amount <= ZERO or quantized_amount > remaining:\n        raise ValueError('refund amount is outside remaining balance')\n\n    processed_refund_ids.add(refund_id)\n    order['refunded'] = money(order['refunded']) + quantized_amount\n    return quantized_amount"
+      }
+    },
+    {
+      "id": "test-file",
+      "title": "Independent five-method regression suite",
+      "paragraphs": [
+        "This complete test file produces the required five-failure prediction against the proposed patch: one unauthorized failure, one duplicate-response failure, and three invalid-amount subtest failures.",
+        "The duplicate test uses Decimal consistently and preserves the meaningful nonmutation checks. It confirms that the first refund returns Decimal('2.10'), the duplicate returns Decimal('0.00'), the total remains Decimal('2.10'), and only one ID is stored.",
+        "After reproducing the proposed behavior, change only the import to corrected_order_processing.refund. All five methods are then expected to pass."
+      ],
+      "callout": "Do not weaken the duplicate assertion to make a representation mismatch disappear. Use the documented Decimal contract consistently.",
+      "code": {
+        "language": "python",
+        "label": "test_order.py",
+        "code": "import json\nimport unittest\nfrom decimal import Decimal\nfrom pathlib import Path\n\nfrom proposed_ai_patch import refund_proposed as refund\n\nFIXTURE = Path('fixtures-v1/orders.json')\n\n\ndef order_from_fixture(order_id):\n    with FIXTURE.open(encoding='utf-8') as stream:\n        data = json.load(stream)\n    return next(\n        item for item in data['orders']\n        if item['order_id'] == order_id\n    )\n\n\nclass TestOrderProcessing(unittest.TestCase):\n    def test_authorized_refund_uses_exact_currency(self):\n        order = order_from_fixture('o-100')\n        processed = set()\n\n        result = refund(\n            order,\n            'r-1',\n            '0.10',\n            'support_admin',\n            processed,\n        )\n\n        self.assertEqual(result, Decimal('0.10'))\n        self.assertEqual(order['refunded'], Decimal('0.10'))\n        self.assertEqual(processed, {'r-1'})\n\n    def test_unauthorized_refund_is_rejected_without_mutation(self):\n        order = order_from_fixture('o-100')\n        processed = set()\n\n        with self.assertRaises(PermissionError):\n            refund(\n                order,\n                'r-unauthorized',\n                '1.00',\n                'customer',\n                processed,\n            )\n\n        self.assertEqual(order['refunded'], '0.00')\n        self.assertEqual(processed, set())\n\n    def test_duplicate_refund_is_applied_once(self):\n        order = order_from_fixture('o-100')\n        processed = set()\n\n        first = refund(\n            order,\n            'r-2',\n            '2.10',\n            'support_admin',\n            processed,\n        )\n        second = refund(\n            order,\n            'r-2',\n            '2.10',\n            'support_admin',\n            processed,\n        )\n\n        self.assertEqual(first, Decimal('2.10'))\n        self.assertEqual(\n            (second, order['refunded'], len(processed)),\n            (Decimal('0.00'), Decimal('2.10'), 1),\n        )\n\n    def test_invalid_amounts_do_not_mutate(self):\n        for amount in ('0.00', '-0.01', '10.01'):\n            with self.subTest(amount=amount):\n                order = order_from_fixture('o-100')\n                processed = set()\n\n                with self.assertRaises(ValueError):\n                    refund(\n                        order,\n                        'r-invalid-' + amount,\n                        amount,\n                        'support_admin',\n                        processed,\n                    )\n\n                self.assertEqual(order['refunded'], '0.00')\n                self.assertEqual(processed, set())\n\n    def test_closed_order_is_rejected(self):\n        order = order_from_fixture('o-closed')\n        processed = set()\n\n        with self.assertRaises(ValueError):\n            refund(\n                order,\n                'r-closed',\n                '1.00',\n                'support_admin',\n                processed,\n            )\n\n        self.assertEqual(order['refunded'], '0.00')\n        self.assertEqual(processed, set())\n\n\nif __name__ == '__main__':\n    unittest.main()"
+      }
+    },
+    {
+      "id": "expanded-negative-file",
+      "title": "Expanded input-contract regression suite",
+      "paragraphs": [
+        "This additional complete test file checks malformed, Boolean, NaN, Infinity, positive sub-cent, raw over-balance, and ROUND_HALF_UP boundary behavior.",
+        "The 10.001 case rejects a plausible but unsafe fix that quantizes before checking the balance. The 0.001 case rejects a fix that records a zero-value refund. The 1.005 case establishes the stated output Decimal('1.01').",
+        "This file imports the corrected implementation. To investigate the proposed patch, a learner may change its import and adapt the public function name, but the exact proposed failure and error count is UNKNOWN until that modified test is executed."
+      ],
+      "callout": "Negative cases should distinguish the required behavior from plausible incomplete fixes, not merely increase test count.",
+      "code": {
+        "language": "python",
+        "label": "test_order_expanded_negative.py",
+        "code": "import json\nimport unittest\nfrom decimal import Decimal\nfrom pathlib import Path\n\nfrom corrected_order_processing import refund\n\nFIXTURE = Path('fixtures-v1/orders.json')\n\n\ndef order_from_fixture(order_id):\n    with FIXTURE.open(encoding='utf-8') as stream:\n        data = json.load(stream)\n    return next(\n        item for item in data['orders']\n        if item['order_id'] == order_id\n    )\n\n\nclass TestExpandedNegativeInputs(unittest.TestCase):\n    def test_invalid_contract_values_do_not_mutate(self):\n        invalid_amounts = (\n            'not-a-number',\n            True,\n            'NaN',\n            'Infinity',\n            '0.001',\n            '10.001',\n        )\n\n        for amount in invalid_amounts:\n            with self.subTest(amount=amount):\n                order = order_from_fixture('o-100')\n                processed = set()\n\n                with self.assertRaises(ValueError):\n                    refund(\n                        order,\n                        'r-expanded-' + str(amount),\n                        amount,\n                        'support_admin',\n                        processed,\n                    )\n\n                self.assertEqual(order['refunded'], '0.00')\n                self.assertEqual(processed, set())\n\n    def test_half_up_rounding_has_stated_output(self):\n        order = order_from_fixture('o-100')\n        processed = set()\n\n        result = refund(\n            order,\n            'r-rounding',\n            '1.005',\n            'support_admin',\n            processed,\n        )\n\n        self.assertEqual(result, Decimal('1.01'))\n        self.assertEqual(order['refunded'], Decimal('1.01'))\n        self.assertEqual(processed, {'r-rounding'})\n\n\nif __name__ == '__main__':\n    unittest.main()"
+      }
+    },
+    {
+      "id": "commands-and-output",
+      "title": "Commands and expected output",
+      "paragraphs": [
+        "Python's unittest command-line interface can run the named class. The fixture is read with pathlib.Path.open using UTF-8 and parsed with json.load.",
+        "No command output is represented as an observed run. The expected counts below are predictions derived from the source and test assertions. The learner should preserve actual output in the review record after execution."
+      ],
+      "callout": "If observed output differs, record the actual revision, command, environment, and output rather than forcing it to match the prediction.",
+      "code": {
+        "language": "text",
+        "label": "run-commands.txt",
+        "code": "Optional misleading test\npython -m unittest test_misleading.TestMisleadingHappyPath\nPredicted result: one passing test, which is insufficient for approval.\n\nRequired proposed regression run\npython -m unittest test_order.TestOrderProcessing\nPredicted result: five failure reports across three test methods.\nPredicted summary shape: Ran 5 tests; FAILED (failures=5).\nExact terminal text and timing: UNKNOWN until execution.\n\nRequired corrected regression run\nEdit test_order.py to import:\nfrom corrected_order_processing import refund\n\nThen run:\npython -m unittest test_order.TestOrderProcessing\nPredicted result: all five methods pass.\nPredicted summary shape: Ran 5 tests; OK.\nExact terminal text and timing: UNKNOWN until execution.\n\nExpanded corrected run\npython -m unittest test_order_expanded_negative.TestExpandedNegativeInputs\nPredicted result: both methods and all subtests pass.\nActual result: UNKNOWN until execution."
+      }
+    },
+    {
+      "id": "review-record-template",
+      "title": "Reusable evidence-based review template",
+      "paragraphs": [
+        "Use this template only after examining the exact revision. Replace every bracketed field with evidence or write UNKNOWN and state what must be run or inspected.",
+        "Keep model suggestions separate from independently established findings. A model can help identify a path to investigate, but the final record must stand without relying on the model's authority."
+      ],
+      "callout": "A review record is incomplete if another reviewer cannot reproduce the trigger and verify the effect from the recorded revision.",
+      "code": {
+        "language": "text",
+        "label": "reusable-review-template.txt",
+        "code": "Change and revision: [CHANGE ID, COMMIT OR EXACT ARTIFACT]\nFixture revision: [FIXTURE ID, COMMIT, OR APPROVED DIGEST]\nAcceptance criteria reviewed: [NUMBERED CRITERIA]\nScope check: [EXPECTED FILES, UNEXPECTED FILES]\nBehavior traced: [INPUT -> DECISION -> MUTATION -> OUTPUT]\nSecurity and privacy checks: [AUTHORIZATION, INPUT, SECRETS, DATA]\nFailure, retry, and recovery checks: [CASES]\nCompatibility and migration checks: [VERSIONS OR NONE]\nTests inspected: [FILES AND ASSERTIONS]\nTests run: [EXACT COMMAND -> OBSERVED RESULT OR UNKNOWN]\n\nFinding: [TITLE]\nSeverity: [SEVERITY AND RATIONALE]\nLocation: [FILE, FUNCTION, LINE OR BRANCH]\nTrigger: [MINIMAL REPRODUCIBLE INPUT]\nObservable effect: [OUTPUT AND STATE]\nEvidence: [SOURCE TRACE AND TEST]\nSmallest acceptable correction: [MINIMAL REQUIRED CHANGE]\nRegression test: [TEST NAME]\n\nModel suggestion: [CLAIM]\nIndependent disposition: [CONFIRMED, REJECTED, OR CANNOT VERIFY]\nReason: [EVIDENCE]\n\nResidual risk: [RISK -> OWNER]\nDecision: [APPROVE | COMMENT | REQUEST CHANGES]\nReviewer identity and date: [INDEPENDENT REVIEWER, YYYY-MM-DD]"
+      }
+    },
+    {
+      "id": "changed-input-task",
+      "title": "Changed requirement: review again",
+      "paragraphs": [
+        "Attempt this task before reading the answer sections. Change REFUND-18 uses the same fixtures-v1 content but modifies authorization: support_admin and finance_supervisor may refund, while customer_service and every other role remain unauthorized.",
+        "All other REFUND-17 requirements remain unchanged, including active status, duplicate behavior, Decimal output, raw and quantized amount bounds, malformed, Boolean and nonfinite rejection, and nonmutation after rejection.",
+        "Determine the new review outcome, identify a test that distinguishes the previous support_admin-only implementation from REFUND-18, state the smallest correction, and explain why the previous review decision cannot substitute for reviewing the changed revision."
+      ],
+      "callout": "A changed acceptance criterion requires a new behavior trace and evidence tied to the changed revision.",
+      "code": {
+        "language": "text",
+        "label": "REFUND-18-learner-task.txt",
+        "code": "Before reading the answer, record:\n\n1. The exact trigger and effect of the new mismatch.\n2. An appropriate severity with rationale.\n3. A positive test for finance_supervisor.\n4. A negative test proving customer_service remains denied without mutation.\n5. The smallest acceptable authorization correction.\n6. The review decision until the changed tests pass.\n7. The evidence that must be tied to REFUND-18 and fixtures-v1.\n8. Why allowing every non-empty role would violate the requirement."
+      }
+    },
+    {
+      "id": "changed-requirement-file",
+      "title": "Complete REFUND-18 requirement file",
+      "paragraphs": [
+        "This file is the authoritative changed requirement for the second task. It changes only the role allowlist.",
+        "The old support_admin-only implementation is no longer compliant because it denies a required finance_supervisor operation."
+      ],
+      "callout": "Do not broaden authorization beyond the two explicitly allowed roles.",
+      "code": {
+        "language": "text",
+        "label": "REFUND-18-requirements.txt",
+        "code": "CHANGE_ID: REFUND-18\nFIXTURE_REVISION: fixtures-v1\n\nChanged authorization criterion\n- support_admin is allowed to refund.\n- finance_supervisor is allowed to refund.\n- customer_service and every other role are unauthorized.\n\nUnchanged criteria\n- The order must be active.\n- A processed refund ID returns Decimal('0.00') without additional mutation.\n- Amounts must be well formed, finite, non-Boolean, positive, and no greater than the remaining balance.\n- Check the raw amount before quantization.\n- Quantize accepted money to Decimal('0.01') with ROUND_HALF_UP.\n- Reject a value that quantizes to Decimal('0.00').\n- Rejections must not mutate the order or processed-ID set.\n- Successful monetary results and updated totals are Decimal instances.\n- The simulator remains local, synthetic, offline, and standard-library only."
+      }
+    },
+    {
+      "id": "changed-input-answer",
+      "title": "Changed requirement: answer and actionable feedback",
+      "paragraphs": [
+        "The previous implementation is now too restrictive. The exact trigger is a valid finance_supervisor request on an active order. Its effect is denial of an operation REFUND-18 requires. HIGH may be appropriate if the denied operation materially blocks a critical workflow, but that deployment impact is not established in this simulator. MEDIUM is used for the worked record because the demonstrated effect is loss of required functionality without unauthorized mutation.",
+        "The smallest acceptable correction is an explicit allowlist containing support_admin and finance_supervisor. A condition that allows every non-empty role is unacceptable because customer_service and all unspecified roles must remain denied.",
+        "The proper decision is REQUEST CHANGES until the changed implementation is inspected and the new role tests and unchanged regression tests pass. Earlier REFUND-17 evidence remains useful history but cannot approve REFUND-18.",
+        "Actionable feedback is to add the explicit allowlist, retain all validation and duplicate safeguards, run test_refund_18.py, rerun the REFUND-17 regression suite against the changed implementation where imports permit, and record observed results against the exact changed revision."
+      ],
+      "callout": "Changed-input execution outcomes are UNKNOWN until the learner runs the supplied test. Do not report the predicted pass as observed evidence.",
+      "code": {
+        "language": "text",
+        "label": "REFUND-18-filled-answer.txt",
+        "code": "Finding: finance_supervisor is incorrectly denied by the prior support_admin-only implementation\nSeverity: MEDIUM in this simulator; deployment severity requires business-impact evidence\nLocation: authorization condition in corrected_order_processing.py/refund\nTrigger: active order, valid amount, new refund ID, role finance_supervisor\nEffect: required refund operation raises PermissionError and performs no mutation\nSmallest acceptable correction: use an explicit {'support_admin', 'finance_supervisor'} allowlist\nRequired positive test: test_finance_supervisor_may_refund\nRequired negative test: test_customer_service_remains_denied_without_mutation\nPlausible bad fix rejected: allowing any non-empty role would authorize customer_service and unspecified roles\nDecision: REQUEST CHANGES until the changed tests and unchanged regression behavior are verified\nEvidence identity: REFUND-18, exact corrected_refund_18.py revision, fixtures-v1 exact rendered content, exact commands, and observed output\nExecution result: UNKNOWN until test_refund_18.py is run"
+      }
+    },
+    {
+      "id": "changed-solution-file",
+      "title": "Complete REFUND-18 implementation answer",
+      "paragraphs": [
+        "This is a self-contained implementation of the changed requirement. It does not import private helpers from another exercise file.",
+        "Only the authorization allowlist differs from REFUND-17. Validation, duplicate behavior, rounding, and mutation ordering remain intact."
+      ],
+      "callout": "An explicit allowlist is easier to compare with the requirement than a broad role-name heuristic.",
+      "code": {
+        "language": "python",
+        "label": "corrected_refund_18.py",
+        "code": "from decimal import Decimal, InvalidOperation, ROUND_HALF_UP\n\nCENT = Decimal('0.01')\nZERO = Decimal('0.00')\nALLOWED_REFUND_ROLES = {\n    'support_admin',\n    'finance_supervisor',\n}\n\n\ndef _decimal_value(value):\n    if isinstance(value, bool):\n        raise ValueError('Boolean is not a monetary value')\n    try:\n        result = Decimal(str(value))\n    except (InvalidOperation, TypeError, ValueError):\n        raise ValueError('malformed monetary value')\n    if not result.is_finite():\n        raise ValueError('monetary value must be finite')\n    return result\n\n\ndef money(value):\n    result = _decimal_value(value)\n    try:\n        return result.quantize(CENT, rounding=ROUND_HALF_UP)\n    except InvalidOperation:\n        raise ValueError('monetary value cannot be quantized')\n\n\ndef refund(order, refund_id, amount, role, processed_refund_ids):\n    if role not in ALLOWED_REFUND_ROLES:\n        raise PermissionError('authorized refund role required')\n    if order['status'] != 'active':\n        raise ValueError('order is not active')\n    if refund_id in processed_refund_ids:\n        return ZERO\n\n    raw_amount = _decimal_value(amount)\n    remaining = money(order['total']) - money(order['refunded'])\n    if raw_amount <= ZERO or raw_amount > remaining:\n        raise ValueError('refund amount is outside remaining balance')\n\n    quantized_amount = money(raw_amount)\n    if quantized_amount <= ZERO or quantized_amount > remaining:\n        raise ValueError('refund amount is outside remaining balance')\n\n    processed_refund_ids.add(refund_id)\n    order['refunded'] = money(order['refunded']) + quantized_amount\n    return quantized_amount"
+      }
+    },
+    {
+      "id": "changed-test-file",
+      "title": "Runnable REFUND-18 regression tests",
+      "paragraphs": [
+        "This complete changed-input test loads the same fixture directly and tests both sides of the new allowlist. It also retains representative duplicate, invalid-input, and closed-order assertions so an authorization edit cannot silently remove unrelated safeguards.",
+        "The previous support_admin-only implementation would fail the finance_supervisor positive test. The supplied REFUND-18 implementation is expected to pass all five methods. Actual execution is UNKNOWN until run."
+      ],
+      "callout": "Run python -m unittest test_refund_18.TestRefund18 and preserve the observed result with the reviewed revision.",
+      "code": {
+        "language": "python",
+        "label": "test_refund_18.py",
+        "code": "import json\nimport unittest\nfrom decimal import Decimal\nfrom pathlib import Path\n\nfrom corrected_refund_18 import refund\n\nFIXTURE = Path('fixtures-v1/orders.json')\n\n\ndef order_from_fixture(order_id):\n    with FIXTURE.open(encoding='utf-8') as stream:\n        data = json.load(stream)\n    return next(\n        item for item in data['orders']\n        if item['order_id'] == order_id\n    )\n\n\nclass TestRefund18(unittest.TestCase):\n    def test_finance_supervisor_may_refund(self):\n        order = order_from_fixture('o-100')\n        processed = set()\n\n        result = refund(\n            order,\n            'r-supervisor',\n            '1.25',\n            'finance_supervisor',\n            processed,\n        )\n\n        self.assertEqual(result, Decimal('1.25'))\n        self.assertEqual(order['refunded'], Decimal('1.25'))\n        self.assertEqual(processed, {'r-supervisor'})\n\n    def test_support_admin_remains_allowed(self):\n        order = order_from_fixture('o-100')\n        processed = set()\n\n        result = refund(\n            order,\n            'r-admin-18',\n            '0.10',\n            'support_admin',\n            processed,\n        )\n\n        self.assertEqual(result, Decimal('0.10'))\n        self.assertEqual(order['refunded'], Decimal('0.10'))\n\n    def test_customer_service_remains_denied_without_mutation(self):\n        order = order_from_fixture('o-100')\n        processed = set()\n\n        with self.assertRaises(PermissionError):\n            refund(\n                order,\n                'r-customer-service',\n                '1.00',\n                'customer_service',\n                processed,\n            )\n\n        self.assertEqual(order['refunded'], '0.00')\n        self.assertEqual(processed, set())\n\n    def test_duplicate_still_returns_zero_without_second_mutation(self):\n        order = order_from_fixture('o-100')\n        processed = set()\n\n        first = refund(\n            order,\n            'r-duplicate-18',\n            '2.10',\n            'finance_supervisor',\n            processed,\n        )\n        second = refund(\n            order,\n            'r-duplicate-18',\n            '2.10',\n            'finance_supervisor',\n            processed,\n        )\n\n        self.assertEqual(first, Decimal('2.10'))\n        self.assertEqual(\n            (second, order['refunded'], len(processed)),\n            (Decimal('0.00'), Decimal('2.10'), 1),\n        )\n\n    def test_invalid_and_closed_requests_do_not_mutate(self):\n        cases = (\n            ('o-100', 'NaN', 'finance_supervisor'),\n            ('o-100', True, 'finance_supervisor'),\n            ('o-100', '10.001', 'finance_supervisor'),\n            ('o-closed', '1.00', 'support_admin'),\n        )\n\n        for order_id, amount, role in cases:\n            with self.subTest(order_id=order_id, amount=amount, role=role):\n                order = order_from_fixture(order_id)\n                processed = set()\n\n                with self.assertRaises(ValueError):\n                    refund(\n                        order,\n                        'r-rejected-' + str(amount),\n                        amount,\n                        role,\n                        processed,\n                    )\n\n                self.assertEqual(order['refunded'], '0.00')\n                self.assertEqual(processed, set())\n\n\nif __name__ == '__main__':\n    unittest.main()"
+      }
+    },
+    {
+      "id": "provider-neutral-transfer",
+      "title": "Transfer the method across tools",
+      "paragraphs": [
+        "The method is provider-neutral: copy the requirement and exact revision, inspect the source path independently, reproduce candidate findings, reject unsupported claims, run meaningful positive and negative tests, and record the evidence and decision.",
+        "Apply that method whether a suggestion comes from Anthropic, OpenAI, Google, Llama, Qwen, DeepSeek, Mistral, Phi, NVIDIA, Z.ai, another model, or a human. These names identify possible sources of suggestions only.",
+        "This resource does not claim feature equivalence, accuracy equivalence, integrations, safety properties, rankings, or guarantees for any named provider or model family. The review record should remain understandable if the model name is removed."
+      ],
+      "callout": "Portability test: if the trigger, effect, and evidence depend on trusting a provider name, the review is not yet independently supported.",
+      "code": {
+        "language": "text",
+        "label": "provider-neutral-review-checklist.txt",
+        "code": "[ ] Record the exact change ID and revision.\n[ ] Record the governing acceptance criteria and fixture revision.\n[ ] Inspect the changed paths independently of the generated explanation.\n[ ] Trace input -> decision -> mutation -> output.\n[ ] Reproduce each material suggestion or label it unsupported or CANNOT VERIFY.\n[ ] Test authorization, validation, errors, retries, duplicates, and failure-state mutation.\n[ ] Reject plausible tests that cover only a happy path.\n[ ] Record severity that matches the demonstrated effect.\n[ ] Name the smallest acceptable correction.\n[ ] Rerun affected checks after correction.\n[ ] Inspect the new revision rather than carrying approval forward.\n[ ] Record UNKNOWN when execution or revision identity has not been established."
+      }
     }
   ],
   "sources": [
@@ -78,6 +317,90 @@
       "url": "https://csrc.nist.gov/pubs/sp/800/218/final",
       "publisher": "NIST",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "json: JSON encoder and decoder",
+      "url": "https://docs.python.org/3/library/json.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "json.load",
+      "url": "https://docs.python.org/3/library/json.html#json.load",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "decimal: Decimal fixed-point and floating-point arithmetic",
+      "url": "https://docs.python.org/3/library/decimal.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Decimal constructor",
+      "url": "https://docs.python.org/3/library/decimal.html#decimal.Decimal",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Decimal.is_finite",
+      "url": "https://docs.python.org/3/library/decimal.html#decimal.Decimal.is_finite",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Decimal.quantize",
+      "url": "https://docs.python.org/3/library/decimal.html#decimal.Decimal.quantize",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "ROUND_HALF_UP",
+      "url": "https://docs.python.org/3/library/decimal.html#decimal.ROUND_HALF_UP",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "pathlib: Object-oriented filesystem paths",
+      "url": "https://docs.python.org/3/library/pathlib.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Path.open",
+      "url": "https://docs.python.org/3/library/pathlib.html#pathlib.Path.open",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "unittest: Unit testing framework",
+      "url": "https://docs.python.org/3/library/unittest.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "TestCase.assertRaises",
+      "url": "https://docs.python.org/3/library/unittest.html#unittest.TestCase.assertRaises",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "TestCase.subTest",
+      "url": "https://docs.python.org/3/library/unittest.html#unittest.TestCase.subTest",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "unittest.main",
+      "url": "https://docs.python.org/3/library/unittest.html#unittest.main",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Running tests using the command-line interface",
+      "url": "https://docs.python.org/3/library/unittest.html#command-line-interface",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
     }
   ]
 }
