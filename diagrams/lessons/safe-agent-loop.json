@@ -1,0 +1,941 @@
+{
+  "schemaVersion": 1,
+  "id": "safe-agent-loop",
+  "title": "The bounded agent loop",
+  "category": "Agents",
+  "summary": "A safe agent separates goal-setting, inspection, planning, authorization, action, verification, containment, reconciliation, and explicit terminal states.",
+  "description": "This fictional lesson models a bounded agent that performs one authorized action at a time, checks the actual postcondition, and contains uncertainty before continuing. It includes an approved update, a denied broad update, and an independent changed-state case.",
+  "altText": "A native branch diagram runs from Goal to Inspect to Plan to Authorize. Denied authorization leads to Stop, while approved authorization leads to Act and Verify. Verification can lead to Complete, return to Inspect for more work, or lead to Contain and Reconcile after a failed or unknown result. Reconciliation leads to a safety decision that returns to Inspect or ends at Stop.",
+  "caption": "A dependable agent acts only after exact authorization and verifies actual state before continuing or stopping.",
+  "takeaways": [
+    "Authorization belongs between planning and every consequential action.",
+    "A successful tool response is not proof that the requested state exists.",
+    "A timeout is an unknown outcome, so it must not be retried blindly.",
+    "Failed or uncertain outcomes require containment, reconciliation, and an explicit continue-or-stop decision."
+  ],
+  "textAlternativeLabel": "Complete text alternative",
+  "textAlternative": "Goal defines the desired result and evidence of success. Inspect reads the current state without changing it. Plan proposes one bounded action. Authorize checks the exact target, fields, values, scope, and authority. Denied authorization goes to Stop and explain. Approved authorization permits one action. Verify reads actual state, not only a response message. Verified completion goes to Complete with evidence. Verified partial progress returns to Inspect. Failure or uncertainty goes to Contain, then Reconcile. Continue only when the state is understood, side effects are controlled, and the next action is separately authorized. Otherwise Stop and explain.",
+  "safetyNotice": "FICTIONAL SIMULATION ONLY. No tool is executed, no external system is contacted, and no learner record is written.",
+  "diagramLabel": "Interactive bounded agent flow diagram",
+  "walkthroughLabel": "Selected stage walkthrough",
+  "practiceLegend": "Choose the supported decision",
+  "feedbackLabel": "Decision feedback",
+  "retryLabel": "Retry this practice case",
+  "resetLabel": "Reset lesson",
+  "resetAnnouncement": "Lesson reset to Goal. Attempts and answer visibility were cleared.",
+  "attemptsLabel": "Attempts",
+  "completionLabel": "Practice completion",
+  "pendingCompletion": "Not earned. Correctly answer all three practice cases.",
+  "earnedCompletion": "Earned for this browser session. This is not a credential or learner record.",
+  "sourcesHeading": "Source boundaries",
+  "sourcesIntroduction": "These sources support general risk-management principles. The fictional scenario, operation identifiers, responses, and readbacks are teaching fixtures created for this lesson.",
+  "nodes": [
+    {
+      "id": "goal",
+      "kind": "stage",
+      "label": "Goal",
+      "heading": "Define success before acting",
+      "description": "State the requested outcome, scope, and evidence that would prove success. A vague goal cannot support a reliable postcondition check.",
+      "artifactIds": [
+        "request"
+      ]
+    },
+    {
+      "id": "inspect",
+      "kind": "stage",
+      "label": "Inspect",
+      "heading": "Read the current state",
+      "description": "Gather only the state needed for the bounded step. Inspection is read-only in this simulation and does not imply permission to change anything.",
+      "artifactIds": [
+        "initial-state"
+      ]
+    },
+    {
+      "id": "plan",
+      "kind": "stage",
+      "label": "Plan",
+      "heading": "Choose one bounded step",
+      "description": "Translate the request into one narrow operation with explicit arguments, limits, and an expected postcondition.",
+      "artifactIds": [
+        "plan"
+      ]
+    },
+    {
+      "id": "authorize",
+      "kind": "decision",
+      "label": "Authorize",
+      "heading": "Is this exact action authorized?",
+      "description": "Compare the proposed target, fields, values, and scope with the supplied request and authority evidence. A general role does not authorize a broader action.",
+      "artifactIds": [
+        "authorization",
+        "denied-proposal"
+      ],
+      "practiceGroupIds": [
+        "baseline",
+        "denied"
+      ]
+    },
+    {
+      "id": "act",
+      "kind": "stage",
+      "label": "Act",
+      "heading": "Execute one authorized action",
+      "description": "Use the approved operation once with the reviewed arguments. This lesson displays fixtures only. It does not execute a tool.",
+      "artifactIds": [
+        "operation",
+        "response"
+      ]
+    },
+    {
+      "id": "verify",
+      "kind": "decision",
+      "label": "Verify",
+      "heading": "Did the actual postcondition occur?",
+      "description": "Compare an independent actual-state readback with the goal. An accepted response alone is insufficient.",
+      "artifactIds": [
+        "success-readback",
+        "timeout-readback",
+        "changed-task"
+      ],
+      "practiceGroupIds": [
+        "changed"
+      ]
+    },
+    {
+      "id": "contain",
+      "kind": "stage",
+      "label": "Contain",
+      "heading": "Limit further side effects",
+      "description": "Pause writes and automatic retries. Preserve the operation identity, arguments, response condition, and readback evidence while the outcome is uncertain.",
+      "artifactIds": [
+        "containment"
+      ]
+    },
+    {
+      "id": "reconcile",
+      "kind": "stage",
+      "label": "Reconcile",
+      "heading": "Compare records with actual state",
+      "description": "Use independent evidence to determine what happened, what remains unknown, and whether the current state is within the original scope.",
+      "artifactIds": [
+        "reconciliation"
+      ]
+    },
+    {
+      "id": "continue",
+      "kind": "decision",
+      "label": "Safe to continue?",
+      "heading": "Choose a guarded next state",
+      "description": "Continue only when reconciliation establishes a safe, understood state and a new bounded action can be authorized. Otherwise stop and explain.",
+      "artifactIds": [
+        "continuation"
+      ]
+    },
+    {
+      "id": "stop",
+      "kind": "terminal",
+      "label": "Stop",
+      "heading": "Stop and explain",
+      "description": "Do not invent success or failure. State the limiting evidence, explain why no further action is supported, and identify what review would be needed.",
+      "artifactIds": [
+        "terminal-rule",
+        "denied-stop",
+        "changed-stop"
+      ]
+    },
+    {
+      "id": "complete",
+      "kind": "terminal",
+      "label": "Complete",
+      "heading": "Complete with evidence",
+      "description": "A simulated terminal example can illustrate completion, but learner completion is earned only through correct practice decisions.",
+      "artifactIds": [
+        "completion"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "goal-inspect",
+      "from": "goal",
+      "to": "inspect",
+      "label": "define"
+    },
+    {
+      "id": "inspect-plan",
+      "from": "inspect",
+      "to": "plan",
+      "label": "observe"
+    },
+    {
+      "id": "plan-authorize",
+      "from": "plan",
+      "to": "authorize",
+      "label": "propose"
+    },
+    {
+      "id": "authorize-stop",
+      "from": "authorize",
+      "to": "stop",
+      "label": "denied"
+    },
+    {
+      "id": "authorize-act",
+      "from": "authorize",
+      "to": "act",
+      "label": "approved"
+    },
+    {
+      "id": "act-verify",
+      "from": "act",
+      "to": "verify",
+      "label": "read back"
+    },
+    {
+      "id": "verify-complete",
+      "from": "verify",
+      "to": "complete",
+      "label": "goal complete"
+    },
+    {
+      "id": "verify-inspect",
+      "from": "verify",
+      "to": "inspect",
+      "label": "more work"
+    },
+    {
+      "id": "verify-contain",
+      "from": "verify",
+      "to": "contain",
+      "label": "failed or unknown"
+    },
+    {
+      "id": "contain-reconcile",
+      "from": "contain",
+      "to": "reconcile",
+      "label": "pause and compare"
+    },
+    {
+      "id": "reconcile-continue",
+      "from": "reconcile",
+      "to": "continue",
+      "label": "known state"
+    },
+    {
+      "id": "continue-inspect",
+      "from": "continue",
+      "to": "inspect",
+      "label": "safe"
+    },
+    {
+      "id": "continue-stop",
+      "from": "continue",
+      "to": "stop",
+      "label": "unsafe"
+    }
+  ],
+  "diagramItems": [
+    {
+      "id": "item-goal",
+      "kind": "node",
+      "refId": "goal",
+      "column": 1,
+      "columnSpan": 3,
+      "row": 1
+    },
+    {
+      "id": "item-goal-inspect",
+      "kind": "edge",
+      "refId": "goal-inspect",
+      "column": 1,
+      "columnSpan": 4,
+      "row": 2
+    },
+    {
+      "id": "item-inspect",
+      "kind": "node",
+      "refId": "inspect",
+      "column": 4,
+      "columnSpan": 3,
+      "row": 1
+    },
+    {
+      "id": "item-inspect-plan",
+      "kind": "edge",
+      "refId": "inspect-plan",
+      "column": 5,
+      "columnSpan": 4,
+      "row": 2
+    },
+    {
+      "id": "item-plan",
+      "kind": "node",
+      "refId": "plan",
+      "column": 7,
+      "columnSpan": 3,
+      "row": 1
+    },
+    {
+      "id": "item-plan-authorize",
+      "kind": "edge",
+      "refId": "plan-authorize",
+      "column": 9,
+      "columnSpan": 4,
+      "row": 2
+    },
+    {
+      "id": "item-authorize",
+      "kind": "node",
+      "refId": "authorize",
+      "column": 10,
+      "columnSpan": 3,
+      "row": 1
+    },
+    {
+      "id": "item-authorize-stop",
+      "kind": "edge",
+      "refId": "authorize-stop",
+      "column": 1,
+      "columnSpan": 6,
+      "row": 3
+    },
+    {
+      "id": "item-stop",
+      "kind": "node",
+      "refId": "stop",
+      "column": 1,
+      "columnSpan": 3,
+      "row": 4
+    },
+    {
+      "id": "item-authorize-act",
+      "kind": "edge",
+      "refId": "authorize-act",
+      "column": 7,
+      "columnSpan": 6,
+      "row": 3
+    },
+    {
+      "id": "item-act",
+      "kind": "node",
+      "refId": "act",
+      "column": 10,
+      "columnSpan": 3,
+      "row": 4
+    },
+    {
+      "id": "item-act-verify",
+      "kind": "edge",
+      "refId": "act-verify",
+      "column": 10,
+      "columnSpan": 3,
+      "row": 5
+    },
+    {
+      "id": "item-verify",
+      "kind": "node",
+      "refId": "verify",
+      "column": 10,
+      "columnSpan": 3,
+      "row": 6
+    },
+    {
+      "id": "item-verify-complete",
+      "kind": "edge",
+      "refId": "verify-complete",
+      "column": 9,
+      "columnSpan": 4,
+      "row": 7
+    },
+    {
+      "id": "item-complete",
+      "kind": "node",
+      "refId": "complete",
+      "column": 10,
+      "columnSpan": 3,
+      "row": 8
+    },
+    {
+      "id": "item-verify-inspect",
+      "kind": "edge",
+      "refId": "verify-inspect",
+      "column": 1,
+      "columnSpan": 4,
+      "row": 7
+    },
+    {
+      "id": "item-verify-contain",
+      "kind": "edge",
+      "refId": "verify-contain",
+      "column": 5,
+      "columnSpan": 4,
+      "row": 7
+    },
+    {
+      "id": "item-contain",
+      "kind": "node",
+      "refId": "contain",
+      "column": 5,
+      "columnSpan": 3,
+      "row": 8
+    },
+    {
+      "id": "item-contain-reconcile",
+      "kind": "edge",
+      "refId": "contain-reconcile",
+      "column": 4,
+      "columnSpan": 5,
+      "row": 9
+    },
+    {
+      "id": "item-reconcile",
+      "kind": "node",
+      "refId": "reconcile",
+      "column": 4,
+      "columnSpan": 3,
+      "row": 10
+    },
+    {
+      "id": "item-reconcile-continue",
+      "kind": "edge",
+      "refId": "reconcile-continue",
+      "column": 3,
+      "columnSpan": 6,
+      "row": 11
+    },
+    {
+      "id": "item-continue",
+      "kind": "node",
+      "refId": "continue",
+      "column": 3,
+      "columnSpan": 3,
+      "row": 12
+    },
+    {
+      "id": "item-continue-inspect",
+      "kind": "edge",
+      "refId": "continue-inspect",
+      "column": 1,
+      "columnSpan": 6,
+      "row": 13
+    },
+    {
+      "id": "item-continue-stop",
+      "kind": "edge",
+      "refId": "continue-stop",
+      "column": 7,
+      "columnSpan": 6,
+      "row": 13
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "request",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Scoped user request",
+      "body": "Mira Chen, a fictional support lead at fictional Northstar Garden, requests: Update ticket NSG-1042 only. Set priority to high and append the note \"Customer confirmed the replacement address by phone.\" Do not change status, assignee, customer data, attachments, or any other ticket. Ask for review if the ticket is closed or if requested fields differ from this scope.",
+      "visibility": {
+        "kind": "always"
+      },
+      "fields": [
+        {
+          "label": "Target",
+          "value": "NSG-1042 only"
+        },
+        {
+          "label": "Permitted fields",
+          "value": "priority and one note"
+        },
+        {
+          "label": "Forbidden changes",
+          "value": "status, assignee, customer data, attachments, other tickets"
+        },
+        {
+          "label": "Success evidence",
+          "value": "Independent readback shows priority high and the exact note, with protected fields unchanged"
+        }
+      ]
+    },
+    {
+      "id": "initial-state",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Initial actual-state readback",
+      "body": "Read-only fixture captured before planning. It is supplied evidence, not a live read.",
+      "visibility": {
+        "kind": "always"
+      },
+      "fields": [
+        {
+          "label": "Ticket",
+          "value": "NSG-1042"
+        },
+        {
+          "label": "Status",
+          "value": "open"
+        },
+        {
+          "label": "Priority",
+          "value": "normal"
+        },
+        {
+          "label": "Assignee",
+          "value": "Jon Bell"
+        },
+        {
+          "label": "Notes",
+          "value": "Customer requested replacement part."
+        },
+        {
+          "label": "Attachments",
+          "value": "0"
+        },
+        {
+          "label": "Observed at",
+          "value": "2026-09-19T09:00:00Z, fictional fixture"
+        }
+      ]
+    },
+    {
+      "id": "plan",
+      "label": "FICTIONAL SIMULATION",
+      "title": "One bounded operation",
+      "body": "The plan contains one update operation. It does not authorize a general ticket-editing capability.",
+      "visibility": {
+        "kind": "always"
+      },
+      "fields": [
+        {
+          "label": "Operation",
+          "value": "ticket.update"
+        },
+        {
+          "label": "Arguments",
+          "value": "ticketId=NSG-1042; priority=high; appendNote=\"Customer confirmed the replacement address by phone.\""
+        },
+        {
+          "label": "Expected postcondition",
+          "value": "Priority high and exact note appended; status, assignee, customer data, and attachments unchanged"
+        }
+      ]
+    },
+    {
+      "id": "authorization",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Authorization evidence",
+      "body": "The supplied request authorizes one target and two fields only. The agent must not infer permission for a broader update from a user's role or from extra fields exposed by a tool.",
+      "visibility": {
+        "kind": "always"
+      },
+      "fields": [
+        {
+          "label": "Target scope",
+          "value": "NSG-1042 only"
+        },
+        {
+          "label": "Field scope",
+          "value": "priority and one appended note"
+        },
+        {
+          "label": "Changed-state limit",
+          "value": "Ask for review if the ticket is closed"
+        }
+      ]
+    },
+    {
+      "id": "denied-proposal",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Proposed broad action for Practice 2",
+      "body": "This independent proposal is presented for an authorization decision. It has not been executed.",
+      "visibility": {
+        "kind": "always"
+      },
+      "fields": [
+        {
+          "label": "Proposed operation",
+          "value": "ticket.bulkUpdate"
+        },
+        {
+          "label": "Targets",
+          "value": "Every open ticket"
+        },
+        {
+          "label": "Proposed changes",
+          "value": "Set priority high and replace each assignee with Mira Chen"
+        },
+        {
+          "label": "Execution status",
+          "value": "Not executed"
+        }
+      ]
+    },
+    {
+      "id": "operation",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Operation identity",
+      "body": "This identity binds the planned action to later fixture evidence. It is not a real request identifier.",
+      "visibility": {
+        "kind": "always"
+      },
+      "fields": [
+        {
+          "label": "Operation ID",
+          "value": "sim-op-NSG-1042-0007"
+        },
+        {
+          "label": "Arguments",
+          "value": "ticketId=NSG-1042; priority=high; append one exact note"
+        },
+        {
+          "label": "Execution status",
+          "value": "Simulated only, no tool execution"
+        }
+      ]
+    },
+    {
+      "id": "response",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Simulated response fixture",
+      "body": "The fixture says accepted, but the loop still requires independent readback.",
+      "visibility": {
+        "kind": "always"
+      },
+      "fields": [
+        {
+          "label": "Result",
+          "value": "202 Accepted"
+        },
+        {
+          "label": "Response body",
+          "value": "{\"operationId\":\"sim-op-NSG-1042-0007\",\"message\":\"update accepted\"}"
+        },
+        {
+          "label": "Proves",
+          "value": "Only that the fictional system accepted the request fixture"
+        },
+        {
+          "label": "Does not prove",
+          "value": "That final ticket state matches the requested postcondition"
+        }
+      ]
+    },
+    {
+      "id": "success-readback",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Successful actual-state readback fixture",
+      "body": "Independent readback after the simulated operation.",
+      "visibility": {
+        "kind": "always"
+      },
+      "fields": [
+        {
+          "label": "Status",
+          "value": "open, unchanged"
+        },
+        {
+          "label": "Priority",
+          "value": "high"
+        },
+        {
+          "label": "Assignee",
+          "value": "Jon Bell, unchanged"
+        },
+        {
+          "label": "Notes",
+          "value": "Customer requested replacement part. Customer confirmed the replacement address by phone."
+        },
+        {
+          "label": "Attachments",
+          "value": "0, unchanged"
+        },
+        {
+          "label": "Operation reference",
+          "value": "sim-op-NSG-1042-0007"
+        }
+      ]
+    },
+    {
+      "id": "timeout-readback",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Timeout and changed-state evidence",
+      "body": "A timeout does not establish whether the operation failed or committed. The supplied later readback must be considered before any new write.",
+      "visibility": {
+        "kind": "always"
+      },
+      "fields": [
+        {
+          "label": "Operation ID",
+          "value": "sim-op-NSG-1042-0011"
+        },
+        {
+          "label": "Response",
+          "value": "Timeout after submission; no final response received"
+        },
+        {
+          "label": "Later readback",
+          "value": "Status=closed; priority=high; note appears once; assignee=Jon Bell"
+        },
+        {
+          "label": "Execution status",
+          "value": "Fixture only, no tool execution"
+        }
+      ]
+    },
+    {
+      "id": "changed-task",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Practice 3 decision boundary",
+      "body": "Decide whether the missing final response supports an immediate retry or whether the changed actual state requires containment and reconciliation.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "containment",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Containment record",
+      "body": "Pause retries and consequential actions. Preserve the operation ID, original arguments, response condition, and readback fixtures. Do not claim success or failure until reconciliation supplies sufficient evidence.",
+      "visibility": {
+        "kind": "always"
+      },
+      "fields": [
+        {
+          "label": "Automatic retry",
+          "value": "Disabled"
+        },
+        {
+          "label": "Further writes",
+          "value": "Paused"
+        },
+        {
+          "label": "Reason",
+          "value": "Timeout plus changed actual state creates duplicate and stale-write risk"
+        }
+      ]
+    },
+    {
+      "id": "reconciliation",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Reconciliation result after Practice 3 attempt",
+      "body": "The later readback shows one note and priority high, but the ticket is now closed. The original request did not authorize further action on a closed ticket. Treat the evidence as state information, not permission for another action.",
+      "visibility": {
+        "kind": "afterAttempt",
+        "groupId": "changed"
+      },
+      "fields": [
+        {
+          "label": "Known",
+          "value": "One note exists; priority is high; ticket is closed"
+        },
+        {
+          "label": "Unknown",
+          "value": "Whether the timeout preceded or followed commitment unless operation history confirms it"
+        },
+        {
+          "label": "Supported decision",
+          "value": "Do not retry or make another change without renewed scope"
+        }
+      ]
+    },
+    {
+      "id": "continuation",
+      "label": "TEACHING RULE",
+      "title": "When may the loop continue?",
+      "body": "Continue only if reconciliation establishes the actual state, no unsafe side effect remains uncontrolled, and the next bounded action is separately authorized. Stop when authorization is denied, state remains ambiguous, or the new state falls outside the original scope.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "terminal-rule",
+      "label": "TEACHING RULE",
+      "title": "What a truthful stop means",
+      "body": "A stop records the reason and limiting evidence without claiming that an uncertain operation definitely succeeded or failed. It identifies the review or new authorization needed before any later action.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "denied-stop",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Practice 2 stop evidence",
+      "body": "The proposed every-open-ticket update changes many targets and overwrites a forbidden field. The supplied request authorizes neither expansion.",
+      "visibility": {
+        "kind": "afterAttempt",
+        "groupId": "denied"
+      },
+      "fields": [
+        {
+          "label": "Supported terminal state",
+          "value": "Stop and explain"
+        },
+        {
+          "label": "Execution status",
+          "value": "No tool execution"
+        },
+        {
+          "label": "Needed for reconsideration",
+          "value": "A new, explicit request and applicable authorization for each intended target and field"
+        }
+      ]
+    },
+    {
+      "id": "changed-stop",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Practice 3 stop evidence",
+      "body": "The timeout remains ambiguous, the requested note appears once, and the ticket is closed. A blind retry could duplicate the note, overwrite newer state, or act outside the original scope.",
+      "visibility": {
+        "kind": "afterAttempt",
+        "groupId": "changed"
+      },
+      "fields": [
+        {
+          "label": "Supported terminal state",
+          "value": "Stop after containment and reconciliation"
+        },
+        {
+          "label": "Not supported",
+          "value": "Immediate retry"
+        },
+        {
+          "label": "Follow-up",
+          "value": "Review operation history and obtain a new narrowly scoped request if another change is needed"
+        }
+      ]
+    },
+    {
+      "id": "completion",
+      "label": "FICTIONAL SIMULATION",
+      "title": "Baseline terminal example",
+      "body": "This example supports simulated task completion only because independent readback shows priority high, the exact note, and unchanged protected fields. Viewing this example does not earn learner completion.",
+      "visibility": {
+        "kind": "afterAttempt",
+        "groupId": "baseline"
+      },
+      "fields": [
+        {
+          "label": "Operation ID",
+          "value": "sim-op-NSG-1042-0007"
+        },
+        {
+          "label": "Postcondition",
+          "value": "Verified in the supplied actual-state readback fixture"
+        },
+        {
+          "label": "Boundary",
+          "value": "Fictional simulation, zero tool execution and zero learner-record writes"
+        }
+      ]
+    }
+  ],
+  "choices": [
+    {
+      "id": "baseline-right",
+      "group": "baseline",
+      "label": "Authorize the exact NSG-1042 priority and note update, execute it once, then verify the supplied readback.",
+      "correct": true,
+      "nextNodeId": "act",
+      "announcement": "Practice 1 decision recorded as correct.",
+      "feedback": "Correct. The target, arguments, and postcondition are bounded. The accepted response still requires independent readback, which verifies the requested fields and unchanged protected fields."
+    },
+    {
+      "id": "baseline-wrong",
+      "group": "baseline",
+      "label": "Authorize a general ticket-editing action because the requester is a support lead.",
+      "correct": false,
+      "nextNodeId": "stop",
+      "announcement": "Practice 1 decision needs another attempt.",
+      "feedback": "Not supported. The supplied request authorizes one ticket and two fields, not general editing. Retry and choose the exact bounded operation."
+    },
+    {
+      "id": "denied-wrong",
+      "group": "denied",
+      "label": "Authorize every-open-ticket updates and assignee overwrites because Mira is a support lead.",
+      "correct": false,
+      "nextNodeId": "stop",
+      "announcement": "Practice 2 decision needs another attempt.",
+      "feedback": "Not supported. A general role does not expand the supplied request. This proposal changes many targets and a forbidden field. Retry and apply the exact scope."
+    },
+    {
+      "id": "denied-right",
+      "group": "denied",
+      "label": "Recognize the broad update as unauthorized and stop with an explanation.",
+      "correct": true,
+      "nextNodeId": "stop",
+      "announcement": "Practice 2 decision recorded as correct.",
+      "feedback": "Correct. The request is limited to one ticket, priority, and one note. The broad update and assignee overwrite exceed that scope, so Stop and explain is required."
+    },
+    {
+      "id": "changed-wrong",
+      "group": "changed",
+      "label": "Retry the same update immediately because no final response arrived.",
+      "correct": false,
+      "nextNodeId": "contain",
+      "announcement": "Practice 3 decision needs another attempt.",
+      "feedback": "Not supported. A timeout is unknown. The readback shows the note once, priority high, and the ticket closed. Blind retry risks duplicate or stale writes."
+    },
+    {
+      "id": "changed-right",
+      "group": "changed",
+      "label": "Contain the timeout, reconcile actual state, and stop without renewed authorization.",
+      "correct": true,
+      "nextNodeId": "stop",
+      "announcement": "Practice 3 decision recorded as correct.",
+      "feedback": "Correct. The action may already have committed, and the ticket changed to closed. Reconciliation prevents duplicate or stale writing. The changed state requires stopping and seeking a new bounded request."
+    }
+  ],
+  "practiceGroups": [
+    {
+      "id": "baseline",
+      "title": "Practice 1: ordinary approved update",
+      "prompt": "Mira's exact request, bounded plan, and initial readback are supplied. Which authorization decision supports the loop?",
+      "nodeId": "authorize",
+      "choiceIds": [
+        "baseline-right",
+        "baseline-wrong"
+      ],
+      "retryAnnouncement": "Returned to Practice 1 for another decision."
+    },
+    {
+      "id": "denied",
+      "title": "Practice 2: denied broad action",
+      "prompt": "A proposed action expands one ticket into every open ticket and changes assignees. Which decision is supported?",
+      "nodeId": "authorize",
+      "choiceIds": [
+        "denied-wrong",
+        "denied-right"
+      ],
+      "retryAnnouncement": "Returned to Practice 2 for another decision."
+    },
+    {
+      "id": "changed",
+      "title": "Practice 3: independent changed-state case",
+      "prompt": "A timeout is followed by a readback showing the ticket closed and the note present once. What should happen?",
+      "nodeId": "verify",
+      "choiceIds": [
+        "changed-wrong",
+        "changed-right"
+      ],
+      "retryAnnouncement": "Returned to Practice 3 for another decision."
+    }
+  ],
+  "sources": [
+    {
+      "title": "LLM06:2025 Excessive Agency",
+      "publisher": "OWASP Gen AI Security Project",
+      "url": "https://genai.owasp.org/llmrisk/llm062025-excessive-agency/",
+      "use": "Supports limiting tool functionality, permissions, and autonomy, requiring appropriate approval, and enforcing authorization outside model judgment."
+    },
+    {
+      "title": "LLM01:2025 Prompt Injection",
+      "publisher": "OWASP Gen AI Security Project",
+      "url": "https://genai.owasp.org/llmrisk/llm01-prompt-injection/",
+      "use": "Supports treating model and external content as potentially untrusted, constraining privileges, and requiring human approval for high-risk operations."
+    },
+    {
+      "title": "AI RMF Core",
+      "publisher": "National Institute of Standards and Technology",
+      "url": "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/",
+      "use": "Supports continuous risk management through Govern, Map, Measure, and Manage. It does not prescribe this exact agent loop."
+    }
+  ]
+}
