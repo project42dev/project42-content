@@ -3,32 +3,80 @@
 Present every visual as a complete static composition. Do not make completion
 depend on animation timing, autoplay, or pointer gestures.
 
-## verify-by-claim-explanation
+## welcome-and-outcomes
 
-Display the complete claim-to-evidence matrix at once.
+Keep the complete path visible without animation.
 
-Text alternative: Facts map to current authoritative sources, math to recomputation, quotations to originals, classifications to labeled cases, code to tests, recommendations to evidence and expert review, and actions to real postconditions.
+Text alternative: The class moves from claims through evidence and diagnosis to a bounded decision.
 
-## mixed-claim-demonstration
+## verify-by-claim-narration
 
-Show the four rows and evidence requirements in a static table.
+Display the entire matrix at once.
 
-Text alternative: The product limit requires current scoped documentation, capacity percentage requires recomputation, automatic scaling requires exact source context, and migration risk requires broader evidence and review.
+Text alternative: Quotations use original text, facts use authoritative sources, calculations use recomputation, and actions use passed evidence.
 
-## scale-checks-to-risk-explanation
+## verify-by-claim-demonstration
 
-Display the complete ladder with risk factors and controls simultaneously.
+Show both columns and the exact quotation simultaneously without animation.
 
-Text alternative: Low-risk ideation starts with review. Higher levels add primary sources, recomputation, tests, independent expertise, authorization, audit, and recovery.
+Text alternative: The flawed response misquotes Source A, invents a reduced fare, and miscalculates; the corrected response quotes the exact sentence, recomputes four times three dollars, and limits release to the standard-price total.
 
-## diagnose-the-miss-explanation
+## scale-checks-to-risk-narration
 
-Show all cause, evidence, and remedy rows in a static matrix.
+Display every ladder level simultaneously.
 
-Text alternative: Task, context, prompt, model, tool, and review failures each require different evidence and changes.
+Text alternative: Low consequence uses review, moderate consequence adds source and arithmetic checks, and high consequence adds independent expertise and approval.
 
-## improve-with-cases-explanation
+## source-corpus-narration
 
-Display the full comparison matrix and decision options at once.
+Keep the complete source table visible without transitions.
 
-Text alternative: Rows cover normal, boundary, missing-data, conflicting-source, privacy-sensitive, and adversarial-like cases. Columns record old result, new result, regression, uncertainty, and decision.
+Text alternative: Source A controls over superseded Source B; Sources C and D have equal authority and conflicting exact prices; no reduced-fare amount is supplied.
+
+## source-corpus-demonstration
+
+Show all three cards without transitions.
+
+Text alternative: Eligibility does not provide price, supersession selects A, and equal conflict produces HOLD.
+
+## diagnose-the-miss-narration
+
+Display the complete audit table without animation.
+
+Text alternative: The audit distinguishes the exact Source A sentence from the flawed quotation, separates eligibility from price, recomputes the total, and leaves causes unknown.
+
+## improve-with-cases-narration
+
+Display the comparison table without animation.
+
+Text alternative: Version two adds verification while the source corpus, cases, and R1 through R5 remain fixed.
+
+## improve-with-cases-demonstration
+
+Keep all rubric rows visible.
+
+Text alternative: The rubric covers source, evidence, calculation, uncertainty handling, and action.
+
+## reusable-template-narration
+
+Show the full worksheet at once.
+
+Text alternative: The worksheet records source, claim, evidence, result, diagnosis, conflicts, calculation, action, and uncertainty.
+
+## changed-input-task-narration
+
+Show both quantities and requirements simultaneously.
+
+Text alternative: Only the quantity changes from four rides to five rides; the standard price remains three dollars.
+
+## changed-input-answer-key-narration
+
+Display the answer key without animation.
+
+Text alternative: The exact Source A sentence supports five rides at three dollars each, producing a released standard-price total of fifteen dollars while the reduced-fare amount remains unknown.
+
+## limits-and-transfer-narration
+
+Keep the provenance boundary visible.
+
+Text alternative: The cases demonstrate a method under one rubric, not general reliability, model success, or provider transfer.

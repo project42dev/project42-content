@@ -3,38 +3,32 @@
 Present every visual as a complete static composition. Do not make completion
 depend on animation timing, autoplay, or pointer gestures.
 
-## transformation-brief-explanation
+## welcome-and-outcomes
 
-Display every field simultaneously with numbered labels and no animated form completion.
+Display all workflow steps at once as labeled text with no animation.
 
-Text alternative: The brief names audience and purpose, transformation type, source of truth, exact material to preserve, requested changes, prohibited additions, and verification checks.
+Text alternative: The workflow shows source, brief, fact ledger, constrained draft, evidence audit, scoped recovery, and responsible review.
 
-## brief-demonstration
+## writing-prepare-narration
 
-Present all four panels at once and identify allowed and prohibited changes with text, not motion or color alone.
+Show all brief fields at once in a fixed reading order without animation.
 
-Text alternative: Duration, recovery time, status, and uncertainty are protected. Structure and explanations may change. Root cause and future guarantees cannot be added.
+Text alternative: The brief identifies who the announcement serves, why it is being written, which source controls it, what must remain exact, what may change, what is unknown, and who must review it.
 
-## visible-passes-explanation
+## writing-extract-narration
 
-Show all columns and arrows as one static diagram without moving sentences between them.
+Display the ledger as a fixed table without movement.
 
-Text alternative: Pass one extracts facts and unknowns. Pass two rewrites within constraints. Proposed additions remain in a separate review column.
+Text alternative: The ledger separates exact source wording, its meaning, the rule for drafting, and details the source does not establish.
 
-## meaning-audit-explanation
+## writing-corrected-narration
 
-Display the complete audit table with written Pass, Revise, and Escalate values.
+Display the checklist in reading order with no animation.
 
-Text alternative: The audit checks exact facts, preserved meaning, evidence, audience fit, accessibility, disclosure, and accountable review.
+Text alternative: The checklist shows that the corrected draft restores source facts, keeps payment rules distinct, preserves quotations, leaves missing logistics unknown, and does not claim approval.
 
-## drift-recovery-explanation
+## writing-execute-demonstration
 
-Present the repair sequence as six numbered static steps.
+Display all four panels simultaneously with headings and no animated transitions.
 
-Text alternative: Detected drift maps to its source passage and brief rule, then to a local correction, repeated audit, and reviewer record.
-
-## authors-subjects-readers-explanation
-
-Show the complete checklist at once using text labels and no animated completion.
-
-Text alternative: The checklist covers permission, minimum data, attribution, verified quotations, disclosure, version records, retention, and accountable approval.
+Text alternative: The demonstration compares the brief and ledger with the flawed payment sentence, then shows the corrected draft and its evidence links.
