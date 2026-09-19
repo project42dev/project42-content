@@ -17,7 +17,7 @@
   "prerequisites": [],
   "owner": "project42-editorial",
   "reviewCadenceDays": 90,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-19",
   "tags": [
     "prompting",
     "templates",
@@ -29,29 +29,91 @@
       "id": "use-templates-safely",
       "title": "Use a template as a starting contract",
       "paragraphs": [
-        "Replace every bracketed field and remove fields that do not apply. Supply only data you are authorized to use, remove secrets and unnecessary personal data, and label untrusted material. Keep the acceptance check even when the task feels simple.",
-        "Templates do not grant tool permissions, validate claims, or replace professional review. Raise the verification level with the consequence of error."
-      ]
+        "This pack uses one entirely fictional scenario: the Cedar Grove Community Workshop is choosing a free Saturday activity, preparing a public announcement, comparing room layouts, researching fictional program records, and reviewing a draft flyer. It contains no personal or regulated data.",
+        "Replace bracketed fields only when adapting a template. Keep source material separate from instructions, state what must be preserved, and retain the acceptance check. A clear, specific request and an explicit response format can improve control, but a prompt does not prove that an answer is correct.",
+        "Message roles, instructions, examples, XML-style delimiters, and explicit constraints are provider-specific mechanisms or documented prompting techniques. The worked prompts below use plain text delimiters so they can transfer across providers. OpenAI documents that developer instructions have priority over user input in its API; do not assume that every provider implements the same hierarchy. Sources: OpenAI, Anthropic, and Google documentation listed in the root sources."
+      ],
+      "callout": "Fictional workshop evidence is teaching data, not a real source. The authored results below are expected answers created for this lesson, not outputs from a model or claims that a model was executed."
     },
     {
-      "id": "copy-template-pack",
-      "title": "Copy the closest template",
+      "id": "summarize-workshop-plan",
+      "title": "SUMMARIZE: preserve operational labels and warnings",
       "paragraphs": [
-        "Keep the source block separate from instructions. For research, require claim-level citations and an explicit unknown state. For transformations, require preservation checks."
+        "Complete input: Cedar Grove Community Workshop planning note, dated 2026-09-10. \"Program: Saturday Skill Share. Audience: residents and library volunteers. Goal: offer three 45-minute beginner sessions between 10:00 and 13:00. Proposed sessions: bicycle repair, seed-starting, and phone photography. Registration: sign up at the library desk; no online registration. Materials: participants bring a bicycle only for bicycle repair; the workshop supplies all other materials. Capacity: 12 seats per session. Warning: the note does not confirm instructor availability, room booking, or accessibility arrangements.\"",
+        "The filled prompt preserves the original operational labels from the reusable template: Audience, Source, Preserve, Limit, and Verify. It asks for a short result while requiring unsupported items to remain visible."
       ],
       "code": {
         "language": "text",
-        "label": "Five reusable prompt templates",
-        "code": "SUMMARIZE\nAudience: [AUDIENCE]\nSource: [AUTHORIZED TEXT — REMOVE SECRETS]\nPreserve: [FACTS, TERMS, WARNINGS]\nLimit: [LENGTH]\nVerify: List any claim not supported by the source.\n\nTRANSFORM\nChange: [SOURCE FORMAT] into [TARGET FORMAT]\nSource: [AUTHORIZED CONTENT]\nMust preserve: [MEANING, IDS, NUMBERS]\nMust not add: [UNSUPPORTED CLAIMS]\nVerify: Compare every required field with the source.\n\nCOMPARE\nDecision: [DECISION]\nOptions: [OPTIONS]\nCriteria and weights: [CRITERIA]\nEvidence: [CURRENT SOURCES]\nUnknowns: Mark unknown; do not guess.\nVerify: Cite each material score and run one sensitivity check.\n\nRESEARCH\nQuestion: [BOUNDED QUESTION]\nAs of: [YYYY-MM-DD]\nPreferred sources: [PRIMARY SOURCES]\nOutput: Claims, evidence, disagreement, unknowns, conclusion.\nVerify: Every material claim needs a source that directly supports it.\n\nREVIEW\nArtifact: [AUTHORIZED ARTIFACT]\nRequirements: [ACCEPTANCE CRITERIA]\nFocus: [CORRECTNESS, SAFETY, ACCESSIBILITY, OPERATIONS]\nOutput: Findings ordered by severity with exact evidence.\nVerify: Say no findings only after checking every requirement."
+        "label": "Filled prompt, authored expected answer, failure and recovery",
+        "code": "SUMMARIZE\nAudience: Cedar Grove residents and library volunteers\nSource: Cedar Grove Community Workshop planning note, dated 2026-09-10. Program: Saturday Skill Share. Audience: residents and library volunteers. Goal: offer three 45-minute beginner sessions between 10:00 and 13:00. Proposed sessions: bicycle repair, seed-starting, and phone photography. Registration: sign up at the library desk; no online registration. Materials: participants bring a bicycle only for bicycle repair; the workshop supplies all other materials. Capacity: 12 seats per session. Warning: the note does not confirm instructor availability, room booking, or accessibility arrangements.\nPreserve: the program, audience, goal, session names, duration, time window, registration method, material rule, capacity, and Warning\nLimit: 70 words\nVerify: List any claim not supported by the source. Keep the heading Warning when reporting the three unconfirmed arrangements.\n\nAuthored expected answer:\nProgram: Saturday Skill Share for residents and library volunteers. It aims to offer beginner bicycle repair, seed-starting, and phone photography sessions, each 45 minutes, between 10:00 and 13:00. Sign up at the library desk; there is no online registration. Each session has 12 seats. Participants bring a bicycle only for bicycle repair; other materials are supplied. Warning: instructor availability, room booking, and accessibility arrangements are unconfirmed.\nUnsupported claims: None.\n\nFailure: \"The workshop is fully booked, has accessible rooms, and will have three instructors. Register online.\"\nRecovery: Re-run with the complete Source, require every sentence to be traceable to it, prohibit adding logistics, and require the exact Warning label for unconfirmed information."
       }
     },
     {
-      "id": "verify-template-result",
+      "id": "transform-workshop-signups",
+      "title": "TRANSFORM: preserve fields, counts, and values",
+      "paragraphs": [
+        "Complete input: the workshop coordinator's authorized registration tally, not a list of people. \"Bicycle repair: 7 seats requested, 12-seat capacity. Seed-starting: 12 seats requested, 12-seat capacity. Phone photography: 4 seats requested, 12-seat capacity. Registration channel for all sessions: library desk.\"",
+        "The target is exact JSON with one object per session and exactly the requested fields. The authored result is a hand-checked answer, not an execution claim."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Filled prompt, authored expected answer, failure and recovery",
+        "code": "TRANSFORM\nChange: coordinator tally text into exact JSON\nSource: Bicycle repair: 7 seats requested, 12-seat capacity. Seed-starting: 12 seats requested, 12-seat capacity. Phone photography: 4 seats requested, 12-seat capacity. Registration channel for all sessions: library desk.\nMust preserve: session name, seats_requested, capacity, and registration_channel\nMust not add: people, waitlists, availability claims, or fields not supported by the source\nOutput: one JSON array containing exactly three objects, with fields in this order: session, seats_requested, capacity, registration_channel\nVerify: Compare every required field with the source. Check that the array has 3 objects, each seats_requested and capacity value is an integer copied from the source, and every registration_channel equals library desk. Return JSON only.\n\nAuthored expected answer:\n[\n  {\"session\":\"Bicycle repair\",\"seats_requested\":7,\"capacity\":12,\"registration_channel\":\"library desk\"},\n  {\"session\":\"Seed-starting\",\"seats_requested\":12,\"capacity\":12,\"registration_channel\":\"library desk\"},\n  {\"session\":\"Phone photography\",\"seats_requested\":4,\"capacity\":12,\"registration_channel\":\"library desk\"}\n]\n\nFailure: [{\"session\":\"Seed-starting\",\"seats_requested\":\"full\",\"capacity\":12,\"registration_channel\":\"online\",\"waitlist\":true}]\nRecovery: Reject the output because the count is 1 instead of 3, a required value changed, an unsupported field was added, and the channel was changed. Re-run with the source and the exact field, count, type, and value checks above."
+      }
+    },
+    {
+      "id": "compare-workshop-layouts",
+      "title": "COMPARE: show weighted arithmetic and sensitivity",
+      "paragraphs": [
+        "Complete input: the fictional facilities note says Layout A has accessibility 5/5, setup effort 4/5, visibility 3/5, and cost 2/5. Layout B has accessibility 3/5, setup effort 3/5, visibility 5/5, and cost 4/5. Scores are supplied ratings, where 5 is better. The committee sets weights: accessibility 0.40, setup effort 0.25, visibility 0.20, cost 0.15. The decision is for the Saturday Skill Share. No actual room booking or price was verified.",
+        "The weighted score is calculated as rating multiplied by weight, then summed. Base weights sum to 0.40 + 0.25 + 0.20 + 0.15 = 1.00. Layout A: (5 x 0.40) + (4 x 0.25) + (3 x 0.20) + (2 x 0.15) = 2.00 + 1.00 + 0.60 + 0.30 = 3.90. Layout B: (3 x 0.40) + (3 x 0.25) + (5 x 0.20) + (4 x 0.15) = 1.20 + 0.75 + 1.00 + 0.60 = 3.55. Layout A is higher by 3.90 - 3.55 = 0.35.",
+        "A sensitivity example changes accessibility weight to 0.55 and cost to 0.00, leaving setup effort and visibility unchanged. Sensitivity weights sum to 0.55 + 0.25 + 0.20 + 0.00 = 1.00. Layout A: (5 x 0.55) + (4 x 0.25) + (3 x 0.20) + (2 x 0.00) = 2.75 + 1.00 + 0.60 + 0.00 = 4.35. Layout B: (3 x 0.55) + (3 x 0.25) + (5 x 0.20) + (4 x 0.00) = 1.65 + 0.75 + 1.00 + 0.00 = 3.40. Layout A remains higher by 4.35 - 3.40 = 0.95."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Filled prompt, authored expected answer, failure and recovery",
+        "code": "COMPARE\nDecision: choose a layout for the Cedar Grove Saturday Skill Share\nOptions: Layout A and Layout B\nCriteria and weights: accessibility 0.40, setup effort 0.25, visibility 0.20, cost 0.15; ratings are out of 5 and higher is better\nEvidence: Facilities note. Layout A: accessibility 5/5, setup effort 4/5, visibility 3/5, cost 2/5. Layout B: accessibility 3/5, setup effort 3/5, visibility 5/5, cost 4/5. These are supplied ratings; no room booking or price was verified.\nUnknowns: Mark unknown; do not guess. Do not convert ratings into real measurements.\nOutput: show each multiplication and sum, state the higher weighted score, and run this sensitivity check: accessibility 0.55, setup effort 0.25, visibility 0.20, cost 0.00.\nVerify: Cite each material score to the Facilities note, confirm weights sum to 1.00 in both cases, recompute both totals, and identify any unknowns.\n\nAuthored expected answer (fixture; not an observed model run):\nBase weights: 0.40 + 0.25 + 0.20 + 0.15 = 1.00. A = (5 x 0.40) + (4 x 0.25) + (3 x 0.20) + (2 x 0.15) = 2.00 + 1.00 + 0.60 + 0.30 = 3.90. B = (3 x 0.40) + (3 x 0.25) + (5 x 0.20) + (4 x 0.15) = 1.20 + 0.75 + 1.00 + 0.60 = 3.55. Layout A is higher by 3.90 - 3.55 = 0.35 on the supplied ratings.\nSensitivity weights: 0.55 + 0.25 + 0.20 + 0.00 = 1.00. A = (5 x 0.55) + (4 x 0.25) + (3 x 0.20) + (2 x 0.00) = 2.75 + 1.00 + 0.60 + 0.00 = 4.35. B = (3 x 0.55) + (3 x 0.25) + (5 x 0.20) + (4 x 0.00) = 1.65 + 0.75 + 1.00 + 0.00 = 3.40. Layout A remains higher by 4.35 - 3.40 = 0.95.\nConclusion: On the supplied ratings and weights, choose Layout A. Unknown: actual booking, actual cost, and independent accessibility verification.\n\nFailure: \"Layout B wins because it is cheaper and more visible,\" with no arithmetic and a claim that its cost is a dollar amount.\nRecovery: Restore the complete Evidence and weights, require the displayed formula, prohibit converting ratings into real-world facts, and mark unverified booking and cost as unknown."
+      }
+    },
+    {
+      "id": "research-fictional-records",
+      "title": "RESEARCH: use a closed corpus and cite claim by claim",
+      "paragraphs": [
+        "Complete closed corpus, all fictional: CGW-01, \"Cedar Grove Workshop Log,\" dated 2026-06-02, says 18 people attended the first seed-starting session and 15 completed the feedback card. CGW-02, \"Library Program Memo,\" dated 2026-06-18, says the next Saturday Skill Share is planned for 2026-07-11 and lists seed-starting and bicycle repair. CGW-03, \"Facilities Checklist,\" dated 2026-06-20, says the multipurpose room has 12 tables and that an accessibility review is pending. No other source may be used.",
+        "The question is bounded by the corpus and its dates. A faithful answer cites each material claim directly with a document ID. A missing fact is UNKNOWN, not a web search result or a model guess."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Filled prompt, authored expected answer, failure and recovery",
+        "code": "RESEARCH\nQuestion: What do the supplied Cedar Grove records establish about prior seed-starting participation, the next planned session, and room readiness?\nAs of: 2026-06-20\nPreferred sources: closed corpus only: CGW-01, Cedar Grove Workshop Log, dated 2026-06-02; CGW-02, Library Program Memo, dated 2026-06-18; CGW-03, Facilities Checklist, dated 2026-06-20\nDocuments:\n[CGW-01] Cedar Grove Workshop Log, 2026-06-02: 18 people attended the first seed-starting session; 15 completed the feedback card.\n[CGW-02] Library Program Memo, 2026-06-18: the next Saturday Skill Share is planned for 2026-07-11 and lists seed-starting and bicycle repair.\n[CGW-03] Facilities Checklist, 2026-06-20: the multipurpose room has 12 tables; an accessibility review is pending.\nOutput: Claims, evidence, disagreement, unknowns, conclusion. Cite every material claim with its document ID. Use UNKNOWN where the documents do not answer the question. Do not browse, infer, or claim to have executed a model.\nVerify: Every material claim needs a source that directly supports it; check dates and distinguish planned from completed.\n\nAuthored expected answer:\nClaims and evidence:\n- 18 people attended the first seed-starting session. [CGW-01]\n- 15 people completed a feedback card. [CGW-01]\n- The next Saturday Skill Share was planned for 2026-07-11 and included seed-starting and bicycle repair. [CGW-02]\n- The multipurpose room had 12 tables as of 2026-06-20. [CGW-03]\n- Accessibility readiness is UNKNOWN because the review was pending. [CGW-03]\nDisagreement: None in the supplied corpus.\nUnknowns: Whether the 2026-07-11 event occurred, final attendance, instructor availability, and the outcome of the accessibility review are UNKNOWN.\nConclusion: The records establish prior attendance and feedback-card counts, a planned date and session list, and 12 tables. They do not establish that the next event occurred or that the room passed accessibility review. [CGW-01] [CGW-02] [CGW-03]\n\nFailure: \"The July event happened successfully in an accessible room with 18 attendees,\" without document IDs.\nRecovery: Restrict the run to the three dated documents, require a citation after each claim, preserve planned versus completed wording, and replace unsupported conclusions with UNKNOWN."
+      }
+    },
+    {
+      "id": "review-workshop-flyer",
+      "title": "REVIEW: rank findings, then correct the artifact",
+      "paragraphs": [
+        "Complete artifact: a fictional public flyer draft reads, \"CEDAR GROVE SATURDAY SKILL SHARE. Join us Saturday 11 July, 10:00-13:00, at the library multipurpose room. Learn bicycle repair, seed-starting, and phone photography. Everyone is guaranteed a place. Register online at cedargrove.example/register. Bring a bicycle and your own soil. Free parking behind the library. Contact Maya at 555-0101 for questions.\"",
+        "Acceptance requirements: use only the supplied workshop planning note; do not assert unconfirmed arrangements; preserve the three proposed session names, the 10:00-13:00 window, 45-minute session duration, library-desk registration, 12-seat capacity per session, and the material rule; make the announcement suitable for a general public audience; do not include personal contact details; rank findings by severity and provide exact evidence."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Filled prompt, authored expected answer, failure and recovery",
+        "code": "REVIEW\nArtifact: CEDAR GROVE SATURDAY SKILL SHARE. Join us Saturday 11 July, 10:00-13:00, at the library multipurpose room. Learn bicycle repair, seed-starting, and phone photography. Everyone is guaranteed a place. Register online at cedargrove.example/register. Bring a bicycle and your own soil. Free parking behind the library. Contact Maya at 555-0101 for questions.\nRequirements: Use only this supplied planning note: the program is for residents and library volunteers; it aims to offer three 45-minute beginner sessions between 10:00 and 13:00; proposed sessions are bicycle repair, seed-starting, and phone photography; registration is at the library desk with no online registration; participants bring a bicycle only for bicycle repair and the workshop supplies all other materials; capacity is 12 seats per session; instructor availability, room booking, and accessibility arrangements are unconfirmed.\nFocus: correctness, safety, accessibility, operations, and removal of unnecessary personal data\nOutput: findings ordered by severity with exact quoted evidence, requirement affected, and correction; then provide a corrected artifact.\nVerify: Say no findings only after checking every requirement. Do not invent a date, parking, booking, accessibility status, or contact person.\n\nAuthored expected answer:\n1. High: The date and room are unsupported. Evidence: \"Saturday 11 July\" and \"library multipurpose room.\" The source gives only a 10:00-13:00 window and says room booking is unconfirmed. Correction: remove the date and room, or label them UNKNOWN pending confirmation.\n2. High: Registration is wrong. Evidence: \"Register online at cedargrove.example/register.\" Requirement says library desk and no online registration. Correction: say \"Sign up at the library desk.\"\n3. High: Materials are wrong. Evidence: \"Bring a bicycle and your own soil.\" Requirement says bring a bicycle only for bicycle repair and the workshop supplies all other materials. Correction: state that rule.\n4. Medium: \"Everyone is guaranteed a place\" conflicts with the 12-seat capacity per session. Correction: state \"12 seats per session\" and do not promise a place.\n5. Medium: \"Free parking behind the library\" is unsupported. Remove it.\n6. Medium: \"Contact Maya at 555-0101\" includes unnecessary personal contact data and is unsupported. Remove it.\n7. Medium: The flyer omits that sessions are beginner sessions and 45 minutes. Add both facts.\n\nCorrected artifact:\nCEDAR GROVE SATURDAY SKILL SHARE\nFor residents and library volunteers. Three beginner sessions are proposed: bicycle repair, seed-starting, and phone photography. Each session is 45 minutes, within the 10:00-13:00 program window. There are 12 seats per session. Sign up at the library desk; there is no online registration. Bring a bicycle only for bicycle repair. The workshop supplies all other materials.\nWarning: instructor availability, room booking, accessibility arrangements, date, and parking are unconfirmed.\n\nFailure: \"No findings.\"\nRecovery: Compare each sentence with every requirement, rank unsupported logistics before style issues, remove the personal contact detail, and publish only the corrected artifact after the date, room, instructors, and accessibility arrangements are confirmed by an authorized coordinator."
+      }
+    },
+    {
+      "id": "expected-result-and-verification",
       "title": "Expected result and verification",
       "paragraphs": [
-        "The expected result follows the requested structure, preserves the source where required, distinguishes evidence from inference, exposes unknowns, and does not invent permission or facts.",
-        "Run the template once with a representative case and once with a difficult edge case. Check every preserved value, open cited sources, compare decision weights, or reproduce review findings as appropriate. Save a versioned template only after both cases pass."
-      ]
+        "The expected result follows the requested structure, preserves source values where required, distinguishes evidence from inference, exposes unknowns, and does not invent permission or facts. For SUMMARIZE, check preserved labels, facts, warnings, and word limit. For TRANSFORM, parse the JSON and check exact field names, object count, data types, and values. For COMPARE, recompute every multiplication, confirm each weight total, and check the difference between the option totals. For RESEARCH, check every claim against its cited fictional document and its date. For REVIEW, confirm that every requirement was checked and that findings have exact artifact evidence.",
+        "Run each worked prompt once with its supplied input and once after changing one input. A successful check means the changed value changes the relevant answer without changing unrelated facts. This is a verification procedure, not evidence that a model has been run."
+      ],
+      "callout": "Local Qwen transfer caveat: Qwen3-0.6B supports thinking and non-thinking modes. Its README suggests Temperature 0.6, TopP 0.95, TopK 20, and MinP 0 for thinking mode and warns against greedy decoding because it can degrade performance or cause repetition. For non-thinking mode it suggests Temperature 0.7, TopP 0.8, TopK 20, and MinP 0. These are configuration suggestions from Qwen's documentation, not a ranking or a result from this lesson. Provider-neutral prompts may need adaptation to a local chat template, role format, context limit, or structured-output mechanism.",
+      "code": {
+        "language": "text",
+        "label": "Changed-input learner exercise, answer key, feedback, and optional blank templates",
+        "code": "LEARNER EXERCISE\nUse the same Cedar Grove scenario, but change the TRANSFORM source to: Bicycle repair: 8 seats requested, 12-seat capacity. Seed-starting: 10 seats requested, 12-seat capacity. Phone photography: 5 seats requested, 12-seat capacity. Registration channel for all sessions: library desk. Keep the same exact JSON requirements. Separately, change the COMPARE base weight for visibility from 0.20 to 0.30 and cost from 0.15 to 0.05; recompute both options. Do not look at the answer key until you have completed the exercise.\n\nANSWER KEY (fixture; not an observed model run)\nTRANSFORM JSON:\n[{\"session\":\"Bicycle repair\",\"seats_requested\":8,\"capacity\":12,\"registration_channel\":\"library desk\"},{\"session\":\"Seed-starting\",\"seats_requested\":10,\"capacity\":12,\"registration_channel\":\"library desk\"},{\"session\":\"Phone photography\",\"seats_requested\":5,\"capacity\":12,\"registration_channel\":\"library desk\"}]\nCOMPARE: The changed weights are 0.40, 0.25, 0.30, and 0.05, and they sum to 0.40 + 0.25 + 0.30 + 0.05 = 1.00. A = (5 x 0.40) + (4 x 0.25) + (3 x 0.30) + (2 x 0.05) = 2.00 + 1.00 + 0.90 + 0.10 = 4.00. B = (3 x 0.40) + (3 x 0.25) + (5 x 0.30) + (4 x 0.05) = 1.20 + 0.75 + 1.50 + 0.20 = 3.65. Layout A remains higher by 4.00 - 3.65 = 0.35.\n\nFEEDBACK\nIf the JSON includes old counts, altered channel text, extra fields, or the wrong number of objects, compare each value directly with the changed source. If comparison totals differ, write every multiplication, check that the changed weights sum to 1.00, and do not reuse the old totals. The exercise answer is separate from the worked answers above.\n\nOPTIONAL BLANK TEMPLATES\nSUMMARIZE\nAudience: [AUDIENCE]\nSource: [AUTHORIZED TEXT]\nPreserve: [FACTS, TERMS, WARNINGS]\nLimit: [LENGTH]\nVerify: List any claim not supported by the source.\n\nTRANSFORM\nChange: [SOURCE FORMAT] into [TARGET FORMAT]\nSource: [AUTHORIZED CONTENT]\nMust preserve: [MEANING, IDS, NUMBERS]\nMust not add: [UNSUPPORTED CLAIMS]\nVerify: Compare every required field with the source.\n\nCOMPARE\nDecision: [DECISION]\nOptions: [OPTIONS]\nCriteria and weights: [CRITERIA]\nEvidence: [SUPPLIED SOURCES]\nUnknowns: Mark unknown; do not guess.\nVerify: Cite each material score and run one sensitivity check.\n\nRESEARCH\nQuestion: [BOUNDED QUESTION]\nAs of: [YYYY-MM-DD]\nPreferred sources: [CLOSED CORPUS]\nOutput: Claims, evidence, disagreement, unknowns, conclusion.\nVerify: Every material claim needs a source that directly supports it.\n\nREVIEW\nArtifact: [AUTHORIZED ARTIFACT]\nRequirements: [ACCEPTANCE CRITERIA]\nFocus: [CORRECTNESS, SAFETY, ACCESSIBILITY, OPERATIONS]\nOutput: Findings ordered by severity with exact evidence.\nVerify: Say no findings only after checking every requirement."
+      }
     }
   ],
   "sources": [
@@ -59,19 +121,25 @@
       "title": "Prompt engineering",
       "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-19"
     },
     {
       "title": "Prompting best practices",
       "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-19"
     },
     {
       "title": "Prompt design strategies",
       "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Qwen3-0.6B README",
+      "url": "https://huggingface.co/Qwen/Qwen3-0.6B/raw/main/README.md",
+      "publisher": "Qwen",
+      "lastVerified": "2026-09-19"
     }
   ]
 }
