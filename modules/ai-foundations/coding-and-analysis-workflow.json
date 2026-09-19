@@ -23,132 +23,535 @@
       "id": "coding-prepare",
       "title": "Prepare the task and safe workspace",
       "paragraphs": [
-        "State the expected behavior or analytical question, relevant files or fields, constraints, acceptance tests, and what must not change. Inspect the actual code, schema, and data before proposing a solution.",
-        "Use a branch, copy, sandbox, or read-only data source appropriate to the risk. Remove secrets and unnecessary personal data; never paste production credentials or unrestricted datasets into a prompt."
+        "This beginner lab repairs a Python 3 CSV analysis program using only the standard library. The data is fictional teaching data, and every amount is an integer number of cents. No network connection, paid account, external package, secret, or hidden dataset is required.",
+        "Bound the task before editing. Record the behavior, files, schema, validation rules, expected output, tests, safe workspace, and rollback method. Keep the original input unchanged so every result can be reproduced."
       ],
       "code": {
         "language": "text",
-        "label": "Coding or analysis work order",
-        "code": "Outcome/question: [BEHAVIOR OR DECISION]\nInputs: [FILES, SCHEMA, DATA SAMPLE]\nConstraints: [SCOPE, PERFORMANCE, PRIVACY]\nDo not change: [INVARIANTS]\nChecks: [TESTS, QUERIES, RECONCILIATION]\nWorkspace: [BRANCH, SANDBOX, READ-ONLY]\nRollback: [HOW TO RESTORE]"
+        "label": "Filled work order for this lab",
+        "code": "Outcome: Correct gross charge, refund, and net totals from a CSV file.\nInputs: transactions.csv, analyze_buggy.py, analyze_correct.py, test_analysis.py.\nSchema: invoice_id,customer_id,kind,amount_cents,ref_invoice_id.\nConstraints: Python 3 standard library only; offline; fictional integer cents; no float.\nDo not change: CSV field order, original fixture, six output labels, or output order.\nChecks: exact-output test, refund test, duplicate test, invalid-row tests, reconciliation.\nWorkspace: a new local directory named coding_lab.\nRollback: preserve analyze_buggy.py and replace analyze_correct.py with a fresh copy when reproducing the failure."
       }
     },
     {
       "id": "coding-execute",
       "title": "Execute small, inspectable increments",
       "paragraphs": [
-        "Ask for or create a short plan, then change one coherent behavior at a time. Review diffs, queries, assumptions, and intermediate results before expanding scope.",
-        "For analysis, preserve raw inputs and make transformations explicit. For code, prefer existing project patterns and avoid unrequested dependencies, permissions, or architecture changes."
-      ]
+        "Create one directory and save each displayed file under its exact label. The initial tested filename is analyze_correct.py, so the ordered setup deliberately copies the buggy program to that filename before running the failing test. This avoids falsely claiming that a test aimed at the corrected filename automatically exercises analyze_buggy.py.",
+        "Inspect the condition that classifies charges and refunds. Make only the narrow behavior change justified by the requirements, then run the supplied tests. Do not add dependencies or alter the fixture to make a test pass."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Lab file layout",
+        "code": "coding_lab/\n  transactions.csv\n  analyze_buggy.py\n  analyze_correct.py\n  test_analysis.py\n  transactions_changed.csv\n  analyze_changed.py\n  test_changed.py"
+      }
     },
     {
       "id": "coding-verify",
       "title": "Verify with the system, not the explanation",
       "paragraphs": [
-        "Run the relevant formatter, type checks, unit tests, integration tests, and production build. Exercise the changed behavior and important failure paths. A model's explanation is not evidence that code compiles or works.",
-        "For analysis, validate types, missingness, units, row counts, joins, filters, outliers, and reconciliation totals. Review whether the sample represents the population and whether the conclusion exceeds the data."
-      ]
+        "Executable checks are the evidence. The original fixture must reconcile row counts as well as monetary totals. It contains six data rows: four accepted rows, one ignored exact duplicate, and one rejected row. Gross charges are 1250 + 3000 + 1000 = 5250 cents. Refunds are 250 cents, so net is 5250 - 250 = 5000 cents.",
+        "The tests check behavior rather than copying the program structure. They run the program as a separate process, inspect its public output, and use additional complete CSV inputs to exercise exact duplicates, conflicting invoice identifiers, missing identifiers, zero, negative and noninteger amounts, and unknown transaction kinds."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Verification checklist",
+        "code": "1. Run the program against transactions.csv.\n2. Compare all six output lines exactly.\n3. Reconcile six input rows with accepted, duplicate, and rejected counts.\n4. Confirm the refund appears in refunds but not gross charges.\n5. Run boundary tests containing fully visible test data.\n6. Run the changed-rule suite independently.\n7. Restore the buggy version and reproduce the original failure.\n8. Restore the corrected version and obtain a passing suite."
+      }
     },
     {
       "id": "coding-recover",
       "title": "Recover without destroying evidence",
       "paragraphs": [
-        "When a check fails, preserve the error and smallest reproduction, identify whether the cause is code, data, environment, or expectation, and correct the narrowest layer. Do not delete tests or weaken assertions merely to obtain green output.",
-        "Use version control or a verified backup to reverse unsafe changes. Stop before destructive, external, costly, or permission-expanding actions unless the authorized workflow explicitly allows them."
-      ]
+        "Preserve the failing output and assertion before editing. The failure belongs to the code layer because the fixture, requirement, arithmetic reconciliation, and test expectation agree while the program classifies a refund as a gross charge.",
+        "The narrow recovery replaces the faulty condition with mutually exclusive charge and refund branches. Reversal is intentional: copy the buggy program over the tested filename to recreate the failure, then restore the complete corrected file and rerun the tests. Never delete or weaken the assertion."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Failure and recovery record",
+        "code": "Failure command: python3 -m unittest -v test_analysis.AnalysisTest.test_refund_is_not_gross\nFailure evidence: AssertionError: 5500 != 5250\nCause layer: code\nCause: a nonempty string literal makes the or condition truthy for every accepted row.\nCorrection: use an equality check for charge and an elif equality check for refund.\nRegression command: python3 -m unittest -v test_analysis.py\nPassing result: 6 tests run, final status OK.\nRollback: cp analyze_buggy.py analyze_correct.py\nRecovery: restore the complete corrected analyze_correct.py shown in this module."
+      }
     },
     {
       "id": "coding-safety",
       "title": "Review security, privacy, and downstream impact",
       "paragraphs": [
-        "Inspect authentication, authorization, secrets, input validation, logs, dependencies, data exposure, and failure behavior. Generated code can be syntactically valid while introducing insecure or biased behavior.",
-        "Record the task, diff or query, tests, data-quality results, reviewer, deployment boundary, and rollback evidence. Commit only the verified scoped change."
+        "The fixture contains fictional identifiers and fictional financial-like amounts. It is not a financial statement. Applying this exercise to real financial records would require authorization, privacy controls, domain review, retention rules, and substantially broader testing.",
+        "Generated code may look plausible while mishandling input validation or reconciliation. Record the exact files, commands, outputs, test result, changed rule, and rollback path. Do not report reviewer approval or local execution that did not actually occur."
       ],
       "callout": "Executable evidence outranks a plausible implementation story."
+    },
+    {
+      "id": "coding-lab-case",
+      "title": "Worked case: diagnose and fix a CSV analysis",
+      "paragraphs": [
+        "The baseline policy is complete and explicit. The header must exactly match the five displayed fields. An exact duplicate is a later row whose five raw field values match an earlier row; it is counted in ignored_duplicates before validation. A different row that reuses an already accepted invoice_id is a conflicting invoice and is rejected.",
+        "A nonduplicate row is accepted only if invoice_id and customer_id are nonempty, kind is charge or refund, and amount_cents contains only ASCII decimal digits representing an integer greater than zero. Missing, zero, negative, signed, decimal, or otherwise noninteger amounts are rejected. In the baseline case, ref_invoice_id is informational and is not required. Rejected rows do not reserve their invoice identifiers.",
+        "Each accepted charge contributes to gross_charges_cents. Each accepted refund contributes to refunds_cents but not gross charges. Net is gross charges minus refunds. Processing follows file order, and the program prints six lines in the defined order."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Baseline requirements",
+        "code": "1. Require the exact header: invoice_id,customer_id,kind,amount_cents,ref_invoice_id.\n2. Detect exact duplicate rows by all five raw field values before validation.\n3. Count a repeated exact row as ignored_duplicates and do not process it again.\n4. Reject a non-exact row that reuses an accepted invoice_id.\n5. Require nonempty invoice_id and customer_id.\n6. Accept only kind=charge or kind=refund.\n7. Require amount_cents to be ASCII digits for an integer greater than zero.\n8. In the baseline case, do not require a refund reference.\n9. Add only accepted charges to gross_charges_cents.\n10. Add accepted refunds to refunds_cents and subtract them from net_cents.\n11. Print accepted_rows, ignored_duplicates, rejected_rows, gross_charges_cents, refunds_cents, and net_cents in that order."
+      }
+    },
+    {
+      "id": "coding-lab-fixture",
+      "title": "Original complete CSV fixture",
+      "paragraphs": [
+        "Save this file exactly as transactions.csv. It contains all input used for the worked totals. The second A101 row is an exact duplicate of the first A101 row. A104 is rejected because its amount is empty."
+      ],
+      "code": {
+        "language": "csv",
+        "label": "transactions.csv",
+        "code": "invoice_id,customer_id,kind,amount_cents,ref_invoice_id\nA100,C1,charge,1250,\nA101,C1,refund,250,A100\nA101,C1,refund,250,A100\nA102,C2,charge,3000,\nA103,C3,charge,1000,\nA104,C3,charge,,\n"
+      }
+    },
+    {
+      "id": "coding-lab-buggy-program",
+      "title": "Original buggy program",
+      "paragraphs": [
+        "Save this complete program as analyze_buggy.py. The validation and duplicate policies are present, but one Boolean condition incorrectly adds every accepted refund to gross charges.",
+        "In Python, the expression kind == \"charge\" or \"refund\" does not compare kind with both words. The nonempty string \"refund\" is truthy, so the whole condition is true even when kind is refund."
+      ],
+      "code": {
+        "language": "python",
+        "label": "analyze_buggy.py",
+        "code": "import csv\nimport sys\n\nFIELDS = [\n    \"invoice_id\",\n    \"customer_id\",\n    \"kind\",\n    \"amount_cents\",\n    \"ref_invoice_id\",\n]\n\n\ndef is_positive_integer_cents(value):\n    return value.isascii() and value.isdecimal() and int(value) > 0\n\n\ndef analyze(path):\n    seen_rows = set()\n    accepted_invoice_ids = set()\n    gross = 0\n    refunds = 0\n    accepted = 0\n    duplicates = 0\n    rejected = 0\n\n    with open(path, newline=\"\", encoding=\"utf-8\") as handle:\n        reader = csv.DictReader(handle)\n        if reader.fieldnames != FIELDS:\n            raise ValueError(\"CSV header does not match the required schema\")\n\n        for row in reader:\n            row_key = tuple(row[name] for name in FIELDS)\n            if row_key in seen_rows:\n                duplicates += 1\n                continue\n            seen_rows.add(row_key)\n\n            invoice_id = row[\"invoice_id\"]\n            customer_id = row[\"customer_id\"]\n            kind = row[\"kind\"]\n            amount_text = row[\"amount_cents\"]\n\n            if (\n                not invoice_id\n                or not customer_id\n                or kind not in (\"charge\", \"refund\")\n                or not is_positive_integer_cents(amount_text)\n                or invoice_id in accepted_invoice_ids\n            ):\n                rejected += 1\n                continue\n\n            cents = int(amount_text)\n            accepted += 1\n            accepted_invoice_ids.add(invoice_id)\n\n            if kind == \"charge\" or \"refund\":\n                gross += cents\n            if kind == \"refund\":\n                refunds += cents\n\n    return {\n        \"accepted_rows\": accepted,\n        \"ignored_duplicates\": duplicates,\n        \"rejected_rows\": rejected,\n        \"gross_charges_cents\": gross,\n        \"refunds_cents\": refunds,\n        \"net_cents\": gross - refunds,\n    }\n\n\ndef main():\n    if len(sys.argv) != 2:\n        raise SystemExit(\"usage: python3 analyze_buggy.py DATA.csv\")\n    result = analyze(sys.argv[1])\n    for label in (\n        \"accepted_rows\",\n        \"ignored_duplicates\",\n        \"rejected_rows\",\n        \"gross_charges_cents\",\n        \"refunds_cents\",\n        \"net_cents\",\n    ):\n        print(f\"{label}={result[label]}\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+      }
+    },
+    {
+      "id": "coding-lab-requirements",
+      "title": "Public behavior and test strategy",
+      "paragraphs": [
+        "Tests should distinguish correct behavior from plausible bad fixes. Checking only net would miss a program that puts a refund in both gross and refunds. Checking only the original fixture would miss conflicting invoice identifiers and malformed amounts.",
+        "The suite therefore compares the entire six-line output for the original fixture, separately checks gross and refund values, checks the arithmetic invariant net = gross - refunds, and supplies a complete boundary fixture through a temporary local file. The test observes process output rather than importing implementation details."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Observable acceptance criteria",
+        "code": "Original exact output must match all six lines.\nA refund must not increase gross charges.\nNet must equal gross charges minus refunds.\nAn exact duplicate must increase ignored_duplicates.\nA conflicting accepted invoice_id must increase rejected_rows.\nMissing invoice_id or customer_id must be rejected.\nZero, negative, signed, decimal, and noninteger amounts must be rejected.\nAn unknown kind must be rejected.\nThe baseline permits a refund with an empty reference.\nThe process must exit successfully for valid-schema test files."
+      }
+    },
+    {
+      "id": "coding-lab-tests",
+      "title": "Complete baseline test suite",
+      "paragraphs": [
+        "Save this file as test_analysis.py. It initially calls analyze_correct.py, which is why the setup must first copy the buggy program to that exact filename. The boundary data is embedded visibly in the test and written only to a temporary local directory.",
+        "The targeted refund test compares parsed public output values. Against the supplied buggy program, its stable assertion is exactly AssertionError: 5500 != 5250. The suite also includes an exact multiline output comparison and independent boundary behavior."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_analysis.py",
+        "code": "import subprocess\nimport sys\nimport tempfile\nimport unittest\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parent\nPROGRAM = ROOT / \"analyze_correct.py\"\nORIGINAL = ROOT / \"transactions.csv\"\n\nEXPECTED = \"\"\"accepted_rows=4\nignored_duplicates=1\nrejected_rows=1\ngross_charges_cents=5250\nrefunds_cents=250\nnet_cents=5000\"\"\"\n\nBOUNDARY_CSV = \"\"\"invoice_id,customer_id,kind,amount_cents,ref_invoice_id\nB1,C1,charge,100,\nB1,C1,charge,100,\nB1,C1,charge,200,\n,C1,charge,10,\nB2,,charge,10,\nB3,C1,charge,-1,\nB4,C1,refund,2.5,B1\nB5,C1,mystery,10,\nB6,C1,charge,0,\nB7,C1,refund,25,\n\"\"\"\n\n\ndef parse_output(output):\n    return {\n        key: int(value)\n        for key, value in (line.split(\"=\", 1) for line in output.splitlines())\n    }\n\n\nclass AnalysisTest(unittest.TestCase):\n    def run_program(self, data_path):\n        result = subprocess.run(\n            [sys.executable, str(PROGRAM), str(data_path)],\n            text=True,\n            capture_output=True,\n            check=True,\n            cwd=ROOT,\n        )\n        return result.stdout.strip()\n\n    def run_boundary(self):\n        with tempfile.TemporaryDirectory() as directory:\n            path = Path(directory) / \"boundary.csv\"\n            path.write_text(BOUNDARY_CSV, encoding=\"utf-8\")\n            return self.run_program(path)\n\n    def test_original_exact_output(self):\n        self.assertEqual(self.run_program(ORIGINAL), EXPECTED)\n\n    def test_refund_is_not_gross(self):\n        metrics = parse_output(self.run_program(ORIGINAL))\n        self.assertEqual(metrics[\"gross_charges_cents\"], 5250)\n        self.assertEqual(metrics[\"refunds_cents\"], 250)\n\n    def test_net_reconciles(self):\n        metrics = parse_output(self.run_program(ORIGINAL))\n        self.assertEqual(\n            metrics[\"net_cents\"],\n            metrics[\"gross_charges_cents\"] - metrics[\"refunds_cents\"],\n        )\n\n    def test_exact_duplicate_and_conflicting_invoice(self):\n        metrics = parse_output(self.run_boundary())\n        self.assertEqual(metrics[\"ignored_duplicates\"], 1)\n        self.assertEqual(metrics[\"rejected_rows\"], 7)\n\n    def test_invalid_fields_and_amounts_are_rejected(self):\n        metrics = parse_output(self.run_boundary())\n        self.assertEqual(metrics[\"accepted_rows\"], 2)\n        self.assertEqual(metrics[\"gross_charges_cents\"], 100)\n\n    def test_baseline_refund_without_reference_is_accepted(self):\n        metrics = parse_output(self.run_boundary())\n        self.assertEqual(metrics[\"refunds_cents\"], 25)\n        self.assertEqual(metrics[\"net_cents\"], 75)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "coding-lab-setup",
+      "title": "Ordered setup and run commands",
+      "paragraphs": [
+        "Run these commands from inside coding_lab after saving transactions.csv, analyze_buggy.py, and test_analysis.py. The copy step is essential because the test invokes analyze_correct.py from the start.",
+        "The first program command exposes the wrong totals directly. The targeted test then reports the numeric assertion. After preserving that evidence, replace analyze_correct.py with the complete corrected program supplied later and rerun the full suite."
+      ],
+      "code": {
+        "language": "shell",
+        "label": "Exact baseline setup and commands",
+        "code": "cd coding_lab\ncp analyze_buggy.py analyze_correct.py\npython3 analyze_correct.py transactions.csv\npython3 -m unittest -v test_analysis.AnalysisTest.test_refund_is_not_gross\n\n# After saving the displayed corrected program as analyze_correct.py:\npython3 analyze_correct.py transactions.csv\npython3 -m unittest -v test_analysis.py\n"
+      }
+    },
+    {
+      "id": "coding-lab-failure",
+      "title": "Reproducible initial failure evidence",
+      "paragraphs": [
+        "With analyze_buggy.py copied to analyze_correct.py, the first command produces the six lines below. Four rows are accepted, but the 250-cent refund is wrongly included in gross. That makes gross 5500 instead of 5250 and net 5250 instead of 5000.",
+        "The targeted unittest ends with the exact assertion line AssertionError: 5500 != 5250. Test duration and surrounding runner formatting can vary by Python version, so the duration is not presented as a fixed figure."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Buggy program output and stable assertion",
+        "code": "accepted_rows=4\nignored_duplicates=1\nrejected_rows=1\ngross_charges_cents=5500\nrefunds_cents=250\nnet_cents=5250\n\nTargeted test assertion:\nAssertionError: 5500 != 5250\n\nEvidence comparison:\nActual buggy gross: 5500\nRequired gross: 5250\nDifference: 250, exactly the accepted refund amount."
+      }
+    },
+    {
+      "id": "coding-lab-corrected-program",
+      "title": "Complete corrected program",
+      "paragraphs": [
+        "Save this complete file as analyze_correct.py, replacing the temporary buggy copy. The corrected branches are mutually exclusive: a charge changes gross, while a refund changes refunds.",
+        "All validation, duplicate handling, output labels, and output order remain unchanged. This is the narrowest code correction that satisfies the diagnosed classification defect."
+      ],
+      "code": {
+        "language": "python",
+        "label": "analyze_correct.py",
+        "code": "import csv\nimport sys\n\nFIELDS = [\n    \"invoice_id\",\n    \"customer_id\",\n    \"kind\",\n    \"amount_cents\",\n    \"ref_invoice_id\",\n]\n\n\ndef is_positive_integer_cents(value):\n    return value.isascii() and value.isdecimal() and int(value) > 0\n\n\ndef analyze(path):\n    seen_rows = set()\n    accepted_invoice_ids = set()\n    gross = 0\n    refunds = 0\n    accepted = 0\n    duplicates = 0\n    rejected = 0\n\n    with open(path, newline=\"\", encoding=\"utf-8\") as handle:\n        reader = csv.DictReader(handle)\n        if reader.fieldnames != FIELDS:\n            raise ValueError(\"CSV header does not match the required schema\")\n\n        for row in reader:\n            row_key = tuple(row[name] for name in FIELDS)\n            if row_key in seen_rows:\n                duplicates += 1\n                continue\n            seen_rows.add(row_key)\n\n            invoice_id = row[\"invoice_id\"]\n            customer_id = row[\"customer_id\"]\n            kind = row[\"kind\"]\n            amount_text = row[\"amount_cents\"]\n\n            if (\n                not invoice_id\n                or not customer_id\n                or kind not in (\"charge\", \"refund\")\n                or not is_positive_integer_cents(amount_text)\n                or invoice_id in accepted_invoice_ids\n            ):\n                rejected += 1\n                continue\n\n            cents = int(amount_text)\n            accepted += 1\n            accepted_invoice_ids.add(invoice_id)\n\n            if kind == \"charge\":\n                gross += cents\n            elif kind == \"refund\":\n                refunds += cents\n\n    return {\n        \"accepted_rows\": accepted,\n        \"ignored_duplicates\": duplicates,\n        \"rejected_rows\": rejected,\n        \"gross_charges_cents\": gross,\n        \"refunds_cents\": refunds,\n        \"net_cents\": gross - refunds,\n    }\n\n\ndef main():\n    if len(sys.argv) != 2:\n        raise SystemExit(\"usage: python3 analyze_correct.py DATA.csv\")\n    result = analyze(sys.argv[1])\n    for label in (\n        \"accepted_rows\",\n        \"ignored_duplicates\",\n        \"rejected_rows\",\n        \"gross_charges_cents\",\n        \"refunds_cents\",\n        \"net_cents\",\n    ):\n        print(f\"{label}={result[label]}\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+      }
+    },
+    {
+      "id": "coding-lab-output",
+      "title": "Correct exact output, reconciliation, and reversal",
+      "paragraphs": [
+        "Running python3 analyze_correct.py transactions.csv produces the exact six-line output below. Running python3 -m unittest -v test_analysis.py runs six tests and ends with OK.",
+        "The row reconciliation is six data rows = four accepted + one ignored exact duplicate + one rejected. The amount reconciliation is 1250 + 3000 + 1000 = 5250 gross, with the 250 refund excluded from gross. Net is 5250 - 250 = 5000."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Correct output and reversal commands",
+        "code": "accepted_rows=4\nignored_duplicates=1\nrejected_rows=1\ngross_charges_cents=5250\nrefunds_cents=250\nnet_cents=5000\n\nReproduce the failure:\ncp analyze_buggy.py analyze_correct.py\npython3 -m unittest -v test_analysis.AnalysisTest.test_refund_is_not_gross\nExpected stable assertion: AssertionError: 5500 != 5250\n\nRecover:\nRestore the complete corrected file as analyze_correct.py.\npython3 -m unittest -v test_analysis.py\nExpected suite summary: Ran 6 tests; final status OK."
+      }
+    },
+    {
+      "id": "coding-lab-prompt",
+      "title": "Bounded AI prompt and tool transfer",
+      "paragraphs": [
+        "The prompt below is complete and bounded. Attach or paste the displayed fixture, buggy program, and tests as its file context. A model response remains a proposal until the learner runs the local commands. Do not claim that the model executed them.",
+        "The same task can be transferred to another coding tool by preserving the files, prompt, constraints, and tests. Meta Llama, Qwen, DeepSeek, and Mistral are model families that may be available through local or hosted tools, but naming them does not establish equivalent behavior. Evaluate each selected model and tool with the supplied executable checks. This lab itself requires no model account."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Original full bounded AI prompt",
+        "code": "You are assisting with a beginner Python 3 standard-library exercise. Work only on the supplied transactions.csv, analyze_buggy.py, and test_analysis.py. Do not use a network, external packages, credentials, paid services, or additional datasets. Do not claim to have run commands.\n\nFirst state a short diagnosis grounded in a quoted program condition and the supplied output. Then give a short plan. Finally provide the smallest complete correction as analyze_correct.py.\n\nThe CSV schema must be exactly invoice_id,customer_id,kind,amount_cents,ref_invoice_id. Values are fictional. Amounts are integer cents and must contain only ASCII decimal digits representing an integer greater than zero. Do not use float. Require nonempty invoice_id and customer_id. Accept only charge and refund kinds.\n\nAn exact duplicate is a later row whose five raw field values match an earlier row. Detect it before validation, increment ignored_duplicates, and do not process it again. Reject a different row that reuses an accepted invoice_id. Rejected rows do not reserve invoice identifiers. In this baseline task, a refund reference is informational and may be empty.\n\nOnly accepted charges contribute to gross_charges_cents. Accepted refunds contribute to refunds_cents, do not contribute to gross, and are subtracted from net_cents. Preserve the six output labels and their order. Do not change transactions.csv merely to make a test pass.\n\nUse tests of public behavior. They must catch a refund added to gross, an exact duplicate counted twice, a conflicting invoice identifier, missing identifiers, zero, negative and noninteger amounts, an unknown kind, and an incorrect reconciliation. Show exact commands and expected deterministic output, but clearly label them as expectations for the learner to verify locally. Preserve analyze_buggy.py for rollback."
+      }
+    },
+    {
+      "id": "coding-lab-changed-task",
+      "title": "Changed-input task: refund references are now required",
+      "paragraphs": [
+        "Stop before reading the answer-key sections. The variation keeps every baseline rule but changes refund validity: a refund is accepted only when ref_invoice_id exactly names a charge invoice accepted earlier in the same file. A missing reference, forward reference, reference to a refund, or reference to a rejected charge is invalid. An invalid refund increments rejected_rows and contributes to neither accepted_rows nor refunds.",
+        "Save the next section as transactions_changed.csv. Write analyze_changed.py and tests that expose the new rule. Predict all six output values before running. Preserve your first result, then compare it with the answer only after the timed learner pause. The changed input and changed policy require an actual code path change, not only a changed expected string."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Changed task instructions",
+        "code": "Files to create:\ntransactions_changed.csv\nanalyze_changed.py\ntest_changed.py\n\nCommands:\npython3 analyze_changed.py transactions_changed.csv\npython3 -m unittest -v test_changed.py\n\nRequired new rule:\nA refund is valid only if ref_invoice_id names a charge accepted earlier in file order.\n\nBefore opening the answer:\n1. Predict all six output values.\n2. Implement the new rule without changing the CSV.\n3. Test unmatched, missing, forward, and rejected-charge references.\n4. Record the first exact output or assertion.\n5. Explain which counter or total makes the rule observable."
+      }
+    },
+    {
+      "id": "coding-lab-changed-fixture",
+      "title": "Complete changed-input fixture",
+      "paragraphs": [
+        "This is the entire changed input, not an external attachment. It retains all six baseline rows and adds A105, a 400-cent refund whose reference does not name any charge in the file.",
+        "The task is to determine and test the result under the new earlier-accepted-charge rule. Do not inspect the later answer sections until after making and recording your prediction."
+      ],
+      "code": {
+        "language": "csv",
+        "label": "transactions_changed.csv",
+        "code": "invoice_id,customer_id,kind,amount_cents,ref_invoice_id\nA100,C1,charge,1250,\nA101,C1,refund,250,A100\nA101,C1,refund,250,A100\nA102,C2,charge,3000,\nA103,C3,charge,1000,\nA104,C3,charge,,\nA105,C3,refund,400,NO_SUCH_CHARGE\n"
+      }
+    },
+    {
+      "id": "coding-lab-changed-answer",
+      "title": "Changed-input answer key",
+      "paragraphs": [
+        "After completing the learner pause, compare your reasoning with this key. A100 is an accepted earlier charge, so A101 remains a valid refund. The exact duplicate A101 is still ignored. A104 remains rejected for its missing amount. A105 is now rejected because NO_SUCH_CHARGE is not an earlier accepted charge.",
+        "The new program must maintain a set of accepted charge identifiers and validate each refund reference before incrementing accepted_rows or refunds_cents. The observable result change is rejected_rows increasing from one to two. Net remains 5000 because the invalid 400-cent refund contributes nothing.",
+        "Specific feedback: if rejected_rows is one and net is 4600, the unmatched refund was accepted. If rejected_rows is one and net is 5000, code may be silently ignoring the refund without classifying it as rejected. If rejected_rows is two, refunds is 250, and net is 5000, the changed row is handled correctly."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Changed-rule reasoning",
+        "code": "Accepted earlier charges before A105: A100, A102, A103.\nA101 references A100, so its first occurrence is an accepted refund.\nThe second A101 row is an exact duplicate and is ignored.\nA104 has a missing amount and is rejected.\nA105 references NO_SUCH_CHARGE, so it is rejected.\n\nChanged row reconciliation:\n7 data rows = 4 accepted + 1 ignored duplicate + 2 rejected.\n\nChanged amount reconciliation:\nGross = 1250 + 3000 + 1000 = 5250.\nRefunds = 250.\nNet = 5250 - 250 = 5000."
+      }
+    },
+    {
+      "id": "coding-lab-changed-program",
+      "title": "Complete changed-rule program",
+      "paragraphs": [
+        "Save this answer-key implementation as analyze_changed.py. The reference check occurs after common validation but before the row is accepted. Only an accepted charge is added to accepted_charge_ids.",
+        "This ordering prevents a forward reference or a reference to a rejected charge from becoming valid. It also ensures an invalid refund increments rejected_rows rather than accepted_rows."
+      ],
+      "code": {
+        "language": "python",
+        "label": "analyze_changed.py",
+        "code": "import csv\nimport sys\n\nFIELDS = [\n    \"invoice_id\",\n    \"customer_id\",\n    \"kind\",\n    \"amount_cents\",\n    \"ref_invoice_id\",\n]\n\n\ndef is_positive_integer_cents(value):\n    return value.isascii() and value.isdecimal() and int(value) > 0\n\n\ndef analyze(path):\n    seen_rows = set()\n    accepted_invoice_ids = set()\n    accepted_charge_ids = set()\n    gross = 0\n    refunds = 0\n    accepted = 0\n    duplicates = 0\n    rejected = 0\n\n    with open(path, newline=\"\", encoding=\"utf-8\") as handle:\n        reader = csv.DictReader(handle)\n        if reader.fieldnames != FIELDS:\n            raise ValueError(\"CSV header does not match the required schema\")\n\n        for row in reader:\n            row_key = tuple(row[name] for name in FIELDS)\n            if row_key in seen_rows:\n                duplicates += 1\n                continue\n            seen_rows.add(row_key)\n\n            invoice_id = row[\"invoice_id\"]\n            customer_id = row[\"customer_id\"]\n            kind = row[\"kind\"]\n            amount_text = row[\"amount_cents\"]\n            reference = row[\"ref_invoice_id\"]\n\n            if (\n                not invoice_id\n                or not customer_id\n                or kind not in (\"charge\", \"refund\")\n                or not is_positive_integer_cents(amount_text)\n                or invoice_id in accepted_invoice_ids\n            ):\n                rejected += 1\n                continue\n\n            if kind == \"refund\" and reference not in accepted_charge_ids:\n                rejected += 1\n                continue\n\n            cents = int(amount_text)\n            accepted += 1\n            accepted_invoice_ids.add(invoice_id)\n\n            if kind == \"charge\":\n                gross += cents\n                accepted_charge_ids.add(invoice_id)\n            elif kind == \"refund\":\n                refunds += cents\n\n    return {\n        \"accepted_rows\": accepted,\n        \"ignored_duplicates\": duplicates,\n        \"rejected_rows\": rejected,\n        \"gross_charges_cents\": gross,\n        \"refunds_cents\": refunds,\n        \"net_cents\": gross - refunds,\n    }\n\n\ndef main():\n    if len(sys.argv) != 2:\n        raise SystemExit(\"usage: python3 analyze_changed.py DATA.csv\")\n    result = analyze(sys.argv[1])\n    for label in (\n        \"accepted_rows\",\n        \"ignored_duplicates\",\n        \"rejected_rows\",\n        \"gross_charges_cents\",\n        \"refunds_cents\",\n        \"net_cents\",\n    ):\n        print(f\"{label}={result[label]}\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+      }
+    },
+    {
+      "id": "coding-lab-changed-tests",
+      "title": "Complete changed-rule test suite",
+      "paragraphs": [
+        "Save this answer-key suite as test_changed.py. Its embedded reference fixture distinguishes an earlier accepted charge from a forward reference, missing reference, and reference to a rejected charge.",
+        "The tests still inspect only public process output. They do not import the program or mirror its internal sets. This lets a different correct implementation satisfy the same behavioral contract."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_changed.py",
+        "code": "import subprocess\nimport sys\nimport tempfile\nimport unittest\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parent\nPROGRAM = ROOT / \"analyze_changed.py\"\nCHANGED = ROOT / \"transactions_changed.csv\"\n\nEXPECTED_CHANGED = \"\"\"accepted_rows=4\nignored_duplicates=1\nrejected_rows=2\ngross_charges_cents=5250\nrefunds_cents=250\nnet_cents=5000\"\"\"\n\nREFERENCE_CASES = \"\"\"invoice_id,customer_id,kind,amount_cents,ref_invoice_id\nC1,C1,refund,10,C2\nC2,C1,charge,100,\nC3,C1,refund,10,C2\nC4,C1,charge,invalid,\nC5,C1,refund,10,C4\nC6,C1,refund,10,\n\"\"\"\n\n\ndef parse_output(output):\n    return {\n        key: int(value)\n        for key, value in (line.split(\"=\", 1) for line in output.splitlines())\n    }\n\n\nclass ChangedRuleTest(unittest.TestCase):\n    def run_program(self, data_path):\n        result = subprocess.run(\n            [sys.executable, str(PROGRAM), str(data_path)],\n            text=True,\n            capture_output=True,\n            check=True,\n            cwd=ROOT,\n        )\n        return result.stdout.strip()\n\n    def run_reference_cases(self):\n        with tempfile.TemporaryDirectory() as directory:\n            path = Path(directory) / \"references.csv\"\n            path.write_text(REFERENCE_CASES, encoding=\"utf-8\")\n            return self.run_program(path)\n\n    def test_changed_fixture_exact_output(self):\n        self.assertEqual(self.run_program(CHANGED), EXPECTED_CHANGED)\n\n    def test_unmatched_refund_is_rejected(self):\n        metrics = parse_output(self.run_program(CHANGED))\n        self.assertEqual(metrics[\"rejected_rows\"], 2)\n        self.assertEqual(metrics[\"refunds_cents\"], 250)\n\n    def test_forward_missing_and_rejected_charge_references(self):\n        metrics = parse_output(self.run_reference_cases())\n        self.assertEqual(metrics[\"accepted_rows\"], 2)\n        self.assertEqual(metrics[\"rejected_rows\"], 4)\n\n    def test_earlier_accepted_charge_reference_succeeds(self):\n        metrics = parse_output(self.run_reference_cases())\n        self.assertEqual(metrics[\"gross_charges_cents\"], 100)\n        self.assertEqual(metrics[\"refunds_cents\"], 10)\n        self.assertEqual(metrics[\"net_cents\"], 90)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "coding-lab-changed-output",
+      "title": "Changed exact output and evidence comparison",
+      "paragraphs": [
+        "Run python3 analyze_changed.py transactions_changed.csv and then python3 -m unittest -v test_changed.py. The program output is exactly the six lines below, and the suite runs four tests with final status OK.",
+        "The original and changed runs have the same gross, refund, and net totals, but this does not make the change unobservable. The changed fixture has one additional input row, and rejected_rows increases from one to two. A program that accepts the unmatched refund would instead report accepted_rows=5, rejected_rows=1, refunds_cents=650, and net_cents=4600."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Changed exact output and comparison",
+        "code": "accepted_rows=4\nignored_duplicates=1\nrejected_rows=2\ngross_charges_cents=5250\nrefunds_cents=250\nnet_cents=5000\n\nOriginal fixture:\n6 rows = 4 accepted + 1 duplicate + 1 rejected.\n\nChanged fixture under the new rule:\n7 rows = 4 accepted + 1 duplicate + 2 rejected.\n\nPlausible bad result if A105 is accepted:\naccepted_rows=5\nignored_duplicates=1\nrejected_rows=1\ngross_charges_cents=5250\nrefunds_cents=650\nnet_cents=4600"
+      }
+    },
+    {
+      "id": "coding-lab-template",
+      "title": "Reusable blank template",
+      "paragraphs": [
+        "Use this blank record only after completing the filled example. Keep raw input, program versions, commands, outputs, and rollback material together. Fill every field with concrete project information before requesting a code change.",
+        "For another domain, replace the fictional transaction rules with that domain's authorized rules and tests. Do not assume this exercise establishes production suitability."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Blank coding or analysis lab record",
+        "code": "Question or required behavior:\nInput files and schema:\nPrivacy or fictional-data boundary:\nUnits and numeric representation:\nDuplicate rule:\nMissing-value rule:\nIdentifier-conflict rule:\nOther validation rules:\nInvariant that must not change:\nBug evidence or hypothesis:\nSmallest proposed change:\nCommand before change:\nExact output before change:\nBehavior-focused tests:\nBoundary or failure fixture:\nCommand after change:\nExact output after change:\nRow reconciliation:\nAmount or metric reconciliation:\nPreserved failure evidence:\nCause layer:\nRollback file or commit:\nChanged-input rule:\nChanged-input prediction:\nChanged-input evidence:\nSpecific feedback and next check:"
+      }
     }
   ],
   "activity": {
     "id": "activity-verified-code-or-analysis",
     "title": "Complete a reversible coding or analysis change",
     "instructions": [
-      "Choose a low-risk code defect or small dataset question and write the work order with invariants, checks, workspace, data policy, and rollback.",
-      "Implement one coherent change or transformation while preserving a diff or query log.",
-      "Run at least three relevant checks, including one failure or boundary case.",
-      "Inject or identify one failure, preserve its evidence, recover narrowly, and confirm the original checks still pass."
+      "Create the supplied files in one local directory, copy analyze_buggy.py to analyze_correct.py, and reproduce both the buggy six-line output and the targeted 5500-versus-5250 assertion.",
+      "Restore the complete corrected program, run all six baseline tests, and record the exact corrected output and both reconciliations.",
+      "Complete the changed-input task before reading its answer, then compare your result with the changed program, four tests, exact output, and specific feedback.",
+      "Reproduce the original failure once more through the rollback copy, restore the corrected file, and confirm the baseline suite returns to OK."
     ],
     "evidence": [
-      "A work order, diff or query, and check output tied to the acceptance criteria.",
-      "A failure-and-recovery record containing reproduction, cause, correction, regression check, and rollback path."
+      "The work order, complete local files, commands, buggy output, stable assertion, corrected output, baseline test result, and row and amount reconciliations.",
+      "The changed-task prediction, first result, changed exact output, changed test result, diagnosis of any difference, and failure-and-recovery record."
     ],
-    "reflectionPrompt": "Which result looked correct until you checked the real code, data, or failure path?"
+    "reflectionPrompt": "Which output could have looked reasonable without the separate gross, refund, row-count, and changed-reference checks?"
   },
   "instructorScript": {
     "schemaVersion": "1.0",
-    "estimatedSeconds": 1380,
+    "estimatedSeconds": 2048,
     "cues": [
       {
-        "id": "cue-coding-prepare",
+        "id": "coding-and-analysis-workflow-prepare-narration",
         "kind": "narration",
+        "text": "Before touching the program, turn the request into a work order. Name the input files, exact CSV schema, validation rules, expected labels, test commands, and rollback copy. This bounds the task. The amounts are fictional integer cents, the implementation uses only Python's standard library, and the original CSV must remain unchanged. A safe workspace makes each result reproducible. A rollback plan is not an admission of failure. It is a way to inspect a failure without losing the evidence that explains it.",
         "sectionId": "coding-prepare",
-        "text": "Create a bounded work order and choose a branch, sandbox, or read-only source before using AI."
+        "accessibilityAlternative": "The instructor explains that preparation records files, schema, rules, tests, workspace, and rollback before editing."
       },
       {
-        "id": "cue-coding-loop-visual",
+        "id": "coding-and-analysis-workflow-prepare-visual",
         "kind": "visual",
+        "text": "Show this text: Work order: outcome, inputs, schema, constraints, unchanged files, checks, workspace, rollback. Show a second line: Evidence comes from commands and outputs, not from an explanation alone.",
         "sectionId": "coding-prepare",
-        "text": "Show inspect, plan, change, diff, test, review, and rollback as a controlled loop.",
-        "accessibilityAlternative": "A text loop lists inspect, plan, change, review diff, run checks, review result, and roll back or commit. Reduced-motion mode displays all steps."
+        "accessibilityAlternative": "A text-only work order lists outcome, inputs, schema, constraints, unchanged files, checks, workspace, rollback, and the rule that commands and outputs are evidence."
       },
       {
-        "id": "cue-coding-execute",
+        "id": "coding-and-analysis-workflow-execute-narration",
         "kind": "narration",
+        "text": "The filenames matter because the test file does not discover a program by meaning. It invokes the path named analyze_correct.py. Therefore, to reproduce the supplied defect, first save the buggy source as analyze_buggy.py, then copy it to analyze_correct.py. This is a deliberate test setup, not the correction. Keep the original buggy file as a comparison and rollback artifact. Work in small increments: create files, inspect the condition, run one targeted test, preserve its output, then edit only the classification logic.",
         "sectionId": "coding-execute",
-        "text": "Demonstrate one coherent change while rejecting unrelated dependencies and scope."
+        "accessibilityAlternative": "The instructor explains why the tested filename must contain the buggy copy before the initial run and why the original file is preserved."
       },
       {
-        "id": "cue-coding-prompt",
+        "id": "coding-and-analysis-workflow-execute-prompt",
         "kind": "learner-prompt",
+        "text": "Before continuing, say aloud: which filename does test_analysis.py execute, and what would be misleading about running analyze_buggy.py directly while claiming that the supplied test reproduced the failure?",
         "sectionId": "coding-execute",
-        "text": "Ask learners to name one invariant the change must preserve."
+        "accessibilityAlternative": "The learner identifies the executed filename and explains why a different direct command would not reproduce the test's evidence."
       },
       {
-        "id": "cue-coding-pause",
+        "id": "coding-and-analysis-workflow-baseline-pause",
         "kind": "pause",
+        "text": "Pause for 480 seconds, or eight minutes. Create the local files, copy analyze_buggy.py to analyze_correct.py, run the program, run the targeted refund test, and record the exact output and assertion before hearing the answer.",
         "sectionId": "coding-execute",
-        "text": "Allow two minutes to define checks and rollback."
+        "accessibilityAlternative": "An eight-minute pause is provided for local setup, the initial run, the targeted test, and evidence recording."
       },
       {
-        "id": "cue-coding-verify",
+        "id": "coding-and-analysis-workflow-verify-narration",
         "kind": "narration",
+        "text": "Verification asks what an outside observer can see. First compare all six output lines, not just net. Then reconcile the six data rows: four accepted, one ignored exact duplicate, and one rejected row. Reconcile money independently: charges are 1250, 3000, and 1000, totaling 5250 cents; the refund is 250 cents; net is 5000. Boundary tests also matter. They distinguish exact duplicates from conflicting invoice identifiers and exercise missing identifiers, zero, negative, signed, decimal, and noninteger amounts, plus unknown kinds.",
         "sectionId": "coding-verify",
-        "text": "Contrast explanation with executable tests and demonstrate data reconciliation checks."
+        "accessibilityAlternative": "The instructor describes output comparison, row reconciliation, amount reconciliation, and boundary testing as separate observable checks."
       },
       {
-        "id": "cue-coding-recover",
+        "id": "coding-and-analysis-workflow-recover-narration",
         "kind": "narration",
+        "text": "When the assertion fails, preserve it before changing anything. Compare the fixture, policy, arithmetic, and expected output. Here those layers agree, so the defect is in the program's classification condition. The safe fix changes that condition to mutually exclusive branches: charge updates gross, while refund updates refunds. Run the full suite after the fix. Then deliberately copy the buggy file back over the tested name to reproduce the failure once more, and restore the complete corrected file. This tests both correction and recovery without deleting evidence or weakening an assertion.",
         "sectionId": "coding-recover",
-        "text": "Preserve a failure, identify its layer, and correct it without weakening the check."
+        "accessibilityAlternative": "The instructor explains failure-layer diagnosis, the narrow correction, regression testing, deliberate reversal, and restoration."
       },
       {
-        "id": "cue-coding-safety",
+        "id": "coding-and-analysis-workflow-safety-narration",
         "kind": "narration",
+        "text": "The identifiers and cents in this lab are fictional teaching data, not a financial statement. Real records would require authorization, privacy controls, retention decisions, domain review, and broader testing. Generated code can look convincing while mishandling validation or reconciliation. Record commands, exact outputs, test results, the changed rule, and the rollback path. Never report a model's proposed code, a reviewer approval, or a local run as completed evidence unless the command actually produced that evidence.",
         "sectionId": "coding-safety",
-        "text": "Review auth, secrets, inputs, logs, dependencies, data exposure, and rollback evidence."
+        "accessibilityAlternative": "The instructor distinguishes fictional teaching data from real financial records and emphasizes evidence, privacy, authorization, and honest reporting."
       },
       {
-        "id": "cue-coding-checkpoint",
+        "id": "coding-and-analysis-workflow-safety-checkpoint",
         "kind": "checkpoint",
+        "text": "Question: What evidence would distinguish a code defect from a bad fixture or a wrong requirement? Answer: Compare the unchanged fixture, explicit policy, independently reconciled totals, public program output, and behavior-focused tests. Here, the 250-cent difference matches the accepted refund, while the schema and expected arithmetic agree. Feedback: if your diagnosis relies only on a plausible code explanation, it is incomplete. Add an observable command, output, assertion, or reconciliation.",
         "sectionId": "coding-safety",
-        "text": "Check that the learner can point to direct evidence for behavior and recovery."
+        "accessibilityAlternative": "The checkpoint asks how to separate code, data, and requirement failures, gives the answer, and explains that an explanation alone is insufficient."
       },
       {
-        "id": "cue-coding-activity",
+        "id": "coding-and-analysis-workflow-case-narration",
+        "kind": "narration",
+        "text": "The worked case has an ordering rule that beginners often miss. Build a key from all five raw CSV fields and check exact duplicates before validation. A later identical row is ignored, even if its fields would otherwise be invalid. For a nonduplicate row, require nonempty invoice and customer identifiers, a known kind, and a positive amount made only from ASCII decimal digits. A different row that reuses an accepted invoice identifier is rejected. Rejected rows do not reserve identifiers. Accepted charges add to gross; accepted refunds add only to refunds; net is gross minus refunds.",
+        "sectionId": "coding-lab-case",
+        "accessibilityAlternative": "The instructor states the duplicate-before-validation rule, validation rules, identifier conflict rule, and separate charge and refund accounting."
+      },
+      {
+        "id": "coding-and-analysis-workflow-case-code-walkthrough",
+        "kind": "narration",
+        "text": "Read the baseline requirement as a sequence of state transitions. The reader obtains fieldnames from the CSV header, and the program compares that list with the required five names in the required order. Each row becomes a five-value tuple for exact duplicate detection. The seen-row set is updated before validation, so a repeated raw row is counted and skipped. For a new row, the condition rejects empty identifiers, unknown kinds, invalid amounts, and accepted invoice identifiers used again. Only after that condition passes does the program increment accepted, reserve the invoice identifier, and update a total. This ordering prevents a rejected row from reserving an identifier and keeps duplicate accounting separate from rejection accounting.",
+        "sectionId": "coding-lab-case",
+        "accessibilityAlternative": "A text sequence shows: validate header, build five-field row key, check duplicate, mark seen, validate fields, accept or reject, then update state and totals."
+      },
+      {
+        "id": "coding-and-analysis-workflow-fixture-narration",
+        "kind": "narration",
+        "text": "Walk through the fixture in file order. A100 is a 1250-cent charge and is accepted. The first A101 is a 250-cent refund and is accepted. The next A101 has the same five raw values, so it is an ignored exact duplicate, not a conflicting identifier. A102 contributes 3000 cents to gross, and A103 contributes 1000. A104 is a charge with an empty amount, so it is rejected. That produces four accepted rows, one duplicate, and one rejection. The refund reference is informational under the baseline policy and is not required for acceptance.",
+        "sectionId": "coding-lab-fixture",
+        "accessibilityAlternative": "A row-by-row text list identifies A100, the first and duplicate A101, A102, A103, and rejected A104 with their effects."
+      },
+      {
+        "id": "coding-and-analysis-workflow-fixture-visual",
+        "kind": "visual",
+        "text": "Display this exact reconciliation: 6 data rows = 4 accepted + 1 ignored duplicate + 1 rejected. Gross = 1250 + 3000 + 1000 = 5250. Refunds = 250. Net = 5250 - 250 = 5000.",
+        "sectionId": "coding-lab-fixture",
+        "accessibilityAlternative": "The same row and amount equations are presented as plain text."
+      },
+      {
+        "id": "coding-and-analysis-workflow-buggy-narration",
+        "kind": "narration",
+        "text": "Focus on the expression if kind equals charge or refund. Python evaluates an or expression from left to right. It first evaluates kind equals charge. If that is false for a refund, it evaluates the second operand, the standalone string literal refund. A nonempty string is truthy, so the condition is true. The expression does not compare kind with refund. Consequently, every accepted row reaches the gross update, including the refund. The separate refund check is correct, so the same 250 cents also enters refunds. The bug is double classification, not bad arithmetic.",
+        "sectionId": "coding-lab-buggy-program",
+        "accessibilityAlternative": "A stepwise text trace says: compare kind to charge, evaluate standalone nonempty string refund, obtain true, update gross, then update refunds for a refund row."
+      },
+      {
+        "id": "coding-and-analysis-workflow-buggy-code-walkthrough",
+        "kind": "narration",
+        "text": "The validation helper combines three checks for the amount. isascii rejects non-ASCII characters, isdecimal requires at least one decimal digit, and int converts the validated text for the positive-value check. The use of int occurs only after the string checks, so malformed text does not become an amount. DictReader supplies each row keyed by the header fields, and the explicit header comparison protects that mapping. The defect is later, in the accounting branch. Changing the parser, amount helper, duplicate set, or output labels would expand the change without addressing why a refund reaches gross.",
+        "sectionId": "coding-lab-buggy-program",
+        "accessibilityAlternative": "The instructor separates schema reading, amount validation, duplicate handling, and the later accounting defect."
+      },
+      {
+        "id": "coding-and-analysis-workflow-requirements-narration",
+        "kind": "narration",
+        "text": "Turn every rule into a behavior a test can observe. An exact six-line comparison protects labels, values, and order. Separate gross and refund assertions catch a program that puts a refund in both totals while preserving net. The net invariant catches arithmetic mistakes. A boundary fixture checks that an exact duplicate is ignored, a conflicting accepted identifier is rejected, malformed amounts fail, missing identifiers fail, and an unknown kind fails. The baseline also explicitly permits an empty refund reference. These checks test the contract rather than requiring one particular internal implementation.",
+        "sectionId": "coding-lab-requirements",
+        "accessibilityAlternative": "A checklist maps each policy to an observable output, count, total, invariant, or process result."
+      },
+      {
+        "id": "coding-and-analysis-workflow-tests-narration",
+        "kind": "narration",
+        "text": "The baseline tests use subprocess.run to launch the program as a separate process. capture_output collects standard output and standard error, while text makes the captured streams strings. check=True turns a nonzero exit into a test failure instead of silently accepting a broken run. The test parses only the public lines, and its boundary CSV is visible in the test and written to a temporary local directory. This design catches behavior through the command interface. It does not depend on importing the program's helper functions or inspecting its private sets.",
+        "sectionId": "coding-lab-tests",
+        "accessibilityAlternative": "The instructor explains separate-process observation, captured text output, failure on nonzero exit, temporary visible fixtures, and public behavior testing."
+      },
+      {
+        "id": "coding-and-analysis-workflow-tests-checkpoint",
+        "kind": "checkpoint",
+        "text": "Question: Which combination catches a wrong fix that makes net equal 5000 but still adds the refund to gross? Answer: Assert gross equals 5250 and refunds equals 250 separately, then assert net equals gross minus refunds. Feedback: checking net alone is insufficient because a program could report gross 5500 and refunds 500 while still producing net 5000. Test the classification totals independently.",
+        "sectionId": "coding-lab-tests",
+        "accessibilityAlternative": "The checkpoint explains why separate gross and refund assertions are needed in addition to the net invariant."
+      },
+      {
+        "id": "coding-and-analysis-workflow-setup-narration",
+        "kind": "narration",
+        "text": "Run the setup in the displayed order. Enter coding_lab, save the baseline files, and copy analyze_buggy.py to analyze_correct.py. The first program run should show the buggy six-line output. The targeted unittest then compares the observed gross with 5250 and exposes the stable assertion. Preserve that result. After the corrected source is saved under analyze_correct.py, run the program again and invoke the complete baseline suite. Verbose unittest output can include version-dependent formatting and duration, so treat the exact assertion, output lines, test count, and final status as the meaningful evidence.",
+        "sectionId": "coding-lab-setup",
+        "accessibilityAlternative": "A numbered command sequence states: enter directory, save files, copy buggy source, run program, run targeted test, preserve evidence, replace source, rerun, and run full suite."
+      },
+      {
+        "id": "coding-and-analysis-workflow-failure-narration",
+        "kind": "narration",
+        "text": "The reproduced buggy output reports accepted_rows 4, ignored_duplicates 1, rejected_rows 1, gross_charges_cents 5500, refunds_cents 250, and net_cents 5250. Compare that with the independent requirement: gross must be 5250, refunds 250, and net 5000. The gross discrepancy is exactly 250, the refund amount. The targeted assertion is 5500 not equal to 5250. That comparison localizes the visible failure to gross classification while confirming that duplicate and rejection counts are not the source of this particular mismatch.",
+        "sectionId": "coding-lab-failure",
+        "accessibilityAlternative": "A table-like text comparison lists buggy gross 5500, required gross 5250, difference 250, and the stable assertion."
+      },
+      {
+        "id": "coding-and-analysis-workflow-corrected-narration",
+        "kind": "narration",
+        "text": "In the corrected program, the accounting branch says if kind equals charge, add cents to gross; elif kind equals refund, add cents to refunds. The equality comparison appears on both branches, and elif makes the branches mutually exclusive. A refund therefore cannot enter the charge branch. Keep the header check, row-key construction, validation condition, accepted identifier set, output labels, and output order unchanged. This is a narrow correction because it changes only the line responsible for classification. The tests can now show that the new behavior works without requiring the internal code shape to be copied.",
+        "sectionId": "coding-lab-corrected-program",
+        "accessibilityAlternative": "A text comparison shows buggy: if kind equals charge or refund; corrected: if kind equals charge, elif kind equals refund."
+      },
+      {
+        "id": "coding-and-analysis-workflow-output-narration",
+        "kind": "narration",
+        "text": "The corrected output is accepted_rows 4, ignored_duplicates 1, rejected_rows 1, gross_charges_cents 5250, refunds_cents 250, and net_cents 5000. The row equation is six equals four plus one plus one. The money equation is 5250 minus 250 equals 5000. The complete baseline suite is reported as six tests with final status OK in the supplied evidence. Remember what was actually established: the output and test summary are supplied execution evidence, not a reason to skip reproducing the commands locally.",
+        "sectionId": "coding-lab-output",
+        "accessibilityAlternative": "Plain text lists the six corrected output lines, both reconciliations, and the supplied six-test OK result with a reminder to verify locally."
+      },
+      {
+        "id": "coding-and-analysis-workflow-prompt-narration",
+        "kind": "narration",
+        "text": "The bounded AI prompt supplies the model with the files, constraints, policy, expected public behavior, and a prohibition on claiming execution. That scope matters. A model may propose a plausible correction, but the learner remains responsible for running the unchanged fixture and tests. If the task is transferred to another tool, preserve the same file contents, prompt, constraints, and checks. Model family names do not establish equivalent behavior. Compare tools through the same executable evidence, and do not introduce a network, package, credential, paid service, or hidden dataset into this offline exercise.",
+        "sectionId": "coding-lab-prompt",
+        "accessibilityAlternative": "The instructor explains that a bounded prompt is a proposal context, while identical files and executable checks are needed for tool comparison."
+      },
+      {
+        "id": "coding-and-analysis-workflow-changed-task-narration",
+        "kind": "narration",
+        "text": "The changed task introduces a genuinely different policy. A refund is now valid only when its reference names a charge accepted earlier in the same file. A missing reference, unmatched reference, forward reference, reference to a refund, or reference to a rejected charge must be rejected. This is not a changed expected string. It requires a stateful rule and a new test path. Before opening the answer, predict all six output lines, implement the rule, test several reference cases, record your first result, and explain which observable counter or total proves that the new rule was applied.",
+        "sectionId": "coding-lab-changed-task",
+        "accessibilityAlternative": "The instructor distinguishes the new earlier-accepted-charge policy from merely changing an expected output."
+      },
+      {
+        "id": "coding-and-analysis-workflow-changed-fixture-narration",
+        "kind": "narration",
+        "text": "The changed CSV retains the six baseline rows and adds A105, a 400-cent refund whose reference is NO_SUCH_CHARGE. A100, A102, and A103 are accepted charges before that row. A101 is a refund referring to A100, and its exact duplicate is still ignored. A104 still has an empty amount. Do not decide from the row count alone. The important question is whether A105's reference belongs to the set of charge identifiers accepted earlier, and whether rejection occurs before accepted and refund counters are incremented.",
+        "sectionId": "coding-lab-changed-fixture",
+        "accessibilityAlternative": "A row summary identifies the added A105 unmatched refund and the earlier accepted charges relevant to its reference."
+      },
+      {
+        "id": "coding-and-analysis-workflow-changed-pause",
+        "kind": "pause",
+        "text": "Pause for 480 seconds, or eight minutes. Implement analyze_changed.py and test_changed.py, run the changed program and four-test suite, record exact evidence, and only then compare with the answer key.",
+        "sectionId": "coding-lab-changed-fixture",
+        "accessibilityAlternative": "An eight-minute pause is provided for implementation, execution, testing, and evidence recording before the answer key."
+      },
+      {
+        "id": "coding-and-analysis-workflow-changed-answer-narration",
+        "kind": "narration",
+        "text": "Under the changed rule, A105 is rejected because NO_SUCH_CHARGE is not an earlier accepted charge. The result is four accepted rows, one ignored duplicate, and two rejected rows. Gross remains 5250 because A105 is a refund and never enters gross. Refunds remain 250 because the invalid 400-cent refund is not counted. Net remains 5000. This unchanged monetary result is why the row classification is essential evidence. A program that accepts A105 would report five accepted, one rejected, refunds 650, and net 4600.",
+        "sectionId": "coding-lab-changed-answer",
+        "accessibilityAlternative": "A comparison lists the correct changed counts and totals and contrasts them with the plausible result from incorrectly accepting A105."
+      },
+      {
+        "id": "coding-and-analysis-workflow-changed-program-narration",
+        "kind": "narration",
+        "text": "The changed implementation adds accepted_charge_ids alongside accepted_invoice_ids. Common validation still runs first. Before accepting a valid-looking refund, the program checks whether its reference is in accepted_charge_ids. If not, it increments rejected and continues, so the row reserves no invoice identifier and contributes no cents. When a charge is accepted, its invoice identifier is added to accepted_charge_ids. Because this happens as the file is processed, a later refund can refer to that charge, but a forward reference cannot. A refund identifier is never added to the charge set.",
+        "sectionId": "coding-lab-changed-program",
+        "accessibilityAlternative": "A state diagram in text says: accepted charge adds its ID to charge set; refund checks that set; invalid reference rejects; valid refund updates refunds."
+      },
+      {
+        "id": "coding-and-analysis-workflow-changed-tests-narration",
+        "kind": "narration",
+        "text": "The changed suite tests the public process output with four tests. It compares the complete changed fixture output, checks that the unmatched refund raises rejected_rows and does not raise refunds, and uses a visible reference fixture containing a forward reference, an earlier valid reference, a reference to a rejected charge, and a missing reference. Those cases produce two accepted and four rejected rows in that temporary fixture, with gross 100, refunds 10, and net 90. The tests therefore distinguish file order and accepted-charge state without importing implementation details.",
+        "sectionId": "coding-lab-changed-tests",
+        "accessibilityAlternative": "A text list names the changed tests and the four reference cases, with their expected counts and totals."
+      },
+      {
+        "id": "coding-and-analysis-workflow-changed-output-narration",
+        "kind": "narration",
+        "text": "Compare the baseline and changed evidence, not just the money. The baseline has six rows and one rejection. The changed fixture has seven rows and two rejections. Gross, refunds, and net happen to remain 5250, 250, and 5000 because the added row is invalid. That is a useful lesson: a result can be numerically unchanged while validation behavior has changed. The counter rejected_rows makes the policy observable. If the first implementation produced a different result, diagnose whether it accepted the unmatched refund, silently ignored it, mishandled file order, or altered duplicate handling.",
+        "sectionId": "coding-lab-changed-output",
+        "accessibilityAlternative": "A comparison table in text shows baseline six rows and one rejection versus changed seven rows and two rejections, with unchanged monetary totals."
+      },
+      {
+        "id": "coding-and-analysis-workflow-template-narration",
+        "kind": "narration",
+        "text": "The blank record is a reusable safety device, not a shortcut around analysis. For a new task, fill in the question, schema, units, duplicate rule, missing-value rule, identifier rule, invariant, bug evidence, proposed change, commands, exact outputs, boundary fixture, reconciliation, cause layer, rollback, changed-input rule, prediction, and feedback. Do not leave these as vague intentions. A future learner should be able to reconstruct the run from the record and distinguish a real observed result from a prediction or a model suggestion.",
+        "sectionId": "coding-lab-template",
+        "accessibilityAlternative": "The instructor describes each category in the blank record as a field requiring concrete, reproducible information."
+      },
+      {
+        "id": "coding-and-analysis-workflow-activity-prompt",
         "kind": "learner-prompt",
-        "text": "Guide the bounded change, checks, injected failure, and recovery record."
+        "text": "Prepare your handoff: include the preserved buggy and corrected files, exact baseline output, the 5500-versus-5250 assertion, six-test result, row and amount reconciliations, changed-task prediction and evidence, four-test result, diagnosis of any mismatch, and rollback commands. State clearly which results you personally ran and which were supplied expectations.",
+        "sectionId": "coding-lab-template",
+        "accessibilityAlternative": "The learner prepares a written evidence handoff separating personal execution from supplied expectations."
       },
       {
-        "id": "cue-coding-assessment",
+        "id": "coding-and-analysis-workflow-assessment-handoff",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can reproduce, verify, and reverse the work."
+        "text": "Begin the knowledge check after you can explain the truthy-string bug step by step, distinguish an exact duplicate from a conflicting identifier, account for all six baseline rows, explain why separate gross and refund checks matter, apply the earlier accepted-charge rule, and demonstrate reversal followed by restoration. The assessment should test reasoning from observable evidence, not memorization of a title or code layout.",
+        "sectionId": "coding-lab-template",
+        "accessibilityAlternative": "The assessment begins after the learner demonstrates bug reasoning, row accounting, changed-rule reasoning, public testing, and safe recovery."
       }
     ]
   },
@@ -157,63 +560,63 @@
     "questions": [
       {
         "id": "q-coding-workflow-1",
-        "prompt": "What is the safest starting point for an AI-assisted code change?",
+        "prompt": "Why must the setup copy analyze_buggy.py to analyze_correct.py before the initial test?",
         "choices": [
-          "Ask for a rewrite of the whole application",
-          "Inspect the real code and define bounded behavior, invariants, checks, workspace, and rollback",
-          "Add a new framework",
-          "Run directly in production"
+          "It converts the CSV to Python",
+          "The tests invoke analyze_correct.py, so the copy makes them exercise the buggy implementation",
+          "It installs the standard library",
+          "It changes the expected totals"
         ],
         "answerIndex": 1,
-        "explanation": "The actual system and explicit boundaries prevent speculative or uncontrolled changes."
+        "explanation": "A test only exercises the program it actually invokes. The explicit copy makes the initial failure independently reproducible."
       },
       {
         "id": "q-coding-workflow-2",
-        "prompt": "What proves generated code behaves correctly?",
+        "prompt": "Why does kind == \"charge\" or \"refund\" incorrectly add a refund to gross?",
         "choices": [
-          "The model's explanation",
-          "A clean-looking diff",
-          "Relevant executable checks and direct behavior evidence",
-          "The number of changed lines"
+          "Refunds are negative integers",
+          "A nonempty string is truthy, so the condition is true even when kind is refund",
+          "DictReader removes the kind field",
+          "The duplicate set changes kind"
         ],
-        "answerIndex": 2,
-        "explanation": "Tests and observed behavior are direct evidence; explanations and appearance are not."
+        "answerIndex": 1,
+        "explanation": "The expression tests equality only on its left side. The separate nonempty string literal is truthy."
       },
       {
         "id": "q-coding-workflow-3",
-        "prompt": "Which check is essential after joining two datasets?",
+        "prompt": "Which test best catches a plausible fix that reports the right net but still includes refunds in gross?",
         "choices": [
-          "Reconcile keys, row counts, duplicates, missing matches, and units",
-          "Rewrite the prompt",
-          "Remove outliers automatically",
-          "Assume matching column names mean matching semantics"
+          "Check only that the process starts",
+          "Check gross charges and refunds separately, then reconcile net",
+          "Check the filename",
+          "Check only accepted_rows"
         ],
-        "answerIndex": 0,
-        "explanation": "Join quality depends on key semantics and reconciliation, not just successful execution."
+        "answerIndex": 1,
+        "explanation": "Separate gross and refund assertions expose incorrect classification that a single net assertion could miss."
       },
       {
         "id": "q-coding-workflow-4",
-        "prompt": "A test fails after an AI-generated change. What should happen first?",
+        "prompt": "Under the changed rule, when is a refund reference valid?",
         "choices": [
-          "Delete the test",
-          "Increase the timeout without evidence",
-          "Commit and investigate later",
-          "Preserve the failure and reproduce it before making the narrowest correction"
+          "Whenever it is nonempty",
+          "When it names any later invoice",
+          "Only when it names a charge accepted earlier in file order",
+          "When it names a rejected charge"
         ],
-        "answerIndex": 3,
-        "explanation": "The failure is evidence needed to diagnose the responsible layer and prevent regression."
+        "answerIndex": 2,
+        "explanation": "The changed policy requires an earlier accepted charge, so missing, unmatched, forward, refund, and rejected-charge references fail."
       },
       {
         "id": "q-coding-workflow-5",
-        "prompt": "When should an agent perform a destructive production action?",
+        "prompt": "What is the correct recovery after reproducing the 5500-versus-5250 failure?",
         "choices": [
-          "When the plan sounds complete",
-          "Only when the authorized workflow, approvals, backups, verification, and recovery controls explicitly permit it",
-          "Whenever tests pass locally",
-          "When the model is confident"
+          "Delete the refund assertion",
+          "Change the CSV amount",
+          "Apply the narrow conditional fix, rerun all tests, and retain a reversible buggy copy",
+          "Report the model explanation as proof"
         ],
-        "answerIndex": 1,
-        "explanation": "Production action requires authorization and operational controls beyond local correctness."
+        "answerIndex": 2,
+        "explanation": "The failure should be preserved, corrected at the responsible code layer, regression-tested, and kept reversible."
       }
     ]
   },
@@ -235,6 +638,42 @@
       "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
       "publisher": "Anthropic",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Prompt engineering guide",
+      "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "csv: CSV File Reading and Writing",
+      "url": "https://docs.python.org/3/library/csv.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Built-in int function",
+      "url": "https://docs.python.org/3/library/functions.html#int",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "subprocess.run documentation",
+      "url": "https://docs.python.org/3/library/subprocess.html#subprocess.run",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "unittest TestCase.assertEqual documentation",
+      "url": "https://docs.python.org/3/library/unittest.html#unittest.TestCase.assertEqual",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Python data model: dictionary view objects",
+      "url": "https://docs.python.org/3/reference/datamodel.html#dict-views",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
     }
   ]
 }
