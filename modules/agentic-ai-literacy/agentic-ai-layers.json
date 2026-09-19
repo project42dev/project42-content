@@ -24,49 +24,125 @@
       "title": "A model generates; a product surrounds it",
       "paragraphs": [
         "A model maps supplied input and context to generated output. A product can add an interface, instructions, retrieval, memory, tools, identity, policy, deterministic code, and an execution environment.",
-        "When a product searches, remembers, edits, or sends something, identify the component that performed that behavior. Do not transfer every product capability to the model name."
-      ]
+        "When a product searches, remembers, edits, or sends something, identify the component that performed that behavior. Do not transfer every product capability to the model name.",
+        "In this lesson, a model proposal such as {\"tool\":\"catalog_lookup\",\"item\":\"notebook\"} is generated output. It is not evidence that a lookup ran. A runtime execution record is separate evidence.",
+        "Conversation context is text supplied for the current turn. Persisted memory is state written for possible later use. The supplied Penny Helper fixture includes current conversation context but explicitly disables persistent memory.",
+        "Retrieval obtains information from a source outside the model's newly generated answer. Generation composes an answer from supplied inputs and context. In the worked case, retrieval supplies the price and deterministic runtime code performs the arithmetic.",
+        "Policy is a rule, permission check, or approval decision in the surrounding system. Model confidence is a property or interpretation of model output. A policy refusal or approval is not automatically evidence of confidence."
+      ],
+      "callout": "Model output can propose an action. Runtime evidence must establish whether the action was executed."
     },
     {
       "id": "layers-product-terms",
       "title": "Chatbot, assistant, and copilot describe different experiences",
       "paragraphs": [
         "A chatbot is organized around conversational turns. An assistant helps a person complete tasks. A copilot is embedded in a work surface while a person remains responsible for direction and consequential decisions.",
-        "Any of these experiences can contain a deterministic workflow or agentic mode. The label alone does not prove who chooses the next step, executes tools, stores state, or approves effects."
-      ]
+        "Any of these experiences can contain a deterministic workflow or agentic mode. The label alone does not prove who chooses the next step, executes tools, stores state, or approves effects.",
+        "Provider families and deployments can expose different surfaces and configurations. Meta/Llama, DeepSeek, Qwen, Mistral, Phi, NVIDIA, and Z.ai can be discussed only by naming the exact surface, configuration, permissions, trace, and date. A hosted deployment must be analyzed the same way. A provider name does not establish runtime capability.",
+        "A scoped statement is testable: \"On 2026-09-19, in the supplied Penny Helper configuration, the synthetic trace represents a model proposal followed by a permitted read-only lookup in the simulator.\" This describes the supplied teaching fixture. It is not evidence about an external model or every deployment of any provider."
+      ],
+      "callout": "Chatbot, assistant, and copilot are experience descriptions, not guarantees of autonomy or authority."
     },
     {
       "id": "layers-evidence",
       "title": "Describe the exact experience",
       "paragraphs": [
+        "A provider family can contain a model endpoint, consumer assistant, coding agent, framework, and managed agent service with different classifications.",
         "Name the product surface, version or observation date, configuration, enabled tools, permissions, and journey. Then label each claim documented, tested, inferred, or unknown.",
-        "A provider family can contain a model endpoint, consumer assistant, coding agent, framework, and managed agent service with different classifications."
+        "The following self-contained worked case uses a fictional assistant called Penny Helper. It is a teaching fixture, not a claim about any vendor or product. Surface: command-line assistant. Fixture date: 2026-09-19. Model identifier: synthetic-model-v1. Configuration: temperature 0, conversation context enabled, persistent memory disabled in the fixture, retrieval enabled from the supplied catalog, catalog_lookup enabled, no email or purchase tools, policy requires no approval for arithmetic and permits read-only catalog lookup, runtime: the Python standard-library simulator in this lesson.",
+        "Supplied artifacts are: request \"Can I buy 3 notebooks with my $15 budget?\"; current conversation context \"My budget is $15.\"; catalog {\"notebook\":{\"unit_price\":4,\"currency\":\"USD\",\"in_stock\":true}}; enabled-tool record {\"name\":\"catalog_lookup\",\"permission\":\"read_catalog_only\"}; and memory record {\"persistent_memory_enabled\":false,\"records\":[]}.",
+        "The chronological supplied simulation is: 1 interface receives the request; 2 context assembler supplies the request and current conversation text; 3 model proposal is represented as {\"tool\":\"catalog_lookup\",\"arguments\":{\"item\":\"notebook\"}}; 4 policy checks permission and allows a read-only lookup; 5 runtime requests retrieval; 6 retrieval returns {\"unit_price\":4,\"currency\":\"USD\",\"in_stock\":true}; 7 runtime records catalog_lookup execution; 8 deterministic code calculates 3 x 4 = 12 and 15 - 12 = 3, while generation is represented as composing the answer; 9 the side-effect log records {\"purchase\":false,\"records_written\":false}. This is a supplied synthetic simulation, not a real model call or claimed observation of an external service.",
+        "Completed attribution map: model, represented proposal and generated draft; interface, received and displayed the request or answer; conversation context, supplied the $15 budget; retrieval, supplied the $4 catalog record; memory, wrote no persistent record in this fixture; tools, performed only the simulated read-only catalog lookup; policy, checked lookup permission; deterministic code, calculated 12 and 3; runtime, ordered the steps, enforced permission, executed the simulated lookup, ran arithmetic, and recorded side effects; side effects, no purchase and no record write.",
+        "Evidence table before a learner run: the proposal is supplied synthetic evidence from simulated event 3; lookup execution is supplied synthetic evidence from simulated event 7; the price is supported inside the supplied catalog fixture and simulated event 6; persistent memory is disabled and no record is written in this fixture, while behavior in another deployment is UNKNOWN; purchase capability is unsupported and UNKNOWN for other configurations because this fixture has no purchase tool; model confidence is UNKNOWN because no confidence artifact is supplied. After a learner runs the file, the resulting local output can be labeled tested simulator evidence, but it still is not external model or vendor evidence.",
+        "The arithmetic is visible: 3 notebooks x 4 USD per notebook = 12 USD; 15 USD - 12 USD = 3 USD. No real store, account, purchase, vendor model, network, or paid API is accessed.",
+        "Copy the Python artifact below into layers_fixture.py. Run python3 layers_fixture.py for the baseline and python3 layers_fixture.py disabled for the negative case. On systems where the command is python, substitute python for python3. The program uses only the Python standard library, checks permission before accessing the catalog, and contains assertions for both supported configurations.",
+        "The only supported command-line modes are baseline and disabled. Omitting the argument selects baseline. Any other mode exits with the clear message \"Unsupported mode: use baseline or disabled.\"",
+        "Compare the complete printed JSON with the full expected output sections below. The expected blocks include trace because the program prints trace. Key order and indentation follow json.dumps with indent=2 and sort_keys=True. A matching local run verifies the simulator behavior on the learner's Python environment; it does not verify an external AI service.",
+        "The provider-neutral method transfers to any model family, hosted deployment, or local system: record the exact endpoint or surface, date, configuration, permissions, trace, and state. Do not infer runtime capability from a model or provider name."
       ],
-      "callout": "Classify the observed experience—not the logo."
+      "callout": "Classify the observed experience, not the logo. The worked trace is synthetic and separates proposal, permission, retrieval, execution, policy, arithmetic, and side effects.",
+      "code": {
+        "language": "python",
+        "label": "layers_fixture.py",
+        "code": "import json\nimport sys\n\nmode = sys.argv[1] if len(sys.argv) > 1 else \"baseline\"\nif mode not in {\"baseline\", \"disabled\"}:\n    raise SystemExit(\"Unsupported mode: use baseline or disabled.\")\n\nrequest = {\"item\": \"notebook\", \"quantity\": 3, \"budget\": 15}\ncontext = {\"conversation\": \"My budget is $15.\"}\ncatalog = {\"notebook\": {\"unit_price\": 4, \"currency\": \"USD\", \"in_stock\": True}}\nretrieval_enabled = mode == \"baseline\"\nif mode == \"disabled\":\n    catalog = None\n\ntools = {\"catalog_lookup\": \"read_catalog_only\"}\nproposal = {\"tool\": \"catalog_lookup\", \"arguments\": {\"item\": request[\"item\"]}}\ntrace = []\ntrace.append({\"step\": 1, \"layer\": \"interface\", \"event\": \"request_received\"})\ntrace.append({\"step\": 2, \"layer\": \"conversation_context\", \"event\": \"context_supplied\", \"context\": context})\ntrace.append({\"step\": 3, \"layer\": \"model\", \"event\": \"proposal\", \"proposal\": proposal})\npermission = retrieval_enabled and tools.get(\"catalog_lookup\") == \"read_catalog_only\"\ntrace.append({\"step\": 4, \"layer\": \"policy\", \"event\": \"permission_check\", \"allowed\": permission, \"reason\": \"read-only lookup only\"})\nretrieved = None\nif not retrieval_enabled:\n    trace.append({\"step\": 5, \"layer\": \"retrieval\", \"event\": \"disabled\"})\nelse:\n    trace.append({\"step\": 5, \"layer\": \"retrieval\", \"event\": \"request\", \"item\": request[\"item\"]})\n    if permission and catalog is not None:\n        retrieved = catalog.get(request[\"item\"])\n    trace.append({\"step\": 6, \"layer\": \"retrieval\", \"event\": \"return\", \"record\": retrieved})\nexecuted = permission and retrieved is not None\ntrace.append({\"step\": 7, \"layer\": \"tool\", \"event\": \"execution\", \"executed\": executed})\nif executed:\n    total = request[\"quantity\"] * retrieved[\"unit_price\"]\n    remaining = request[\"budget\"] - total\n    answer = f\"{request['quantity']} x {retrieved['unit_price']} = {total} {retrieved['currency']}; remaining budget = {remaining} {retrieved['currency']}.\"\n    arithmetic = {\"total\": total, \"remaining\": remaining}\nelse:\n    answer = \"UNKNOWN: no permitted catalog result.\"\n    arithmetic = \"UNKNOWN\"\ntrace.append({\"step\": 8, \"layer\": \"deterministic_code\", \"event\": \"arithmetic\", \"result\": arithmetic})\nside_effect = {\"purchase\": False, \"records_written\": False}\ntrace.append({\"step\": 9, \"layer\": \"runtime\", \"event\": \"side_effect\", \"result\": side_effect})\nresult = {\"mode\": mode, \"request\": request, \"context\": context, \"retrieval_enabled\": retrieval_enabled, \"retrieval_return\": retrieved, \"tool_executed\": executed, \"runtime_answer\": answer, \"side_effect\": side_effect, \"trace\": trace}\nif mode == \"baseline\":\n    assert result[\"retrieval_return\"][\"unit_price\"] == 4\n    assert result[\"tool_executed\"] is True\n    assert result[\"runtime_answer\"] == \"3 x 4 = 12 USD; remaining budget = 3 USD.\"\n    assert result[\"trace\"][7][\"result\"] == {\"total\": 12, \"remaining\": 3}\nelif mode == \"disabled\":\n    assert result[\"retrieval_return\"] is None\n    assert result[\"tool_executed\"] is False\n    assert result[\"runtime_answer\"] == \"UNKNOWN: no permitted catalog result.\"\n    assert result[\"trace\"][6][\"result\"] == \"UNKNOWN\"\n    assert all(event.get(\"event\") != \"return\" for event in result[\"trace\"])\nassert result[\"side_effect\"] == {\"purchase\": False, \"records_written\": False}\nprint(json.dumps(result, indent=2, sort_keys=True))"
+      }
+    },
+    {
+      "id": "layers-expected-baseline",
+      "title": "Full expected baseline output",
+      "paragraphs": [
+        "Run python3 layers_fixture.py and compare the complete standard output with this specification. The trace should show that the policy permission check occurs at step 4 before the catalog request and return at steps 5 and 6.",
+        "Important rendered fields are request.quantity = 3, retrieval_return.unit_price = 4, tool_executed = true, trace step 8 result.total = 12, trace step 8 result.remaining = 3, and side_effect.purchase = false."
+      ],
+      "callout": "Treat this as expected simulator output until you run the file. A match is local simulator evidence, not evidence of an external model call.",
+      "code": {
+        "language": "json",
+        "label": "expected-baseline-full.json",
+        "code": "{\n  \"context\": {\n    \"conversation\": \"My budget is $15.\"\n  },\n  \"mode\": \"baseline\",\n  \"request\": {\n    \"budget\": 15,\n    \"item\": \"notebook\",\n    \"quantity\": 3\n  },\n  \"retrieval_enabled\": true,\n  \"retrieval_return\": {\n    \"currency\": \"USD\",\n    \"in_stock\": true,\n    \"unit_price\": 4\n  },\n  \"runtime_answer\": \"3 x 4 = 12 USD; remaining budget = 3 USD.\",\n  \"side_effect\": {\n    \"purchase\": false,\n    \"records_written\": false\n  },\n  \"tool_executed\": true,\n  \"trace\": [\n    {\n      \"event\": \"request_received\",\n      \"layer\": \"interface\",\n      \"step\": 1\n    },\n    {\n      \"context\": {\n        \"conversation\": \"My budget is $15.\"\n      },\n      \"event\": \"context_supplied\",\n      \"layer\": \"conversation_context\",\n      \"step\": 2\n    },\n    {\n      \"event\": \"proposal\",\n      \"layer\": \"model\",\n      \"proposal\": {\n        \"arguments\": {\n          \"item\": \"notebook\"\n        },\n        \"tool\": \"catalog_lookup\"\n      },\n      \"step\": 3\n    },\n    {\n      \"allowed\": true,\n      \"event\": \"permission_check\",\n      \"layer\": \"policy\",\n      \"reason\": \"read-only lookup only\",\n      \"step\": 4\n    },\n    {\n      \"event\": \"request\",\n      \"item\": \"notebook\",\n      \"layer\": \"retrieval\",\n      \"step\": 5\n    },\n    {\n      \"event\": \"return\",\n      \"layer\": \"retrieval\",\n      \"record\": {\n        \"currency\": \"USD\",\n        \"in_stock\": true,\n        \"unit_price\": 4\n      },\n      \"step\": 6\n    },\n    {\n      \"event\": \"execution\",\n      \"executed\": true,\n      \"layer\": \"tool\",\n      \"step\": 7\n    },\n    {\n      \"event\": \"arithmetic\",\n      \"layer\": \"deterministic_code\",\n      \"result\": {\n        \"remaining\": 3,\n        \"total\": 12\n      },\n      \"step\": 8\n    },\n    {\n      \"event\": \"side_effect\",\n      \"layer\": \"runtime\",\n      \"result\": {\n        \"purchase\": false,\n        \"records_written\": false\n      },\n      \"step\": 9\n    }\n  ]\n}"
+      }
+    },
+    {
+      "id": "layers-expected-disabled",
+      "title": "Full expected disabled output",
+      "paragraphs": [
+        "Run python3 layers_fixture.py disabled and compare the complete standard output with this specification. The model proposal remains represented at step 3, but policy records allowed = false, retrieval records disabled, and the tool records executed = false.",
+        "There is no retrieval return event in this mode. Because the disabled configuration supplies no catalog price, arithmetic is \"UNKNOWN\" and the answer does not reuse the baseline price."
+      ],
+      "callout": "A proposal is not an execution. Removed evidence must not be silently imported from the baseline configuration.",
+      "code": {
+        "language": "json",
+        "label": "expected-disabled-full.json",
+        "code": "{\n  \"context\": {\n    \"conversation\": \"My budget is $15.\"\n  },\n  \"mode\": \"disabled\",\n  \"request\": {\n    \"budget\": 15,\n    \"item\": \"notebook\",\n    \"quantity\": 3\n  },\n  \"retrieval_enabled\": false,\n  \"retrieval_return\": null,\n  \"runtime_answer\": \"UNKNOWN: no permitted catalog result.\",\n  \"side_effect\": {\n    \"purchase\": false,\n    \"records_written\": false\n  },\n  \"tool_executed\": false,\n  \"trace\": [\n    {\n      \"event\": \"request_received\",\n      \"layer\": \"interface\",\n      \"step\": 1\n    },\n    {\n      \"context\": {\n        \"conversation\": \"My budget is $15.\"\n      },\n      \"event\": \"context_supplied\",\n      \"layer\": \"conversation_context\",\n      \"step\": 2\n    },\n    {\n      \"event\": \"proposal\",\n      \"layer\": \"model\",\n      \"proposal\": {\n        \"arguments\": {\n          \"item\": \"notebook\"\n        },\n        \"tool\": \"catalog_lookup\"\n      },\n      \"step\": 3\n    },\n    {\n      \"allowed\": false,\n      \"event\": \"permission_check\",\n      \"layer\": \"policy\",\n      \"reason\": \"read-only lookup only\",\n      \"step\": 4\n    },\n    {\n      \"event\": \"disabled\",\n      \"layer\": \"retrieval\",\n      \"step\": 5\n    },\n    {\n      \"event\": \"execution\",\n      \"executed\": false,\n      \"layer\": \"tool\",\n      \"step\": 7\n    },\n    {\n      \"event\": \"arithmetic\",\n      \"layer\": \"deterministic_code\",\n      \"result\": \"UNKNOWN\",\n      \"step\": 8\n    },\n    {\n      \"event\": \"side_effect\",\n      \"layer\": \"runtime\",\n      \"result\": {\n        \"purchase\": false,\n        \"records_written\": false\n      },\n      \"step\": 9\n    }\n  ]\n}"
+      }
+    },
+    {
+      "id": "layers-negative-modes",
+      "title": "Reject unsupported modes",
+      "paragraphs": [
+        "Run python3 layers_fixture.py unexpected as a second negative check. The program must exit before constructing or accessing the catalog and display \"Unsupported mode: use baseline or disabled.\"",
+        "Do not compare this case with a JSON fixture because the rejected mode produces no result JSON. A successful rejection means the process has a nonzero exit status, standard output contains no simulated result, and the diagnostic is displayed by the command environment.",
+        "This guard prevents misspelled modes from falling into the disabled assertions while being mislabeled with an unsupported mode name."
+      ],
+      "callout": "Only baseline and disabled are valid. An unsupported mode must fail clearly rather than produce misleading evidence."
     },
     {
       "id": "layers-unknown",
       "title": "Unknown is an honest result",
       "paragraphs": [
+        "Record what would resolve the unknown: a first-party contract, controlled run, permission inspection, tool trace, state record, or accountable review.",
         "Missing documentation does not prove capability or absence. An untested feature is not tested evidence, and a marketing claim is not a runtime trace.",
-        "Record what would resolve the unknown: a first-party contract, controlled run, permission inspection, tool trace, state record, or accountable review."
-      ]
+        "In the baseline fixture, persistent memory is a known configuration fact: it is disabled and records_written is false. This does not establish behavior in another deployment. For another configuration, memory behavior is UNKNOWN until a state record or first-party storage contract is available.",
+        "Independent changed-input task, complete before reading the answer key: run the supplied program with disabled, or reproduce it in a worksheet. Retrieval must be disabled and the catalog must be absent. Keep the same request and conversation context. Write at least six chronological steps. Identify the model proposal, permission decision, retrieval result, tool execution, policy boundary, arithmetic result, and side effects. Rewrite \"The assistant knows notebook prices and can buy them\" as a dated, configuration-scoped claim.",
+        "Expected evidence: retrieval_enabled is false; retrieval_return is null; tool_executed is false; the price, total, and remaining budget are UNKNOWN; no purchase or memory write is recorded; the model proposal is not execution; and the scoped claim states the exact date, fixture, disabled retrieval configuration, and evidence boundary.",
+        "Answer key: 1 interface receives the request; 2 context supplies the $15 budget; 3 the synthetic model event represents a catalog_lookup proposal; 4 policy records allowed = false because retrieval is disabled; 5 retrieval records disabled and supplies no catalog record; 6 the tool records executed = false; 7 deterministic code cannot justify 3 x an unknown price and records arithmetic as UNKNOWN; 8 the side-effect log records no purchase and no memory write. A defensible claim is: \"On 2026-09-19 in the supplied no-retrieval Penny Helper simulator configuration, the interface could receive the request and the synthetic model event represented a lookup proposal, but the artifacts establish neither a notebook price nor a purchase; the simulator recorded no purchase or record-write side effect.\"",
+        "Targeted feedback: if you calculate 3 x 4, you reused data removed by the changed configuration. If you say the model executed the lookup, you confused proposal with runtime execution. If you call a policy decision low confidence, you confused policy with model confidence. If you claim no memory exists everywhere, you generalized from one fixture. If you claim a purchase happened, you ignored the side-effect record.",
+        "Record what would resolve each remaining unknown: a first-party contract, a controlled run, permission inspection, a tool trace, a state record, or accountable review.",
+        "The activity is complete when the learner has mapped every supplied behavior, named evidence kind and source, separated both configurations, and rewritten a provider-wide statement as an observable dated statement."
+      ],
+      "callout": "Unknown is a result, not a failure. State the gap and name the evidence that would resolve it."
     }
   ],
   "activity": {
     "id": "activity-agentic-layer-map",
     "title": "Map one familiar AI experience",
     "instructions": [
-      "Choose one exact AI product experience and record its surface, observation date, configuration, and enabled capabilities.",
-      "Map the model, interface, context, retrieval, memory, tools, policy, deterministic code, and runtime.",
-      "For each claimed behavior, record responsible layer, evidence kind, source, and unknowns.",
-      "Rewrite one provider-wide or marketing-led statement as an observable scoped statement."
+      "First study the Penny Helper configuration, supplied artifacts, chronological simulation, and completed attribution map in the lesson. Record the surface, fixture date, configuration, enabled capabilities, permissions, and journey.",
+      "Run layers_fixture.py without an argument for the baseline if Python 3 is available. Compare the complete printed JSON with expected-baseline-full.json. Label it tested simulator evidence only if you actually performed the run and observed a match.",
+      "Before reading the answer key, run layers_fixture.py disabled. This independent changed-input task removes the catalog and disables retrieval. Record at least six ordered events, including proposal versus execution, context versus memory, retrieval versus generation, policy versus confidence, arithmetic, and side effects.",
+      "Run layers_fixture.py unexpected and confirm that the unsupported mode is rejected before any result JSON is produced. Record this as a negative input-validation check rather than a retrieval result.",
+      "Complete a layer map for both supported configurations. For every behavior, record responsible layer, evidence kind, source artifact, and whether the result is supplied, locally tested, inferred, or UNKNOWN.",
+      "Rewrite \"The assistant knows notebook prices and can buy them\" as a dated, configuration-scoped statement that distinguishes model proposal from runtime execution and identifies side effects.",
+      "For provider-neutral transfer, choose one familiar AI experience and repeat the method using its exact surface, observation date, configuration, permissions, and available evidence. Leave behavior UNKNOWN where you lack first-party documentation or a controlled trace."
     ],
     "evidence": [
-      "A complete layer map with no behavior attributed only to a provider name.",
-      "A claim table that separates documented, tested, inferred, and unknown evidence."
+      "A complete layer map for the Penny Helper baseline and a second map for the changed no-retrieval configuration.",
+      "A claim table separating supplied, locally tested, inferred, and unknown evidence, including memory and purchase evidence.",
+      "A chronological trace distinguishing request, conversation context, model proposal, permission check, retrieval return or disabled state, tool execution, deterministic arithmetic, runtime, and side effects.",
+      "A scoped-claim rewrite naming the exact surface, date, configuration, and evidence boundary without attributing runtime behavior to a provider name.",
+      "If run, baseline output has request.quantity 3, retrieval_return.unit_price 4, tool_executed true, trace step 8 total 12, trace step 8 remaining 3, and side_effect.purchase false. Disabled output has retrieval_return null, tool_executed false, trace step 8 result UNKNOWN, and side_effect.purchase false.",
+      "A negative-case record showing that an unsupported command-line mode produces no JSON result and reports \"Unsupported mode: use baseline or disabled.\""
     ],
-    "reflectionPrompt": "Which capability did you initially assign to the model but later locate in the surrounding product?"
+    "reflectionPrompt": "Which capability did you initially assign to the model but later locate in the surrounding product or runtime? What evidence changed your attribution?"
   },
   "instructorScript": {
     "schemaVersion": "1.0",
@@ -76,48 +152,115 @@
         "id": "cue-agentic-layers-model",
         "kind": "narration",
         "sectionId": "layers-model",
-        "text": "Separate the generative model from every product and runtime layer around it."
+        "text": "Plan about two minutes for this opening. A model generates output from supplied input and context, while a product can surround it with an interface, conversation context, retrieval, persistent memory, tools, policy checks, deterministic code, and a runtime. Keep proposal and execution separate. The generated object {\"tool\":\"catalog_lookup\",\"item\":\"notebook\"} establishes that a lookup was proposed. It does not establish that the catalog was accessed. Execution requires separate runtime or tool evidence. Also separate current conversation context from persistent memory: context can supply the budget for this turn even when no state is written for later use."
       },
       {
         "id": "cue-agentic-layers-visual",
         "kind": "visual",
         "sectionId": "layers-model",
-        "text": "Show the model nested inside interface, context, retrieval, memory, tools, policy, and runtime layers.",
-        "accessibilityAlternative": "An ordered text list names each layer, its owner, and the behavior it contributes. Reduced-motion mode shows all layers at once."
+        "text": "Display a static layer map for the worked case. Read it from top to bottom: interface receives and displays; conversation context supplies current-turn text; model represents a proposal or generated draft; policy permits or blocks an operation; retrieval obtains a catalog record; a tool performs the permitted lookup; deterministic code calculates totals; runtime orders and records the operations; persistent memory would store later-use state, but it is disabled here; side-effect records show whether a purchase or record write occurred.",
+        "accessibilityAlternative": "A static ordered list presents ten entries: interface, conversation context, model, policy, retrieval, tool, deterministic code, runtime, persistent memory, and side effects. Each entry includes the responsibility stated in the cue. No animation or delivered external media is required."
       },
       {
         "id": "cue-agentic-layers-terms",
         "kind": "narration",
         "sectionId": "layers-product-terms",
-        "text": "Compare chatbot, assistant, and copilot as experience terms rather than autonomy guarantees."
+        "text": "Allow about ninety seconds. Chatbot, assistant, and copilot describe experiences, not guaranteed levels of autonomy or authority. A chatbot emphasizes conversational turns. An assistant helps with tasks. A copilot is embedded in a work surface while a person directs consequential decisions. None of these labels proves that tools ran, state persisted, or side effects were approved. Replace a provider-wide claim with a scoped observation that names the exact surface, date, configuration, permissions, and evidence. For example, the supplied statement about Penny Helper is limited to the fictional simulator configuration dated 2026-09-19. It is not evidence about a vendor, model family, or other deployment."
       },
       {
         "id": "cue-agentic-layers-evidence",
         "kind": "narration",
         "sectionId": "layers-evidence",
-        "text": "Demonstrate an exact, dated, configuration-scoped claim."
+        "text": "Use about four and a half minutes for the worked case and code inspection. Penny Helper is a fictional command-line teaching fixture, not a real model call. The supplied synthetic trace represents this sequence: the interface receives a request for three notebooks within a 15 USD budget; current conversation context supplies the budget; the synthetic model event proposes catalog_lookup for notebook; policy checks for read_catalog_only permission; runtime requests retrieval; retrieval supplies the fixture record with unit price 4 USD; the simulated tool execution is recorded; deterministic code computes 3 times 4 equals 12 and 15 minus 12 equals 3; then runtime records purchase false and records_written false. Attribute the represented proposal and draft to the model, the price to retrieval from the supplied catalog, the calculations to deterministic code, permission enforcement and sequencing to the surrounding runtime, and the absence of purchase or record writing to the side-effect record. Persistent memory is disabled in this fixture. Behavior in another configuration remains UNKNOWN."
+      },
+      {
+        "id": "cue-agentic-layers-demo-trace",
+        "kind": "narration",
+        "sectionId": "layers-evidence",
+        "text": "Demonstrate the offline procedure without claiming that it has already been executed. Ask learners to copy the displayed standard-library program into layers_fixture.py. The supported commands are python3 layers_fixture.py and python3 layers_fixture.py disabled, with python substituted only where that is the local Python 3 command. Point out the control boundary in the code: permission is computed before catalog access, and retrieved remains null unless retrieval is enabled, permission passes, and the catalog exists. The assertions check the expected fields before JSON is printed. The fixture accesses no network, real store, account, paid API, or purchase service."
+      },
+      {
+        "id": "cue-agentic-layers-permission-order",
+        "kind": "learner-prompt",
+        "sectionId": "layers-evidence",
+        "text": "Give learners forty-five seconds to locate four distinct records in the code: the model proposal, the policy permission decision, the retrieval return, and the tool execution flag. Ask: Which record proves only an intention, which record grants authority, which supplies data, and which records execution? Expected response: the proposal proves represented model output only; the policy record grants or denies permission; the retrieval return supplies the catalog data; and tool_executed records whether the simulated lookup completed. If a learner says the proposed tool name proves execution, direct them to compare trace steps 3, 4, 6, and 7."
+      },
+      {
+        "id": "cue-agentic-layers-baseline",
+        "kind": "narration",
+        "sectionId": "layers-expected-baseline",
+        "text": "Allow three minutes for the baseline run and comparison. Instruct learners to run python3 layers_fixture.py. If they do not run it, call the displayed block supplied expected simulator output, not observed output. If they do run it, they may call their own captured result locally tested simulator evidence. Have them compare the complete printed JSON with expected-baseline-full.json, including indentation, sorted keys, and all nine trace events. The supported fields are mode baseline; quantity 3; retrieval_enabled true; retrieval_return with unit_price 4, currency USD, and in_stock true; tool_executed true; runtime_answer \"3 x 4 = 12 USD; remaining budget = 3 USD.\"; step 8 arithmetic with total 12 and remaining 3; and side effects purchase false and records_written false. A matching local result still says nothing about an external vendor service."
+      },
+      {
+        "id": "cue-agentic-layers-run",
+        "kind": "checkpoint",
+        "sectionId": "layers-expected-baseline",
+        "text": "Checkpoint question: What evidence supports each number in the baseline answer? Answer: quantity 3 and budget 15 come from the request and current context; unit price 4 comes from the supplied catalog retrieval record; total 12 is deterministic multiplication, 3 times 4; and remaining budget 3 is deterministic subtraction, 15 minus 12. Feedback: assigning the price to generation confuses retrieval with generation. Saying a purchase occurred conflicts with purchase false. Saying persistent memory stored the budget conflicts with records_written false and the fixture configuration that disables persistent memory."
+      },
+      {
+        "id": "cue-agentic-layers-changed-task",
+        "kind": "narration",
+        "sectionId": "layers-expected-disabled",
+        "text": "Begin the changed-input task before revealing or discussing the disabled answer block. Allow about two and a half minutes and ask learners to keep expected-disabled-full.json hidden. Run python3 layers_fixture.py disabled if Python 3 is available, or reason directly from the code. Keep the request and conversation context unchanged, but set retrieval_enabled to false and remove the catalog. Learners must predict at least six chronological events and record the proposal, permission decision, retrieval state, tool execution, arithmetic, and side effects. They must not reuse the baseline price. Ask them to write UNKNOWN wherever the changed configuration supplies no evidence."
+      },
+      {
+        "id": "cue-agentic-layers-changed-check",
+        "kind": "learner-prompt",
+        "sectionId": "layers-expected-disabled",
+        "text": "Independent response prompt, before the key: Does the model proposal disappear? Is permission allowed? Is there a retrieval return event? Does the tool execute? Can total or remaining budget be calculated? Does either a purchase or persistent record write occur? Also rewrite \"The assistant knows notebook prices and can buy them\" as a statement limited to the supplied disabled configuration, fixture date, and available evidence. Pause until learners have committed their answers."
+      },
+      {
+        "id": "cue-agentic-layers-disabled-key",
+        "kind": "narration",
+        "sectionId": "layers-expected-disabled",
+        "text": "Now reveal and compare the full disabled answer key for about ninety seconds. The trace contains eight entries with fixture step labels 1, 2, 3, 4, 5, 7, 8, and 9 because there is no step 6 retrieval return event. The represented model proposal remains at step 3. Policy records allowed false at step 4. Retrieval records disabled at step 5. The tool records executed false at step 7. Deterministic code records arithmetic as \"UNKNOWN\" at step 8, and runtime_answer is \"UNKNOWN: no permitted catalog result.\" Runtime records purchase false and records_written false at step 9. The complete rendered output also has retrieval_enabled false and retrieval_return null. This is the supplied expected artifact unless the learner actually ran and observed it."
+      },
+      {
+        "id": "cue-agentic-layers-disabled-feedback",
+        "kind": "checkpoint",
+        "sectionId": "layers-expected-disabled",
+        "text": "Answer and feedback: the changed configuration supports neither a notebook price nor a total or remaining budget, so all three are UNKNOWN. Reusing 4 USD imports evidence removed from this configuration. The proposal is not execution because tool_executed is false. The policy denial is not a statement about model confidence, which remains UNKNOWN because no confidence artifact is supplied. A defensible rewrite is: \"On 2026-09-19 in the supplied disabled-retrieval Penny Helper simulator configuration, the interface received the request and the synthetic model event represented a lookup proposal, but the artifacts establish no notebook price or purchase; the simulator records no purchase or record-write side effect.\""
+      },
+      {
+        "id": "cue-agentic-layers-negative-narration",
+        "kind": "narration",
+        "sectionId": "layers-negative-modes",
+        "text": "Use one minute for input validation. Ask learners to run python3 layers_fixture.py unexpected. Do not claim it was executed unless they actually observe it. The expected behavior is immediate rejection with \"Unsupported mode: use baseline or disabled.\", a nonzero process status, and no result JSON. The mode check occurs before request, catalog, trace, or assertions are constructed, so this is an input-validation failure rather than a retrieval result. A misspelled mode must not silently become disabled because that would attach a misleading mode label to evidence from a different configuration."
+      },
+      {
+        "id": "cue-agentic-layers-negative-mode",
+        "kind": "checkpoint",
+        "sectionId": "layers-negative-modes",
+        "text": "Checkpoint question: Why should the invalid-mode case not be compared with either full JSON fixture? Answer: it exits before producing a result object, so there is no simulated trace or JSON output to compare. Feedback: if a learner records retrieval_return null for this case, explain that they have confused an invalid command rejected before simulation with the valid disabled configuration."
       },
       {
         "id": "cue-agentic-layers-unknown",
         "kind": "narration",
         "sectionId": "layers-unknown",
-        "text": "Model how to preserve an unknown and name the evidence needed to resolve it."
+        "text": "Allow about two minutes to practice honest unknowns. Known within the supplied baseline fixture: retrieval is enabled, the catalog supplies a 4 USD unit price, deterministic code calculates 12 USD total and 3 USD remaining, and no purchase or record write is recorded. Known within the disabled fixture: no catalog result is permitted, the tool does not execute, arithmetic is UNKNOWN, and no side effect is recorded. UNKNOWN outside these fixtures: whether another deployment retrieves prices, stores memory, exposes purchase authority, or produces a confidence artifact. Resolve such gaps with appropriate evidence, such as first-party documentation for the exact surface, a controlled run, permission inspection, a tool trace, a state record, or accountable review."
       },
       {
         "id": "cue-agentic-layers-checkpoint",
         "kind": "checkpoint",
         "sectionId": "layers-unknown",
-        "text": "Check whether the learner can move one unsupported behavior claim to unknown."
+        "text": "Checkpoint: classify the claim \"Penny Helper remembers budgets and can buy notebooks.\" Answer: unsupported as a general claim. In this fixture, conversation context contains the budget, persistent memory is disabled, records_written is false, no purchase tool is supplied, and purchase is false. Behavior in another deployment is UNKNOWN. Feedback: context is not persistent memory; a proposed lookup is not purchase authority; and absence in one configuration cannot be generalized to every deployment."
       },
       {
         "id": "cue-agentic-layers-activity",
         "kind": "learner-prompt",
-        "text": "Guide learners through the layer map and scoped-claim rewrite."
+        "sectionId": "layers-unknown",
+        "text": "For the final minute of practice, have learners complete two layer maps, one for baseline and one for disabled. Each row should name the behavior, responsible layer, source artifact, evidence status, and configuration. Then transfer the method to one familiar AI experience by naming its exact surface, observation date, configuration, permissions, journey, and available trace. Require UNKNOWN instead of using a provider or model-family name as proof. Ask learners to distinguish supplied synthetic traces, locally observed simulator output, inference, and any separately obtained external vendor observation."
+      },
+      {
+        "id": "cue-agentic-layers-transfer",
+        "kind": "checkpoint",
+        "sectionId": "layers-unknown",
+        "text": "Transfer check: a provider page says an assistant can use tools, but the learner has no permission record or execution trace for the deployment being discussed. Correct classification: the page may document a product capability at its stated scope, but execution in this deployment is UNKNOWN. The evidence needed could include exact configuration documentation, a controlled run, a permission record, and a tool or side-effect trace. Feedback: neither a provider name nor a broad capability statement proves that a particular action ran."
       },
       {
         "id": "cue-agentic-layers-assessment",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can attribute behavior without using a provider name as proof."
+        "text": "Begin the assessment after about twenty minutes total: two minutes on model and surrounding layers, ninety seconds on product terms, four and a half minutes on the worked case and code, three minutes on baseline comparison, four minutes on the independent disabled task and key, one minute on invalid input, three minutes on unknowns and transfer, and one minute for handoff. Learners are ready when they can attribute proposal, permission, retrieval, execution, arithmetic, memory state, and side effects without treating a provider name as evidence."
       }
     ]
   },
@@ -126,63 +269,63 @@
     "questions": [
       {
         "id": "q-agentic-layers-1",
-        "prompt": "What does a model classification establish?",
+        "prompt": "A trace contains model output {\"tool\":\"catalog_lookup\"}, but no runtime or tool execution evidence. What is established?",
         "choices": [
-          "The component maps supplied input and context to generated output",
-          "The product can safely execute every proposed tool",
-          "The provider is agentic",
-          "The user approved all side effects"
+          "The model proposed a tool call, but execution is UNKNOWN",
+          "The catalog was read and the price is verified",
+          "The runtime purchased notebooks",
+          "The model stored the request in persistent memory"
         ],
         "answerIndex": 0,
-        "explanation": "A model is the generative component; execution, authority, state, and product behavior require separate evidence."
+        "explanation": "Generated tool-call text establishes a model proposal only. A tool trace or runtime record is needed to establish execution, and a side-effect record is needed to establish a purchase."
       },
       {
         "id": "q-agentic-layers-2",
-        "prompt": "A product is called a copilot. What can you conclude from the name alone?",
+        "prompt": "The conversation says \"My budget is $15,\" while the memory record is {\"persistent_memory_enabled\":false,\"records\":[]}. Which conclusion is justified?",
         "choices": [
-          "It is autonomous",
-          "It is multi-agent",
-          "It is positioned as embedded assistance; runtime behavior still needs evidence",
-          "It has no tools"
+          "The model permanently remembers the budget",
+          "The current turn has conversation context, while persistent memory is disabled and no persistent record is evidenced in this fixture",
+          "The interface cannot use conversation context",
+          "The provider stores the budget in every deployment"
         ],
-        "answerIndex": 2,
-        "explanation": "Copilot is a product term, not proof of a particular control loop or authority boundary."
+        "answerIndex": 1,
+        "explanation": "Text supplied for the current turn is context. Persistent memory requires evidence of storage or a contract establishing it. The fixture specifically records disabled persistent memory and no record write."
       },
       {
         "id": "q-agentic-layers-3",
-        "prompt": "Which statement is properly scoped?",
+        "prompt": "In the worked case, the catalog returns a unit price of 4 USD and runtime calculates 3 x 4 = 12. Which description best separates retrieval from generation?",
         "choices": [
-          "Every product from this provider is agentic",
-          "This dated product mode used a documented search tool under the tested configuration",
-          "Large models are always assistants",
-          "A tool-capable API executes every tool itself"
+          "The model generated the catalog record and retrieval was unnecessary",
+          "Retrieval supplied the catalog record; generation composed an answer using supplied information",
+          "Policy generated the price because it allowed the lookup",
+          "The interface executed the arithmetic because it displayed the answer"
         ],
         "answerIndex": 1,
-        "explanation": "The statement identifies the exact mode, date, evidence, and configuration."
+        "explanation": "The supplied catalog artifact and simulated retrieval return establish the fixture source of the price. Generation composes language from supplied inputs, while deterministic runtime code performs the stated arithmetic."
       },
       {
         "id": "q-agentic-layers-4",
-        "prompt": "What should happen when documentation does not resolve who stores state?",
+        "prompt": "A policy log says \"allow read-only lookup; no purchase authority,\" and the assistant's text sounds hesitant. What can you conclude about model confidence?",
         "choices": [
-          "Assume the model stores it",
-          "Mark the behavior unknown and identify needed evidence",
-          "Treat the product name as proof",
-          "Ignore state"
+          "The policy decision proves the model had low confidence",
+          "The hesitation proves the policy blocked the request",
+          "Model confidence is UNKNOWN unless a suitable confidence artifact exists",
+          "The provider's name establishes the confidence level"
         ],
-        "answerIndex": 1,
-        "explanation": "Unknown preserves the gap without inventing capability or absence."
+        "answerIndex": 2,
+        "explanation": "Policy is a surrounding rule or permission decision. Wording style is not a reliable confidence measure, and no confidence artifact is supplied in the fixture."
       },
       {
         "id": "q-agentic-layers-5",
-        "prompt": "Why separate a model from its harness?",
+        "prompt": "After retrieval is disabled and the catalog is removed, what is the most defensible response to the notebook request?",
         "choices": [
-          "To locate execution, policy, state, and authority accurately",
-          "To avoid recording sources",
-          "Because models never generate tool calls",
-          "Because every harness is deterministic"
+          "Calculate 3 x 4 anyway because the model should know the price",
+          "State the price, total, and remaining budget as UNKNOWN, while recording that no purchase side effect occurred",
+          "Treat the assistant label as proof that it can purchase",
+          "Claim that no deployment can ever retrieve prices"
         ],
-        "answerIndex": 0,
-        "explanation": "The harness owns important runtime behavior that the model name alone cannot establish."
+        "answerIndex": 1,
+        "explanation": "The changed configuration supplies no price and performs no retrieval. Reusing the removed fixture would be an unsupported inference. The no-purchase statement is supported inside the changed simulator configuration and side-effect record, but it must not be generalized to every deployment."
       }
     ]
   },
