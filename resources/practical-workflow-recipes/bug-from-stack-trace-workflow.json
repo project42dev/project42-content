@@ -33,7 +33,10 @@
       "title": "Orient from evidence before proposing a fix",
       "paragraphs": [
         "Redact credentials, tokens, personal data, and unnecessary payloads while preserving exception type, message, frames, correlation identifiers, runtime and dependency versions, configuration shape, time window, and observable impact. Confirm which frame belongs to the application and which belongs to a dependency.",
-        "Ask the AI to list facts, hypotheses, missing evidence, and the next discriminating check separately. Do not accept a plausible explanation as a root cause."
+        "Ask the AI to list facts, hypotheses, missing evidence, and the next discriminating check separately. Do not accept a plausible explanation as a root cause.",
+        "A stack trace represents the call frames present when an exception was raised. In Python, a ValueError is raised when an operation receives an inappropriate value, such as a non-numeric string passed to float(). The traceback module can format exception information, but the trace alone does not prove which input or boundary was wrong. Sources: https://docs.python.org/3/library/traceback.html and https://docs.python.org/3/library/exceptions.html#ValueError.",
+        "Use provider-neutral commands and evidence. A branded assistant, model name, or generated explanation is not evidence. Evidence is a reproducible input, observed test result, inspected source, or documented environment.",
+        "This guide is offline and synthetic. It makes no production or API access. The commands below are runnable standard-library Python commands, but output labeled as expected is not claimed execution by this document."
       ]
     },
     {
@@ -41,7 +44,9 @@
       "title": "Reproduce, isolate, and make the smallest coherent fix",
       "paragraphs": [
         "Create the smallest deterministic failing case, compare it with a known-good case, and find the first divergent input, state, call, or version. Version-control history and bisect can narrow a regression when a reliable test distinguishes good from bad.",
-        "Add the failing regression test before or with the fix. Change only the responsible boundary, review the complete diff, and test adjacent error, timeout, and cleanup paths."
+        "Add the failing regression test before or with the fix. Change only the responsible boundary, review the complete diff, and test adjacent error, timeout, and cleanup paths.",
+        "The following task card is intentionally unchanged so it can be copied into a provider-neutral tool.",
+        "Task: [OBSERVED BUG AND USER IMPACT]\nScope: [REPOSITORY, COMPONENT, ENVIRONMENT, AND ALLOWED PATHS]\nPermissions: [LOG/SOURCE READ, TEST COMMANDS, WRITES, NETWORK, AND DATA LIMITS]\nEvidence: [REDACTED TRACE, VERSIONS, CORRELATION ID, AND EXPECTED BEHAVIOR]\nFacts / hypotheses / unknowns: [SEPARATE LISTS]\nMinimal reproducer: [INPUT, PRECONDITION, COMMAND, EXPECTED, ACTUAL]\nFirst divergence and cause: [BOUNDARY -> EVIDENCE]\nStop conditions: [SECRET, PRODUCTION WRITE, NONDETERMINISM, OR SCOPE EXPANSION]\nVerification: [FAILING-THEN-PASSING TEST, RELATED SUITE, DIFF, AND USER PATH]\nRecovery: [REVERT BOUNDED CHANGE, RESTORE CONFIG/DATA, AND PRESERVE REPRODUCER]"
       ],
       "code": {
         "language": "text",
@@ -50,11 +55,166 @@
       }
     },
     {
+      "id": "lab-contract",
+      "title": "Offline lab: define the data contract",
+      "paragraphs": [
+        "This lab uses only Python's standard library and local synthetic data. It models a CSV expense import in which an optional amount field may be empty. csv.reader returns each row as a list of strings, so a missing CSV field arrives as the empty string, not as Python None. Source: https://docs.python.org/3/library/csv.html#csv.reader.",
+        "The amount contract is explicit. None, the empty string, whitespace-only text, and the case-insensitive string null are missing and become None. A string containing a finite numeric value is converted to float. The numeric value 0.0 is valid and remains 0.0. NaN, positive infinity, and negative infinity are rejected with ValueError. A bool is rejected with TypeError because bool is not an accepted amount input. A nonstring, non-bool numeric input is accepted only if it is finite and is returned as a float. Other nonnumeric or malformed text raises ValueError. No invalid input is silently changed to zero.",
+        "For CSV input, the first row is the header. Header-only data and an empty data set have a total of 0.0. Each data row must contain at least two fields, and a shorter row raises ValueError identifying the row number. The amount is the second field. Missing amounts are ignored by the total, while a literal zero is retained. A conversion exception stops processing at the first invalid row. This is why sum does not make malformed data safe: a generator stops when its next value raises.",
+        "The corrected lab uses triple-quoted multiline CSV fixtures. The files are deliberately separate so that the commands are shell commands, not Python embedded in a combined code block."
+      ],
+      "code": {
+        "language": "python",
+        "label": "broken_processor.py",
+        "code": "import csv\n\n\ndef parse_amount(raw):\n    return float(raw)\n\n\ndef total_amounts(csv_text):\n    rows = csv.reader(csv_text.splitlines())\n    next(rows)  # header\n    return sum(parse_amount(row[1]) for row in rows)\n"
+      }
+    },
+    {
+      "id": "lab-fixtures",
+      "title": "Offline lab: create the supplied broken files and fixtures",
+      "paragraphs": [
+        "Create an empty directory, then save each code block below under exactly its displayed filename. Do not join the files into one Python file. The broken implementation intentionally fails the missing-value contract and accepts infinity.",
+        "The corrected fixture is multiline CSV. Its rows contain a missing amount, a literal zero, and 2.50, so the documented total is 2.5 after missing data is ignored. This is a target behavior, not claimed execution.",
+        "The broken regression suite is designed to show the unittest distinction required for diagnosis: one test reaches an unexpected exception and is reported as an error; one test expects an exception that is not raised and is reported as a failure. Thus the expected summary is failures=1, errors=1, not two failures."
+      ],
+      "code": {
+        "language": "python",
+        "label": "broken_reproducer.py",
+        "code": "import broken_processor\n\n\nCSV_TEXT = \"\"\"expense,amount\ncoffee,\n\"\"\"\n\nprint(broken_processor.total_amounts(CSV_TEXT))\n"
+      }
+    },
+    {
+      "id": "lab-regression-first",
+      "title": "Regression first: run the broken implementation",
+      "paragraphs": [
+        "Run the broken implementation before editing it. The reproducer should reach float('') and raise ValueError. The test suite should show one error from the empty CSV field and one failure because float('inf') does not raise. The exact traceback line numbers depend on the saved file layout, so do not treat a line number in this guide as execution evidence.",
+        "Python's unittest reports an unexpected exception as an error and an assertion or assertRaises mismatch as a failure. The expected status below is a command expectation. Run it locally to establish actual evidence.",
+        "A safe traceback shape from this synthetic reproducer is shown separately. It contains no credentials, personal data, production path, or external service information."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_broken_processor.py",
+        "code": "import unittest\n\nimport broken_processor\n\n\nclass AmountImportTests(unittest.TestCase):\n    def test_missing_amount_reaches_broken_boundary(self):\n        data = \"\"\"expense,amount\ncoffee,\n\"\"\"\n        broken_processor.total_amounts(data)\n\n    def test_zero_is_preserved(self):\n        self.assertEqual(broken_processor.parse_amount(\"0\"), 0.0)\n\n    def test_invalid_nonempty_amount_is_rejected(self):\n        with self.assertRaises(ValueError):\n            broken_processor.parse_amount(\"oops\")\n\n    def test_nonfinite_amount_is_rejected(self):\n        with self.assertRaises(ValueError):\n            broken_processor.parse_amount(\"inf\")\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "lab-commands-before-fix",
+      "title": "Baseline commands and expected failing output",
+      "paragraphs": [
+        "Run these commands from the directory containing broken_processor.py, broken_reproducer.py, and test_broken_processor.py. They use no network and no production data.",
+        "The output below is expected output, not claimed output from an execution performed while drafting. The important status distinction is FAILED (failures=1, errors=1)."
+      ],
+      "code": {
+        "language": "shell",
+        "label": "baseline_commands.sh",
+        "code": "python broken_reproducer.py\npython -m unittest -v test_broken_processor.py"
+      }
+    },
+    {
+      "id": "lab-trace",
+      "title": "Synthetic safe traceback from the corrected real reproducer shape",
+      "paragraphs": [
+        "The following is a synthetic rendering of the traceback shape produced when the corrected multiline fixture is passed to the supplied broken implementation. It is not presented as a captured execution log. Python traceback output begins with Traceback (most recent call last), shows the filename, line, and function, and ends with the exception type and message. Exact line numbers may differ.",
+        "The relevant evidence is the boundary: the CSV reader supplies the string '', and the broken parser passes that string to float(). Python documents ValueError for an inappropriate conversion value. Sources: https://docs.python.org/3/library/traceback.html, https://docs.python.org/3/library/exceptions.html#ValueError, and https://docs.python.org/3/library/functions.html#float."
+      ],
+      "code": {
+        "language": "text",
+        "label": "synthetic_traceback.txt",
+        "code": "Traceback (most recent call last):\n  File \"broken_reproducer.py\", line 8, in <module>\n    print(broken_processor.total_amounts(CSV_TEXT))\n  File \"broken_processor.py\", line 10, in total_amounts\n    return sum(parse_amount(row[1]) for row in rows)\n  File \"broken_processor.py\", line 10, in <genexpr>\n    return sum(parse_amount(row[1]) for row in rows)\n  File \"broken_processor.py\", line 5, in parse_amount\n    return float(raw)\nValueError: could not convert string to float: ''"
+      }
+    },
+    {
+      "id": "lab-diagnosis",
+      "title": "Diagnose with competing hypotheses and discriminating checks",
+      "paragraphs": [
+        "Facts from the corrected reproducer are limited and testable: the input has a header and one data row; csv.reader supplies the amount as the string ''; parse_amount calls float(); and Python raises ValueError for that conversion. UNKNOWN: whether an original production file has the same shape, because this lab intentionally uses synthetic data.",
+        "Hypothesis A is a type or row-shape error: perhaps the reader supplies a list, None, or a short row. Check repr(type(row[1])), repr(row[1]), and len(row) immediately before conversion. For this fixture, the expected check result is a string type, the representation '', and a row length of 2. That rejects the list-or-None version of Hypothesis A for this fixture. A short-row check remains necessary for other inputs.",
+        "Hypothesis B is a value-contract error: the reader supplies a string, but an optional empty string is sent to a conversion function that requires numeric text. Check parse_amount(''), parse_amount('0'), parse_amount('inf'), and parse_amount('oops') separately and compare each result with the contract. This supports Hypothesis B.",
+        "A broad except that turns every conversion failure into 0.0 is not a repair. It would turn missing input and malformed input such as oops into the same value, erase the distinction between missing data and a real zero, and still allow inf unless finiteness is checked separately. Silently defaulting corrupt data can produce an apparently successful but wrong total. Preserve explicit errors and handle only the documented missing cases."
+      ],
+      "code": {
+        "language": "python",
+        "label": "discriminating_checks.py",
+        "code": "import csv\n\nimport broken_processor\n\n\nCSV_TEXT = \"\"\"expense,amount\ncoffee,\n\"\"\"\nrows = list(csv.reader(CSV_TEXT.splitlines()))\nprint(\"row type:\", repr(type(rows[1][1])))\nprint(\"row value:\", repr(rows[1][1]))\nprint(\"row length:\", len(rows[1]))\n\nfor value in [\"\", \"0\", \"inf\", \"oops\"]:\n    try:\n        result = broken_processor.parse_amount(value)\n    except Exception as exc:\n        result = f\"{type(exc).__name__}: {exc}\"\n    print(repr(value), \"->\", repr(result))\n\n\ndef silently_default(raw):\n    try:\n        return float(raw)\n    except (TypeError, ValueError):\n        return 0.0\n\n\n# Negative checks for the tempting but unsafe alternative.\nassert silently_default(\"\") == 0.0\nassert silently_default(\"oops\") == 0.0\nassert silently_default(\"inf\") == float(\"inf\")\n"
+      }
+    },
+    {
+      "id": "lab-regression-fix",
+      "title": "Write the regression first, then apply the minimal repair",
+      "paragraphs": [
+        "The missing-amount test in test_processor.py is the regression test. Run it against broken_processor.py before changing the implementation. It should fail by raising ValueError. The nonfinite test should also fail because the broken parser returns infinity instead of rejecting it.",
+        "The minimal coherent repair has two bounded changes, not one parser-only change. First, parse_amount handles the documented missing representations before conversion and rejects nonfinite values after conversion. Second, total_amounts filters returned None values so missing amounts do not reach sum and an all-missing data set returns the declared 0.0. Zero remains a numeric value and is not filtered.",
+        "The repaired implementation also gives malformed CSV rows an explicit ValueError. It uses next(rows, None), so an empty input has total 0.0 and a header-only input has total 0.0. It does not catch broad exceptions around the whole import."
+      ],
+      "code": {
+        "language": "python",
+        "label": "processor.py",
+        "code": "import csv\nimport math\n\n\ndef parse_amount(raw):\n    if raw is None:\n        return None\n    if isinstance(raw, bool):\n        raise TypeError(\"amount must not be bool\")\n    if isinstance(raw, str) and raw.strip().lower() in {\"\", \"null\"}:\n        return None\n    try:\n        value = float(raw)\n    except (TypeError, ValueError) as exc:\n        raise ValueError(f\"invalid amount: {raw!r}\") from exc\n    if not math.isfinite(value):\n        raise ValueError(\"amount must be finite\")\n    return value\n\n\ndef total_amounts(csv_text):\n    rows = csv.reader(csv_text.splitlines())\n    header = next(rows, None)\n    if header is None:\n        return 0.0\n    total = 0.0\n    for row_number, row in enumerate(rows, start=2):\n        if len(row) < 2:\n            raise ValueError(f\"row {row_number} has no amount field\")\n        value = parse_amount(row[1])\n        if value is not None:\n            total += value\n    return total\n"
+      }
+    },
+    {
+      "id": "lab-repaired-tests",
+      "title": "Repaired regression and boundary tests",
+      "paragraphs": [
+        "Save the following test file separately. It tests missing, zero, finite values, NaN, both infinities, bool, malformed text, nonstring input, malformed rows, empty data, header-only data, and a total containing missing, zero, and 2.50.",
+        "The tests use subTest for the parameterized nonfinite cases. Their expected results are derived from the explicit contract, not from a model's suggestion."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_processor.py",
+        "code": "import unittest\n\nimport processor\n\n\nclass AmountImportTests(unittest.TestCase):\n    def test_missing_values_become_none(self):\n        for value in (None, \"\", \"  \", \"null\", \" NULL \"):\n            with self.subTest(value=value):\n                self.assertIsNone(processor.parse_amount(value))\n\n    def test_zero_is_preserved(self):\n        self.assertEqual(processor.parse_amount(\"0\"), 0.0)\n\n    def test_finite_number_is_converted(self):\n        self.assertEqual(processor.parse_amount(\"2.50\"), 2.5)\n\n    def test_invalid_nonempty_text_is_rejected(self):\n        with self.assertRaises(ValueError):\n            processor.parse_amount(\"oops\")\n\n    def test_nonfinite_values_are_rejected(self):\n        for value in (\"nan\", \"inf\", \"-inf\"):\n            with self.subTest(value=value):\n                with self.assertRaises(ValueError):\n                    processor.parse_amount(value)\n\n    def test_bool_is_rejected(self):\n        with self.assertRaises(TypeError):\n            processor.parse_amount(True)\n\n    def test_nonstring_numeric_input_is_finite_and_converted(self):\n        self.assertEqual(processor.parse_amount(2), 2.0)\n\n    def test_total_ignores_missing_but_keeps_zero(self):\n        data = \"\"\"expense,amount\ncoffee,\nrefund,0\nmeal,2.50\n\"\"\"\n        self.assertEqual(processor.total_amounts(data), 2.5)\n\n    def test_empty_and_header_only_data_are_zero(self):\n        self.assertEqual(processor.total_amounts(\"\"), 0.0)\n        self.assertEqual(processor.total_amounts(\"expense,amount\\n\"), 0.0)\n\n    def test_short_csv_row_is_rejected(self):\n        with self.assertRaises(ValueError):\n            processor.total_amounts(\"expense,amount\\ncoffee\\n\")\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "lab-commands-after-fix",
+      "title": "Baseline passing commands and expected output",
+      "paragraphs": [
+        "After saving processor.py and test_processor.py, run the commands below. The first command checks the repaired user-boundary path. The second runs the full standard-library unittest suite. These are expected outputs, not claimed execution.",
+        "If the commands do not produce the expected result, preserve the exact files, command, Python version, and traceback. Do not infer that the repair worked."
+      ],
+      "code": {
+        "language": "shell",
+        "label": "repaired_commands.sh",
+        "code": "python -c \"import processor; print(processor.total_amounts(\\\"\\\"\\\"expense,amount\ncoffee,\nrefund,0\nmeal,2.50\n\\\"\\\"\\\"))\"\npython -m unittest -v test_processor.py\n# Expected first output: 2.5\n# Expected test status: Ran 10 tests ... OK"
+      }
+    },
+    {
+      "id": "lab-boundaries-task",
+      "title": "Changed-input learner task",
+      "paragraphs": [
+        "Work independently before reading the answer key. Change only the CSV_TEXT in a copy of broken_reproducer.py so it contains the following four data rows. Predict the result for each row, identify the first row that stops the total, and state whether each value is a missing value, valid zero, invalid nonfinite value, or malformed text. Then run the repaired implementation locally with no network and record the exact output or traceback. Do not replace an exception with a guessed total.",
+        "Changed input: expense,amount, then coffee,0, then refund,-inf, then meal,null, then charge,oops. Use a triple-quoted multiline fixture, not literal backslash-n text. Trace each decision to the contract and to the specific parse_amount branch. If the run stops at -inf, explain how you would make a second isolated check for oops without changing the fixture.",
+        "The learner's record should contain the command, Python version, file hash or reviewed file contents, exact result, and a short decision table. This supports repeatability and makes a later provider-neutral review possible."
+      ],
+      "code": {
+        "language": "python",
+        "label": "changed_input_reproducer.py",
+        "code": "import processor\n\n\nCSV_TEXT = \"\"\"expense,amount\ncoffee,0\nrefund,-inf\nmeal,null\ncharge,oops\n\"\"\"\n\nprint(processor.total_amounts(CSV_TEXT))\n"
+      }
+    },
+    {
+      "id": "lab-boundaries-answer",
+      "title": "Changed-input answer key",
+      "paragraphs": [
+        "The expected decisions are: 0 becomes 0.0 and is retained; -inf reaches the finite-value check and raises ValueError; null would become None if reached; and oops would raise ValueError if reached. Because total_amounts processes rows in order, the changed run stops at the second data row, -inf, before it can process the later rows.",
+        "The correct isolated follow-up checks are the commands below. The first should print None. The second should raise a ValueError traceback. These are expected outcomes to verify locally, not claimed execution.",
+        "A correct decision table is: 0 -> valid zero -> 0.0; -inf -> nonfinite numeric boundary -> ValueError; null -> missing -> None; oops -> malformed nonempty text -> ValueError. No row should be silently converted to zero except the literal numeric input 0."
+      ],
+      "code": {
+        "language": "shell",
+        "label": "answer_key_commands.sh",
+        "code": "python -c \"import processor; print(processor.parse_amount('null'))\"\n# Expected: None\n\npython -c \"import processor; processor.parse_amount('oops')\"\n# Expected: a ValueError traceback\n\npython changed_input_reproducer.py\n# Expected: a ValueError traceback ending with: ValueError: amount must be finite"
+      }
+    },
+    {
       "id": "verify-bug-fix",
       "title": "Expected evidence and verification",
       "paragraphs": [
         "Expected evidence includes the redacted trace, exact environment, minimized reproducer, first divergence, rejected hypotheses, root-cause explanation, failing-then-passing regression, reviewed diff, relevant suite, and user-boundary result.",
-        "Stop if reproduction needs protected production data, the AI proposes unrelated cleanup, the failure is nondeterministic without containment, or a write outcome is unknown. Restore the bounded change or configuration, reconcile affected state, keep the reproducer, and resume only with a safer test boundary."
+        "Stop if reproduction needs protected production data, the AI proposes unrelated cleanup, the failure is nondeterministic without containment, or a write outcome is unknown. Restore the bounded change or configuration, reconcile affected state, keep the reproducer, and resume only with a safer test boundary.",
+        "For this offline lab, verify the user boundary by checking that an input with a missing amount completes and returns the documented total, that a literal zero is not treated as missing, and that malformed, nonfinite, bool, and malformed-row inputs produce explicit errors. Repeat the commands from a clean directory or recorded commit. If results differ, preserve the exact files, command, Python version, and traceback rather than inferring a cause.",
+        "Recovery is bounded: restore the original implementation or revert the local change, retain the synthetic reproducer and regression test, and remove no data because the lab has no production or API access. Git bisect is appropriate only when multiple commits and a reliable pass/fail test exist. Source: https://git-scm.com/docs/git-bisect.",
+        "Transfer this workflow across provider-neutral tools by requesting facts, hypotheses, discriminating checks, and a patch constrained to the named files. Treat every generated command, traceback interpretation, and suggested default as untrusted until a local test or inspected source supports it. Branding is not evidence."
       ]
     }
   ],
@@ -76,6 +236,48 @@
       "url": "https://csrc.nist.gov/pubs/sp/800/218/final",
       "publisher": "NIST",
       "lastVerified": "2026-07-26"
+    },
+    {
+      "title": "Built-in exceptions: ValueError",
+      "url": "https://docs.python.org/3/library/exceptions.html#ValueError",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "traceback: Print or retrieve a stack traceback",
+      "url": "https://docs.python.org/3/library/traceback.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "csv.reader",
+      "url": "https://docs.python.org/3/library/csv.html#csv.reader",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "csv module examples",
+      "url": "https://docs.python.org/3/library/csv.html#examples",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Built-in function float",
+      "url": "https://docs.python.org/3/library/functions.html#float",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "unittest: Unit testing framework",
+      "url": "https://docs.python.org/3/library/unittest.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "unittest basic example",
+      "url": "https://docs.python.org/3/library/unittest.html#basic-example",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
     }
   ]
 }

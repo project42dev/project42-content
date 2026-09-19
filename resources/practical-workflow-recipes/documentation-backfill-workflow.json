@@ -34,15 +34,20 @@
       "title": "Inventory evidence and authority",
       "paragraphs": [
         "List the missing decisions, setup, interfaces, operations, troubleshooting, and recovery information by audience. Gather source code, public contracts, schemas, tests, configuration templates, release notes, issue and decision history, runtime output, and current first-party dependency documentation.",
-        "Label facts, inferred behavior, recommendations, unknowns, and volatile external claims separately. Code can reveal current behavior but not always intent, support policy, safety, or the reason for a decision."
-      ]
+        "Label facts, inferred behavior, recommendations, unknowns, and volatile external claims separately. Code can reveal current behavior but not always intent, support policy, safety, or the reason for a decision.",
+        "For this worked case, the evidence inventory is: E1, the supplied implementation file backfill_tool.py; E2, the supplied unittest file test_backfill_tool.py; E3, the supplied configuration file config.json; E4, the deliberately stale README.stale.md; E5, the conflicting history note HISTORY.txt; and E6, the observed outputs specified by the reproducible walkthrough. E1 through E5 are supplied exercise artifacts. E6 must be produced by the learner's own local run and must not be represented as an execution performed by this guide.",
+        "The evidence is limited to a miniature offline tool. It does not establish production support, security properties, deployment behavior, a minimum Python version, an operational owner, or a release policy."
+      ],
+      "callout": "Evidence labels used below: FACT means directly stated by an exercise file or directly observable from the supplied implementation and tests. INFERENCE means a reasoned conclusion that is not directly stated. RECOMMENDATION means proposed documentation or process. UNKNOWN means the supplied evidence does not establish the claim."
     },
     {
       "id": "draft-and-test",
       "title": "Draft a reproducible path and test it cold",
       "paragraphs": [
         "Ask AI to map every material claim to evidence and to flag conflicts instead of resolving them silently. Write prerequisites, supported scope, steps, expected results, failure meanings, verification, recovery, owner, and review date.",
-        "Have a reviewer who did not write the draft follow it in a safe environment. Convert every ambiguity, missing prerequisite, wrong assumption, and stale link into a correction or tracked gap."
+        "Have a reviewer who did not write the draft follow it in a safe environment. Convert every ambiguity, missing prerequisite, wrong assumption, and stale link into a correction or tracked gap.",
+        "The worked case deliberately separates documentation from execution. Copy every named file into one directory, use only the Python standard library, run the exact commands in the walkthrough, and compare stdout, stderr, and exit status. A successful comparison made by a learner is evidence for that local run only.",
+        "The tool has no model API, production connection, network operation, secret access, or write operation outside the configuration and test temporary directories. Do not add those capabilities while reproducing the exercise."
       ],
       "code": {
         "language": "text",
@@ -51,11 +56,144 @@
       }
     },
     {
+      "id": "worked-case-files",
+      "title": "Worked case files",
+      "paragraphs": [
+        "Create the following five files in one empty directory. The Python files are complete executable files. The JSON, Markdown, and history files are data or documentation fixtures. Do not paste shell commands into a Python file.",
+        "The implementation is intentionally small. It accepts --help and --version, or a greet command that requires --config and one strict name. Configuration must contain exactly the prefix and version keys, with version 1.2.0. The tool prints a greeting on success and writes diagnostics to stderr on failure."
+      ],
+      "code": {
+        "language": "python",
+        "label": "backfill_tool.py",
+        "code": "#!/usr/bin/env python3\nimport json\nimport re\nimport sys\n\nVERSION = \"1.2.0\"\nUSAGE = \"\"\"Usage:\n  python backfill_tool.py --help\n  python backfill_tool.py --version\n  python backfill_tool.py --config PATH greet NAME\n\nCommands:\n  greet NAME  Print a greeting for NAME.\n\nOptions:\n  --config PATH  JSON configuration file used by greet.\n  --help         Show this help text.\n  --version      Show the tool version.\n\nNAME must start with a letter and contain only letters, digits, underscore, or hyphen.\nThe configuration must contain exactly prefix and version, with version 1.2.0.\n\"\"\"\nNAME_PATTERN = re.compile(r\"[A-Za-z][A-Za-z0-9_-]*\\Z\")\n\n\ndef fail(message):\n    sys.stderr.write(\"error: \" + message + \"\\n\")\n    return 2\n\n\ndef read_config(path):\n    try:\n        with open(path, \"r\", encoding=\"utf-8\") as handle:\n            data = json.load(handle)\n    except (OSError, json.JSONDecodeError):\n        return None, \"cannot read config: \" + path\n    if not isinstance(data, dict) or set(data) != {\"prefix\", \"version\"}:\n        return None, \"config must contain exactly prefix and version\"\n    if not isinstance(data[\"prefix\"], str) or not data[\"prefix\"]:\n        return None, \"config prefix must be a non-empty string\"\n    if data[\"version\"] != VERSION:\n        return None, \"config version must be \" + VERSION\n    return data, None\n\n\ndef main(argv):\n    if argv == [\"--help\"]:\n        sys.stdout.write(USAGE)\n        return 0\n    if argv == [\"--version\"]:\n        sys.stdout.write(\"backfill-tool \" + VERSION + \"\\n\")\n        return 0\n    if len(argv) != 4 or argv[0] != \"--config\" or argv[2] != \"greet\":\n        return fail(\"expected --config PATH greet NAME; use --help\")\n    config, error = read_config(argv[1])\n    if error:\n        return fail(error)\n    name = argv[3]\n    if not NAME_PATTERN.fullmatch(name):\n        return fail(\"NAME must start with a letter and contain only letters, digits, underscore, or hyphen\")\n    sys.stdout.write(config[\"prefix\"] + \", \" + name + \"!\\n\")\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main(sys.argv[1:]))\n"
+      },
+      "callout": "The implementation itself does not prove why the interface was chosen. That intent remains UNKNOWN unless a reliable decision record supplies it."
+    },
+    {
+      "id": "worked-case-config",
+      "title": "Worked case configuration fixture",
+      "paragraphs": [
+        "Save this file as config.json beside backfill_tool.py. It is a valid configuration fixture for the documented version. The exact-key rule means adding an undocumented key is a deliberate negative case."
+      ],
+      "code": {
+        "language": "json",
+        "label": "config.json",
+        "code": "{\n  \"prefix\": \"Hello\",\n  \"version\": \"1.2.0\"\n}\n"
+      }
+    },
+    {
+      "id": "worked-case-stale-readme",
+      "title": "Worked case stale README fixture",
+      "paragraphs": [
+        "Save this file as README.stale.md. It contains claims that the evidence inventory must detect as stale or unsupported. In particular, it names the old hello command, the old configuration key, and an unsupported version and owner."
+      ],
+      "code": {
+        "language": "text",
+        "label": "README.stale.md",
+        "code": "# Backfill tool\n\nRun `python backfill_tool.py --config config.json hello Ada`.\n\nThe configuration uses a `greeting` key. The current version is 1.0.0.\n\nFor help, contact the operations team.\n"
+      }
+    },
+    {
+      "id": "worked-case-history",
+      "title": "Worked case conflicting history fixture",
+      "paragraphs": [
+        "Save this file as HISTORY.txt. It conflicts with the stale README about the command and version, but it also makes an owner claim that the implementation cannot establish. Preserve the supported behavior facts without silently promoting the owner note to a confirmed owner."
+      ],
+      "code": {
+        "language": "text",
+        "label": "HISTORY.txt",
+        "code": "2025-11-03: The command was renamed from hello to greet.\n2025-11-03: Configuration key greeting was replaced by prefix.\n2025-11-03: Release 1.2.0 changed the output to '<prefix>, <name>!'.\n2025-11-03: The documentation owner is docs-team.\n"
+      }
+    },
+    {
+      "id": "worked-case-tests",
+      "title": "Worked case standard-library tests",
+      "paragraphs": [
+        "Save this file as test_backfill_tool.py. It invokes the actual implementation through the current Python interpreter, captures stdout, stderr, and exit status, and tests both positive and negative behavior. It does not use a shell, network, model API, production service, or secret."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_backfill_tool.py",
+        "code": "import json\nimport subprocess\nimport sys\nimport tempfile\nimport unittest\nfrom pathlib import Path\n\n\nROOT = Path(__file__).resolve().parent\nTOOL = ROOT / \"backfill_tool.py\"\n\n\nclass BackfillToolTests(unittest.TestCase):\n    def run_tool(self, *args):\n        return subprocess.run(\n            [sys.executable, str(TOOL), *args],\n            cwd=ROOT,\n            text=True,\n            capture_output=True,\n            check=False,\n        )\n\n    def write_config(self, directory, value):\n        path = directory / \"config.json\"\n        path.write_text(json.dumps(value), encoding=\"utf-8\")\n        return path\n\n    def test_help(self):\n        result = self.run_tool(\"--help\")\n        self.assertEqual(result.returncode, 0)\n        self.assertEqual(result.stderr, \"\")\n        self.assertIn(\"python backfill_tool.py --config PATH greet NAME\", result.stdout)\n\n    def test_version(self):\n        result = self.run_tool(\"--version\")\n        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, \"backfill-tool 1.2.0\\n\", \"\"))\n\n    def test_greet(self):\n        with tempfile.TemporaryDirectory() as name:\n            path = self.write_config(Path(name), {\"prefix\": \"Hello\", \"version\": \"1.2.0\"})\n            result = self.run_tool(\"--config\", str(path), \"greet\", \"Ada\")\n        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, \"Hello, Ada!\\n\", \"\"))\n\n    def test_missing_config_is_failure(self):\n        result = self.run_tool(\"--config\", \"missing.json\", \"greet\", \"Ada\")\n        self.assertEqual((result.returncode, result.stdout, result.stderr), (2, \"\", \"error: cannot read config: missing.json\\n\"))\n\n    def test_extra_config_key_is_failure(self):\n        with tempfile.TemporaryDirectory() as name:\n            path = self.write_config(Path(name), {\"prefix\": \"Hello\", \"version\": \"1.2.0\", \"extra\": True})\n            result = self.run_tool(\"--config\", str(path), \"greet\", \"Ada\")\n        self.assertEqual((result.returncode, result.stdout, result.stderr), (2, \"\", \"error: config must contain exactly prefix and version\\n\"))\n\n    def test_invalid_name_is_failure(self):\n        with tempfile.TemporaryDirectory() as name:\n            path = self.write_config(Path(name), {\"prefix\": \"Hello\", \"version\": \"1.2.0\"})\n            result = self.run_tool(\"--config\", str(path), \"greet\", \"Ada Smith\")\n        self.assertEqual((result.returncode, result.stdout, result.stderr), (2, \"\", \"error: NAME must start with a letter and contain only letters, digits, underscore, or hyphen\\n\"))\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "changed-input-task",
+      "title": "Independent changed-input task",
+      "paragraphs": [
+        "Do this task before reading the answer key. Start from the five supplied files and make a copy of config.json named config-broken.json. Change only the value of version from 1.2.0 to 1.3.0. Do not change the implementation, tests, README.stale.md, or HISTORY.txt.",
+        "Identify which README claims are stale before running the changed-input command. The old command hello is contradicted by E1 and E5. The old greeting key is contradicted by E1 and E3. The README version 1.0.0 is contradicted by E1, E3, and E5. The owner claim remains UNKNOWN because neither implementation nor history is sufficient to establish the authoritative owner.",
+        "Preserve supported facts before the key task: the executable filename, the greet command, the required config path, the exact keys prefix and version, the strict name shape, the version 1.2.0 accepted by the implementation, and the successful output shape. The changed input must not cause those supported facts to be rewritten.",
+        "Run the changed-input command with config-broken.json. Record the exact stdout, stderr, and exit status. Diagnose the failure as a configuration version mismatch, not as proof that the command was renamed or that the documentation owner changed. Then recover by restoring version 1.2.0 in a new file named config-recovered.json and rerun the same greet command.",
+        "Expected changed-input result: stdout is empty, stderr is `error: config version must be 1.2.0` followed by a newline, and exit status is 2. Expected recovery result: stdout is `Hello, Ada!` followed by a newline, stderr is empty, and exit status is 0. These are expected results derived from E1 and are not claims that this guide executed the commands."
+      ],
+      "callout": "The task is about changed behavior input, not arbitrary arithmetic. A changed version value must be traced to the implementation's validation rule and must not erase still-supported interface facts."
+    },
+    {
+      "id": "answer-key",
+      "title": "Changed-input answer key and conflict limits",
+      "paragraphs": [
+        "A correct answer marks the stale README claims as stale or unsupported, retains the supported greet interface, and reports the changed version as a deliberate invalid configuration. It does not update the documented tool version to 1.3.0 merely because a fixture contains that value.",
+        "Conflict resolution is limited here. E1 is the strongest evidence for current executable behavior because it contains the validation and output code. E2 corroborates selected behavior with executable tests. E3 is a valid fixture for version 1.2.0. E5 records historical context and supports the rename and release statements, but it does not by itself establish current ownership or policy. E4 is explicitly stale. If two current implementation artifacts conflict, this workflow flags the conflict and stops rather than choosing silently.",
+        "The history note's docs-team owner claim is not promoted to FACT. The owner is UNKNOWN. The minimum supported Python version is UNKNOWN. Deployment, packaging, security review, compatibility guarantees, and production support are UNKNOWN. The local exercise is intentionally narrower than those questions."
+      ],
+      "callout": "A reviewer may resolve an ownership conflict only with additional authoritative evidence, such as a maintained ownership record or an approved project decision. No such evidence is supplied here."
+    },
+    {
+      "id": "corrected-readme",
+      "title": "Corrected short README",
+      "paragraphs": [
+        "Use this corrected README as the rendered documentation for the supplied exercise. It states exact setup, command, result, error, recovery, version, and owner information. It labels unsupported operational details as UNKNOWN instead of filling them with guesses."
+      ],
+      "code": {
+        "language": "text",
+        "label": "README.md",
+        "code": "# Backfill tool\n\n## Setup\n\nUse Python 3 with its standard library. The exact minimum Python version is UNKNOWN. Put `backfill_tool.py` and `config.json` in the same directory. No package installation, network access, service, model API, or secret is required.\n\n## Version\n\nThe supplied implementation reports version `1.2.0`:\n\n```text\nbackfill-tool 1.2.0\n```\n\n## Command\n\n```text\npython backfill_tool.py --config config.json greet Ada\n```\n\nExpected result, with exit status 0, is:\n\n```text\nHello, Ada!\n```\n\nStandard output contains the result. Standard error is empty.\n\n## Errors and recovery\n\nA missing, malformed, or invalid configuration writes an error to standard error and exits with status 2. For example, a configuration whose version is not `1.2.0` produces:\n\n```text\nerror: config version must be 1.2.0\n```\n\nRestore the configuration to exactly the keys `prefix` and `version`, set `version` to `1.2.0`, and rerun the command. A name must start with a letter and contain only letters, digits, underscore, or hyphen. Do not use an unverified `hello` command or a `greeting` configuration key.\n\n## Verification\n\nRun the supplied tests with:\n\n```text\npython -m unittest -v test_backfill_tool.py\n```\n\nThe exact test-runner formatting can vary by Python version. The tests must pass with no test failures or errors.\n\n## Owner and support\n\nDocumentation owner: UNKNOWN.\nMinimum supported Python version: UNKNOWN.\nDeployment, production support, and security guarantees: UNKNOWN.\n"
+      }
+    },
+    {
+      "id": "cold-reader-walkthrough",
+      "title": "Cold-reader reproducible walkthrough",
+      "paragraphs": [
+        "A cold reader should begin in the directory containing backfill_tool.py, test_backfill_tool.py, config.json, README.stale.md, and HISTORY.txt. The instructions below use Python's interpreter and unittest module directly. They do not require shell syntax inside any Python file.",
+        "First inspect help with `python backfill_tool.py --help`. Expected exit status is 0, stdout is the complete help text beginning with `Usage:`, and stderr is empty. The help text must contain `python backfill_tool.py --config PATH greet NAME`. Do not treat a substring check as a behavior test: the supplied unittest also exercises the actual command and captures both streams.",
+        "Next run `python backfill_tool.py --config config.json greet Ada`. Expected exit status is 0, stdout is exactly `Hello, Ada!` followed by one newline, and stderr is empty. This tests the actual configured greeting rather than checking whether words exist in a README.",
+        "Run the deliberate failure `python backfill_tool.py --config missing.json greet Ada`. Expected exit status is 2, stdout is empty, and stderr is exactly `error: cannot read config: missing.json` followed by one newline. Diagnose this as a missing configuration path. Recovery is to use the supplied config.json or create a valid configuration with exactly the required keys, then rerun the successful command.",
+        "Run `python -m unittest -v test_backfill_tool.py`. Expected behavior is that all six supplied tests pass. Verbose test-runner labels and summary formatting may vary by Python version, so the authoritative checks are the test assertions, zero failures, and zero errors. This is a runnable standard-library check, not a claim that execution has already occurred.",
+        "Finally perform the changed-input task before consulting its answer key. Record stdout, stderr, and exit status for both the invalid-version run and the recovered run. If an observed result differs from the expected result, stop and investigate the implementation, file contents, interpreter, or command transcription. Do not silently revise the README."
+      ],
+      "callout": "Expected output is a reproducibility target based on the supplied files. This artifact makes no claim that the commands were executed while drafting."
+    },
+    {
+      "id": "evidence-claim-map",
+      "title": "Completed claim-to-evidence map",
+      "paragraphs": [
+        "The following map separates the type of each material claim and identifies the evidence that supports it. A classification is not stronger than its cited evidence.",
+        "FACT: backfill_tool.py supports --help and --version. Evidence: E1, with corroboration for version output in E2.",
+        "FACT: the supported command shape is `--config PATH greet NAME`. Evidence: E1 help text and argument validation, E2 help and greeting tests.",
+        "FACT: a valid configuration contains exactly prefix and version, and the accepted version in the supplied implementation is 1.2.0. Evidence: E1 validation, E2 valid and extra-key tests, E3 fixture.",
+        "FACT: a successful Ada run with E3 produces `Hello, Ada!` on stdout and no stderr, with exit status 0. Evidence: E1 output code and E2 greeting assertion. A learner's local execution is additional E6 evidence.",
+        "FACT: missing or unreadable configuration and invalid inputs return exit status 2 and write a diagnostic to stderr. Evidence: E1 fail function and E2 negative tests.",
+        "FACT: the stale README claims hello, greeting, version 1.0.0, and an operations-team contact. Evidence: E4.",
+        "FACT: the history note records the rename to greet, replacement of greeting by prefix, release 1.2.0, and a docs-team owner statement. Evidence: E5.",
+        "INFERENCE: E1 is the strongest supplied evidence for behavior at the time of this exercise because it is the executable implementation. Basis: direct inspection of E1, with partial corroboration from E2.",
+        "INFERENCE: E4 should not be used as current interface documentation. Basis: its command, key, and version conflict with E1, E2, and E3.",
+        "INFERENCE: E5 explains the historical reason for some stale claims but does not establish present ownership. Basis: E5 is a history note and no authoritative ownership record is supplied.",
+        "RECOMMENDATION: publish README.md rather than README.stale.md, include exact stream and status behavior, and retain UNKNOWN labels for owner and minimum runtime. Basis: the documentation contract, E1 through E5, and the cold-reader requirement.",
+        "RECOMMENDATION: require a reviewer who did not write the draft to run the commands in an isolated directory and review every material claim. Basis: the workflow's original draft-and-test paragraph and the supplied exercise acceptance criteria.",
+        "UNKNOWN: the exact minimum Python version, deployment method, production support status, security guarantees, package/release process, and authoritative documentation owner. Evidence status: no supplied artifact establishes these claims.",
+        "UNKNOWN: whether the historical docs-team note remains approved today. Evidence status: E5 records history but supplies no current ownership authority.",
+        "UNKNOWN: any behavior not exercised or implemented by the supplied files, including concurrent use, installation, logging policy, and production recovery. Evidence status: out of scope of E1 through E5."
+      ]
+    },
+    {
       "id": "verify-backfill",
       "title": "Expected evidence and verification",
       "paragraphs": [
         "Expected evidence includes the gap inventory, audience, source map, claim classifications, conflicts and unknowns, reviewed draft, cold-reader results, checked commands and links, supported-version statement, owner, and review cadence.",
-        "Stop when documentation would expose a secret, require an unsafe production experiment, or present an inference as supported fact. Remove or label the unsupported claim, restore the prior published version if necessary, and retain the unresolved gap as explicit tracked work."
+        "Stop when documentation would expose a secret, require an unsafe production experiment, or present an inference as supported fact. Remove or label the unsupported claim, restore the prior published version if necessary, and retain the unresolved gap as explicit tracked work.",
+        "For this exercise, verification is complete only when the learner has the named files, has run the actual help, success, failure, recovery, and unittest commands, has recorded exact stdout, stderr, and exit statuses, and has reconciled the stale README and history note without inventing ownership or runtime support.",
+        "The workflow is provider-neutral. The same evidence inventory, claim classifications, conflict limits, cold-reader test, and recovery rules apply whether drafting is done manually or with an AI assistant. The assistant must not be treated as evidence."
       ]
     }
   ],
