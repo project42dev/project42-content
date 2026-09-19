@@ -24,7 +24,11 @@
       "title": "A model call produces an output",
       "paragraphs": [
         "A model can generate an answer, plan, or tool-call proposal without controlling an executable loop. The caller still decides what happens next.",
-        "Tool-call syntax describes a requested action. An authorized runtime must validate arguments, resolve the target, execute or refuse the call, and return evidence."
+        "Tool-call syntax describes a requested action. An authorized runtime must validate arguments, resolve the target, execute or refuse the call, and return evidence.",
+        "Worked case: inspect a supplied order. If its total is at least 100 USD and notification is permitted, notify the customer. Otherwise archive the order. Record feedback and stop. For order A-17, the total is 125 USD and notification is permitted, so the required action is notify_customer.",
+        "In the one-call design, the deterministic simulated model returns notify_customer as a proposal. The runtime checks its schema, checks whether the action is permitted, performs only a simulated effect, verifies the task result, and returns evidence. The caller then stops without another model call. Classification: model call with a tool proposal.",
+        "Control mapping: the caller controls whether a call occurs and when the design stops; the simulated model supplies one proposal; the runtime owns schema validation, authorization, execution, and task verification; feedback is the runtime result; state consists of the order, proposal, simulated effect, and evidence. Generated syntax alone does not authorize or prove an effect.",
+        "The supplied Python labels every generated result as SIMULATION. It uses a deterministic function as a representation of the model-output boundary. It does not make a paid model call, use a network, require an account, or demonstrate that a real model controls a deployed system."
       ]
     },
     {
@@ -32,15 +36,32 @@
       "title": "A deterministic workflow follows predefined transitions",
       "paragraphs": [
         "Code or configuration selects the next step in a deterministic workflow. A model may generate or classify inside a step while the workflow remains the controller.",
-        "Deterministic does not mean perfectly predictable output. It means the executable path and transition authority are defined outside the model."
-      ]
+        "Deterministic does not mean perfectly predictable output. It means the executable path and transition authority are defined outside the model.",
+        "In the worked case, the workflow loads an order, obtains a simulated priority result, and applies a fixed mapping. High maps to notify_customer. Normal maps to archive_order. Code then invokes the runtime, checks the task result, records evidence, and stops.",
+        "Control mapping: code is the controller and transition authority; the simulated model result is data consumed by a fixed branch; the runtime authorizes and executes the selected action; feedback is notification_sent or order_archived; state records the order, priority, action, effect, and verification result; stopping follows a fixed completion or error branch.",
+        "The runtime distinguishes safety authorization from task correctness. For example, archive_order is on the safety allowlist, but archiving an eligible A-17 order would violate this task. The separate task verifier therefore rejects that result as task_requirement_failed rather than marking the run successful.",
+        "For the declared requirement, the deterministic workflow is the least-complex suitable design. The threshold, permission test, action mapping, verification rule, and stop condition are all explicit and bounded. No requirement calls for the model to adaptively choose a new step from feedback.",
+        "Save the following code as control_flow_offline.py and run it with a standard Python 3 interpreter. The code contains assertions. If an assertion fails, Python reports an error instead of printing the expected demonstration."
+      ],
+      "code": {
+        "language": "python",
+        "label": "control_flow_offline.py",
+        "code": "import json\n\n# Offline fictional fixtures. No live order, message, or archive is accessed.\nFIXTURES = {\n    \"normal\": {\"order_id\": \"A-17\", \"total\": 125, \"currency\": \"USD\", \"notify\": True},\n    \"below_threshold\": {\"order_id\": \"B-03\", \"total\": 80, \"currency\": \"USD\", \"notify\": True},\n    \"notify_false\": {\"order_id\": \"C-09\", \"total\": 125, \"currency\": \"USD\", \"notify\": False},\n    \"unauthorized_action\": {\"order_id\": \"A-17\", \"total\": 125, \"currency\": \"USD\", \"notify\": True},\n    \"invalid_proposal\": {\"order_id\": \"A-17\", \"total\": 125, \"currency\": \"USD\", \"notify\": True},\n    \"exhausted_budget\": {\"order_id\": \"A-17\", \"total\": 125, \"currency\": \"USD\", \"notify\": True},\n    \"malformed_none\": {\"order_id\": \"A-17\", \"total\": 125, \"currency\": \"USD\", \"notify\": True},\n    \"malformed_list\": {\"order_id\": \"A-17\", \"total\": 125, \"currency\": \"USD\", \"notify\": True},\n    \"malformed_string\": {\"order_id\": \"A-17\", \"total\": 125, \"currency\": \"USD\", \"notify\": True},\n    \"malformed_integer\": {\"order_id\": \"A-17\", \"total\": 125, \"currency\": \"USD\", \"notify\": True},\n    \"missing_action\": {\"order_id\": \"A-17\", \"total\": 125, \"currency\": \"USD\", \"notify\": True},\n    \"wrong_but_permitted\": {\"order_id\": \"A-17\", \"total\": 125, \"currency\": \"USD\", \"notify\": True}\n}\n\n# SIMULATION: deterministic scripted output at the model-response boundary.\n# This function makes no provider call and uses no network or account.\ndef simulated_model(design, scenario, state):\n    if design == \"one_call\":\n        action = \"notify_customer\" if state[\"total\"] >= 100 and state[\"notify\"] else \"archive_order\"\n        return {\"action\": action}\n    if design == \"workflow\":\n        priority = \"high\" if state[\"total\"] >= 100 and state[\"notify\"] else \"normal\"\n        return {\"priority\": priority}\n    if design == \"agent\":\n        scripted = {\n            \"unauthorized_action\": {\"action\": \"delete_customer\"},\n            \"invalid_proposal\": {\"action\": \"not-valid\"},\n            \"malformed_none\": None,\n            \"malformed_list\": [\"notify_customer\"],\n            \"malformed_string\": \"notify_customer\",\n            \"malformed_integer\": 7,\n            \"missing_action\": {},\n            \"wrong_but_permitted\": {\"action\": \"archive_order\"},\n            \"exhausted_budget\": {\"action\": \"inspect_order\"}\n        }\n        if scenario in scripted:\n            return scripted[scenario]\n        if state[\"status\"] in {\"notified\", \"archived\"}:\n            return {\"action\": \"stop\"}\n        action = \"notify_customer\" if state[\"total\"] >= 100 and state[\"notify\"] else \"archive_order\"\n        return {\"action\": action}\n    raise ValueError(\"unknown design\")\n\n\ndef required_action(order):\n    if order[\"currency\"] != \"USD\":\n        raise ValueError(\"fixture currency must be USD\")\n    return \"notify_customer\" if order[\"total\"] >= 100 and order[\"notify\"] else \"archive_order\"\n\n\ndef validate_proposal(proposal):\n    if not isinstance(proposal, dict):\n        return False, \"invalid_proposal_shape\"\n    if \"action\" not in proposal:\n        return False, \"missing_action\"\n    if not isinstance(proposal[\"action\"], str):\n        return False, \"invalid_action_type\"\n    if not proposal[\"action\"].isidentifier():\n        return False, \"invalid_action_name\"\n    return True, \"proposal_shape_valid\"\n\n\ndef display_proposal(proposal):\n    if isinstance(proposal, dict) and \"action\" in proposal:\n        return str(proposal[\"action\"])\n    if isinstance(proposal, dict):\n        return \"<missing>\"\n    return json.dumps(proposal, separators=(\",\", \":\"))\n\n\ndef execute(action, order, effects):\n    allowed = {\"notify_customer\", \"archive_order\", \"inspect_order\", \"stop\"}\n    if action not in allowed:\n        return {\"ok\": False, \"feedback\": \"unauthorized_action\", \"evidence\": \"policy_denied\"}\n    if action == \"notify_customer\":\n        if order[\"total\"] < 100 or order[\"notify\"] is not True:\n            return {\"ok\": False, \"feedback\": \"notification_not_permitted\", \"evidence\": \"policy_denied\"}\n        effect = \"simulated_notification:\" + order[\"order_id\"]\n        effects.append(effect)\n        return {\"ok\": True, \"feedback\": \"notification_sent\", \"evidence\": \"simulated_receipt\"}\n    if action == \"archive_order\":\n        effect = \"simulated_archive:\" + order[\"order_id\"]\n        effects.append(effect)\n        return {\"ok\": True, \"feedback\": \"order_archived\", \"evidence\": \"simulated_archive_receipt\"}\n    if action == \"inspect_order\":\n        return {\"ok\": True, \"feedback\": \"inspection_complete\", \"evidence\": \"simulated_inspection\"}\n    return {\"ok\": True, \"feedback\": \"complete\", \"evidence\": \"terminal\"}\n\n\ndef verify_task(action, order):\n    if action == required_action(order):\n        return {\"ok\": True, \"feedback\": \"task_requirement_satisfied\"}\n    return {\"ok\": False, \"feedback\": \"task_requirement_failed\"}\n\n\ndef one_call(scenario):\n    order = FIXTURES[scenario]\n    effects = []\n    proposal = simulated_model(\"one_call\", scenario, order)\n    valid, validation = validate_proposal(proposal)\n    if not valid:\n        return {\n            \"proposal\": proposal,\n            \"validation\": validation,\n            \"action\": display_proposal(proposal),\n            \"result\": {\"ok\": False, \"feedback\": validation, \"evidence\": \"not_executed\"},\n            \"task_ok\": False,\n            \"effects\": effects,\n            \"classification\": \"model call with tool proposal\"\n        }\n    action = proposal[\"action\"]\n    result = execute(action, order, effects)\n    verification = verify_task(action, order) if result[\"ok\"] else {\"ok\": False, \"feedback\": \"execution_failed\"}\n    return {\n        \"proposal\": proposal,\n        \"validation\": validation,\n        \"action\": action,\n        \"result\": result,\n        \"task_ok\": verification[\"ok\"],\n        \"effects\": effects,\n        \"classification\": \"model call with tool proposal\"\n    }\n\n\ndef deterministic_workflow(scenario):\n    order = FIXTURES[scenario]\n    effects = []\n    model_result = simulated_model(\"workflow\", scenario, order)\n    action = \"notify_customer\" if model_result[\"priority\"] == \"high\" else \"archive_order\"\n    result = execute(action, order, effects)\n    verification = verify_task(action, order) if result[\"ok\"] else {\"ok\": False, \"feedback\": \"execution_failed\"}\n    return {\n        \"model_result\": model_result,\n        \"action\": action,\n        \"result\": result,\n        \"task_ok\": verification[\"ok\"],\n        \"effects\": effects,\n        \"classification\": \"deterministic workflow\"\n    }\n\n\ndef bounded_agent(scenario, budget):\n    order = FIXTURES[scenario]\n    effects = []\n    state = {\n        \"status\": \"order_loaded\",\n        \"total\": order[\"total\"],\n        \"notify\": order[\"notify\"]\n    }\n    trace = []\n    for step in range(1, budget + 1):\n        observed = state[\"status\"]\n        proposal = simulated_model(\"agent\", scenario, {**order, **state})\n        valid, validation = validate_proposal(proposal)\n        choice = display_proposal(proposal)\n        if not valid:\n            trace.append({\n                \"kind\": \"step\", \"step\": step, \"observe\": observed,\n                \"choose\": choice, \"authority\": \"runtime-deny\",\n                \"feedback\": validation, \"state\": \"stop_with_error\"\n            })\n            return {\"trace\": trace, \"effects\": effects, \"task_ok\": False}\n        action = proposal[\"action\"]\n        result = execute(action, order, effects)\n        if not result[\"ok\"]:\n            trace.append({\n                \"kind\": \"step\", \"step\": step, \"observe\": observed,\n                \"choose\": action, \"authority\": \"runtime-deny\",\n                \"feedback\": result[\"feedback\"], \"state\": \"stop_with_error\"\n            })\n            return {\"trace\": trace, \"effects\": effects, \"task_ok\": False}\n        if action == \"stop\":\n            complete = state[\"status\"] in {\"notified\", \"archived\"}\n            feedback = result[\"feedback\"] if complete else \"premature_stop\"\n            final_state = \"done\" if complete else \"stop_with_error\"\n            trace.append({\n                \"kind\": \"step\", \"step\": step, \"observe\": observed,\n                \"choose\": action, \"authority\": \"runtime-allow\",\n                \"feedback\": feedback, \"state\": final_state\n            })\n            return {\"trace\": trace, \"effects\": effects, \"task_ok\": complete}\n        if action in {\"notify_customer\", \"archive_order\"}:\n            verification = verify_task(action, order)\n            if not verification[\"ok\"]:\n                trace.append({\n                    \"kind\": \"step\", \"step\": step, \"observe\": observed,\n                    \"choose\": action, \"authority\": \"runtime-allow\",\n                    \"feedback\": verification[\"feedback\"], \"state\": \"stop_with_error\"\n                })\n                return {\"trace\": trace, \"effects\": effects, \"task_ok\": False}\n            state[\"status\"] = \"notified\" if action == \"notify_customer\" else \"archived\"\n        else:\n            state[\"status\"] = result[\"feedback\"]\n        trace.append({\n            \"kind\": \"step\", \"step\": step, \"observe\": observed,\n            \"choose\": action, \"authority\": \"runtime-allow\",\n            \"feedback\": result[\"feedback\"], \"state\": state[\"status\"]\n        })\n    trace.append({\n        \"kind\": \"budget\", \"budget\": budget,\n        \"feedback\": \"step_budget_exhausted\", \"recovery\": \"stop_with_error\"\n    })\n    return {\"trace\": trace, \"effects\": effects, \"task_ok\": False}\n\n\ndef print_agent_trace(run):\n    for row in run[\"trace\"]:\n        if row[\"kind\"] == \"budget\":\n            print(\"budget=%s feedback=%s recovery=%s\" % (\n                row[\"budget\"], row[\"feedback\"], row[\"recovery\"]\n            ))\n        else:\n            print(\"step=%s observe=%s choose=%s authority=%s feedback=%s state=%s\" % (\n                row[\"step\"], row[\"observe\"], row[\"choose\"], row[\"authority\"],\n                row[\"feedback\"], row[\"state\"]\n            ))\n\n\ndef show():\n    one = one_call(\"normal\")\n    print(\"ONE_CALL normal\")\n    print(\"proposal=\" + one[\"action\"])\n    print(\"runtime_validation=\" + one[\"validation\"])\n    print(\"runtime_feedback=\" + one[\"result\"][\"feedback\"])\n    print(\"task_verified=\" + str(one[\"task_ok\"]).lower())\n    print(\"classification=\" + one[\"classification\"])\n\n    workflow = deterministic_workflow(\"normal\")\n    print(\"DETERMINISTIC_WORKFLOW normal\")\n    print(\"simulated_model_priority=\" + workflow[\"model_result\"][\"priority\"])\n    print(\"code_transition=\" + workflow[\"action\"])\n    print(\"runtime_feedback=\" + workflow[\"result\"][\"feedback\"])\n    print(\"task_verified=\" + str(workflow[\"task_ok\"]).lower())\n    print(\"classification=\" + workflow[\"classification\"])\n\n    print(\"BOUNDED_AGENT normal\")\n    print_agent_trace(bounded_agent(\"normal\", 3))\n\n    negative_scenarios = (\n        \"unauthorized_action\", \"invalid_proposal\", \"malformed_none\",\n        \"malformed_list\", \"malformed_string\", \"malformed_integer\",\n        \"missing_action\", \"wrong_but_permitted\", \"exhausted_budget\"\n    )\n    for scenario in negative_scenarios:\n        print(\"BOUNDED_AGENT \" + scenario)\n        print_agent_trace(bounded_agent(scenario, 2))\n\n    print(\"CHANGED_INPUT below_threshold\")\n    one = one_call(\"below_threshold\")\n    print(\"ONE_CALL\")\n    print(\"proposal=\" + one[\"action\"])\n    print(\"runtime_feedback=\" + one[\"result\"][\"feedback\"])\n    print(\"task_verified=\" + str(one[\"task_ok\"]).lower())\n    print(\"classification=\" + one[\"classification\"])\n    workflow = deterministic_workflow(\"below_threshold\")\n    print(\"DETERMINISTIC_WORKFLOW\")\n    print(\"simulated_model_priority=\" + workflow[\"model_result\"][\"priority\"])\n    print(\"code_transition=\" + workflow[\"action\"])\n    print(\"runtime_feedback=\" + workflow[\"result\"][\"feedback\"])\n    print(\"task_verified=\" + str(workflow[\"task_ok\"]).lower())\n    print(\"classification=\" + workflow[\"classification\"])\n    print(\"BOUNDED_AGENT\")\n    print_agent_trace(bounded_agent(\"below_threshold\", 3))\n    print(\"classification_summary=least complex accurate choice is deterministic workflow for the fixed requirement\")\n\n\ndef run_assertions():\n    shared_cases = (\n        (\"normal\", \"notify_customer\", \"simulated_notification:A-17\", \"notification_sent\"),\n        (\"below_threshold\", \"archive_order\", \"simulated_archive:B-03\", \"order_archived\"),\n        (\"notify_false\", \"archive_order\", \"simulated_archive:C-09\", \"order_archived\")\n    )\n    for scenario, expected_action, expected_effect, expected_feedback in shared_cases:\n        one = one_call(scenario)\n        assert one[\"action\"] == expected_action\n        assert one[\"result\"][\"feedback\"] == expected_feedback\n        assert one[\"effects\"] == [expected_effect]\n        assert one[\"task_ok\"] is True\n\n        workflow = deterministic_workflow(scenario)\n        assert workflow[\"action\"] == expected_action\n        assert workflow[\"result\"][\"feedback\"] == expected_feedback\n        assert workflow[\"effects\"] == [expected_effect]\n        assert workflow[\"task_ok\"] is True\n\n        agent = bounded_agent(scenario, 3)\n        assert agent[\"trace\"][0][\"observe\"] == \"order_loaded\"\n        assert agent[\"trace\"][0][\"choose\"] == expected_action\n        assert agent[\"trace\"][0][\"feedback\"] == expected_feedback\n        assert agent[\"trace\"][1][\"observe\"] in {\"notified\", \"archived\"}\n        assert agent[\"trace\"][1][\"choose\"] == \"stop\"\n        assert agent[\"trace\"][1][\"state\"] == \"done\"\n        assert agent[\"effects\"] == [expected_effect]\n        assert agent[\"task_ok\"] is True\n\n    assert validate_proposal(None) == (False, \"invalid_proposal_shape\")\n    assert validate_proposal([]) == (False, \"invalid_proposal_shape\")\n    assert validate_proposal(\"notify_customer\") == (False, \"invalid_proposal_shape\")\n    assert validate_proposal(7) == (False, \"invalid_proposal_shape\")\n    assert validate_proposal({}) == (False, \"missing_action\")\n    assert validate_proposal({\"action\": 7}) == (False, \"invalid_action_type\")\n    assert validate_proposal({\"action\": \"not-valid\"}) == (False, \"invalid_action_name\")\n\n    expected_malformed = {\n        \"invalid_proposal\": \"invalid_action_name\",\n        \"malformed_none\": \"invalid_proposal_shape\",\n        \"malformed_list\": \"invalid_proposal_shape\",\n        \"malformed_string\": \"invalid_proposal_shape\",\n        \"malformed_integer\": \"invalid_proposal_shape\",\n        \"missing_action\": \"missing_action\"\n    }\n    for scenario, expected_feedback in expected_malformed.items():\n        run = bounded_agent(scenario, 2)\n        assert run[\"trace\"][0][\"feedback\"] == expected_feedback\n        assert run[\"trace\"][0][\"authority\"] == \"runtime-deny\"\n        assert run[\"effects\"] == []\n        assert run[\"task_ok\"] is False\n\n    unauthorized = bounded_agent(\"unauthorized_action\", 2)\n    assert unauthorized[\"trace\"][0][\"feedback\"] == \"unauthorized_action\"\n    assert unauthorized[\"trace\"][0][\"authority\"] == \"runtime-deny\"\n    assert unauthorized[\"effects\"] == []\n\n    wrong = bounded_agent(\"wrong_but_permitted\", 2)\n    assert wrong[\"trace\"][0][\"authority\"] == \"runtime-allow\"\n    assert wrong[\"trace\"][0][\"feedback\"] == \"task_requirement_failed\"\n    assert wrong[\"trace\"][0][\"state\"] == \"stop_with_error\"\n    assert wrong[\"effects\"] == [\"simulated_archive:A-17\"]\n    assert wrong[\"task_ok\"] is False\n\n    exhausted = bounded_agent(\"exhausted_budget\", 2)\n    assert len(exhausted[\"trace\"]) == 3\n    assert exhausted[\"trace\"][0][\"observe\"] == \"order_loaded\"\n    assert exhausted[\"trace\"][1][\"observe\"] == \"inspection_complete\"\n    assert exhausted[\"trace\"][2][\"kind\"] == \"budget\"\n    assert exhausted[\"trace\"][2][\"feedback\"] == \"step_budget_exhausted\"\n    assert exhausted[\"effects\"] == []\n\n    all_effects = []\n    for scenario, _, _, _ in shared_cases:\n        all_effects.extend(one_call(scenario)[\"effects\"])\n        all_effects.extend(deterministic_workflow(scenario)[\"effects\"])\n        all_effects.extend(bounded_agent(scenario, 3)[\"effects\"])\n    assert all(effect.startswith(\"simulated_\") for effect in all_effects)\n\n\nif __name__ == \"__main__\":\n    run_assertions()\n    show()"
+      }
     },
     {
       "id": "control-agent",
       "title": "An agent chooses among permitted next steps",
       "paragraphs": [
         "A bounded agent pursues a goal through a loop: observe state, choose an allowed action, receive feedback, update state, and continue or stop. External controls still own identity, authority, budgets, verification, and terminal outcomes.",
-        "An agentic system is the complete operating boundary around one or more agents: harness, tools, state, policy, telemetry, evaluation, approvals, recovery, and accountable people."
+        "An agentic system is the complete operating boundary around one or more agents: harness, tools, state, policy, telemetry, evaluation, approvals, recovery, and accountable people.",
+        "In the normal trace, the bounded loop observes order_loaded. The simulated model proposes notify_customer. The runtime validates and authorizes the proposal, returns notification_sent, and updates state to notified. On the next iteration, the simulated model observes notified and proposes stop. The runtime permits the terminal action and records done.",
+        "The simulated model chooses a proposed next action, but it cannot authorize that action. The unauthorized_action fixture demonstrates this separation: delete_customer is a well-shaped proposal, yet the runtime denies it because it is not on the allowlist. The invalid_proposal fixture is different: not-valid fails schema validation before policy execution.",
+        "Malformed None, list, string, integer, and missing-action outputs are injected through the bounded_agent model boundary. The loop records them safely, does not call execute, produces recovery feedback, and stops without crashing. None is used only as an explicit malformed test output, not as a sentinel for an omitted argument.",
+        "The wrong_but_permitted fixture demonstrates another boundary. archive_order is safety-allowed, so the runtime records runtime-allow, but it is incorrect for eligible order A-17. Task verification returns task_requirement_failed and prevents a successful terminal state. Because every effect in this exercise is a simulated string, this case causes no live archive.",
+        "The exhausted_budget fixture repeatedly proposes inspect_order. Step one changes state from order_loaded to inspection_complete. Step two correctly observes inspection_complete, not the original state. The runtime then records step_budget_exhausted and stops with an error after exactly two permitted iterations.",
+        "A loop by itself does not prove agentic behavior. Retries alone do not prove it either. The relevant representation in this exercise is next-action selection from observed state and returned feedback. Because the selector is a deterministic stub, the trace demonstrates the control-flow shape, not real-model autonomy or deployed behavior.",
+        "Provider-neutral transfer: the same control questions can be applied to Meta or Llama families, DeepSeek, Qwen, Mistral, Phi, NVIDIA, Z.ai, local adapters, or hosted arrangements. These names do not establish any current feature or control behavior. Without implementation, configuration, and runtime evidence, deployed behavior is UNKNOWN."
       ]
     },
     {
@@ -48,7 +69,60 @@
       "title": "Multiple calls are not multiple agents",
       "paragraphs": [
         "A multi-agent system has separately instructed or controlled agent units that coordinate, delegate, or hand off work through explicit contracts.",
-        "Parallel requests, debate prompts, or multiple models do not prove multi-agent behavior unless separate responsibilities and coordination are observable."
+        "Parallel requests, debate prompts, or multiple models do not prove multi-agent behavior unless separate responsibilities and coordination are observable.",
+        "For example, two parallel calls that both summarize the same order establish only multiple calls. Stronger multi-agent evidence would identify a summarizer unit and a verifier unit, give each a separate instruction and responsibility, define the summary and verification result schemas, and record an observable handoff rule.",
+        "An observable contract should state what one unit receives, what it may return, how another unit consumes that result, who resolves disagreement, and which runtime authorizes effects. Merely labeling two prompts as agents does not supply this evidence.",
+        "The mock traces in this lesson do not establish a deployed multi-agent system. A deployed claim would require relevant implementation, instructions, contracts, configuration, telemetry, and evaluation evidence. Where those records are unavailable, the deployed classification is UNKNOWN."
+      ]
+    },
+    {
+      "id": "control-worked-case",
+      "title": "Worked case: three designs for one requirement",
+      "paragraphs": [
+        "Requirement: inspect a supplied order fixture. If total is at least 100 USD and notification is permitted, notify the customer. Otherwise archive the order. Record feedback and stop. The normal fixture is order A-17, total 125 USD, currency USD, and notify true.",
+        "Design 1, one generated proposal: the simulated model proposes notify_customer. The caller validates the proposal, the runtime executes or refuses it, returns evidence, verifies the task result, and the caller stops. Classification: model call with a tool-call proposal.",
+        "Design 2, deterministic workflow: code loads the fixture and asks the simulated model for priority. The simulated result is high. Code applies the fixed high-to-notify_customer rule, invokes the runtime, records notification_sent, verifies success, and stops. Classification: deterministic workflow, because code owns every transition.",
+        "Design 3, bounded agent loop: the simulated model chooses notify_customer from the observed state. Runtime policy allows it and returns notification_sent. State becomes notified. The simulated model then observes that feedback-derived state and chooses stop. Runtime allows the terminal action. Classification: bounded agent-loop representation, because next-action selection occurs inside a feedback loop, although runtime controls authority, budget, verification, and terminal outcome.",
+        "Worked control map for the one-call design: controller is the caller; proposal source is the simulated model; authority is the runtime; feedback is notification_sent; state records A-17, the proposal, simulated receipt, and successful verification; stop belongs to the caller after one decision.",
+        "Worked control map for the workflow: controller and transition owner are code; the simulated model supplies high; code maps high to notify_customer; runtime authority permits the action; feedback is notification_sent; state records priority, action, effect, and verification; the fixed completion branch stops.",
+        "Worked control map for the bounded loop: the simulated selector chooses notify_customer and later stop; runtime authority validates and permits each proposal; feedback is notification_sent and then complete; state progresses from order_loaded to notified to done; the runtime budget and terminal policy bound the loop.",
+        "All three designs satisfy the same normal-case task in the supplied simulation. Only the third represents model-directed next-action selection after feedback. That extra flexibility is unnecessary for this fixed rule, so the deterministic workflow is the least-complex accurate solution."
+      ]
+    },
+    {
+      "id": "control-changed-input",
+      "title": "Changed-input task before the answer key",
+      "paragraphs": [
+        "Do this task before reading section control-answer-key. Use the supplied fixture B-03: total 80 USD, currency USD, and notify true. Apply exactly the same requirement used for A-17.",
+        "Run the saved file offline if a Python 3 interpreter is available. If you do not run it, inspect the code and label your result as a prediction from supplied code rather than locally observed execution. No network, provider account, paid call, or invented data is required.",
+        "For each of the three designs, record the simulated model output, proposed or selected action, runtime authorization result, feedback, state change, stop owner, and classification. Then compare B-03 with A-17 and select the least-complex design that satisfies the fixed requirement.",
+        "Hint 1: compare 80 with the 100 USD threshold. Hint 2: check whether notification permission can override a failed threshold test. Hint 3: in the workflow, follow the fixed priority-to-action mapping. Hint 4: in the loop, distinguish the simulated model's proposal from the runtime's authorization.",
+        "Do not infer that a changed action necessarily changes the controller. Do not open the answer key until you have written a prediction for all three designs."
+      ]
+    },
+    {
+      "id": "control-answer-key",
+      "title": "Answer key and supplied expected output",
+      "paragraphs": [
+        "Changed-input key: B-03 does not meet the 100 USD threshold, so the required action is archive_order even though notify is true. In the one-call design, the simulated proposal is archive_order and the caller stops after runtime feedback. In the workflow, the simulated priority is normal and code maps it to archive_order. In the bounded loop, the simulated selector proposes archive_order, state becomes archived after order_archived, and the next simulated choice is stop.",
+        "The one-call classification remains model call with tool proposal. The workflow remains a deterministic workflow because code owns the priority mapping and executable path. The third design remains a bounded agent-loop representation because the simulated selector chooses actions inside the feedback loop. For this fixed task, the deterministic workflow remains the least-complex suitable design.",
+        "The following complete stdout is derived by inspection of the supplied deterministic program and fixtures. It is supplied expected output, not a claim that the author executed the program. A learner's local run is execution evidence for the learner's saved copy. If output differs, compare the saved file, local edits, Python interpreter, and environment. Until the cause is established, the reason for a difference is UNKNOWN."
+      ],
+      "code": {
+        "language": "text",
+        "label": "expected_stdout.txt",
+        "code": "ONE_CALL normal\nproposal=notify_customer\nruntime_validation=proposal_shape_valid\nruntime_feedback=notification_sent\ntask_verified=true\nclassification=model call with tool proposal\nDETERMINISTIC_WORKFLOW normal\nsimulated_model_priority=high\ncode_transition=notify_customer\nruntime_feedback=notification_sent\ntask_verified=true\nclassification=deterministic workflow\nBOUNDED_AGENT normal\nstep=1 observe=order_loaded choose=notify_customer authority=runtime-allow feedback=notification_sent state=notified\nstep=2 observe=notified choose=stop authority=runtime-allow feedback=complete state=done\nBOUNDED_AGENT unauthorized_action\nstep=1 observe=order_loaded choose=delete_customer authority=runtime-deny feedback=unauthorized_action state=stop_with_error\nBOUNDED_AGENT invalid_proposal\nstep=1 observe=order_loaded choose=not-valid authority=runtime-deny feedback=invalid_action_name state=stop_with_error\nBOUNDED_AGENT malformed_none\nstep=1 observe=order_loaded choose=null authority=runtime-deny feedback=invalid_proposal_shape state=stop_with_error\nBOUNDED_AGENT malformed_list\nstep=1 observe=order_loaded choose=[\"notify_customer\"] authority=runtime-deny feedback=invalid_proposal_shape state=stop_with_error\nBOUNDED_AGENT malformed_string\nstep=1 observe=order_loaded choose=\"notify_customer\" authority=runtime-deny feedback=invalid_proposal_shape state=stop_with_error\nBOUNDED_AGENT malformed_integer\nstep=1 observe=order_loaded choose=7 authority=runtime-deny feedback=invalid_proposal_shape state=stop_with_error\nBOUNDED_AGENT missing_action\nstep=1 observe=order_loaded choose=<missing> authority=runtime-deny feedback=missing_action state=stop_with_error\nBOUNDED_AGENT wrong_but_permitted\nstep=1 observe=order_loaded choose=archive_order authority=runtime-allow feedback=task_requirement_failed state=stop_with_error\nBOUNDED_AGENT exhausted_budget\nstep=1 observe=order_loaded choose=inspect_order authority=runtime-allow feedback=inspection_complete state=inspection_complete\nstep=2 observe=inspection_complete choose=inspect_order authority=runtime-allow feedback=inspection_complete state=inspection_complete\nbudget=2 feedback=step_budget_exhausted recovery=stop_with_error\nCHANGED_INPUT below_threshold\nONE_CALL\nproposal=archive_order\nruntime_feedback=order_archived\ntask_verified=true\nclassification=model call with tool proposal\nDETERMINISTIC_WORKFLOW\nsimulated_model_priority=normal\ncode_transition=archive_order\nruntime_feedback=order_archived\ntask_verified=true\nclassification=deterministic workflow\nBOUNDED_AGENT\nstep=1 observe=order_loaded choose=archive_order authority=runtime-allow feedback=order_archived state=archived\nstep=2 observe=archived choose=stop authority=runtime-allow feedback=complete state=done\nclassification_summary=least complex accurate choice is deterministic workflow for the fixed requirement"
+      }
+    },
+    {
+      "id": "control-transfer",
+      "title": "Transfer the test to another provider arrangement",
+      "paragraphs": [
+        "Keep the control-flow test separate from the model brand. To evaluate another arrangement, replace only the simulated_model boundary with an adapter while retaining explicit fixtures, schema validation, the action allowlist, task verification, state fields, feedback records, the step budget, and stop rules.",
+        "Ask five questions: Who selects the next executable step? Which outputs are proposals rather than effects? Where is authorization enforced? What feedback changes state? Who can stop the loop, and what happens when its budget is exhausted?",
+        "These questions transfer across Meta or Llama families, DeepSeek, Qwen, Mistral, Phi, NVIDIA, Z.ai, local models, and hosted providers without making a current feature claim. Provider or family names alone do not answer any control-flow question.",
+        "Evidence must be labeled accurately. A local run of this file demonstrates the behavior of that saved offline program. It does not prove that a deployed provider arrangement has the same controller, authority, feedback path, state, or stop behavior. Such a claim requires implementation, configuration, logs, and evaluation evidence. Without that evidence, those deployed fields are UNKNOWN.",
+        "The module estimate is 38 minutes: approximately 22 minutes of guided explanation represented by the instructor script, plus approximately 16 minutes for saving or inspecting the file, completing the changed-input task, comparing evidence, and answering the knowledge check. No media or external service is assumed."
       ]
     }
   ],
@@ -56,14 +130,20 @@
     "id": "activity-agentic-control-trace",
     "title": "Trace three equivalent designs",
     "instructions": [
-      "Represent the same task as one model call, a deterministic workflow, and a bounded agent loop.",
-      "Mark every transition as user-directed, code-directed, model-directed, or unknown.",
-      "Identify tool execution, feedback, state update, verification, and terminal control.",
-      "Choose the least complex design that meets the declared requirement and justify the classification."
+      "Use control_flow_offline.py, its embedded fixtures, the worked A-17 trace, and expected_stdout.txt. Do not invent a different task or new order data.",
+      "Run the supplied standard-library file offline, or inspect it if execution is unavailable. Label output as locally observed only if you actually ran your saved copy. Otherwise label it supplied expected output or predicted output.",
+      "Compare the one-call, deterministic-workflow, and bounded-agent traces for A-17 and B-03. Mark every transition as user-directed, code-directed, simulated-model-directed, runtime-directed, or unknown.",
+      "For each design, identify the controller, proposal source, execution authority, feedback, state update, task verification, and stop owner.",
+      "Explain how unauthorized_action differs from invalid_proposal, why malformed outputs do not execute, why wrong_but_permitted fails task verification, and how exhausted_budget records the current state before stopping.",
+      "Choose the least-complex design that meets the fixed threshold requirement and justify the choice using observable control flow rather than provider terminology.",
+      "Deliver three comparable traces, a normal-versus-B-03 comparison, a negative-case table, a least-complexity decision, and a note distinguishing local observations from supplied evidence and UNKNOWN deployed behavior."
     ],
     "evidence": [
       "Three comparable control-flow traces with transition ownership.",
-      "A classification decision tied to observable signals and explicit unknowns."
+      "A classification decision tied to observable signals and explicit unknowns.",
+      "A comparison of the normal and below-threshold supplied fixtures across all three designs.",
+      "A negative-case comparison covering schema rejection, policy denial, task-verification failure, and budget exhaustion.",
+      "A note distinguishing locally observed output from supplied expected output."
     ],
     "reflectionPrompt": "Which transition actually required adaptation rather than predefined code?"
   },
@@ -75,48 +155,122 @@
         "id": "cue-agentic-control-one-call",
         "kind": "narration",
         "sectionId": "control-one-call",
-        "text": "Show why generated tool-call syntax remains a proposal."
+        "text": "Minutes 0 to 2. Say: “Today we will classify designs by who chooses the next executable step, not by whether model output resembles a tool call. Our worked requirement is fixed: inspect a supplied order; notify only when the total is at least 100 USD and notification is permitted; otherwise archive; record feedback and stop. For the normal fixture, A-17 has total 125 USD and notify set to true, so notify_customer is required. In the one-call design, simulated_model returns an action proposal. validate_proposal checks its shape, execute applies runtime authorization and records only a simulated effect, and verify_task checks whether the permitted action actually satisfies the requirement. The caller then stops. The classification is model call with tool proposal. A proposal is not authorization, execution, or evidence of an effect. If the output were delete_customer, the runtime, not the generated text, would have authority to refuse it. The selector in this file is a deterministic stub at a model-response boundary. It makes no network or provider call and is not evidence that a real model is autonomous.”"
       },
       {
         "id": "cue-agentic-control-visual",
         "kind": "visual",
         "sectionId": "control-workflow",
-        "text": "Compare model-call, deterministic-workflow, and agent-loop transitions.",
-        "accessibilityAlternative": "A text table lists who chooses the next step, who executes tools, where feedback returns, and who decides to stop. Reduced-motion mode presents the completed table."
+        "text": "Static text comparison:\nDesign | Next-step controller | Model-boundary output | Execution authority | Feedback and state | Verification | Stop owner\nOne call | Caller | One action proposal | Runtime | Runtime result is recorded | Runtime checks task result | Caller stops after one decision\nWorkflow | Code and fixed branches | Priority data | Runtime | Result enters workflow state | Runtime checks mapped action | Fixed completion or error branch\nBounded loop | Simulated selector proposes each next action from observed state | Action proposal on each iteration | Runtime | Feedback updates state before another choice | Runtime checks action and task | Runtime terminal policy or step budget\nThis is text, not delivered media. Read it as a comparison of controller, proposal source, authority, feedback, state, verification, and stop ownership.",
+        "accessibilityAlternative": "Read each row aloud. In one call, the caller owns the call and stop. In the workflow, code owns transitions. In the bounded-loop representation, the simulated selector proposes actions after observing state, while the runtime retains authorization, verification, budget, and terminal control."
       },
       {
         "id": "cue-agentic-control-workflow",
         "kind": "narration",
         "sectionId": "control-workflow",
-        "text": "Trace code-owned transitions through a workflow that contains a model step."
+        "text": "Minutes 2 to 5. Say: “In the deterministic workflow, the simulated model does not select the executable action directly. It returns priority high or normal. Code owns the mapping: high becomes notify_customer, and normal becomes archive_order. For A-17, the deterministic stub returns high, code maps high to notify_customer, the runtime returns notification_sent, task verification is true, and the fixed branch stops. The model-boundary result is data consumed by code. Therefore the controller is workflow code even though a model-like step appears inside it. Deterministic here describes externally defined transition authority, not a promise that every real model output would be predictable. This workflow is the least-complex suitable design for the fixed requirement because the threshold, permission test, mapping, verification, and stop path are explicit. A common mistake is to say ‘the model chose notify_customer because it said high.’ Correct that by tracing the executable transition: code reads high and selects notify_customer.”"
+      },
+      {
+        "id": "cue-agentic-control-demo-command",
+        "kind": "learner-prompt",
+        "sectionId": "control-workflow",
+        "text": "Say: “Save the supplied code exactly as control_flow_offline.py. If a standard Python 3 interpreter is available, the command is python control_flow_offline.py. Use py control_flow_offline.py only if that is how Python is invoked in your own environment. Do not describe output as locally observed unless you actually run your saved copy. If you inspect instead, label the result supplied expected output or prediction from supplied code. The first exact targets are ONE_CALL normal followed by proposal=notify_customer, runtime_validation=proposal_shape_valid, runtime_feedback=notification_sent, task_verified=true, and classification=model call with tool proposal. The workflow target begins DETERMINISTIC_WORKFLOW normal and includes simulated_model_priority=high, code_transition=notify_customer, runtime_feedback=notification_sent, task_verified=true, and classification=deterministic workflow. If your output differs, the cause is UNKNOWN until you compare the saved file, edits, interpreter, and environment.”"
       },
       {
         "id": "cue-agentic-control-agent",
         "kind": "narration",
         "sectionId": "control-agent",
-        "text": "Trace a bounded observe, choose, act, feedback, and stop loop."
+        "text": "Minutes 5 to 9. Say: “Now trace the bounded loop in order. Step 1 observes order_loaded. The deterministic simulated selector proposes notify_customer. Validation accepts the schema, runtime policy allows the action, feedback is notification_sent, and state becomes notified. Step 2 must observe notified rather than the original state. The selector proposes stop, the runtime permits the terminal action, feedback is complete, and state becomes done. The exact normal rows are: step=1 observe=order_loaded choose=notify_customer authority=runtime-allow feedback=notification_sent state=notified; then step=2 observe=notified choose=stop authority=runtime-allow feedback=complete state=done. This represents the shape of model-directed next-action selection inside a feedback loop, but the selector is scripted and deterministic. It does not prove real-model autonomy, deployed behavior, or even that a model was called. Runtime controls identity outside this example, action authority, verification, the budget, and terminal outcomes.”"
+      },
+      {
+        "id": "cue-agentic-control-negative-cases",
+        "kind": "checkpoint",
+        "sectionId": "control-agent",
+        "text": "Say: “Classify each failure by the boundary that catches it. First, malformed schema: None, a list, a bare string, and an integer produce invalid_proposal_shape; an empty object produces missing_action; and not-valid is an object with an invalid action name, producing invalid_action_name. These are runtime-deny outcomes before execute, with no effect. Second, denied action: delete_customer is well shaped but absent from the allowlist, so the exact trace has authority=runtime-deny, feedback=unauthorized_action, and state=stop_with_error. Schema validity did not grant permission. Third, premature stop: the code has a branch that permits the stop action but checks whether state is notified or archived. If not, it records premature_stop and stop_with_error. The supplied selector does not create a named premature-stop fixture or printed premature-stop trace, so do not claim that this case was executed or appears in expected_stdout.txt. Fourth, wrong but permitted: archive_order is allowlisted for A-17, so authority is runtime-allow, but verify_task returns task_requirement_failed. The effect string simulated_archive:A-17 remains in effects. Stopping with an error does not roll back or undo an already recorded effect. In a real system, rollback would require an explicit compensating mechanism; this exercise supplies none. Fifth, budget exhaustion: inspect_order is permitted twice. The observations are order_loaded and then inspection_complete. After those two iterations, the budget row is budget=2 feedback=step_budget_exhausted recovery=stop_with_error. No archive or notification effect is recorded.”"
+      },
+      {
+        "id": "cue-agentic-control-negative-feedback",
+        "kind": "learner-prompt",
+        "sectionId": "control-agent",
+        "text": "Ask: “For each case, name schema validity, runtime authority, task correctness, retained effect, and stop reason.” Expected answers: “Malformed outputs fail validation and do not execute. delete_customer passes shape validation but fails authorization and has no effect. A premature stop would be runtime-allowed as an allowlisted action but rejected as premature because state is not complete; no supplied fixture prints that path. wrong_but_permitted is authorized and records simulated_archive:A-17, but task correctness fails and the retained effect is not undone. exhausted_budget performs two permitted inspections, observes updated state on step 2, and then stops with step_budget_exhausted.” Misconception feedback: “Allowed does not mean correct. Error does not mean rollback. Repetition does not erase state. A malformed proposal is not the same as a well-shaped but forbidden action.”"
       },
       {
         "id": "cue-agentic-control-multi",
         "kind": "narration",
         "sectionId": "control-multi",
-        "text": "Separate multiple calls from separately controlled agents and explicit handoffs."
+        "text": "Minutes 9 to 10. Say: “Multiple calls are not automatically multiple agents. Two parallel requests that summarize the same order establish multiple model calls. A stronger multi-agent claim would need separately instructed or controlled units, such as a summarizer and a verifier, with distinct responsibilities, input and output schemas, an observable handoff, a disagreement rule, and a runtime that authorizes effects. Labels such as agent one and agent two do not create those contracts. The supplied traces do not establish a deployed multi-agent system. Without implementation, instructions, contracts, configuration, telemetry, and evaluation evidence, the deployed classification is UNKNOWN.”"
       },
       {
         "id": "cue-agentic-control-checkpoint",
         "kind": "checkpoint",
         "sectionId": "control-multi",
-        "text": "Check whether the learner can reject a multiple-calls-equals-multi-agent claim."
+        "text": "Ask: “Two model requests summarize the same order in parallel. Do they prove two agents?” Expected answer: “No. They prove multiple calls, but separate controlled responsibilities and observable coordination are missing.” If a learner answers yes because there are two models, say: “Counted calls answer how many invocations occurred. Multi-agent classification asks whether separate agent units have distinct responsibilities and coordinate through observable contracts. Those are different claims.”"
+      },
+      {
+        "id": "cue-agentic-control-worked-case",
+        "kind": "narration",
+        "sectionId": "control-worked-case",
+        "text": "Minutes 10 to 14. Say: “Let us compare A-17 across all three designs. One call: the caller initiates one simulated model boundary, receives notify_customer as a proposal, and stops after runtime validation, authorization, notification_sent feedback, and successful task verification. Workflow: the simulated boundary returns high; code maps high to notify_customer; runtime allows it; notification_sent is recorded; verification succeeds; and a fixed completion branch stops. Bounded loop: the selector observes order_loaded and proposes notify_customer; runtime allows it; notification_sent changes state to notified; on the next iteration the selector observes notified and proposes stop; runtime records done. All three satisfy the normal fixture in this simulation. Only the third asks the selector for another action after feedback. For each design, separate six fields: controller, proposal source, runtime authority, feedback, state, and stop owner. The least-complex accurate choice for this fixed rule is the deterministic workflow. Extra looping flexibility is not required.”"
+      },
+      {
+        "id": "cue-agentic-control-worked-practice",
+        "kind": "learner-prompt",
+        "sectionId": "control-worked-case",
+        "text": "Ask learners to complete this spoken comparison before continuing: “One call: controller and stop owner?” Expected: “Caller.” “Workflow transition owner?” Expected: “Code.” “Bounded loop proposal source after feedback?” Expected: “The simulated selector.” “Who can authorize all executable actions?” Expected: “The runtime.” “What state change enables the normal loop to stop?” Expected: “notification_sent leads to notified, which is observed before stop.” “Which design should we begin with for the fixed threshold rule?” Expected: “The deterministic workflow.” If a learner selects the agent because it appears more capable, say: “Capability not required by the task is not evidence of suitability. Choose the least-complex design that satisfies the observable requirement.”"
+      },
+      {
+        "id": "cue-agentic-control-changed-input-narration",
+        "kind": "narration",
+        "sectionId": "control-changed-input",
+        "text": "Minutes 14 to 16. Say, without giving the resulting actions: “Now change one input at a time. First compare normal A-17 with below_threshold B-03, whose total is 80 USD and notify is true. Second inspect notify_false C-09, whose total is 125 USD and notify is false. Apply the same requirement without changing any controller or transition rule. Before opening the key or reading later output, predict for each design: the simulated output, proposed or selected action, runtime authorization, feedback, state update, stop owner, and classification. Mark each statement as locally observed, supplied expected output, prediction from code, or UNKNOWN. A changed result does not necessarily mean the controller changed.”"
+      },
+      {
+        "id": "cue-agentic-control-changed-input",
+        "kind": "learner-prompt",
+        "sectionId": "control-changed-input",
+        "text": "Minutes 16 to 18. Say: “Take two minutes before the answer. For B-03, compare 80 with the 100 USD threshold and decide whether notify=true can override a failed threshold test. Follow the one-call action rule, the workflow priority-to-action mapping, and the bounded loop’s observe, choose, authorize, feedback, update, and stop sequence. Then repeat the reasoning for C-09 by holding total at 125 and changing notify from true to false. Do not infer a classification from the resulting action. Write all three B-03 traces before checking expected_stdout.txt. Treat the C-09 result as a code-inspection extension unless you locally invoke the functions or rely on the embedded assertions; show() does not print a C-09 section.”"
+      },
+      {
+        "id": "cue-agentic-control-pause",
+        "kind": "pause",
+        "sectionId": "control-changed-input",
+        "text": "Pause for the learner’s predictions. Offer hints only after an initial attempt: “Both threshold and permission are required for notification. In the workflow, inspect the fixed high-or-normal mapping. In the loop, keep proposal selection separate from runtime authorization. Classify by transition ownership, not by whether the action is notify or archive.”"
+      },
+      {
+        "id": "cue-agentic-control-answer-key-narration",
+        "kind": "narration",
+        "sectionId": "control-answer-key",
+        "text": "Minutes 18 to 20. Say: “Now reveal the key. B-03 is below 100 USD, so the required action is archive_order even though notify is true. One call proposes archive_order, receives order_archived, verifies true, and remains model call with tool proposal. The workflow boundary returns normal, code maps normal to archive_order, receives order_archived, verifies true, and remains a deterministic workflow. The bounded loop proposes archive_order from order_loaded, receives order_archived, updates state to archived, then observes archived and proposes stop, ending in done. It remains a bounded agent-loop representation. The least-complex suitable design remains the deterministic workflow. For the C-09 extension, notification permission is false, so the required action is also archive_order. The one-call effect is simulated_archive:C-09; the workflow priority is normal and its action is archive_order; the bounded loop transitions from order_loaded to archived and then stop to done. These C-09 values follow the supplied code and assertions, but show() does not print them as part of expected stdout.”"
+      },
+      {
+        "id": "cue-agentic-control-answer-key",
+        "kind": "checkpoint",
+        "sectionId": "control-answer-key",
+        "text": "Compare the B-03 prediction with these exact supplied targets: “CHANGED_INPUT below_threshold”; one call has proposal=archive_order, runtime_feedback=order_archived, task_verified=true, and classification=model call with tool proposal; the workflow has simulated_model_priority=normal, code_transition=archive_order, runtime_feedback=order_archived, task_verified=true, and classification=deterministic workflow; the loop has step=1 observe=order_loaded choose=archive_order authority=runtime-allow feedback=order_archived state=archived, followed by step=2 observe=archived choose=stop authority=runtime-allow feedback=complete state=done. The final line is classification_summary=least complex accurate choice is deterministic workflow for the fixed requirement. Say: “This is supplied expected output derived by inspection, not a claim that the author executed the program. Only your own run is local execution evidence for your saved copy.”"
+      },
+      {
+        "id": "cue-agentic-control-transfer",
+        "kind": "narration",
+        "sectionId": "control-transfer",
+        "text": "Minutes 20 to 21. Say: “Transfer the test without relying on a provider name. Replace only the simulated_model boundary with an adapter and retain explicit fixtures, schema validation, the allowlist, task verification, state, feedback records, budget, and stop rules. Ask five questions: Who selects the next executable step? Which outputs are proposals rather than effects? Where is authorization enforced? What feedback changes state? Who stops the loop, including on budget exhaustion? These questions apply to local or hosted arrangements and across model families. A provider or family name does not establish control behavior. A local run proves only the behavior of the saved offline program. Without relevant implementation, configuration, logs, and evaluation evidence, deployed controller, authority, feedback, state, and stop behavior are UNKNOWN.”"
       },
       {
         "id": "cue-agentic-control-activity",
         "kind": "learner-prompt",
-        "text": "Guide the equivalent three-design control-flow comparison."
+        "sectionId": "control-worked-case",
+        "text": "Pacing statement: “The guided teaching, demonstration, and short practice occupy 22 minutes. The independent activity then uses approximately 16 minutes, bringing the overall module estimate to 38 minutes.” Independent task: “Using only control_flow_offline.py, its fixtures, the A-17 worked trace, and expected_stdout.txt, deliver three comparable traces; identify controller, proposal source, authority, feedback, state update, verification, and stop owner; compare A-17 with B-03; make a negative-case table for malformed schema, unauthorized action, premature-stop logic, wrong-but-permitted action, and exhausted budget; select the least-complex design; and label local observations separately from supplied output, predictions, and UNKNOWN deployed behavior.” Suggested independent pacing: 5 minutes for three traces, 4 minutes for changed-input comparison, 4 minutes for the negative-case table, and 3 minutes for the least-complexity decision and evidence-boundary note."
+      },
+      {
+        "id": "cue-agentic-control-readiness",
+        "kind": "checkpoint",
+        "sectionId": "control-answer-key",
+        "text": "Minute 21 to 22. Ask five readiness questions. “Who chooses the workflow action after priority?” Expected: “Code.” “Can a valid tool-call shape authorize itself?” Expected: “No, the runtime authorizes or denies.” “Why does wrong_but_permitted fail?” Expected: “Safety authorization allows archive_order, but task verification rejects it for eligible A-17; simulated_archive:A-17 remains because stop does not undo the effect.” “What does the second budget step observe?” Expected: “inspection_complete.” “Do two parallel calls prove multiple agents?” Expected: “No.” Correct misconceptions explicitly: “A tool proposal is not an effect; an allowlisted action is not necessarily task-correct; an error is not an automatic rollback; and a loop driven by a deterministic stub is not proof of real-model autonomy.”"
       },
       {
         "id": "cue-agentic-control-assessment",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can identify who chooses every transition."
+        "sectionId": "control-answer-key",
+        "text": "Begin the knowledge check only when the learner can trace transition ownership and answer the readiness questions. Expected assessment answers are: workflow code chooses the executable branch; delete_customer receives runtime-deny and unauthorized_action; a list receives invalid_proposal_shape with no execution; archive_order for eligible A-17 fails task verification despite runtime permission; the second exhausted-budget observation is inspection_complete; parallel summaries establish multiple calls but not a multi-agent system; and the deterministic workflow is the preferred starting point for the fixed requirement. If the learner misses an item, return to the specific boundary involved: schema, authorization, task verification, state update, coordination contract, or least-complexity choice."
       }
     ]
   },
@@ -125,63 +279,87 @@
     "questions": [
       {
         "id": "q-agentic-control-1",
-        "prompt": "What most directly distinguishes an agent loop from a deterministic workflow?",
+        "prompt": "An order pipeline asks a model for high or normal. Code maps high to notify_customer and normal to archive_order. Who chooses the next executable step?",
         "choices": [
-          "A model chooses among permitted next steps from feedback",
-          "The workflow contains more than one step",
-          "The output is natural language",
-          "The provider uses the word agent"
+          "The model, because it generated the priority",
+          "The workflow code, because it owns the mapping and transition",
+          "The generated text itself",
+          "The provider named in the adapter"
         ],
-        "answerIndex": 0,
-        "explanation": "Model-directed next-step selection within a bounded feedback loop is the distinguishing control signal."
+        "answerIndex": 1,
+        "explanation": "The model supplies data to a fixed step. Code owns the action mapping, transition, runtime invocation, verification branch, and stop path, so the design is a deterministic workflow."
       },
       {
         "id": "q-agentic-control-2",
-        "prompt": "A model returns a function name and arguments. What has happened?",
+        "prompt": "A model returns the well-shaped proposal delete_customer, but the runtime allowlist excludes that action. Which trace is correct?",
         "choices": [
-          "The external effect is verified",
-          "The model proposed a tool call; execution still belongs to a runtime",
-          "The user approved the action",
-          "A multi-agent system was created"
+          "runtime-allow because the proposal is well shaped",
+          "runtime-deny with unauthorized_action feedback and no execution",
+          "task success because a model selected the action",
+          "multi-agent handoff because validation occurred"
         ],
         "answerIndex": 1,
-        "explanation": "A proposal is not execution, authorization, or postcondition evidence."
+        "explanation": "Schema validity does not grant authority. The runtime must deny a well-shaped but unauthorized proposal and record refusal evidence without executing it."
       },
       {
         "id": "q-agentic-control-3",
-        "prompt": "A fixed pipeline calls a model in step two. How should it be classified?",
+        "prompt": "The bounded loop receives a list instead of an action object. What should it do?",
         "choices": [
-          "Always an agent",
-          "A deterministic workflow if code still selects transitions",
-          "A multi-agent system",
-          "Unknown because models cannot appear in workflows"
+          "Call .get on the list and crash",
+          "Guess that the first list item is authorized",
+          "Record invalid_proposal_shape, avoid execution, and stop safely",
+          "Retry forever"
         ],
-        "answerIndex": 1,
-        "explanation": "Model use does not change who controls the executable path."
+        "answerIndex": 2,
+        "explanation": "Malformed output must be handled before action access or execution. The supplied loop safely renders the malformed value, records validation feedback, and stops without a live effect."
       },
       {
         "id": "q-agentic-control-4",
-        "prompt": "What proves a multi-agent system?",
+        "prompt": "For eligible order A-17, archive_order is on the safety allowlist but violates the notify-if-eligible requirement. How should the run be classified?",
         "choices": [
-          "Two model requests",
-          "Two provider names",
-          "Separate agent responsibilities plus observable coordination or handoffs",
-          "Parallel processing alone"
+          "Successful because allowlist permission proves task correctness",
+          "Successful because an archive effect was recorded",
+          "Failed task verification even though runtime safety authorization allowed the action",
+          "Invalid schema because archive_order is a string"
         ],
         "answerIndex": 2,
-        "explanation": "Multiple agents require distinct controlled units and coordination evidence."
+        "explanation": "Safety authorization and task correctness are different checks. A well-shaped, safety-permitted action can still fail the declared task requirement and must not be marked done."
       },
       {
         "id": "q-agentic-control-5",
-        "prompt": "What is the preferred design when a fixed workflow meets every requirement?",
+        "prompt": "After the first inspect_order action, which state should the second exhausted-budget trace observe?",
         "choices": [
-          "The fixed workflow",
-          "The largest multi-agent design",
-          "Any design with more tools",
-          "The least tested design"
+          "order_loaded, because every loop restarts state",
+          "inspection_complete, because feedback updated state",
+          "done, because inspection always completes the task",
+          "UNKNOWN, even though the trace records it"
+        ],
+        "answerIndex": 1,
+        "explanation": "The first iteration records its prior state as order_loaded and then updates state from feedback. The second iteration must capture the current inspection_complete state before proposing another action."
+      },
+      {
+        "id": "q-agentic-control-6",
+        "prompt": "Two models summarize the same order in parallel with no distinct responsibilities or handoff contract. What is established?",
+        "choices": [
+          "A multi-agent system",
+          "Multiple model calls, but not enough evidence for a multi-agent classification",
+          "A bounded agent loop",
+          "A verified deployed workflow"
+        ],
+        "answerIndex": 1,
+        "explanation": "Parallel calls alone do not establish separate agent units. Multi-agent evidence requires separately controlled responsibilities and observable coordination, delegation, or handoffs."
+      },
+      {
+        "id": "q-agentic-control-7",
+        "prompt": "The fixed threshold workflow satisfies every declared order requirement. Which design is the preferred starting point?",
+        "choices": [
+          "The deterministic workflow",
+          "An unbounded agent loop",
+          "The largest multi-agent arrangement",
+          "Whichever provider markets an agent feature"
         ],
         "answerIndex": 0,
-        "explanation": "Use the least complex design that satisfies the evidence and operating requirements."
+        "explanation": "Choose the least-complex design that satisfies the requirement. The fixed workflow is easier to inspect and test, and the task does not require adaptive next-action selection."
       }
     ]
   },
