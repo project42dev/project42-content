@@ -8,128 +8,225 @@ Package: `verification-and-iterative-improvement-class` 1.0.0
 
 ## Welcome: Welcome And Outcomes
 
-Welcome. Generation produces a candidate; verification earns trust. In this class, you will break polished output into checkable claims, match each claim with appropriate evidence, scale checks to consequence and change, diagnose failures before editing a prompt, and compare revisions on the same representative cases. The goal is not to eliminate uncertainty. It is to make evidence, failures, changes, and remaining uncertainty visible enough for an accountable decision.
+Welcome to Verification and Iterative Improvement.  We will test claims rather than trust fluent answers.  You will match evidence to each claim type.  You will separate missing context from calculation errors.  You will compare workflow versions using fixed cases and rubrics.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
-## Narration: Verify By Claim Explanation
+## Narration: Verify By Claim Narration
 
-Do not verify a response as one block. Decompose it. A factual claim needs an authoritative source with matching date, version, and scope. A calculation needs the original inputs, units, formula, and independent recomputation. A quotation needs the exact original passage and surrounding context. A classification needs a defined label, representative examples, and an error review. Code behavior needs execution, tests, and observed postconditions. A recommendation needs traceable evidence, assumptions, tradeoffs, and qualified judgment. A claimed action needs target-system evidence that it happened once, on the correct target, without forbidden effects. Confidence, fluency, length, and citation-shaped text are not evidence. A second model can help identify claims or challenge reasoning, but agreement between generated answers does not replace the nearest primary evidence. Record each check as pass, fail, unknown, or not applicable. Preserve the unsupported parts instead of blending them into a confident paragraph.
-
-Sources:
-
-- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
-
-## Demonstration: Mixed Claim Demonstration
-
-Consider this generated statement: the current service limit is ten thousand requests per minute, the proposed workload uses only sixty percent of capacity, the documentation says scaling is automatic, and migration is therefore low risk. That sentence contains at least four claims. Open the current official documentation for the limit and confirm the account tier and region. Recompute workload divided by the applicable limit, including peaks rather than averages. Compare the quotation with the exact source and conditions. Treat low risk as a judgment, not a fact; examine dependencies, quotas, failure modes, rollback, and domain review. One bad source or calculation does not make every clause false, but one correct number does not prove the conclusion. The verification table keeps each result separate and shows which decision inputs remain unknown.
+Begin by splitting an answer into checkable units.  Check quotations against their original wording and context.  Check source facts against the applicable authoritative version.  Check interpretations separately from prices or entitlements.  Check calculations by exposing inputs, operations, and results.  Check recommendations only after supporting evidence passes.  Confidence, fluency, and repetition are not evidence.  In this exercise, fictional transit bulletins are authoritative only inside the exercise.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
-## Learner Prompt: Claim Mapping Prompt
+## Demonstration: Verify By Claim Demonstration
 
-Choose one AI-generated paragraph. Mark at least three claim types. For each, name the nearest evidence that could prove or disprove it. If no practical evidence is available, record unknown rather than inventing a check.
-
-Expected learner action: Create three claim-to-evidence rows and preserve unsupported claims as unknown.
+Consider the flawed transit response before judging its confidence. Its alleged quotation is not Source A's wording: it says, “Adult rides are $3.00 and reduced-card riders pay $2.50.” Source A's exact requested sentence is: “Standard adult single ride: $3.00.” The flawed response also invents a reduced-fare amount. A valid card establishes eligibility, not a price. Its arithmetic uses an unsupported input and multiplies incorrectly: 4 × $2.50 is $10.00, not $9.00. The requested standard-price calculation uses the controlling Source A input: 4 × $3.00 = $12.00. The corrected response therefore quotes “Standard adult single ride: $3.00.” exactly, shows the inputs and operation, and releases only the requested $12.00 standard-price total. It does not claim that $12.00 is the reduced fare or recommend a reduced-fare purchase.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
-## Pause: Claim Mapping Work Time
+## Learner Prompt: Verify By Claim Prompt
 
-## Checkpoint: Volatile Claim Checkpoint
+Use this supplied paragraph for offline practice. Do not choose or generate another paragraph. Read it, split it into at least three claims, and complete the claim-to-evidence fields: Claim, Type, Evidence, Result, and Remaining Uncertainty. Supplied paragraph: “Source A is the controlling Fare Bulletin for the normal case. It states, ‘Standard adult single ride: $3.00.’ A rider with a valid reduced-fare card can be charged $2.50 per ride. Four standard rides therefore cost 4 × $3.00 = $12.00.” Mark the quotation by comparing it character by character with Source A. Check the source-selection claim against the source metadata. Check the reduced-fare price claim and record UNKNOWN because no supplied source states a reduced-fare amount. Recompute the arithmetic independently. Do not merge the supported standard-price result with the unsupported reduced-fare claim.
 
-Checkpoint. Two models agree that a product currently supports a particular feature. Both cite the same undated community post. The feature controls a production release. Is that enough evidence to proceed?
-
-Expected learner action: Do not proceed; check current authoritative scoped documentation and directly observe the capability when practical.
+Expected learner action: Mark at least three claims from the supplied paragraph, verify the quotation and calculation, identify the unsupported reduced-fare amount as UNKNOWN, and record the remaining uncertainty before viewing feedback.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
-## Pause: Volatile Claim Response Time
+## Checkpoint: Verify By Claim Checkpoint
 
-## Feedback: Volatile Claim Feedback
+Why can correct arithmetic remain unsupported?  Because the operation may be correct while its input lacks evidence.  State that distinction before continuing.
 
-Do not proceed on that evidence. The answers are not independent when they rely on the same weak source, and agreement does not make the post current or authoritative. Open the provider's current documentation, confirm model or product version, region, account tier, interface, and release status, then perform a bounded direct test when possible. If the evidence remains ambiguous, mark the capability unknown and stop the production decision. If you accepted two-model agreement as fact-checking, revise the rule: independent generation is useful for challenge, but primary evidence and observation prove volatile product claims.
-
-Correct feedback: You required current scoped primary evidence and direct observation for a volatile production claim.
-
-Retry feedback: Ask whether two answers using one undated community post are independent current evidence. They are not.
+Expected learner action: Explain that correct operations do not validate unsupported inputs.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
-## Narration: Scale Checks To Risk Explanation
+## Narration: Scale Checks To Risk Narration
 
-Plan verification before generation. Start with how the output will be used and what happens if it is wrong. Low-consequence brainstorming may need a usefulness and safety review. Current factual work needs authoritative sources and claim mapping. Calculations need independent reconciliation. Code needs type, build, test, behavior, and security checks appropriate to its exposure. Consequential medical, legal, financial, employment, access, security, safety, or production decisions need current evidence, domain expertise, independent review, authorization, audit, and recovery. Increase verification when facts change quickly, model performance is uncertain, affected people have little recourse, exposure is wide, or actions are difficult to reverse. Human review only counts when the reviewer has the evidence, expertise, time, authority, and ability to reject. Define pass criteria and failure action in advance. A check without a response to failure is only an observation.
+Verification effort should rise with consequence and uncertainty.  Low-consequence brainstorming may need usefulness and obvious-defect review.  A purchase estimate needs authoritative source comparison and arithmetic recomputation.  High-consequence work may require current evidence, independent review, expertise, authorization, and recovery planning.  Define pass criteria before evaluating answers.  If a required input is absent, HOLD rather than guess.  HOLD passes when the rubric requires withholding unsupported results.  Prompt changes still require individual claim checks.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+
+## Learner Prompt: Scale Checks To Risk Prompt
+
+For a released fare total, identify the required evidence.  Name the applicable source, quantity, arithmetic, and release boundary.  If quantity is missing, explain why the total must remain HOLD.  Do not substitute a typical quantity from another case.  State what information would release the decision.
+
+Expected learner action: List source, quantity, arithmetic, and release authority, then apply HOLD when quantity is absent.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
-## Narration: Diagnose The Miss Explanation
+## Narration: Source Corpus Narration
 
-When a check fails, diagnose the system rather than blaming the prompt by default. A task failure means the objective or decision was unclear or unsuitable. A context failure means required evidence was missing, stale, conflicting, poisoned, or outside scope. A prompt failure means instructions, constraints, examples, or the output contract were ambiguous or contradictory. A model failure concerns capability, consistency, language, modality, or behavior on this task. A tool failure includes wrong parameters, permissions, execution, timeout, partial success, or an unverified postcondition. A review failure means the test, rubric, sample, reviewer, or approval process could not detect the real problem. Record the observed failure and evidence before assigning a cause. Choose the smallest change that addresses the likely cause while keeping safety and approval boundaries fixed. More instructions cannot create missing source data. A stronger model cannot repair an unauthorized tool. A prettier rubric cannot recover an action that already harmed the wrong target.
+Read the complete fictional Harbor Transit corpus before solving cases. Source A is version 3.2, effective January 1, 2026, and controlling for the normal and missing-data cases. Its exact text is: “Standard adult single ride: $3.00. A day pass costs $10.00. Reduced fares are available only to riders with a valid reduced-fare card.” Source B is version 3.1, effective January 1, 2025, and superseded by Source A for those cases. Source B therefore does not create an unresolved conflict where A controls. Sources C and D are both version 1.0, effective July 1, 2026, and are equally authoritative and applicable to the separate Harbor Festival conflict. Source C states, “East Pier single ride during the Harbor Festival: $3.00.” Source D states, “East Pier single ride during the Harbor Festival: $2.75.” No supplied rule gives either source precedence. No source states a reduced-fare amount.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Demonstration: Source Corpus Demonstration
+
+Apply the source rules carefully to three distinctions.  A valid card establishes eligibility, not a reduced-fare amount.  Source A controls rather than conflicting with superseded Source B.  Sources C and D remain unresolved because both are equally authoritative and applicable.  A normal standard-price calculation can release when its quantity is supplied.  A missing quantity requires HOLD.  The equal-authority festival conflict also requires HOLD.  These outcomes follow the supplied corpus only.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Checkpoint: Source Corpus Checkpoint
+
+Explain supersession versus equal-authority conflict.  Supersession supplies a selection rule.  Equal authority without precedence leaves selection unresolved.  Which situation requires HOLD?
+
+Expected learner action: State that unresolved equal authority requires HOLD, while supersession selects the controlling source.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Narration: Diagnose The Miss Narration
+
+The normal case asks for Source A's exact standard sentence and four rides. The flawed authored response says, “Adult rides are $3.00 and reduced-card riders pay $2.50.” That is not an exact quotation from Source A and invents a reduced-fare value. Source A's exact sentence is: “Standard adult single ride: $3.00.” The valid card establishes eligibility for reduced fares, but no supplied source states the reduced-fare amount. The flawed arithmetic also fails: 4 × $2.50 = $10.00, not $9.00. For the requested standard-price calculation, the controlling input is $3.00, so 4 × $3.00 = $12.00. The recommendation to buy four rides for $9.00 is unsupported because both its price input and its total fail. The bounded correction quotes the exact standard sentence, exposes the four and three-dollar inputs, calculates $12.00, and releases that standard-price total only. It does not assert a reduced fare. These are observable defects. Whether prompt wording, model behavior, tools, or review caused them remains UNKNOWN because no actual execution or review record is supplied.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Feedback: Diagnose The Miss Feedback
+
+A strong diagnosis describes observable defects first.  It does not claim that a model ignored instructions without an actual run.  Missing reduced-fare context is a context limitation.  Incorrect multiplication is a calculation defect.  The unsupported recommendation is downstream.  Prompt wording might be a hypothesis, but this artifact cannot establish it.  Preserve that uncertainty during review.
+
+Correct feedback: You separated observable output defects from unproven causes and preserved uncertainty.
+
+Retry feedback: Name what the artifact proves, then label any prompt or model cause as unknown.
 
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/prompt-engineering>
-- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview>
 
-## Checkpoint: Wrong Fix Checkpoint
+## Narration: Improve With Cases Narration
 
-Checkpoint. A summary omits a policy exception because the supplied document ended before the exception page. The prompt was clear. What should change first: the prompt wording, the model, or the context?
-
-Expected learner action: Fix and verify the context boundary first, then repeat the same check.
-
-Sources:
-
-- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview>
-
-## Pause: Diagnosis Response Time
-
-## Feedback: Wrong Fix Feedback
-
-Fix the context first. Confirm the authoritative document is complete, includes the exception page, and matches the required version and scope. Then rerun the same prompt and claim check. Changing wording cannot reveal text that was never supplied. Switching models may produce a confident guess, which would hide rather than solve the failure. If the complete source is unavailable, record the policy exception as unknown and escalate to its owner. If you selected prompt or model first, revise the diagnostic rule: observed missing evidence points to context before generation quality.
-
-Correct feedback: You matched the missing-evidence symptom to a context remedy and preserved uncertainty when the source is unavailable.
-
-Retry feedback: Ask whether prompt wording can recover a page that was never supplied. It cannot.
-
-Sources:
-
-- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview>
-
-## Narration: Improve With Cases Explanation
-
-One corrected example is not measured improvement. Build a small representative set. Include normal work, a boundary case, missing data, conflicting sources, privacy-sensitive content, and adversarial-like instructions when relevant. Preserve the original cases. Version the prompt, context recipe, output contract, model or product, tools, and evaluator. Change one controllable element when practical. Run old and new versions on the same cases with the same rubric. Record passes, failures, latency or cost when material, improvements, regressions, and remaining uncertainty. A revision is better only when it improves the intended criterion without unacceptable loss elsewhere. If safety improves but useful requests are blocked, measure that tradeoff. If average quality rises but one high-consequence boundary fails, do not hide it in the average. Decide whether to accept, revise, roll back, narrow scope, or stop. Keep the evidence so later model or product changes can be retested.
+Workflow version one says answer from supplied material and explain.  Version two adds one verification gate.  The gate records source metadata, selects controlling sources, holds unresolved conflicts, holds missing inputs, forbids invention, recomputes totals, and releases only after checks pass.  The corpus, three cases, and R1 through R5 rubric stay fixed.  Normal v2 releases twelve dollars.  Missing-data v2 holds.  Conflict v2 holds after quoting both sources.  These are authored artifacts, not executions.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
-- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview>
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
 
-## Transition: Activity Transition
+## Demonstration: Improve With Cases Demonstration
 
-Open the verify-and-improve activity. Choose a response with at least three claim types. Record consequence and nearest evidence for each claim, then mark pass, fail, unknown, or not applicable. Classify every failure as task, context, prompt, model, tool, or review. Select one controllable change without weakening safety or approval. Rerun the original case and two boundary cases using the same checks. Record improvements, regressions, remaining uncertainty, and a final decision to accept, revise, roll back, narrow, or stop.
+Use the fixed rubric to compare cases fairly.  R1 checks source selection.  R2 checks exact evidence and supported facts.  R3 checks visible inputs and arithmetic.  R4 checks missing data and conflicts.  R5 checks the final action.  A case passes only when every applicable check passes.  Correct HOLD is a pass when release conditions remain unresolved.  A regression means v1 passed a requirement that v2 failed.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
-## Pause: Activity Work Time
+## Checkpoint: Improve With Cases Checkpoint
+
+What is a regression here?  It is a rubric requirement that passed in version one but failed in version two.  Did the supplied comparison report one?  No.
+
+Expected learner action: Define regression and state that none is reported in the supplied comparison.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Narration: Reusable Template Narration
+
+The worksheet turns review into a repeatable record.  Begin with case, source title, version, date, authority, applicability, and supplied inputs.  Then record the claim, type, consequence, exact evidence, method, and result.  Record observable defects and diagnosis separately.  Show calculation inputs and recomputed results.  List conflicting sources and precedence.  Finish with RELEASE, HOLD, or ESCALATE, plus the reason and remaining uncertainty.  Copy evidence exactly rather than paraphrasing it.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Learner Prompt: Reusable Template Prompt
+
+Practice with the blank worksheet structure.  Identify one exact quotation and one calculation.  Record the verification method for each.  If a required field is absent, write HOLD and state what would release it.  Keep unknown as an information state, separate from the resulting action.
+
+Expected learner action: Complete evidence, verification, result, and missing-data fields without inventing values.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Narration: Changed Input Task Narration
+
+Now change exactly one input from the normal case.  The rider takes five rides instead of four.  The valid card remains unchanged.  Source A version 3.2 remains controlling.  The request still asks for the exact standard sentence and standard-price total.  Write the quotation exactly, show five times three dollars, distinguish eligibility from reduced-fare amount, choose RELEASE or HOLD, and score R1 through R5.  Do not reuse twelve dollars.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Learner Prompt: Changed Input Task Prompt
+
+Write your complete five-ride response now.  Include the exact standard-price sentence.  Show the multiplication visibly.  Explain the card limitation.  Choose the bounded action.  Then score each applicable rubric item before reading the key.
+
+Expected learner action: Write and self-score a five-ride response before viewing the answer key.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Pause: Changed Input Task Pause
+
+## Narration: Changed Input Answer Key Narration
+
+The answer key quotes Source A exactly: “Standard adult single ride: $3.00.” Source A version 3.2 is controlling, and the five-ride quantity is supplied. At that stated standard price, the visible calculation is 5 × $3.00 = $15.00. The valid reduced-fare card establishes eligibility, but no supplied source states a reduced-fare amount. Therefore RELEASE $15.00 as the requested standard-price total only. Do not present $15.00 as the rider's reduced fare. R1 passes because Source A is the controlling applicable source. R2 passes because the requested sentence is quoted exactly and no unsupported reduced-fare value is claimed. R3 passes because both inputs and the operation are visible and recompute to $15.00. R4 passes because the requested standard-price calculation has complete inputs, and Source B is superseded rather than an equal-authority conflict. R5 passes because the release is bounded to the supported standard-price total. This is an authored answer key, not an actual model run or review record.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Feedback: Changed Input Answer Key Feedback
+
+If you wrote twelve dollars, you reused the old quantity.  If you wrote fifteen without showing multiplication, the visible-calculation requirement failed.  If you called fifteen dollars the reduced fare, you converted eligibility into price.  If you chose HOLD solely because the reduced amount is unknown, you held too broadly.  The requested standard calculation has complete inputs.  This key is authored, not an actual model run.
+
+Correct feedback: You applied the changed quantity, visible arithmetic, eligibility limitation, and bounded release correctly.
+
+Retry feedback: Check quantity, visible operation, price limitation, and whether the requested calculation itself has complete inputs.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Narration: Limits And Transfer Narration
+
+The three cases expose version errors, invented values, arithmetic errors, missing quantities, and unresolved conflicts.  They do not establish a model success rate or production reliability.  Broader reliability is UNKNOWN because no actual run dataset exists.  A broader evaluation needs fixed inputs, preserved outputs, identified systems, stable rubric, and recorded review results.  Provider guidance differs across OpenAI, Anthropic, Google, and Qwen.  Guidance motivates testing, not assumptions of transfer.  Authored examples demonstrate method only.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview>
+- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
+- <https://ai.google.dev/gemini-api/docs/prompting-strategies>
+- <https://huggingface.co/Qwen/Qwen3-0.6B/raw/main/README.md>
+
+## Checkpoint: Limits And Transfer Checkpoint
+
+Which conclusion is justified?  The authored version two artifacts pass these supplied cases under their rubric.  Which conclusion is not justified?  General production reliability.
+
+Expected learner action: Distinguish the bounded authored finding from an unsupported general reliability claim.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
 ## Assessment Handoff: Assessment Handoff
 
-When you are ready, begin the knowledge check. You will choose evidence for a current product claim, scale verification to consequence, diagnose missing context, compare revisions fairly, and distinguish a measured gain from one persuasive answer. Review the class or return to the activity before submitting. The assessment begins only when you choose Begin knowledge check.
+Begin the knowledge check when ready.  It covers evidence, consequence, missing data, fair workflow comparison, and limits of authored evaluation.  Review the class or activity first if needed.  Choose Begin only when prepared to answer all five questions.
 
 ## Closing: Class Closing
 
-Verify claims with the nearest evidence. Scale checks to consequence. Diagnose before changing. Compare versions on the same cases, and never hide a regression or unknown.
+Verify claims with direct evidence.  Scale checks to consequence.  Diagnose before changing.  Compare versions on identical cases.  Never invent missing values or hide uncertainty.
