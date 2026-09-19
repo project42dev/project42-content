@@ -33,14 +33,17 @@
       "title": "Verify in bounded steps",
       "paragraphs": [
         "State the exact claim and as-of date, then identify what evidence would confirm, qualify, or disprove it. Retrieve the most direct current source, record provenance, and search deliberately for exceptions or contradictions. Separate what the evidence states from your inference.",
-        "For quantities, recompute from the underlying data and record units, denominator, rounding, and time window. For system behavior, reproduce in a safe environment with the named version and configuration. For volatile state, query the system of record immediately before consequential use."
+        "For quantities, recompute from the underlying data and record units, denominator, rounding, and time window. For system behavior, reproduce in a safe environment with the named version and configuration. For volatile state, query the system of record immediately before consequential use.",
+        "A useful sequence is: write one atomic claim; define its scope and time boundary; list confirming, qualifying, and disproving evidence; retrieve the direct source; preserve its version and provenance; search for contradictions; recompute quantities; reproduce behavior where applicable; then state only the inference supported by the evidence.",
+        "A claim such as 'the model has 80% accuracy' is incomplete until the evaluator identifies the model version, benchmark, language or task scope, eligible-item rule, numerator, denominator, rounding rule, and measurement date. A change in any of those fields can change the answer without either source being mathematically wrong."
       ]
     },
     {
       "id": "record-verification",
       "title": "Record a reproducible verification",
       "paragraphs": [
-        "Use synthetic or redacted examples when a real record contains restricted data. Verification evidence should be sufficient for an authorized reviewer, not a dump of sensitive inputs."
+        "Use synthetic or redacted examples when a real record contains restricted data. Verification evidence should be sufficient for an authorized reviewer, not a dump of sensitive inputs.",
+        "The following is the exact blank record template. Keep the labels and disposition vocabulary stable so that another reviewer can reproduce the decision."
       ],
       "code": {
         "language": "text",
@@ -53,7 +56,177 @@
       "title": "Expected evidence and verification",
       "paragraphs": [
         "The expected evidence is a reproducible record showing the claim, date, direct evidence, contradiction search, method, result, inference boundary, confidence, and reviewer. Unknown remains a valid result.",
-        "Have another person reproduce the calculation or system check without relying on the conclusion. Confirm the source is current and authoritative, inspect edge cases, and rerun after changes to data, model, prompt, retrieval, tool, or application logic. Escalate professional legal, medical, financial, or safety decisions to qualified experts."
+        "Have another person reproduce the calculation or system check without relying on the conclusion. Confirm the source is current and authoritative, inspect edge cases, and rerun after changes to data, model, prompt, retrieval, tool, or application logic. Escalate professional legal, medical, financial, or safety decisions to qualified experts.",
+        "A failed reproduction does not automatically disprove the original claim. First compare versions, configuration, inputs, scope, denominator, and time window. The result is disproved only when reliable evidence directly conflicts with the exact claim under the same defined conditions.",
+        "A source can be direct but stale, or recent but secondary. Record both authority and currency. When a source does not establish a required field, mark that field UNKNOWN rather than filling it from assumption."
+      ]
+    },
+    {
+      "id": "worked-case-setup",
+      "title": "Worked case: define the claim and source packet",
+      "paragraphs": [
+        "The following entirely synthetic packet is a teaching fixture, not a report about a real model or provider. Its dates, identifiers, counts, and records are deliberately constructed so that the arithmetic and decision trail can be reproduced offline.",
+        "Exact claim under review: 'As of 2026-09-18, Atlas-small evaluation release 1.4 answered 8 of 10 eligible English customer-support benchmark items correctly, which is 80% accuracy.' The consequence if wrong is MEDIUM because a reader could compare systems or make a deployment decision using the result.",
+        "The claim has a narrow scope: model Atlas-small, evaluation release 1.4, benchmark cohort English customer-support, 10 eligible items, measurement date 2026-09-18, eight correct answers, and accuracy rounded to the nearest whole percent. It does not claim a general capability, a result for other languages, or a result for another version.",
+        "The primary synthetic record is a dated, versioned evaluation export identified as S1. The independent comparison record S2 is older and uses a different scope. S3 is a recent secondary dashboard snapshot whose denominator is not supplied. These differences must be reported, not silently merged.",
+        "S1 is the direct record for the exact narrow claim. Its arithmetic confirms that the supplied 8/10 result renders as 80%; that arithmetic confirmation is not independent confirmation that the underlying evaluation was truthful, complete, or correctly scoped. S2 and S3 cannot be treated as automatic disproofs of the exact claim."
+      ],
+      "code": {
+        "language": "json",
+        "label": "synthetic/source_packet.json",
+        "code": "{\n  \"packet_type\": \"synthetic-teaching-fixture\",\n  \"claim\": \"As of 2026-09-18, Atlas-small evaluation release 1.4 answered 8 of 10 eligible English customer-support benchmark items correctly, which is 80% accuracy.\",\n  \"as_of\": \"2026-09-18\",\n  \"records\": [\n    {\n      \"id\": \"S1\",\n      \"title\": \"Atlas evaluation export\",\n      \"published\": \"2026-09-18\",\n      \"version\": \"evaluation-release-1.4\",\n      \"authority\": \"direct synthetic evaluation export\",\n      \"scope\": \"English customer-support benchmark cohort\",\n      \"correct\": 8,\n      \"eligible\": 10,\n      \"accuracy_reported_percent\": 80\n    },\n    {\n      \"id\": \"S2\",\n      \"title\": \"Atlas comparison worksheet\",\n      \"published\": \"2026-09-10\",\n      \"version\": \"evaluation-release-1.3\",\n      \"authority\": \"independent synthetic worksheet\",\n      \"scope\": \"mixed-language support set, 12 items\",\n      \"correct\": 9,\n      \"eligible\": 12,\n      \"accuracy_reported_percent\": 75\n    },\n    {\n      \"id\": \"S3\",\n      \"title\": \"Atlas dashboard snapshot\",\n      \"published\": \"2026-09-18\",\n      \"version\": \"dashboard-schema-2\",\n      \"authority\": \"secondary synthetic dashboard\",\n      \"scope\": \"support aggregate; language, version, and denominator not supplied\",\n      \"correct\": null,\n      \"eligible\": null,\n      \"accuracy_reported_percent\": 82\n    }\n  ],\n  \"fidelity_token\": \"abc\",\n  \"fidelity_sha256\": \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\"\n}"
+      }
+    },
+    {
+      "id": "worked-case-arithmetic",
+      "title": "Worked case: denominator, rounding, and scope",
+      "paragraphs": [
+        "For S1, accuracy = correct answers / eligible items = 8 / 10 = 0.8. Converting to a percentage gives 0.8 × 100 = 80%. Rounding to the nearest whole percent leaves 80%. The denominator is 10 eligible English customer-support items, not all prompts encountered by the system and not the 12-item denominator in S2.",
+        "For S2, accuracy = 9 / 12 = 0.75, or 75%. This is a real observation about a different version and mixed-language scope. It is not a direct contradiction of the narrow S1 claim because the model version, cohort, and denominator differ.",
+        "S3 reports 82% but supplies no numerator, denominator, model version, or language scope. It is useful contradiction-seeking evidence, but it cannot establish whether 82% refers to the exact claim. Its missing denominator makes independent arithmetic impossible. The rendered arithmetic status for S3 is UNKNOWN, not zero and not 82% recomputed from data.",
+        "The safe result is therefore: the narrow S1 calculation is reproducible and supported by the direct dated record; S2 shows that a different evaluation condition produced 75%; S3 leaves an unresolved aggregate discrepancy. The evidence does not support the broader statement that Atlas-small accuracy is 80% in all settings.",
+        "The exercise uses Python round() for nearest-whole-percent rendering. Python uses round-half-to-even when a value is exactly halfway between two integers: round(0.5) is 0, round(1.5) is 2, round(2.5) is 2, and round(3.5) is 4. Thus a percentage of 2.5% renders as 2%, while 3.5% renders as 4%. The tie rule must be recorded because another rounding policy could produce a different displayed result."
+      ],
+      "code": {
+        "language": "text",
+        "label": "calculation",
+        "code": "S1: accuracy = correct / eligible = 8 / 10 = 0.8\nS1: percentage = 0.8 * 100 = 80%; nearest-whole-percent rounding = 80%\nS2: accuracy = 9 / 12 = 0.75; percentage = 75%\nS3: accuracy = UNKNOWN because correct and eligible counts are absent\nTie examples using Python round(): round(0.5) = 0; round(1.5) = 2; round(2.5) = 2; round(3.5) = 4\nUnits: correct answers per eligible benchmark item, reported as percent\nTime window: evaluation dated 2026-09-18 for S1; source dates are not combined"
+      }
+    },
+    {
+      "id": "worked-case-contradiction",
+      "title": "Worked case: deliberate contradiction search",
+      "paragraphs": [
+        "A deliberate search for contradictions uses queries that could expose a different answer: 'Atlas-small evaluation release 1.4 English customer-support accuracy 2026-09-18'; 'Atlas-small 8 10 benchmark'; 'Atlas accuracy 82 denominator'; and 'Atlas evaluation release 1.3 9 12 mixed language'. In a real investigation, record the exact query, source returned, retrieval time, and whether the source is primary, independent, or secondary.",
+        "The search finds S2, which is independent but stale relative to the as-of date and uses a different scope. It finds S3, which is dated the same day but lacks the fields needed to compare it with S1. Neither source disproves the exact S1 claim. S2 is relevant qualifying evidence for any broader comparison, but it is not a contradiction of the narrow claim merely because its percentage differs.",
+        "If a same-version, same-cohort direct export stated 7 of 10 rather than 8 of 10, that would directly conflict with S1 and would require resolution. If the conflict remained unresolved, the narrow claim's disposition would be UNKNOWN, not automatically QUALIFIED. If reliable same-scope evidence established 7/10 and superseded S1, DISPROVED could be appropriate. A source merely saying 'accuracy differs by language' would qualify the generalization but would not disprove the narrow claim."
+      ]
+    },
+    {
+      "id": "worked-case-record",
+      "title": "Worked case: complete verification record and review decision",
+      "paragraphs": [
+        "The completed record below distinguishes observed evidence from inference. It records the unresolved S3 ambiguity and preserves the boundary around what was not checked.",
+        "Review decision: the exact narrow proposition that S1 records a reproducible 8/10 result for its stated cohort and release can be CONFIRMED after the arithmetic and fidelity checks, while the broader proposition that Atlas-small accuracy is 80% generally must be QUALIFIED. For the exact claim as worded, the record below uses QUALIFIED because it explicitly prevents overreading the result as general accuracy. If a reviewer treats the source export itself as the narrow proposition, CONFIRMED is defensible; S2 and S3 do not by themselves require qualification of that exact proposition.",
+        "Corrected statement: 'In the synthetic evaluation export S1 dated 2026-09-18, Atlas-small evaluation release 1.4 scored 8 of 10 eligible English customer-support benchmark items, equal to 80% accuracy under that defined scope. This does not establish accuracy for other versions, languages, cohorts, or the undocumented 82% dashboard aggregate.'"
+      ],
+      "code": {
+        "language": "text",
+        "label": "completed verification record",
+        "code": "Claim: As of 2026-09-18, Atlas-small evaluation release 1.4 answered 8 of 10 eligible English customer-support benchmark items correctly, which is 80% accuracy.\nAs of: 2026-09-18\nConsequence if wrong: MEDIUM\nConfirming evidence: S1, dated 2026-09-18, evaluation-release-1.4, direct synthetic evaluation export\nContradicting evidence sought: Queries for same-version, same-cohort counts; S2 dated 2026-09-10 reports 9/12 for evaluation-release-1.3 and mixed-language scope; S3 dated 2026-09-18 reports 82% without denominator or version\nReproduction: Python 3.12 standard library; read packet.json; process every record; calculate correct / eligible; compare supplied percentage; verify fidelity_token SHA-256\nCalculation: correct / eligible = 8 correct answers / 10 eligible English customer-support items = 0.8; 0.8 * 100 = 80%; nearest whole percent using Python round() = 80%\nObserved result: S1 calculation and supplied percentage agree; S1 fidelity token digest agrees; S2 is 75% under different scope; S3 is not calculable because numerator and denominator are UNKNOWN\nInference: S1 supports 80% for the named release, cohort, date, and denominator. It does not support an all-settings accuracy claim, and S3's 82% cannot be reconciled without missing metadata. Arithmetic and digest agreement do not independently establish world truth, source authority, or source currency.\nConfidence: MEDIUM, because the direct S1 record and arithmetic agree, but the packet contains a differently scoped record and an unresolved aggregate\nDisposition: QUALIFIED\nReviewer and date: synthetic-reviewer, 2026-09-19"
+      }
+    },
+    {
+      "id": "offline-exercise-files",
+      "title": "Runnable offline exercise: files and commands",
+      "paragraphs": [
+        "This exercise uses only Python standard-library modules available in Python 3.12, including json, hashlib, and unittest. It recomputes every record in packet.json and checks that the supplied fidelity token matches its SHA-256 digest. It prints UNKNOWN for a record with no numerator or denominator.",
+        "Create a directory named fact_check_exercise. Save the first code block as packet.json, the second as verify.py, and the third as test_verify.py. The files are complete. Do not add a network call or external package.",
+        "Run the positive exercise with 'python verify.py'. Run the tests with 'python -m unittest -v test_verify.py'. The commands assume Python 3.12 or a compatible Python 3 interpreter. The reproduction record uses packet.json, which is the learner's actual filename, rather than the source-packet display path."
+      ],
+      "code": {
+        "language": "json",
+        "label": "packet.json",
+        "code": "{\n  \"claim\": \"Atlas-small release 1.4 scored 8/10 in the English support cohort\",\n  \"records\": [\n    {\n      \"id\": \"S1\",\n      \"version\": \"1.4\",\n      \"scope\": \"English support\",\n      \"correct\": 8,\n      \"eligible\": 10,\n      \"reported_percent\": 80\n    },\n    {\n      \"id\": \"S3\",\n      \"version\": \"UNKNOWN\",\n      \"scope\": \"support aggregate\",\n      \"correct\": null,\n      \"eligible\": null,\n      \"reported_percent\": 82\n    }\n  ],\n  \"fidelity_token\": \"abc\",\n  \"fidelity_sha256\": \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\"\n}"
+      }
+    },
+    {
+      "id": "offline-exercise-program",
+      "title": "Runnable offline exercise: program and exact output",
+      "paragraphs": [
+        "The program distinguishes unavailable evidence from invalid input. A null correct or eligible field denotes unavailable evidence and renders the record's arithmetic as UNKNOWN. Before taking that UNKNOWN shortcut, the program validates every count that is present. A present correct count must be an integer other than a boolean and must be nonnegative. A present eligible count must be an integer other than a boolean and must be positive. When both counts are present, correct must not exceed eligible. Invalid input raises ValueError rather than rendering UNKNOWN.",
+        "For records with both counts present, percentage is round(correct / eligible * 100). Python 3.12 round() uses round-half-even, so 1/40 produces 2.5% and renders as 2%. See https://docs.python.org/3.12/library/functions.html#round. The program preserves input order and processes every record rather than relying on fixed record indexes.",
+        "The fidelity check computes the SHA-256 digest of the UTF-8 encoding of fidelity_token using hashlib.sha256(). See https://docs.python.org/3.12/library/hashlib.html. A digest match demonstrates fidelity for the supplied token and digest, not provenance, authorship, authority, currency, scope, or truth."
+      ],
+      "code": {
+        "language": "python",
+        "label": "verify.py",
+        "code": "import hashlib\nimport json\nfrom pathlib import Path\n\n\ndef load_packet(path=\"packet.json\"):\n    return json.loads(Path(path).read_text(encoding=\"utf-8\"))\n\n\ndef _require_key(record, key):\n    if key not in record:\n        raise ValueError(f'{record.get(\"id\", \"UNKNOWN\")}: missing field {key}')\n    return record[key]\n\n\ndef _require_integer(value, field, record_id):\n    if isinstance(value, bool) or not isinstance(value, int):\n        raise ValueError(f'{record_id}: {field} must be an integer or null')\n\n\ndef check_record(record):\n    if not isinstance(record, dict):\n        raise ValueError(\"record must be an object\")\n    record_id = record.get(\"id\", \"UNKNOWN\")\n    if not isinstance(record_id, str) or not record_id:\n        raise ValueError(\"record id must be a nonempty string\")\n\n    correct = _require_key(record, \"correct\")\n    eligible = _require_key(record, \"eligible\")\n    reported = _require_key(record, \"reported_percent\")\n\n    if correct is not None:\n        _require_integer(correct, \"correct\", record_id)\n        if correct < 0:\n            raise ValueError(\n                f'{record_id}: invalid counts: correct must be 0..eligible and eligible must be positive'\n            )\n\n    if eligible is not None:\n        _require_integer(eligible, \"eligible\", record_id)\n        if eligible <= 0:\n            raise ValueError(\n                f'{record_id}: invalid counts: correct must be 0..eligible and eligible must be positive'\n            )\n\n    if correct is not None and eligible is not None and correct > eligible:\n        raise ValueError(\n            f'{record_id}: invalid counts: correct must be 0..eligible and eligible must be positive'\n        )\n\n    if correct is None or eligible is None:\n        return f'{record_id}: accuracy=UNKNOWN (missing numerator or denominator)'\n\n    _require_integer(reported, \"reported_percent\", record_id)\n    calculated = round(correct / eligible * 100)\n    if calculated != reported:\n        raise ValueError(\n            f'{record_id}: reported {reported}% does not match calculated {calculated}%'\n        )\n    return f'{record_id}: accuracy={calculated}% ({correct}/{eligible})'\n\n\ndef verify_fidelity(packet):\n    token = packet.get(\"fidelity_token\")\n    supplied = packet.get(\"fidelity_sha256\")\n    if not isinstance(token, str) or not isinstance(supplied, str):\n        raise ValueError(\"fidelity token and digest must be strings\")\n    actual = hashlib.sha256(token.encode(\"utf-8\")).hexdigest()\n    if actual != supplied:\n        raise ValueError(\"fidelity digest mismatch\")\n    return \"fidelity: MATCH\"\n\n\nif __name__ == \"__main__\":\n    packet = load_packet()\n    for record in packet[\"records\"]:\n        print(check_record(record))\n    print(verify_fidelity(packet))"
+      }
+    },
+    {
+      "id": "offline-exercise-tests",
+      "title": "Runnable offline exercise: positive and negative fixtures",
+      "paragraphs": [
+        "Save this complete file as test_verify.py and run it with 'python -m unittest -v test_verify.py'. The suite contains exactly 14 test methods. It retains the original nonnull arithmetic, round-half-even, mismatch, malformed-input, invalid-count, and digest cases. It also checks both one-null valid combinations and the one-null invalid boundaries that could be mistaken for UNKNOWN.",
+        "The one-null valid cases establish that correct=0 with eligible=null and correct=null with eligible=1 render UNKNOWN after the present value passes validation. The one-null invalid cases establish that correct=-1 with eligible=null, correct=null with eligible=0, and correct=null with eligible=-2 raise ValueError. Thus null continues to mean unavailable evidence, but it does not hide an invalid count in the other field.",
+        "The tests use unittest.TestCase.assertRaisesRegex to require both the exception type and a meaningful matching message. See https://docs.python.org/3.12/library/unittest.html#unittest.TestCase.assertRaisesRegex. These are expected tests supplied for offline reproduction. No claim is made here that they were actually executed while drafting."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_verify.py",
+        "code": "import hashlib\nimport unittest\n\nfrom verify import check_record, verify_fidelity\n\n\nclass VerificationTests(unittest.TestCase):\n    def test_positive_arithmetic(self):\n        record = {\"id\": \"POS\", \"correct\": 8, \"eligible\": 10, \"reported_percent\": 80}\n        self.assertEqual(check_record(record), \"POS: accuracy=80% (8/10)\")\n\n    def test_positive_round_half_even(self):\n        record = {\"id\": \"TIE\", \"correct\": 1, \"eligible\": 40, \"reported_percent\": 2}\n        self.assertEqual(check_record(record), \"TIE: accuracy=2% (1/40)\")\n\n    def test_unknown_missing_counts(self):\n        record = {\"id\": \"UNK\", \"correct\": None, \"eligible\": None, \"reported_percent\": 82}\n        self.assertEqual(\n            check_record(record),\n            \"UNK: accuracy=UNKNOWN (missing numerator or denominator)\",\n        )\n\n    def test_negative_wrong_reported_percentage(self):\n        record = {\"id\": \"BADPCT\", \"correct\": 8, \"eligible\": 10, \"reported_percent\": 82}\n        with self.assertRaisesRegex(ValueError, \"does not match\"):\n            check_record(record)\n\n    def test_negative_invalid_counts(self):\n        record = {\"id\": \"BADCOUNT\", \"correct\": 11, \"eligible\": 10, \"reported_percent\": 110}\n        with self.assertRaisesRegex(ValueError, \"invalid counts\"):\n            check_record(record)\n\n    def test_negative_boolean_count(self):\n        record = {\"id\": \"BOOL\", \"correct\": True, \"eligible\": 10, \"reported_percent\": 10}\n        with self.assertRaisesRegex(ValueError, \"must be an integer\"):\n            check_record(record)\n\n    def test_negative_fractional_count(self):\n        record = {\"id\": \"FRACTION\", \"correct\": 1.5, \"eligible\": 2, \"reported_percent\": 75}\n        with self.assertRaisesRegex(ValueError, \"must be an integer\"):\n            check_record(record)\n\n    def test_negative_string_count(self):\n        record = {\"id\": \"STRING\", \"correct\": \"8\", \"eligible\": 10, \"reported_percent\": 80}\n        with self.assertRaisesRegex(ValueError, \"must be an integer\"):\n            check_record(record)\n\n    def test_negative_malformed_record(self):\n        record = {\"id\": \"MISSING\", \"correct\": 8, \"eligible\": 10}\n        with self.assertRaisesRegex(ValueError, \"missing field reported_percent\"):\n            check_record(record)\n\n    def test_negative_digest(self):\n        packet = {\n            \"fidelity_token\": \"abc\",\n            \"fidelity_sha256\": hashlib.sha256(b\"not-abc\").hexdigest(),\n        }\n        with self.assertRaisesRegex(ValueError, \"digest mismatch\"):\n            verify_fidelity(packet)\n\n    def test_one_null_valid_missing_eligible(self):\n        record = {\"id\": \"NO_DENOM\", \"correct\": 0, \"eligible\": None, \"reported_percent\": 0}\n        self.assertEqual(\n            check_record(record),\n            \"NO_DENOM: accuracy=UNKNOWN (missing numerator or denominator)\",\n        )\n\n    def test_one_null_valid_missing_correct(self):\n        record = {\"id\": \"NO_NUM\", \"correct\": None, \"eligible\": 1, \"reported_percent\": 0}\n        self.assertEqual(\n            check_record(record),\n            \"NO_NUM: accuracy=UNKNOWN (missing numerator or denominator)\",\n        )\n\n    def test_one_null_invalid_negative_correct(self):\n        record = {\"id\": \"NEG_NUM\", \"correct\": -1, \"eligible\": None, \"reported_percent\": 0}\n        with self.assertRaisesRegex(ValueError, \"invalid counts\"):\n            check_record(record)\n\n    def test_one_null_invalid_nonpositive_eligible(self):\n        records = [\n            {\"id\": \"ZERO_DENOM\", \"correct\": None, \"eligible\": 0, \"reported_percent\": 0},\n            {\"id\": \"NEG_DENOM\", \"correct\": None, \"eligible\": -2, \"reported_percent\": 0},\n        ]\n        for record in records:\n            with self.subTest(record_id=record[\"id\"]):\n                with self.assertRaisesRegex(ValueError, \"invalid counts\"):\n                    check_record(record)\n\n\nif __name__ == \"__main__\":\n    unittest.main()"
+      }
+    },
+    {
+      "id": "offline-exercise-expected",
+      "title": "Runnable offline exercise: expected outputs and limits",
+      "paragraphs": [
+        "With the unchanged baseline packet.json fixture, the exact expected standard output from 'python verify.py' is:",
+        "S1: accuracy=80% (8/10)\nS3: accuracy=UNKNOWN (missing numerator or denominator)\nfidelity: MATCH",
+        "The expected final summary from 'python -m unittest -v test_verify.py' is:",
+        "Ran 14 tests in [a runtime-dependent duration]\n\nOK",
+        "The runtime duration and the order or formatting of verbose per-test lines are not asserted because they can vary by environment. The count of 14 follows from the 14 test methods in the supplied test_verify.py file. This is expected output, not a claim of an actual drafting-time execution.",
+        "A successful arithmetic check establishes only that the supplied counts produce the supplied percentage under Python's stated rounding rule. A digest match establishes only that the UTF-8 token bytes match the supplied SHA-256 digest. Neither result proves authenticity, authority, currency, correct benchmark eligibility rules, comparability of cohorts, semantic appropriateness, or absence of selection bias.",
+        "The workflow is provider-neutral. The same validation boundary applies to records from any model or service: validate every present count before rendering a missing pair as UNKNOWN, preserve the exact version and scope, process every record, recompute supported percentages, and avoid transferring a result across providers, releases, cohorts, or hosted endpoints without evidence."
+      ]
+    },
+    {
+      "id": "independent-learner-task",
+      "title": "Independent changed-input task",
+      "paragraphs": [
+        "Work this task before reading the answer key. Replace the input data, not merely the record identifier. Use the complete new synthetic packet below. T1 is dated 2026-09-19, version 1.5, scope English customer-support, correct 17, eligible 20, reported percentage 85. T2 is dated 2026-09-11, version 1.4, scope English and Spanish support, correct 18, eligible 24, reported percentage 75. T3 is dated 2026-09-19, a secondary dashboard, reported percentage 86, with numerator and denominator UNKNOWN.",
+        "Write an exact claim with an as-of date. Compute T1's percentage, state the denominator and rounding rule, classify T2 as conflicting, qualifying, or disproving evidence, and explain what cannot be inferred from T3. Decide whether the narrow claim should be CONFIRMED or QUALIFIED and write a corrected statement.",
+        "For the coding variation, replace packet.json with the complete fixture below, update the claim text, and run the unchanged verify.py. It must process all three records because the program loops over packet['records']; it must not use hardcoded indexes. Preserve the fidelity token and digest so the changed-input run reaches all three arithmetic results. Then run the tests. The changed fixture is intentionally self-contained and executable."
+      ],
+      "code": {
+        "language": "json",
+        "label": "changed packet.json",
+        "code": "{\n  \"claim\": \"Atlas-small release 1.5 scored 17/20 in the English customer-support cohort\",\n  \"records\": [\n    {\n      \"id\": \"T1\",\n      \"version\": \"1.5\",\n      \"scope\": \"English customer-support\",\n      \"published\": \"2026-09-19\",\n      \"correct\": 17,\n      \"eligible\": 20,\n      \"reported_percent\": 85\n    },\n    {\n      \"id\": \"T2\",\n      \"version\": \"1.4\",\n      \"scope\": \"English and Spanish support\",\n      \"published\": \"2026-09-11\",\n      \"correct\": 18,\n      \"eligible\": 24,\n      \"reported_percent\": 75\n    },\n    {\n      \"id\": \"T3\",\n      \"version\": \"UNKNOWN\",\n      \"scope\": \"UNKNOWN\",\n      \"published\": \"2026-09-19\",\n      \"authority\": \"secondary dashboard\",\n      \"correct\": null,\n      \"eligible\": null,\n      \"reported_percent\": 86\n    }\n  ],\n  \"fidelity_token\": \"abc\",\n  \"fidelity_sha256\": \"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\"\n}"
+      }
+    },
+    {
+      "id": "independent-task-hints",
+      "title": "Independent task: graduated hints",
+      "paragraphs": [
+        "Hint 1: Start with T1 only. The denominator is the count of eligible items, and the percentage formula is correct divided by eligible, multiplied by 100.",
+        "Hint 2: Compare T2 field by field with T1. A different version and a different language scope mean that its 75% result is not automatically a disproof of T1.",
+        "Hint 3: T3 has a percentage but no numerator or denominator. Mark its arithmetic as UNKNOWN and avoid treating its date alone as proof that it measures the same cohort.",
+        "Hint 4: If your claim says only that T1 scored 17 of 20 in its named cohort, CONFIRMED may be defensible. If your claim says the model's general accuracy is 85%, QUALIFIED is required because the evidence does not cover all versions, languages, or tasks."
+      ]
+    },
+    {
+      "id": "independent-task-answer-key",
+      "title": "Independent task: reasoned answer key and feedback",
+      "paragraphs": [
+        "Model answer: 'As of 2026-09-19, Atlas-small evaluation release 1.5 answered 17 of 20 eligible English customer-support benchmark items correctly, which is 85% accuracy rounded to the nearest whole percent.' Calculation: 17 / 20 = 0.85; 0.85 × 100 = 85%. The denominator is 20 eligible items.",
+        "The exact changed-input command output is:",
+        "T1: accuracy=85% (17/20)\nT2: accuracy=75% (18/24)\nT3: accuracy=UNKNOWN (missing numerator or denominator)\nfidelity: MATCH",
+        "T2 is qualifying and contradictory evidence for a broader comparison, but it does not disprove the narrow T1 claim because it is dated earlier, uses version 1.4 rather than 1.5, and combines English and Spanish. T3 is unresolved evidence: its 86% figure cannot be recomputed or scope-matched because the numerator, denominator, version, and cohort are UNKNOWN.",
+        "The narrow T1 claim can receive CONFIRMED if the direct T1 record is authoritative within the exercise and its fidelity and arithmetic checks pass. The broader statement 'Atlas-small accuracy is 85%' must receive QUALIFIED. Corrected statement: 'T1 records 17/20, or 85%, for Atlas-small release 1.5 on the dated English customer-support cohort; this does not establish general accuracy or reconcile the undocumented 86% dashboard figure.'",
+        "Feedback for common mistakes: calling T2 DISPROVED ignores version and scope; calling T3 CONFIRMED treats a percentage without a denominator as complete evidence; using 17 as the denominator reverses the calculation; reporting 0.85% confuses a proportion with a percentage; treating a digest match as proof of truth confuses integrity of supplied bytes with authority or currency of the source; and editing only the first two records while leaving T3 unprocessed indicates hardcoded indexing rather than processing all records.",
+        "A complete learner record should make its decision traceable: exact claim, date, direct evidence, contradiction query, version and scope, formula with units and denominator, observed result, what follows and does not follow, confidence reason, disposition, and reviewer/date.",
+        "With the complete changed packet.json fixture from the independent task, the exact expected standard output from the same unchanged 'python verify.py' command is:",
+        "T1: accuracy=85% (17/20)\nT2: accuracy=75% (18/24)\nT3: accuracy=UNKNOWN (missing numerator or denominator)\nfidelity: MATCH",
+        "The changed-input decisions are traceable from the fields: T1 computes as 17/20 × 100 = 85%; T2 computes as 18/24 × 100 = 75%; and T3 remains UNKNOWN because both arithmetic counts are null. T2 has a different version, date, and language scope, so its 75% does not by itself disprove the narrow T1 result. T3's reported 86% cannot be independently recomputed or matched to T1's scope."
+      ]
+    },
+    {
+      "id": "automation-limits",
+      "title": "Automation limits and safe escalation",
+      "paragraphs": [
+        "A script is strongest at mechanical checks: parsing a fixed structure, recomputing a quantity, checking allowed ranges, rejecting booleans and malformed integer fields, comparing a reported value with a calculated value, and matching a supplied digest. It is not a substitute for understanding what a field means.",
+        "Unknown counts and invalid counts are different outcomes. Null counts mean the available evidence does not permit arithmetic. A fractional, string, boolean, missing, negative, out-of-range, or otherwise malformed count is invalid input and should produce a clear error rather than an UNKNOWN result.",
+        "For consequential work, preserve the source's retrieval time and version, ask an independent reviewer to rerun the calculation, inspect boundary cases such as zero or excluded items, and query volatile systems immediately before use. If a result affects legal, medical, financial, or safety decisions, escalate to qualified experts as stated in the workflow."
+      ]
+    },
+    {
+      "id": "provider-neutral-transfer",
+      "title": "Transfer the workflow across providers and hosted sources",
+      "paragraphs": [
+        "The workflow transfers to evaluations involving Meta, Llama, DeepSeek, Qwen, Mistral, Phi, NVIDIA, Z.ai, or a hosted model source because it verifies a defined claim rather than assuming a provider's product behavior. For each case, name the exact source, model or release identifier, task and input scope, date, numerator, denominator, configuration, and authority. Do not copy a capability, benchmark result, or availability claim from one provider or model to another.",
+        "For a hosted model source, also record the endpoint or service identifier and the observation time when behavior may change. A reproduced answer is evidence of behavior under the recorded conditions, not proof that every request will behave identically. A provider page may be direct for the provider's stated information, while an independent benchmark may be direct evidence for its own measured result. Their claims should not be silently combined.",
+        "If a source does not expose a version, denominator, evaluation inputs, or date needed by the claim, record UNKNOWN and narrow or qualify the statement. The same blank record, contradiction search, arithmetic check, and independent reproduction apply regardless of provider."
       ]
     }
   ],
@@ -75,6 +248,18 @@
       "url": "https://ai.google.dev/responsible/docs/evaluation",
       "publisher": "Google",
       "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Python 3.12 Standard Library",
+      "url": "https://docs.python.org/3.12/library/",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Built-in Functions: round",
+      "url": "https://docs.python.org/3.12/library/functions.html#round",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
     }
   ]
 }
