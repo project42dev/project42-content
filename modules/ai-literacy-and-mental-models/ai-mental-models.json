@@ -21,43 +21,78 @@
       "id": "distribution-not-lookup",
       "title": "Each token is chosen from a distribution",
       "paragraphs": [
-        "At each step of generation a language model does not retrieve a stored answer. It produces a probability for every token in its vocabulary, and a decoding strategy decides which single token is emitted; that token is appended to the context and the step repeats. Hugging Face's Transformers documentation describes the two basic strategies plainly: greedy search \"selects the next most likely token at each step,\" while multinomial sampling \"randomly selects a token based on the probability distribution over the entire model's vocabulary,\" so every token with a non-zero probability has a chance of being picked. Anthropic's glossary describes the objective that produces those probabilities in the same terms: autoregressive models are pretrained \"to predict the next word, given the previous context of text in the document.\"",
-        "The mental model that follows is simple and consequential: a response is one continuation selected from a space of plausible continuations. Under multinomial sampling, a sharply peaked distribution, in which one continuation is far more probable than the rest, tends to produce more agreement than a flatter distribution in which several continuations are similarly plausible. However, observing agreement alone does not establish that the underlying distribution is peaked, because greedy decoding, top-k restrictions, provider behavior, or other controls can also produce identical outputs. Because each chosen token becomes context for the next one, an early low-probability choice during sampling can steer everything after it. None of this shows in the wording: text produced from a flat distribution can read just as fluently as text produced from a peaked one.",
-        "Neither strategy is simply better. The same documentation notes that greedy search works for short outputs but \"breaks down when generating longer sequences because it begins to repeat itself,\" that sampling reduces repetition and produces more diverse output, and that beam search, which tracks several candidate sequences and keeps the one with the highest overall probability, suits input-grounded tasks such as describing an image or recognizing speech. Hosted assistants choose a strategy and settings for you; the distribution underneath is the same idea."
+        "At each generation step, a causal language model assigns scores to possible next tokens. A decoding strategy converts those scores into one emitted token, appends that token to the context, and repeats. Greedy decoding chooses the highest-scoring next token. Sampling draws from a probability distribution instead. A response is therefore a selected continuation, not a database lookup, and fluent wording does not establish factual accuracy.",
+        "This lab uses the open-weight HuggingFaceTB/SmolLM2-135M-Instruct model locally on CPU. The immutable model revision is 12fd25f77366fa6b3b4b768ec3050bf629380bac. Its published metadata identifies the standard LlamaForCausalLM architecture and safetensors support, so remote custom code is neither needed nor permitted. The core exercise requires no GPU, paid API, API credential, or execution of scripts downloaded with the model. Model metadata: https://huggingface.co/api/models/HuggingFaceTB/SmolLM2-135M-Instruct",
+        "Prerequisites are Python 3.10 or later, enough local disk space for Python packages and the model cache, and network access for the initial download. Transformers documentation states that the library has been tested on Python 3.10 or later and PyTorch 2.5 or later: https://huggingface.co/docs/transformers/main/en/installation. Before measurement, exact download size, total storage, peak RAM, and runtime are UNKNOWN because package versions, cached files, operating system, processor, and filesystem vary. A rough arithmetic reference is that 135 million FP32 parameters alone require about 540 MB in decimal units, before runtime tensors and Python overhead. This is not a measured peak-memory figure. Use the supplied disk and timing commands to establish figures for your machine.",
+        "This Linux/WSL Bash setup requires interpreter-specific venv support. For Ubuntu 26.04 with Python 3.14, run the administrative commands `sudo apt update` and then `sudo apt install python3.14-venv`. Do not install `python3-ensurepip`: `apt-get -s install python3.14-venv python3-ensurepip python3.14-dev build-essential` fails because that package cannot be located, while `python3.14-venv` resolves the required wheel dependencies. The administrative commands stay outside the executable core setup. For the distro’s default `python3`, first check `python3 --version`, install its matching `python3-venv` package, and rerun the ensurepip/venv preflight. A separately installed Python needs matching venv/ensurepip support; apt does not repair every Python on PATH. The binary-wheel-only lab needs neither development nor build packages. Successful lab verification used isolated Python 3.12.14, not an end-to-end Python 3.14 installation. Python’s venv documentation explains its use of ensurepip: https://docs.python.org/3.14/library/venv.html",
+        "After installing the operating-system prerequisites, run the setup block from the parent directory in which you want the disposable lab. Its preflight imports both ensurepip and venv before creating the named folder, preventing a missing prerequisite from leaving a partial lab directory. The refusal check never deletes or overwrites an existing path. If smollm-mental-models-lab already exists after an interrupted attempt, inspect it first. Either choose a different LAB name, rename the existing folder for recovery, or manually remove it only after confirming that it is disposable. Do not bypass the refusal check.",
+        "The PyTorch command uses the official CPU wheel index and accepts binary wheels only, avoiding an unintended CUDA build or source build. Transformers, Accelerate, huggingface_hub, and safetensors are then installed into the isolated environment. Accelerate is retained because the unchanged lab.py loads the model with device_map=\"cpu\". The commands record the versions actually installed in installed-versions.txt and requirements-resolved.txt; no sample version output is presented as if it came from a run."
       ],
-      "callout": "A response is a selected continuation, not a lookup. Fluency does not reveal how many other answers the model treated as plausible.",
+      "callout": "A response is a selected continuation, not a lookup. Fluency and repetition are not evidence of truth.",
       "code": {
-        "language": "python",
-        "label": "One model, three decoding strategies (Hugging Face Transformers)",
-        "code": "# The same model and input; only the decoding strategy changes.\noutputs = model.generate(**inputs, max_new_tokens=50)                             # greedy search: most likely token each step\noutputs = model.generate(**inputs, max_new_tokens=50, do_sample=True, num_beams=1)  # multinomial sampling from the distribution\noutputs = model.generate(**inputs, max_new_tokens=50, num_beams=2)                # beam search: best overall sequence of 2 beams"
+        "language": "bash",
+        "label": "Preflight, create a new isolated CPU lab, and record actual dependency versions",
+        "code": "set -eu\n\n# Preflight runs before the named lab folder is created.\npython3 --version\npython3 -c 'import ensurepip, venv; print(\"venv preflight: ensurepip and venv are importable\")'\n\nLAB=\"smollm-mental-models-lab\"\nif [ -e \"$LAB\" ]; then\n  printf '%s\\n' \"Refusing to continue: $LAB already exists.\" >&2\n  printf '%s\\n' \"Inspect it, rename it, or choose a different LAB name. Nothing was deleted.\" >&2\n  exit 1\nfi\n\nmkdir \"$LAB\"\ncd \"$LAB\"\npython3 -m venv .venv\n. .venv/bin/activate\n\npython -m pip install --upgrade pip\npython -m pip install --index-url https://download.pytorch.org/whl/cpu --only-binary=:all: torch\npython -m pip install transformers accelerate huggingface_hub safetensors\n\nmkdir cache\nexport HF_HOME=\"$PWD/cache\"\n\npython - <<'PY' | tee installed-versions.txt\nimport importlib.metadata\nimport platform\nimport sys\n\nprint(\"python=\" + sys.version.replace(\"\\n\", \" \"))\nprint(\"platform=\" + platform.platform())\nfor distribution in (\n    \"torch\",\n    \"transformers\",\n    \"accelerate\",\n    \"huggingface-hub\",\n    \"safetensors\",\n):\n    print(f\"{distribution}={importlib.metadata.version(distribution)}\")\nprint(\"device=cpu\")\nprint(\"cuda_required=False\")\nPY\npython -m pip freeze | tee requirements-resolved.txt\n\nprintf 'HF_HOME=%s\\n' \"$HF_HOME\"\nprintf '%s\\n' \"Setup finished. Keep this environment activated for lab.py.\""
       }
     },
     {
       "id": "decoding-controls",
       "title": "Temperature, top-k, and top-p reshape the draw",
       "paragraphs": [
-        "Hosted APIs expose a few controls over token selection. Google's Gemini prompting guide defines them concretely. Temperature \"controls the degree of randomness in token selection.\" A topK of 1 means the selected token is the single most probable one, \"also called greedy decoding,\" while a topK of 3 means the next token is chosen from among the three most probable. For top-p, tokens are ordered from most to least probable and the smallest set whose cumulative probability reaches or exceeds the threshold is retained. An exact equality is not required and often does not occur. In the guide's worked example, if tokens A, B, and C have probabilities 0.3, 0.2, and 0.1 and topP is 0.5, the model picks A or B and excludes C. The cited Google Prompt design strategies source changed its top-p description, and this update corrects the module's former claim that cumulative probabilities must equal the threshold. Anthropic's glossary summarizes the practical effect of temperature: lower values give \"more conservative and deterministic outputs that stick to the most probable phrasing and answers,\" while higher values give more varied ones.",
-        "Two cautions keep these controls from turning into superstition. First, they are not accuracy dials. Lowering temperature makes the model more likely to emit its most probable continuation; it does not make that continuation more correct, and if the most probable answer is wrong you will receive the same wrong answer more consistently. Second, recommended settings are model-specific. Google's guide strongly recommends keeping temperature, top_p, and top_k at their defaults for Gemini 3.x models and warns that changing them, for example \"setting the temperature below 1.0,\" can cause \"looping or degraded performance, particularly in complex mathematical or reasoning tasks.\" The portable rule is to treat decoding settings as part of the configuration you evaluate on real cases, not as a fix you apply out of habit."
+        "With do_sample=False and one beam, generate uses greedy decoding and selects the most likely token at each step. Sampling controls should not be passed to this greedy configuration because they do not describe the active selection method. With do_sample=True, temperature scales logits before softmax. A lower positive temperature makes the resulting distribution peakier, while a higher value spreads probability more broadly. Temperature changes selection probabilities, not factual knowledge.",
+        "Top-k keeps only the k highest-probability candidate tokens before sampling. Top-p, also called nucleus sampling, keeps the smallest probability-ranked set whose cumulative probability reaches or exceeds p. Top-k is a count, while top-p is a cumulative-probability threshold. The lab's sampled configuration explicitly combines temperature 0.8, top_k 50, and top_p 0.9. Its greedy configuration explicitly sets do_sample=False and omits sampling-only controls.",
+        "The three fixed fixtures below provide both a fact snippet and a question. This makes correctness independently checkable against the supplied answer key rather than inferred from repeated wording. The answer-only format also makes exact and normalized agreement interpretable. Do not replace these fixtures with learner-invented prompts during the core exercise.",
+        "Answer key: fixture capital-france expects Paris; fixture water-freezing expects 0; fixture triangle-sides expects 3. Correctness means the normalized generated continuation equals the normalized keyed answer. Agreement is calculated separately and only asks whether runs produced the same response."
       ],
-      "callout": "Lower temperature buys consistency, not correctness."
+      "callout": "Lower temperature can increase consistency, but it is not an accuracy control.",
+      "code": {
+        "language": "python",
+        "label": "Exact supplied grounded fixtures and answer key",
+        "code": "FIXTURES = [\n    {\n        \"id\": \"capital-france\",\n        \"fact\": \"Fact snippet: The capital of France is Paris.\",\n        \"question\": \"Question: What is the capital of France? Answer with only the city name.\",\n        \"answer\": \"Paris\",\n    },\n    {\n        \"id\": \"water-freezing\",\n        \"fact\": \"Fact snippet: At standard atmospheric pressure, pure water freezes at 0 degrees Celsius.\",\n        \"question\": \"Question: At standard atmospheric pressure, at what integer Celsius temperature does pure water freeze? Answer with only the signed integer.\",\n        \"answer\": \"0\",\n    },\n    {\n        \"id\": \"triangle-sides\",\n        \"fact\": \"Fact snippet: A triangle is a polygon with three sides.\",\n        \"question\": \"Question: How many sides does a triangle have? Answer with only the integer.\",\n        \"answer\": \"3\",\n    },\n]"
+      }
     },
     {
       "id": "same-input-different-output",
       "title": "Identical requests are not guaranteed identical answers",
       "paragraphs": [
-        "If decoding always took the most probable token and the underlying computation were perfectly repeatable, the same input would always produce the same output. Provider documentation does not describe practice uniformly. Google's prompting guide describes a temperature of 0 as deterministic, \"meaning that the highest probability response is always selected.\" Anthropic's glossary states, for its own service: \"Even with temperature set to 0, the results will not be fully deterministic and identical inputs may produce different outputs across API calls,\" and adds that this applies to its first-party API and to inference through third-party cloud providers.",
-        "The lesson is not to decide which document is right in general, but to stop treating reproducibility as something a setting grants. Treat it as a property you verify on the exact model, endpoint, and configuration you deploy. Where an application needs a stable answer, such as an audit record, a regression baseline, or a figure a person will quote, store the output you validated instead of regenerating it and hoping for the same text. Design checks around the meaning of an answer, such as the extracted value, the chosen category, or whether a cited source supports the claim, rather than an exact string match, because a correct answer can legitimately arrive in different words on different runs."
+        "A seed controls the pseudorandom state used by sampling. Repeating the same seed on a fixed environment is a useful reproducibility check, but PyTorch warns that completely reproducible results are not guaranteed across releases, platforms, or devices. Two same-seed runs are therefore observations, not a universal guarantee. Different seeds create an opportunity for different draws, but they are not guaranteed to produce distinct text.",
+        "Save the complete code below as lab.py inside the activated practice folder. It defines every model, prompt, decoding, seed, normalization, metric, and output variable. It applies the model's chat template with add_generation_prompt=True, tokenizes without duplicating special tokens, runs only on CPU, caps every continuation at 40 new tokens, and decodes only tokens generated after the input. It never enables remote code.",
+        "The script performs two greedy repetitions, two sampled repetitions with seed 1234, and sampled runs with seeds 7 and 29 for every fixture. It prints tab-separated response rows and summary rows, then writes the same evidence and metadata to lab_results.json. Metadata includes the model ID, immutable revision, Python, PyTorch and Transformers versions, platform, thread limit, offline mode, seeds, generation configurations, and measured total generation time.",
+        "The exact-agreement score is the frequency of the most common verbatim response divided by the number of runs in a comparison group. Normalized agreement applies lowercase conversion, punctuation removal, and whitespace collapse before the same calculation. The correctness count compares each normalized continuation with the separately supplied answer key. High agreement can coexist with zero correctness.",
+        "If the initial download fails, confirm network and disk availability and rerun without deleting the new folder so completed cache files can be reused. For deliberate offline use, first populate the pinned snapshot with the recovery command below, then run HF_HUB_OFFLINE=1 python lab.py. The script maps this environment variable to local_files_only=True. Do not claim an offline run is possible until the pinned files are present. Reduce CPU contention by setting LAB_THREADS=1. If memory is insufficient, close other applications; do not increase max_new_tokens. Record actual cache storage with du -sh cache, actual file storage with du -sh ., and elapsed time with time python lab.py."
       ],
-      "callout": "Reproducibility is something you test and store, not a parameter you set."
+      "callout": "Reproducibility is a property observed for an exact model, revision, environment, input, and configuration. It is not guaranteed by a seed alone.",
+      "code": {
+        "language": "python",
+        "label": "Complete lab.py for bounded local CPU generation",
+        "code": "import json\nimport os\nimport platform\nimport re\nimport sys\nimport time\nfrom collections import Counter\nfrom pathlib import Path\n\nimport torch\nfrom transformers import AutoModelForCausalLM, AutoTokenizer\nfrom transformers import __version__ as transformers_version\n\nMODEL_ID = \"HuggingFaceTB/SmolLM2-135M-Instruct\"\nREVISION = \"12fd25f77366fa6b3b4b768ec3050bf629380bac\"\nCACHE_DIR = str(Path(\"cache\").resolve())\nRESULTS_PATH = Path(\"lab_results.json\")\nMAX_NEW_TOKENS = 40\nTHREADS = max(1, int(os.environ.get(\"LAB_THREADS\", \"2\")))\nOFFLINE = os.environ.get(\"HF_HUB_OFFLINE\", \"0\") == \"1\"\nSYSTEM_PROMPT = (\n    \"Use only the supplied fact snippet. Follow the requested answer format. \"\n    \"Do not add explanation.\"\n)\n\nFIXTURES = [\n    {\n        \"id\": \"capital-france\",\n        \"fact\": \"Fact snippet: The capital of France is Paris.\",\n        \"question\": \"Question: What is the capital of France? Answer with only the city name.\",\n        \"answer\": \"Paris\",\n    },\n    {\n        \"id\": \"water-freezing\",\n        \"fact\": \"Fact snippet: At standard atmospheric pressure, pure water freezes at 0 degrees Celsius.\",\n        \"question\": \"Question: At standard atmospheric pressure, at what integer Celsius temperature does pure water freeze? Answer with only the signed integer.\",\n        \"answer\": \"0\",\n    },\n    {\n        \"id\": \"triangle-sides\",\n        \"fact\": \"Fact snippet: A triangle is a polygon with three sides.\",\n        \"question\": \"Question: How many sides does a triangle have? Answer with only the integer.\",\n        \"answer\": \"3\",\n    },\n]\n\nRUN_SPECS = [\n    {\"group\": \"greedy\", \"run\": 1, \"seed\": 1234, \"config\": {\"do_sample\": False}},\n    {\"group\": \"greedy\", \"run\": 2, \"seed\": 1234, \"config\": {\"do_sample\": False}},\n    {\n        \"group\": \"sampled_same_seed\",\n        \"run\": 1,\n        \"seed\": 1234,\n        \"config\": {\"do_sample\": True, \"temperature\": 0.8, \"top_k\": 50, \"top_p\": 0.9},\n    },\n    {\n        \"group\": \"sampled_same_seed\",\n        \"run\": 2,\n        \"seed\": 1234,\n        \"config\": {\"do_sample\": True, \"temperature\": 0.8, \"top_k\": 50, \"top_p\": 0.9},\n    },\n    {\n        \"group\": \"sampled_different_seed\",\n        \"run\": 1,\n        \"seed\": 7,\n        \"config\": {\"do_sample\": True, \"temperature\": 0.8, \"top_k\": 50, \"top_p\": 0.9},\n    },\n    {\n        \"group\": \"sampled_different_seed\",\n        \"run\": 2,\n        \"seed\": 29,\n        \"config\": {\"do_sample\": True, \"temperature\": 0.8, \"top_k\": 50, \"top_p\": 0.9},\n    },\n]\n\n\ndef normalize(text):\n    lowered = text.casefold()\n    no_punctuation = re.sub(r\"[^\\w\\s+-]\", \" \", lowered, flags=re.UNICODE)\n    return \" \".join(no_punctuation.split())\n\n\ndef modal_agreement(values):\n    if not values:\n        return {\"modal_count\": 0, \"runs\": 0, \"ratio\": 0.0}\n    count = Counter(values).most_common(1)[0][1]\n    return {\"modal_count\": count, \"runs\": len(values), \"ratio\": count / len(values)}\n\n\ndef printable(text):\n    return text.replace(\"\\t\", \" \").replace(\"\\r\", \" \").replace(\"\\n\", \"\\\\n\")\n\n\ntorch.set_num_threads(THREADS)\n\ntokenizer = AutoTokenizer.from_pretrained(\n    MODEL_ID,\n    revision=REVISION,\n    cache_dir=CACHE_DIR,\n    local_files_only=OFFLINE,\n    trust_remote_code=False,\n)\nmodel = AutoModelForCausalLM.from_pretrained(\n    MODEL_ID,\n    revision=REVISION,\n    cache_dir=CACHE_DIR,\n    local_files_only=OFFLINE,\n    trust_remote_code=False,\n    use_safetensors=True,\n    device_map=\"cpu\",\n    torch_dtype=torch.float32,\n)\nmodel.eval()\n\nrows = []\nstarted = time.perf_counter()\nwith torch.inference_mode():\n    for fixture in FIXTURES:\n        user_content = fixture[\"fact\"] + \"\\n\" + fixture[\"question\"]\n        messages = [\n            {\"role\": \"system\", \"content\": SYSTEM_PROMPT},\n            {\"role\": \"user\", \"content\": user_content},\n        ]\n        chat_text = tokenizer.apply_chat_template(\n            messages,\n            tokenize=False,\n            add_generation_prompt=True,\n        )\n        inputs = tokenizer.encode(\n            chat_text,\n            return_tensors=\"pt\",\n            add_special_tokens=False,\n        )\n        input_length = inputs.shape[1]\n\n        for spec in RUN_SPECS:\n            torch.manual_seed(spec[\"seed\"])\n            generation_config = {\n                \"max_new_tokens\": MAX_NEW_TOKENS,\n                \"pad_token_id\": tokenizer.pad_token_id,\n                \"eos_token_id\": tokenizer.eos_token_id,\n                **spec[\"config\"],\n            }\n            outputs = model.generate(inputs, **generation_config)\n            continuation_ids = outputs[0][input_length:]\n            response = tokenizer.decode(continuation_ids, skip_special_tokens=True).strip()\n            normalized_response = normalize(response)\n            normalized_answer = normalize(fixture[\"answer\"])\n            rows.append(\n                {\n                    \"fixture\": fixture[\"id\"],\n                    \"group\": spec[\"group\"],\n                    \"run\": spec[\"run\"],\n                    \"seed\": spec[\"seed\"],\n                    \"config\": generation_config,\n                    \"response\": response,\n                    \"normalized_response\": normalized_response,\n                    \"expected_answer\": fixture[\"answer\"],\n                    \"correct\": normalized_response == normalized_answer,\n                }\n            )\nelapsed_seconds = time.perf_counter() - started\n\nsummaries = []\nfor fixture in FIXTURES:\n    fixture_rows = [row for row in rows if row[\"fixture\"] == fixture[\"id\"]]\n    comparison_sets = {\n        \"greedy\": [row for row in fixture_rows if row[\"group\"] == \"greedy\"],\n        \"sampled_same_seed\": [row for row in fixture_rows if row[\"group\"] == \"sampled_same_seed\"],\n        \"sampled_all\": [row for row in fixture_rows if row[\"group\"].startswith(\"sampled_\")],\n    }\n    for comparison, selected in comparison_sets.items():\n        exact = modal_agreement([row[\"response\"] for row in selected])\n        normalized = modal_agreement([row[\"normalized_response\"] for row in selected])\n        summaries.append(\n            {\n                \"fixture\": fixture[\"id\"],\n                \"comparison\": comparison,\n                \"exact_agreement\": exact,\n                \"normalized_agreement\": normalized,\n                \"correct_runs\": sum(row[\"correct\"] for row in selected),\n                \"runs\": len(selected),\n            }\n        )\n\nmetadata = {\n    \"model_id\": MODEL_ID,\n    \"revision\": REVISION,\n    \"architecture\": model.config.architectures,\n    \"device\": \"cpu\",\n    \"dtype\": str(model.dtype),\n    \"python_version\": sys.version.replace(\"\\n\", \" \"),\n    \"torch_version\": torch.__version__,\n    \"transformers_version\": transformers_version,\n    \"platform\": platform.platform(),\n    \"threads\": THREADS,\n    \"offline\": OFFLINE,\n    \"max_new_tokens\": MAX_NEW_TOKENS,\n    \"seeds\": [spec[\"seed\"] for spec in RUN_SPECS],\n    \"run_specs\": RUN_SPECS,\n    \"elapsed_generation_seconds\": elapsed_seconds,\n}\n\nprint(\"RUNS\")\nprint(\"fixture\\tgroup\\trun\\tseed\\tcorrect\\texpected\\tresponse\")\nfor row in rows:\n    print(\n        f'{row[\"fixture\"]}\\t{row[\"group\"]}\\t{row[\"run\"]}\\t{row[\"seed\"]}\\t'\n        f'{row[\"correct\"]}\\t{printable(row[\"expected_answer\"])}\\t{printable(row[\"response\"])}'\n    )\n\nprint(\"\\nCOMPARISON\")\nprint(\"fixture\\tcomparison\\texact\\tnormalized\\tcorrect\")\nfor item in summaries:\n    exact = item[\"exact_agreement\"]\n    normalized = item[\"normalized_agreement\"]\n    print(\n        f'{item[\"fixture\"]}\\t{item[\"comparison\"]}\\t'\n        f'{exact[\"modal_count\"]}/{exact[\"runs\"]} ({exact[\"ratio\"]:.2f})\\t'\n        f'{normalized[\"modal_count\"]}/{normalized[\"runs\"]} ({normalized[\"ratio\"]:.2f})\\t'\n        f'{item[\"correct_runs\"]}/{item[\"runs\"]}'\n    )\n\nRESULTS_PATH.write_text(\n    json.dumps({\"metadata\": metadata, \"rows\": rows, \"summaries\": summaries}, indent=2),\n    encoding=\"utf-8\",\n)\nprint(f\"\\nWrote {RESULTS_PATH}\")\nprint(json.dumps(metadata, indent=2))"
+      }
     },
     {
       "id": "guessing-and-sampling-as-evidence",
       "title": "Models guess under uncertainty, so measure agreement",
       "paragraphs": [
-        "Why do fluent, wrong answers happen at all? Kalai, Nachum, Vempala, and Zhang argue in \"Why Language Models Hallucinate\" (2025) that \"language models hallucinate because the training and evaluation procedures reward guessing over acknowledging uncertainty.\" Like students facing hard exam questions, models \"sometimes guess when uncertain, producing plausible yet incorrect statements instead of admitting uncertainty.\" Because most evaluations are graded so that \"guessing when uncertain improves test performance,\" models are optimized to be good test-takers, and the authors propose changing how the dominant benchmarks score uncertain answers. For a user, the implication is direct: a confident tone is not evidence, because the system was in effect rewarded for sounding sure.",
-        "The distributional view also gives you a practical instrument. Wang and colleagues showed in \"Self-Consistency Improves Chain of Thought Reasoning in Language Models\" that sampling a diverse set of reasoning paths and selecting \"the most consistent answer\" outperformed taking the single greedy path, reporting improvements over chain-of-thought prompting of +17.9% on the GSM8K benchmark and +11.0% on SVAMP. You do not need their method to borrow the idea. Ask the same question several times with the endpoint and decoding configuration you will actually use and look at the spread. If the key figure, fact, or decision is the same every time, you have observed output stability under those tested conditions. You have not established that the model's underlying distribution is peaked, and you have not proved that the answer is correct. Greedy decoding, top-k restrictions, provider behavior, or other controls can produce agreement. If the answer changes across runs, you have found where the output needs a source, a tool, or a person before anyone relies on it."
+        "Kalai, Nachum, Vempala, and Zhang argue in Why Language Models Hallucinate that training and evaluation procedures can reward guessing over acknowledging uncertainty. SmolLM2's own model card warns that generated content may not always be factually accurate or logically consistent. Confidence, fluency, and repetition must therefore remain separate from verification.",
+        "The table below is a FICTIONAL ILLUSTRATION, not output observed from the script and not a claim about what SmolLM2 will produce. It demonstrates how to read the real table. Exact agreement compares every character; normalized agreement ignores case, punctuation, and repeated whitespace. The correctness column uses the supplied answer key. In the fictional water example, repeated output of 100 is stable but wrong because the supplied fact says 0. Stability measures repeated wording under tested conditions, while correctness measures correspondence to the grounded key.",
+        "FICTIONAL COMPLETED COMPARISON TABLE: capital-france, greedy, responses Paris and Paris, exact agreement 2/2, normalized agreement 2/2, correctness 2/2; capital-france, sampled same seed, responses Paris and paris., exact agreement 1/2, normalized agreement 2/2, correctness 2/2; water-freezing, sampled all, responses 100, 100, 100, and 100, exact agreement 4/4, normalized agreement 4/4, correctness 0/4; triangle-sides, sampled all, responses 3, Three, 3, and 3., exact agreement 2/4, normalized agreement 3/4, correctness 3/4 under the script's strict numeric answer key.",
+        "This lesson uses two kinds of evidence. Exact agreement compares every character. Normalized agreement ignores case, punctuation, and repeated whitespace. Strict keyed continuation correctness compares the raw continuation with the supplied answer key under the script’s unchanged normalization and required format. It is an answer-format-plus-key metric, not factual accuracy. A response can state a correct fact and still receive an incorrect strict score if it adds prose that the key does not permit.",
+        "Worked interpretation of the supplied ACTUAL measured CPU runs: the baseline and offline comparisons had identical rows in 18/18 cases. In each fixture, baseline greedy and same-seed sampled runs agreed 2/2. For sampled-all baseline comparisons, the modal count was 2/4 for capital-france and water-freezing, and 2/4 for the supplied baseline triangle comparison. The strict keyed continuation score was 0/18. This does not show that all answers were factually wrong: for example, `The capital of France is Paris.` contains the correct fact but fails a key requiring the strict continuation format. The 0/18 value is therefore an answer-format-plus-key metric, NOT factual accuracy.",
+        "The measured top_p variation changed only sampled `top_p` from 0.9 to 0.6 in the pinned revision and exact environment. It produced 10 different responses out of 18, while all greedy responses remained unchanged. The changed triangle comparison had sampled-all modal count 3/4; the other changed sampled-all fixture comparisons had modal count 2/4. The changed run’s strict keyed continuation score was 0/18. These figures are observations for that pinned revision and exact local CPU environment only. They do not establish that sampling improves truth, that all answers are factually wrong, universal seed determinism, or a production benchmark. The supplied evidence came from actual local orchestration, not model-authored fabricated results.",
+        "The reported main generation times were 173.863749 seconds for baseline, 177.8733556 seconds for offline, and 179.4493805 seconds for the variation. These times exclude setup, import, and model-load wall time. They are local observations for the pinned run, not a production performance claim. The unchanged lab code and its existing fixtures remain the runnable model-based path. Do not replace that code when completing the variation: preserve `lab_results.json` under a new filename, change only the three sampled `top_p` values from 0.9 to 0.6, and rerun the same fixtures with temperature, top_k, prompts, answers, seeds, model revision, max_new_tokens, device, and greedy settings unchanged.",
+        "Actionable feedback for the learner: first inspect each raw output against the answer key. Next separate format matching from factual content. Then compare exact and normalized agreement, and explain what each normalization step changed. Preserve failures, including extra-prose failures and apparently correct answers rejected by the key, instead of relabeling them as correct. Same-seed equality does not prove universal determinism, and different-seed equality does not prove that a seed was ignored. Transfer this method to any provider by keeping the fixture, key, decoding settings, raw outputs, normalization rule, and comparison procedure explicit.",
+        "Your actual run may show identical text, punctuation-only differences, extra explanation that fails the strict answer format, a stable wrong answer, or different continuations across seeds. Those are possible patterns, not fabricated observations. Record only what your own RUNS and COMPARISON output shows. Same-seed equality does not prove universal determinism, and different-seed equality does not mean the seed was ignored.",
+        "Required variation: after preserving the baseline lab_results.json under a new filename, change only top_p from 0.9 to 0.6 in all three sampled RUN_SPECS entries, rerun the same three fixtures, and compare results. Do not change temperature, top_k, prompts, answers, seeds, model revision, or max_new_tokens. This isolates one changed decoding control.",
+        "Explained key for the variation: top_p 0.6 retains the smallest high-probability token set whose cumulative probability reaches at least 0.6, rather than at least 0.9. Expected invariant checks are that the model ID and revision remain pinned, device remains CPU, max_new_tokens remains 40, fixture IDs and answer keys remain unchanged, greedy rows remain configured with do_sample=False, sampled rows retain temperature 0.8 and top_k 50, and agreement remains reported separately from correctness. No particular wording, agreement score, correctness score, same-seed match, or difference from the baseline is guaranteed.",
+        "Offline reading option: if model execution must be deferred, classify the fictional rows as stable and correct, stable but wrong, or wording-variable and discuss the verification rule. This is supplemental only. Completion of the activity requires the real runnable local-model path and learner-recorded output.",
+        "For offline recovery, populate the pinned snapshot while connected, using exactly the same absolute cache root that the unchanged lab.py computes from `Path(\"cache\").resolve()`. Do not download into cache/hub or .hf-cache. After prefetch completes, set HF_HUB_OFFLINE=1 and run the existing lab.py. Its local_files_only setting then prevents a network fallback. Hugging Face documents snapshot prefetch and offline loading at https://huggingface.co/docs/transformers/main/en/installation.",
+        "The commands below do not claim that a download or model run has occurred. They print and preserve evidence from the learner's machine. If prefetch fails, retain the folder and rerun the same command after checking network access and disk space so valid cached files can be reused. Cleanup remains optional and interactive; no command automatically deletes the lab folder."
       ],
-      "callout": "Agreement across repeated tests is evidence of observed output stability under the tested conditions, not evidence of truth or of the underlying distribution's shape. Disagreement is a flag for where to verify."
+      "callout": "Stable wrong output is still wrong. Agreement measures observed stability, while the grounded answer key measures correctness.",
+      "code": {
+        "language": "bash",
+        "label": "Pinned prefetch into the loader cache, offline run, preservation, and optional safe cleanup",
+        "code": "# Run inside the activated smollm-mental-models-lab environment.\nset -eu\nexport HF_HOME=\"$PWD/cache\"\n\n# This is the exact cache root used by lab.py:\n# CACHE_DIR = str(Path(\"cache\").resolve())\npython - <<'PY'\nfrom pathlib import Path\nfrom huggingface_hub import snapshot_download\n\ncache_dir = str(Path(\"cache\").resolve())\nprint(\"prefetch_cache_dir=\" + cache_dir)\nsnapshot_download(\n    repo_id=\"HuggingFaceTB/SmolLM2-135M-Instruct\",\n    revision=\"12fd25f77366fa6b3b4b768ec3050bf629380bac\",\n    cache_dir=cache_dir,\n)\nPY\n\n# Run the existing lab.py offline. Do not replace it with another program.\nHF_HUB_OFFLINE=1 LAB_THREADS=2 time python lab.py\n\n# Record measured storage and preserve actual package versions and results.\ndu -sh cache . 2>/dev/null || true\npython -m pip freeze > requirements-after-run.txt\ncp lab_results.json lab_results-baseline-top-p-0.9.json\n\n# Complete the required variation by changing only sampled top_p values\n# from 0.9 to 0.6 in the existing lab.py, then rerun it offline:\n# HF_HUB_OFFLINE=1 LAB_THREADS=2 time python lab.py\n# cp lab_results.json lab_results-variation-top-p-0.6.json\n\n# Optional cleanup after reviewing and preserving required evidence.\n# Leave the folder, verify the displayed path, and request confirmation for removal:\n# cd ..\n# printf 'Candidate for removal: %s\\n' \"$PWD/smollm-mental-models-lab\"\n# rm -rI -- smollm-mental-models-lab"
+      }
     }
   ],
   "knowledgeCheck": {
@@ -155,122 +190,178 @@
       "url": "https://arxiv.org/abs/2203.11171",
       "publisher": "arXiv",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "SmolLM2-135M-Instruct model metadata",
+      "url": "https://huggingface.co/api/models/HuggingFaceTB/SmolLM2-135M-Instruct",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "SmolLM2-135M-Instruct model card at pinned revision",
+      "url": "https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct/raw/12fd25f77366fa6b3b4b768ec3050bf629380bac/README.md",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Transformers generation API",
+      "url": "https://huggingface.co/docs/transformers/main/en/main_classes/text_generation",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Transformers chat templates",
+      "url": "https://huggingface.co/docs/transformers/main/en/chat_templating",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Transformers installation and offline mode",
+      "url": "https://huggingface.co/docs/transformers/main/en/installation",
+      "publisher": "Hugging Face",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "PyTorch reproducibility",
+      "url": "https://docs.pytorch.org/docs/stable/notes/randomness.html",
+      "publisher": "PyTorch",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "SmolLM2: When Smol Goes Big",
+      "url": "https://arxiv.org/abs/2502.02737",
+      "publisher": "arXiv",
+      "lastVerified": "2026-09-19"
     }
   ],
   "activity": {
     "id": "ai-mental-models-activity",
-    "title": "Measure how stable a model's answers are",
+    "title": "Measure local-model stability separately from correctness",
     "instructions": [
-      "Step 1: Choose three questions you would realistically ask an AI assistant at work: one with a single verifiable answer (a date or figure you can check in an authoritative source), one judgment call (which of two options to prioritize, and why), and one open-ended creative request (three names for an internal project).",
-      "Step 2: Using the same assistant, model, and settings, submit each question five times, each in a fresh conversation so earlier answers are not in context. Copy every response verbatim into a table.",
-      "Step 3: For each run, extract the core claim or decision (the figure, the recommendation, the names) and count how many of the five runs agree on it.",
-      "Step 4: For the verifiable question, check the answer against an authoritative source and record whether the most common answer was actually correct.",
-      "Step 5: Classify each question as stable and correct, stable but wrong, or unstable, and write the verification you would require before relying on an answer of that kind."
+      "Step 1: Create the new smollm-mental-models-lab folder with the refusal-checking setup command. Activate its virtual environment, install the dependencies, verify Python, PyTorch, and Transformers versions, and keep HF_HOME pointed at the cache inside that folder.",
+      "Step 2: Save the supplied complete script as lab.py without changing its model ID, immutable revision, three fixtures, answers, seeds, or generation configurations. Run time python lab.py. The first connected run downloads model files into the local cache. No API credential or GPU is required.",
+      "Step 3: Preserve the terminal RUNS and COMPARISON tables and lab_results.json. Also record du -sh cache and du -sh . results. These measurements establish storage and runtime for your environment; do not substitute the module's rough parameter arithmetic for measured results.",
+      "Step 4: For each fixture, report exact agreement, normalized agreement, and correctness. Classify each comparison group as stable and correct, stable but wrong, wording-variable but correct, or unstable. Explain any strict-format failure, such as extra words around an otherwise recognizable answer.",
+      "Step 5: Compare the two sampled runs that both use seed 1234, then compare sampled seeds 7 and 29. State only what occurred. Do not generalize a same-seed match into universal determinism or claim different seeds must differ.",
+      "Step 6: Copy lab_results.json to lab_results-baseline-top-p-0.9.json. Change only top_p from 0.9 to 0.6 in every sampled RUN_SPECS entry, rerun all supplied fixtures, and preserve the new lab_results.json. Check every invariant listed in the fourth section.",
+      "Step 7: If the network becomes unavailable after caching, set HF_HUB_OFFLINE=1 and rerun. If files are missing, reconnect and use the pinned snapshot_download recovery command. If CPU contention is excessive, set LAB_THREADS=1. Learners may pause as long as needed for download and generation; these learner-controlled pauses are outside the automatic narration track."
     ],
     "evidence": [
-      "A three-by-five table of verbatim responses, the core claim extracted from each run, and an agreement count per question.",
-      "The authoritative source used to check the verifiable question, with the date you checked it.",
-      "A one-sentence verification rule for each question that is tied to its observed stability, not to how confident the responses sounded."
+      "Dependency verification output showing Python, PyTorch, and Transformers versions, plus the recorded CPU thread limit.",
+      "The baseline lab_results.json containing metadata, all generated continuations, exact and normalized agreement metrics, and correctness counts for the three supplied fixtures.",
+      "Measured time and disk-use output for the learner's environment, with download size, total storage, peak RAM, or other unmeasured quantities explicitly marked UNKNOWN rather than guessed.",
+      "The preserved top-p 0.9 baseline and the top-p 0.6 variation results, with a checklist confirming that all required invariants remained unchanged.",
+      "A short interpretation that identifies any stable wrong or wording-variable result and explains why agreement is not verification."
     ],
-    "reflectionPrompt": "Where did a stable answer tempt you to skip verification, and what would have caught it if that stable answer had been wrong?"
+    "reflectionPrompt": "Where did agreement make an answer look trustworthy, and which separate answer-key or source check prevented you from confusing stability with correctness?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 1800,
+    "estimatedSeconds": 390,
     "cues": [
       {
         "id": "cue-ai-mental-models-distribution",
         "kind": "narration",
         "sectionId": "distribution-not-lookup",
-        "text": "Every token a model emits is chosen from a probability distribution over its vocabulary, so a response is one sample from many plausible continuations, not a lookup."
+        "text": "A causal language model repeatedly scores possible next tokens and uses a decoding strategy to select one. Greedy decoding chooses the highest-scoring next token, while sampling draws from a probability distribution. The selected token becomes part of the next context, so an early choice can redirect the rest of a response. In this lab, you will run the open-weight SmolLM2 135 million parameter instruct model on your own CPU at an immutable revision. You need Python, PyTorch, Transformers, initial network access for the download, and a new disposable practice folder. You do not need a GPU, paid API, or credential. Exact storage, memory, and timing depend on your machine, so measure them rather than treating a planning estimate as fact."
       },
       {
         "id": "cue-ai-mental-models-distribution-visual",
         "kind": "visual",
         "sectionId": "distribution-not-lookup",
-        "text": "Show a bar chart of next-token probabilities for a short prompt, then highlight the one token greedy search picks and every token sampling could pick.",
-        "accessibilityAlternative": "A table lists five candidate next tokens with their probabilities, marks the single token greedy search selects, and marks every token with a non-zero probability as eligible under sampling. Reduced-motion mode shows the table without animated highlighting."
+        "text": "Show a static next-token probability table beside the isolated-folder and pinned-revision setup.",
+        "accessibilityAlternative": "A table lists candidate next tokens and probabilities, marks the greedy choice, and identifies sampling as a draw. A second table lists the local model ID, revision, CPU device, and prohibited remote code."
       },
       {
         "id": "cue-ai-mental-models-controls",
         "kind": "narration",
         "sectionId": "decoding-controls",
-        "text": "Temperature, top-k, and top-p reshape which tokens are eligible and how likely each one is; they trade variety for consistency, and they do not make the most probable answer more correct."
+        "text": "The script keeps greedy and sampled decoding explicit. Greedy uses do sample false and does not pass inactive sampling controls. Sampling uses do sample true. Temperature rescales logits, top k keeps a fixed count of the highest-probability tokens, and top p keeps the smallest ranked set whose cumulative probability reaches its threshold. None is an accuracy dial. The three prompts supply their own fact snippets and answer key: Paris, zero degrees Celsius, and three sides. This lets us compare repeated wording with correctness instead of assuming that agreement proves an answer."
       },
       {
-        "id": "cue-ai-mental-models-topp-prompt",
-        "kind": "learner-prompt",
+        "id": "cue-ai-mental-models-controls-visual",
+        "kind": "visual",
         "sectionId": "decoding-controls",
-        "text": "Ask learners to work the top-p example aloud: with probabilities 0.3, 0.2, and 0.1 and a top-p of 0.5, which tokens remain eligible and why."
+        "text": "Display greedy, temperature, top-k, and top-p definitions next to the three fixed fixtures.",
+        "accessibilityAlternative": "A static table states that greedy selects the highest-scoring token, temperature rescales logits, top-k keeps k tokens, and top-p keeps a cumulative-probability set. A second table lists each fixture and keyed answer."
       },
       {
         "id": "cue-ai-mental-models-reproducibility",
         "kind": "narration",
         "sectionId": "same-input-different-output",
-        "text": "Providers document temperature zero differently, so treat reproducibility as something you verify on your exact endpoint and store, not a setting you trust."
+        "text": "The runnable script applies the model's own chat template, adds the assistant generation prompt, tokenizes without duplicate special tokens, and decodes only the generated continuation. Every run is limited to forty new tokens and two CPU threads by default. It repeats greedy generation, repeats sampled generation with seed twelve thirty-four, and samples with seeds seven and twenty-nine. Same-seed repetition is evidence from one fixed environment, not a universal determinism guarantee. Different seeds permit different draws but do not guarantee different text. The saved metadata makes the model revision, library versions, seeds, configuration, platform, and measured generation time auditable."
       },
       {
-        "id": "cue-ai-mental-models-reproducibility-pause",
-        "kind": "pause",
+        "id": "cue-ai-mental-models-reproducibility-visual",
+        "kind": "visual",
         "sectionId": "same-input-different-output",
-        "text": "Allow two minutes for learners to name one output in their own work that should be stored after validation rather than regenerated on demand."
+        "text": "Trace one fixture through chat formatting, CPU generation, continuation extraction, and metadata output.",
+        "accessibilityAlternative": "A numbered static flow lists fixture, chat template, token IDs, bounded CPU generation, continuation-only decoding, response row, summary metric, and JSON record."
       },
       {
         "id": "cue-ai-mental-models-guessing",
         "kind": "narration",
         "sectionId": "guessing-and-sampling-as-evidence",
-        "text": "Models are rewarded for guessing when uncertain, so a confident tone is not evidence; sampling the same question several times shows where an answer is stable and where it needs verification."
+        "text": "Read the output on two separate axes. Exact agreement counts identical strings. Normalized agreement ignores case, punctuation, and repeated whitespace. Correctness compares the normalized continuation with the independently supplied key. A response can therefore be stable and wrong. The completed table in the lesson is explicitly fictional and teaches interpretation rather than claiming a model observation. Your actual text may be identical, differ only in punctuation, violate the answer-only format, or vary across seeds. Record what happened without promising any pattern. Then change only top p from zero point nine to zero point six and verify that the model, prompts, seeds, greedy configuration, temperature, top k, and token bound remain fixed."
       },
       {
-        "id": "cue-ai-mental-models-checkpoint",
-        "kind": "checkpoint",
+        "id": "cue-ai-mental-models-guessing-visual",
+        "kind": "visual",
         "sectionId": "guessing-and-sampling-as-evidence",
-        "text": "Check that learners can distinguish a stable answer from a verified one, and can say which of the two repeated sampling actually measures."
-      },
-      {
-        "id": "cue-ai-mental-models-activity",
-        "kind": "learner-prompt",
-        "text": "Guide the five-run stability test and the per-question verification rule."
+        "text": "Show separate agreement and correctness columns, highlighting the fictional stable-but-wrong row.",
+        "accessibilityAlternative": "A static fictional table labels one row stable and correct, one wording-variable but correct, and one stable but wrong. The stable-but-wrong row has full agreement and zero correctness."
       },
       {
         "id": "cue-ai-mental-models-assessment",
         "kind": "assessment-handoff",
-        "text": "Begin the check once learners can explain what a decoding setting changes, what it does not change, and what repeated sampling can and cannot prove."
+        "text": "Begin the check when you can explain each decoding control, run the pinned local model, distinguish same-seed observations from guarantees, calculate exact and normalized agreement, and evaluate correctness with the separate answer key."
+      },
+      {
+        "id": "cue-mental-models-setup-learner-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "distribution-not-lookup",
+        "text": "Before creating the named lab folder, run the ensurepip and venv preflight. If it fails on Debian or Ubuntu, stop and complete the separate operating-system package recovery. Do not delete an existing lab folder automatically. After setup, preserve installed-versions.txt and requirements-resolved.txt."
+      },
+      {
+        "id": "cue-mental-models-offline-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "guessing-and-sampling-as-evidence",
+        "text": "Confirm that snapshot_download and the unchanged lab.py both resolve cache to the same absolute cache directory, with no cache/hub or .hf-cache suffix. Then run the existing six-run-per-fixture lab offline and preserve the top-p 0.9 baseline before changing only sampled top_p to 0.6."
       }
     ],
-    "transcript": "Every token a model emits is chosen from a probability distribution over its vocabulary, so a response is one sample from many plausible continuations, not a lookup. Temperature, top-k, and top-p reshape which tokens are eligible and how likely each one is; they trade variety for consistency, and they do not make the most probable answer more correct. Providers document temperature zero differently, so treat reproducibility as something you verify on your exact endpoint and store, not a setting you trust. Models are rewarded for guessing when uncertain, so a confident tone is not evidence; sampling the same question several times shows where an answer is stable and where it needs verification.",
+    "transcript": "A causal language model repeatedly scores possible next tokens and uses a decoding strategy to select one. Greedy decoding chooses the highest-scoring next token, while sampling draws from a probability distribution. The selected token becomes part of the next context, so an early choice can redirect the rest of a response. In this lab, you will run the open-weight SmolLM2 135 million parameter instruct model on your own CPU at an immutable revision. You need Python, PyTorch, Transformers, initial network access for the download, and a new disposable practice folder. You do not need a GPU, paid API, or credential. Exact storage, memory, and timing depend on your machine, so measure them rather than treating a planning estimate as fact.\n\nThe script keeps greedy and sampled decoding explicit. Greedy uses do sample false and does not pass inactive sampling controls. Sampling uses do sample true. Temperature rescales logits, top k keeps a fixed count of the highest-probability tokens, and top p keeps the smallest ranked set whose cumulative probability reaches its threshold. None is an accuracy dial. The three prompts supply their own fact snippets and answer key: Paris, zero degrees Celsius, and three sides. This lets us compare repeated wording with correctness instead of assuming that agreement proves an answer.\n\nThe runnable script applies the model's own chat template, adds the assistant generation prompt, tokenizes without duplicate special tokens, and decodes only the generated continuation. Every run is limited to forty new tokens and two CPU threads by default. It repeats greedy generation, repeats sampled generation with seed twelve thirty-four, and samples with seeds seven and twenty-nine. Same-seed repetition is evidence from one fixed environment, not a universal determinism guarantee. Different seeds permit different draws but do not guarantee different text. The saved metadata makes the model revision, library versions, seeds, configuration, platform, and measured generation time auditable.\n\nRead the output on two separate axes. Exact agreement counts identical strings. Normalized agreement ignores case, punctuation, and repeated whitespace. Correctness compares the normalized continuation with the independently supplied key. A response can therefore be stable and wrong. The completed table in the lesson is explicitly fictional and teaches interpretation rather than claiming a model observation. Your actual text may be identical, differ only in punctuation, violate the answer-only format, or vary across seeds. Record what happened without promising any pattern. Then change only top p from zero point nine to zero point six and verify that the model, prompts, seeds, greedy configuration, temperature, top k, and token bound remain fixed.\n\nBegin the check when you can explain each decoding control, run the pinned local model, distinguish same-seed observations from guarantees, calculate exact and normalized agreement, and evaluate correctness with the separate answer key.",
     "captions": [
       {
         "cueId": "cue-ai-mental-models-distribution",
         "startSeconds": 0,
-        "endSeconds": 420,
-        "text": "Every token a model emits is chosen from a probability distribution over its vocabulary, so a response is one sample from many plausible continuations, not a lookup."
+        "endSeconds": 82,
+        "text": "A causal language model repeatedly scores possible next tokens and uses a decoding strategy to select one. Greedy decoding chooses the highest-scoring next token, while sampling draws from a probability distribution. The selected token becomes part of the next context, so an early choice can redirect the rest of a response. In this lab, you will run the open-weight SmolLM2 135 million parameter instruct model on your own CPU at an immutable revision. You need Python, PyTorch, Transformers, initial network access for the download, and a new disposable practice folder. You do not need a GPU, paid API, or credential. Exact storage, memory, and timing depend on your machine, so measure them rather than treating a planning estimate as fact."
       },
       {
         "cueId": "cue-ai-mental-models-controls",
-        "startSeconds": 450,
-        "endSeconds": 870,
-        "text": "Temperature, top-k, and top-p reshape which tokens are eligible and how likely each one is; they trade variety for consistency, and they do not make the most probable answer more correct."
+        "startSeconds": 82,
+        "endSeconds": 154,
+        "text": "The script keeps greedy and sampled decoding explicit. Greedy uses do sample false and does not pass inactive sampling controls. Sampling uses do sample true. Temperature rescales logits, top k keeps a fixed count of the highest-probability tokens, and top p keeps the smallest ranked set whose cumulative probability reaches its threshold. None is an accuracy dial. The three prompts supply their own fact snippets and answer key: Paris, zero degrees Celsius, and three sides. This lets us compare repeated wording with correctness instead of assuming that agreement proves an answer."
       },
       {
         "cueId": "cue-ai-mental-models-reproducibility",
-        "startSeconds": 900,
-        "endSeconds": 1230,
-        "text": "Providers document temperature zero differently, so treat reproducibility as something you verify on your exact endpoint and store, not a setting you trust."
+        "startSeconds": 154,
+        "endSeconds": 244,
+        "text": "The runnable script applies the model's own chat template, adds the assistant generation prompt, tokenizes without duplicate special tokens, and decodes only the generated continuation. Every run is limited to forty new tokens and two CPU threads by default. It repeats greedy generation, repeats sampled generation with seed twelve thirty-four, and samples with seeds seven and twenty-nine. Same-seed repetition is evidence from one fixed environment, not a universal determinism guarantee. Different seeds permit different draws but do not guarantee different text. The saved metadata makes the model revision, library versions, seeds, configuration, platform, and measured generation time auditable."
       },
       {
         "cueId": "cue-ai-mental-models-guessing",
-        "startSeconds": 1260,
-        "endSeconds": 1620,
-        "text": "Models are rewarded for guessing when uncertain, so a confident tone is not evidence; sampling the same question several times shows where an answer is stable and where it needs verification."
+        "startSeconds": 244,
+        "endSeconds": 366,
+        "text": "Read the output on two separate axes. Exact agreement counts identical strings. Normalized agreement ignores case, punctuation, and repeated whitespace. Correctness compares the normalized continuation with the independently supplied key. A response can therefore be stable and wrong. The completed table in the lesson is explicitly fictional and teaches interpretation rather than claiming a model observation. Your actual text may be identical, differ only in punctuation, violate the answer-only format, or vary across seeds. Record what happened without promising any pattern. Then change only top p from zero point nine to zero point six and verify that the model, prompts, seeds, greedy configuration, temperature, top k, and token bound remain fixed."
       },
       {
         "cueId": "cue-ai-mental-models-assessment",
-        "startSeconds": 1650,
-        "endSeconds": 1800,
-        "text": "Begin the check once learners can explain what a decoding setting changes, what it does not change, and what repeated sampling can and cannot prove."
+        "startSeconds": 366,
+        "endSeconds": 390,
+        "text": "Begin the check when you can explain each decoding control, run the pinned local model, distinguish same-seed observations from guarantees, calculate exact and normalized agreement, and evaluate correctness with the separate answer key."
       }
     ],
-    "reducedMotionAlternative": "Present the next-token probability chart and the decoding-controls comparison as static tables with focus-based highlighting instead of animated sequences."
+    "reducedMotionAlternative": "Present all probability, setup, execution-flow, fixture, and comparison visuals as static tables with focus-based highlighting. Model download, generation, troubleshooting, and the top-p variation remain learner-controlled activities outside automatic media timing."
   }
 }
