@@ -150,7 +150,7 @@ Sources:
 
 ## Narration: Baseline Setup Walkthrough
 
-Create the exact displayed files inside coding_lab. The test constant PROGRAM points to analyze_correct.py, so first copy analyze_buggy.py to that filename. Run `python3 analyze_correct.py transactions.csv`, then `python3 -m unittest -v test_analysis.AnalysisTest.test_refund_is_not_gross`. This setup deliberately makes the supplied test exercise the buggy implementation. Preserve the six-line output and assertion before editing. Next save the complete corrected program as analyze_correct.py, rerun the program, and run `python3 -m unittest -v test_analysis.py`. The verbose flag requests detailed test reporting, but durations and surrounding formatting can vary. Treat the exact output lines, assertion, test count, and final status as evidence. Do not claim these commands ran unless you ran them locally yourself and recorded their results.
+Create the exact displayed files inside coding_lab. The test constant named PROGRAM points to analyze_correct.py, so first copy analyze_buggy.py to that filename. Run the program command shown in the setup, then run the targeted refund regression test command shown there. This setup deliberately makes the supplied test exercise the buggy implementation. Preserve the six-line output and the assertion before editing. Next, save the complete corrected program as analyze_correct.py, rerun the program, and run the complete test-suite command shown in the setup. Verbose mode requests detailed test reporting, but durations and surrounding formatting can vary. Treat the exact output lines, assertion, test count, and final status as evidence. Do not claim that these commands ran unless you ran them locally and recorded their results.
 
 Sources:
 
