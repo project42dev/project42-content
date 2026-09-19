@@ -2,7 +2,7 @@
   "id": "structured-output-contract",
   "slug": "structured-output-contract",
   "title": "Structured Output Contract",
-  "summary": "Design portable output contracts, use provider schema features where supported, and validate shape, meaning, authority, and evidence before downstream use.",
+  "summary": "Design portable output contracts and independently validate parsing, size, shape, meaning, evidence, and authority before downstream use.",
   "category": "Prompting",
   "format": "how-to",
   "audience": [
@@ -17,66 +17,177 @@
     "google"
   ],
   "prerequisites": [
-    "A framed task and a consumer that needs predictable output"
+    "A framed task and a consumer that needs predictable output",
+    "Python 3.12 or later",
+    "Permission to create a local virtual environment and install the pinned dependency"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-19",
   "tags": [
     "structured-output",
     "schema",
     "validation",
-    "portability"
+    "portability",
+    "evidence",
+    "authorization"
   ],
   "sections": [
     {
       "id": "separate-shape-from-truth",
       "title": "Separate shape from truth",
       "paragraphs": [
-        "Define the portable business contract first: fields, types, allowed values, required evidence, unknown handling, and version. Then map that contract to the current provider schema or tool mechanism. Keep provider-specific request syntax in an adapter so the business contract can survive model or provider changes.",
-        "A valid schema can constrain structure; it does not prove factual accuracy, permission, policy compliance, or successful side effects. Validate both structure and business meaning in trusted code before storage, display, communication, or action."
+        "Define the portable business contract first: fields, types, allowed values, evidence requirements, unknown handling, and version. Then map that contract to any provider-specific schema or tool mechanism in a separate adapter.",
+        "JSON objects map string keys to values. The required keyword identifies mandatory properties, while additionalProperties set to false rejects properties that are not declared by properties or matched by patternProperties. These structural rules do not establish factual accuracy, evidence quality, policy compliance, or authority. Source: https://json-schema.org/understanding-json-schema/reference/object, retrieved 2026-09-19.",
+        "The fictional task in this lab classifies workshop registrations using only the supplied policy and records. The local program treats every candidate envelope as untrusted input. No model field, including nextAction, grants authority to the model, caller, or application."
       ],
-      "callout": "Parseable is not the same as correct, authorized, or safe."
+      "callout": "Parseable is not the same as structurally valid, factually supported, authorized, or safe.",
+      "code": {
+        "language": "text",
+        "label": "Protected local setup",
+        "code": "set -eu\numask 077\nLAB=\"$HOME/project42-structured-output-lab\"\nif [ -e \"$LAB\" ]; then\n  printf '%s\\n' \"Refusing to overwrite existing path: $LAB\" >&2\n  exit 1\nfi\npython3 --version\npython3 -m ensurepip --version >/dev/null\nmkdir \"$LAB\"\ncd \"$LAB\"\npython3 -m venv .venv\n. .venv/bin/activate\npython -m ensurepip --upgrade\nprintf '%s\\n' 'jsonschema==4.26.0' > requirements.txt\npython -m pip install --requirement requirements.txt\n# Save the complete single-file program from the lab.py block below as lab.py.\npython lab.py"
+      }
     },
     {
       "id": "define-output-envelope",
       "title": "Define a portable envelope",
       "paragraphs": [
-        "Use explicit unknown values instead of forcing guesses. Do not put credentials or unrestricted sensitive text in examples."
+        "The envelope preserves the fields contractVersion, status, result, evidence, assumptions, warnings, and nextAction. It requires contractVersion 1.0, restricts status to complete, needs-input, or blocked, and closes both the envelope and each evidence object against unexpected properties.",
+        "The schema is shown in full for inspection and is embedded unchanged in the executable. Draft202012Validator.check_schema checks the schema against its meta-schema. Draft202012Validator.iter_errors yields validation errors for candidate instances. Source: https://python-jsonschema.readthedocs.io/en/stable/validate/, retrieved 2026-09-19.",
+        "The fictional policy and records are authoritative only inside this exercise. They say nothing about real people, workshops, registrations, providers, or permissions."
       ],
+      "callout": "Use explicit needs-input or blocked states instead of forcing an unsupported answer.",
       "code": {
         "language": "json",
-        "label": "Provider-neutral output envelope",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"status\": \"complete | needs-input | blocked\",\n  \"result\": \"[BOUNDED RESULT — NO SECRETS]\",\n  \"evidence\": [\n    { \"claim\": \"[MATERIAL CLAIM]\", \"source\": \"[SOURCE ID OR URL]\" }\n  ],\n  \"assumptions\": [\"[VISIBLE ASSUMPTION]\"],\n  \"warnings\": [\"[SAFETY, QUALITY, OR POLICY WARNING]\"],\n  \"nextAction\": \"[NONE OR HUMAN-APPROVED STEP]\"\n}"
+        "label": "Full reference schema: workshop-envelope-1.0",
+        "code": "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"$id\": \"https://project42.example/schemas/workshop-envelope-1.0.json\",\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"required\": [\n    \"contractVersion\",\n    \"status\",\n    \"result\",\n    \"evidence\",\n    \"assumptions\",\n    \"warnings\",\n    \"nextAction\"\n  ],\n  \"properties\": {\n    \"contractVersion\": {\n      \"type\": \"string\",\n      \"const\": \"1.0\",\n      \"minLength\": 1,\n      \"maxLength\": 10\n    },\n    \"status\": {\n      \"type\": \"string\",\n      \"enum\": [\"complete\", \"needs-input\", \"blocked\"]\n    },\n    \"result\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 160\n    },\n    \"evidence\": {\n      \"type\": \"array\",\n      \"minItems\": 1,\n      \"maxItems\": 4,\n      \"items\": {\n        \"type\": \"object\",\n        \"additionalProperties\": false,\n        \"required\": [\"claim\", \"source\"],\n        \"properties\": {\n          \"claim\": {\n            \"type\": \"string\",\n            \"minLength\": 1,\n            \"maxLength\": 160\n          },\n          \"source\": {\n            \"type\": \"string\",\n            \"minLength\": 1,\n            \"maxLength\": 80\n          }\n        }\n      }\n    },\n    \"assumptions\": {\n      \"type\": \"array\",\n      \"maxItems\": 4,\n      \"items\": {\n        \"type\": \"string\",\n        \"maxLength\": 160\n      }\n    },\n    \"warnings\": {\n      \"type\": \"array\",\n      \"maxItems\": 4,\n      \"items\": {\n        \"type\": \"string\",\n        \"maxLength\": 160\n      }\n    },\n    \"nextAction\": {\n      \"type\": \"string\",\n      \"minLength\": 1,\n      \"maxLength\": 120\n    }\n  }\n}"
       }
     },
     {
-      "id": "validate-output",
-      "title": "Expected result and verification",
+      "id": "policy-semantics",
+      "title": "Distinguish historical status from registration permission",
       "paragraphs": [
-        "The expected result is output that conforms to the declared version, represents unknown or blocked states explicitly, and carries evidence for material claims without leaking restricted data.",
-        "Validate against the schema, enforce allowed values and size limits, check citations against retrieved sources, apply authorization independently of model fields, and test missing, extra, malformed, adversarial, and oversized inputs. Pin and regression-test provider adapters because supported schema behavior can change."
-      ]
+        "A historical registered record remains registered even if registrationOpen is false. Closing registration prevents or changes a new-registration path; it does not rewrite an existing historical record.",
+        "The declared rule is: registered maps to complete and waitlisted maps to needs-input. For an absent record, registrationOpen true maps to needs-input because a registration form may be offered, while registrationOpen false maps to blocked. The allowedTransitions policy explicitly contains these mappings.",
+        "The expected nextAction is independently selected from caller-owned policy. Matching a permitted action string does not itself perform the action. A model-generated nextAction never grants authority, and the lab performs no side effects."
+      ],
+      "callout": "Historical facts and permission for a new action are different policy inputs.",
+      "code": {
+        "language": "json",
+        "label": "Fictional policy and records",
+        "code": "{\n  \"policy\": {\n    \"workshops\": {\n      \"W-101\": {\n        \"title\": \"Intro to Local Models\",\n        \"registrationOpen\": true\n      },\n      \"W-202\": {\n        \"title\": \"Safety Review\",\n        \"registrationOpen\": false\n      }\n    },\n    \"allowedTransitions\": {\n      \"registered\": \"complete\",\n      \"waitlisted\": \"needs-input\",\n      \"absent\": {\n        \"open\": \"needs-input\",\n        \"closed\": \"blocked\"\n      }\n    }\n  },\n  \"records\": {\n    \"P-001\": {\n      \"W-101\": \"registered\"\n    },\n    \"P-002\": {\n      \"W-202\": \"waitlisted\"\n    },\n    \"P-003\": {}\n  }\n}"
+      }
+    },
+    {
+      "id": "run-validation-lab",
+      "title": "Run the complete single-file validation lab",
+      "paragraphs": [
+        "Save the following complete program as lab.py. Its embedded script metadata and runtime dependency check pin jsonschema to 4.26.0. The setup also installs exactly that version.",
+        "Python's standard json decoder does not apply JSON Schema. By default it accepts NaN, Infinity, -Infinity, and repeated object names. parse_constant can reject those non-standard constants. object_pairs_hook receives one ordered list of pairs for each decoded object, including nested objects. The unique_object hook processes the one list it receives and raises when that object contains a duplicate key. The decoder invokes the hook separately as it traverses nested objects. Source: https://docs.python.org/3/library/json.html, retrieved 2026-09-19.",
+        "The validation pipeline checks input size, strict JSON parsing, schema shape, meaning, evidence, and caller-owned action policy in that order. It catches only expected input exceptions. Schema defects, programming errors, failed assertions, and unexpected exceptions remain visible."
+      ],
+      "callout": "The standard-library JSON parser and JSON Schema validator perform different jobs. Use both, followed by domain and authorization checks.",
+      "code": {
+        "language": "python",
+        "label": "Complete executable program: lab.py",
+        "code": "#!/usr/bin/env python3\n# /// script\n# requires-python = \">=3.12\"\n# dependencies = [\"jsonschema==4.26.0\"]\n# ///\n\nimport json\nfrom importlib.metadata import version\nfrom json import JSONDecodeError\n\nfrom jsonschema import Draft202012Validator\n\nPINNED_JSONSCHEMA = \"4.26.0\"\nMAX_INPUT_BYTES = 8192\n\nPOLICY = {\n    \"workshops\": {\n        \"W-101\": {\"title\": \"Intro to Local Models\", \"registrationOpen\": True},\n        \"W-202\": {\"title\": \"Safety Review\", \"registrationOpen\": False},\n    },\n    \"allowedTransitions\": {\n        \"registered\": \"complete\",\n        \"waitlisted\": \"needs-input\",\n        \"absent\": {\"open\": \"needs-input\", \"closed\": \"blocked\"},\n    },\n}\n\nRECORDS = {\n    \"P-001\": {\"W-101\": \"registered\"},\n    \"P-002\": {\"W-202\": \"waitlisted\"},\n    \"P-003\": {},\n}\n\nSCHEMA = {\n    \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n    \"$id\": \"https://project42.example/schemas/workshop-envelope-1.0.json\",\n    \"type\": \"object\",\n    \"additionalProperties\": False,\n    \"required\": [\n        \"contractVersion\",\n        \"status\",\n        \"result\",\n        \"evidence\",\n        \"assumptions\",\n        \"warnings\",\n        \"nextAction\",\n    ],\n    \"properties\": {\n        \"contractVersion\": {\n            \"type\": \"string\",\n            \"const\": \"1.0\",\n            \"minLength\": 1,\n            \"maxLength\": 10,\n        },\n        \"status\": {\n            \"type\": \"string\",\n            \"enum\": [\"complete\", \"needs-input\", \"blocked\"],\n        },\n        \"result\": {\"type\": \"string\", \"minLength\": 1, \"maxLength\": 160},\n        \"evidence\": {\n            \"type\": \"array\",\n            \"minItems\": 1,\n            \"maxItems\": 4,\n            \"items\": {\n                \"type\": \"object\",\n                \"additionalProperties\": False,\n                \"required\": [\"claim\", \"source\"],\n                \"properties\": {\n                    \"claim\": {\n                        \"type\": \"string\",\n                        \"minLength\": 1,\n                        \"maxLength\": 160,\n                    },\n                    \"source\": {\n                        \"type\": \"string\",\n                        \"minLength\": 1,\n                        \"maxLength\": 80,\n                    },\n                },\n            },\n        },\n        \"assumptions\": {\n            \"type\": \"array\",\n            \"maxItems\": 4,\n            \"items\": {\"type\": \"string\", \"maxLength\": 160},\n        },\n        \"warnings\": {\n            \"type\": \"array\",\n            \"maxItems\": 4,\n            \"items\": {\"type\": \"string\", \"maxLength\": 160},\n        },\n        \"nextAction\": {\n            \"type\": \"string\",\n            \"minLength\": 1,\n            \"maxLength\": 120,\n        },\n    },\n}\n\nBASE = {\n    \"contractVersion\": \"1.0\",\n    \"status\": \"complete\",\n    \"result\": \"P-001 is registered for W-101.\",\n    \"evidence\": [\n        {\"claim\": \"P-001 is registered for W-101.\", \"source\": \"records-v1\"}\n    ],\n    \"assumptions\": [],\n    \"warnings\": [],\n    \"nextAction\": \"NONE\",\n}\n\n\nclass InputTooLarge(Exception):\n    pass\n\n\nclass DuplicateKey(Exception):\n    pass\n\n\nclass NonStandardConstant(Exception):\n    pass\n\n\ndef unique_object(pairs):\n    result = {}\n    for key, value in pairs:\n        if key in result:\n            raise DuplicateKey(key)\n        result[key] = value\n    return result\n\n\ndef reject_constant(value):\n    raise NonStandardConstant(value)\n\n\ndef strict_load(text):\n    if len(text.encode(\"utf-8\")) > MAX_INPUT_BYTES:\n        raise InputTooLarge\n    return json.loads(\n        text,\n        object_pairs_hook=unique_object,\n        parse_constant=reject_constant,\n    )\n\n\ndef shape_code(candidate, validator):\n    errors = sorted(\n        validator.iter_errors(candidate),\n        key=lambda error: (\n            tuple(str(part) for part in error.absolute_path),\n            str(error.validator),\n        ),\n    )\n    if not errors:\n        return None\n    keyword = errors[0].validator\n    stable_codes = {\n        \"additionalProperties\": \"SHAPE_ADDITIONAL_PROPERTIES\",\n        \"const\": \"SHAPE_CONST\",\n        \"enum\": \"SHAPE_ENUM\",\n        \"maxItems\": \"SHAPE_MAX_ITEMS\",\n        \"maxLength\": \"SHAPE_MAX_LENGTH\",\n        \"minItems\": \"SHAPE_MIN_ITEMS\",\n        \"minLength\": \"SHAPE_MIN_LENGTH\",\n        \"required\": \"SHAPE_REQUIRED\",\n        \"type\": \"SHAPE_TYPE\",\n    }\n    return stable_codes.get(keyword, \"SHAPE_OTHER\")\n\n\ndef expected_values(policy, records, participant, workshop):\n    if participant not in records:\n        return \"MEANING_UNKNOWN_PARTICIPANT\"\n    if workshop not in policy[\"workshops\"]:\n        return \"MEANING_UNKNOWN_WORKSHOP\"\n\n    recorded = records[participant].get(workshop, \"absent\")\n    registration_open = policy[\"workshops\"][workshop][\"registrationOpen\"]\n\n    if recorded == \"registered\":\n        status = policy[\"allowedTransitions\"][\"registered\"]\n        result = f\"{participant} is registered for {workshop}.\"\n        action = \"NONE\"\n    elif recorded == \"waitlisted\":\n        status = policy[\"allowedTransitions\"][\"waitlisted\"]\n        result = f\"{participant} is waitlisted for {workshop}.\"\n        action = \"Collect participant confirmation.\"\n    elif recorded == \"absent\" and registration_open:\n        status = policy[\"allowedTransitions\"][\"absent\"][\"open\"]\n        result = (\n            f\"No registration record exists for {participant} in {workshop}; \"\n            \"registration is open.\"\n        )\n        action = \"Offer registration form.\"\n    elif recorded == \"absent\":\n        status = policy[\"allowedTransitions\"][\"absent\"][\"closed\"]\n        result = (\n            f\"No registration record exists for {participant} in {workshop}; \"\n            \"registration is closed.\"\n        )\n        action = \"Human review required.\"\n    else:\n        return \"MEANING_UNSUPPORTED_RECORD_STATUS\"\n\n    claim = f\"{participant} is {recorded} for {workshop}.\"\n    return {\n        \"status\": status,\n        \"result\": result,\n        \"evidence\": [{\"claim\": claim, \"source\": \"records-v1\"}],\n        \"action\": action,\n    }\n\n\ndef validate_case(raw, participant, workshop, policy=POLICY, records=RECORDS):\n    try:\n        candidate = strict_load(raw)\n    except InputTooLarge:\n        return \"REJECT SIZE_INPUT_TOO_LARGE\"\n    except DuplicateKey:\n        return \"REJECT PARSE_DUPLICATE_KEY\"\n    except NonStandardConstant:\n        return \"REJECT PARSE_NONSTANDARD_CONSTANT\"\n    except JSONDecodeError:\n        return \"REJECT PARSE_MALFORMED_JSON\"\n\n    shape_problem = shape_code(candidate, VALIDATOR)\n    if shape_problem:\n        return \"REJECT \" + shape_problem\n\n    expected = expected_values(policy, records, participant, workshop)\n    if isinstance(expected, str):\n        return \"REJECT \" + expected\n    if candidate[\"status\"] != expected[\"status\"]:\n        return \"REJECT MEANING_STATUS_MISMATCH\"\n    if candidate[\"result\"] != expected[\"result\"]:\n        return \"REJECT MEANING_RESULT_MISMATCH\"\n    if candidate[\"evidence\"] != expected[\"evidence\"]:\n        return \"REJECT EVIDENCE_MISMATCH\"\n    if candidate[\"assumptions\"] or candidate[\"warnings\"]:\n        return \"REJECT EVIDENCE_UNSUPPORTED_CONTEXT\"\n    if candidate[\"nextAction\"] != expected[\"action\"]:\n        return \"REJECT AUTH_NEXT_ACTION\"\n    return \"ACCEPT\"\n\n\ndef envelope(status, result, claim, action):\n    return {\n        \"contractVersion\": \"1.0\",\n        \"status\": status,\n        \"result\": result,\n        \"evidence\": [{\"claim\": claim, \"source\": \"records-v1\"}],\n        \"assumptions\": [],\n        \"warnings\": [],\n        \"nextAction\": action,\n    }\n\n\ndef variation_fixtures():\n    closed_policy = {\n        \"workshops\": {\n            \"W-101\": {\"title\": \"Intro to Local Models\", \"registrationOpen\": True},\n            \"W-202\": {\"title\": \"Safety Review\", \"registrationOpen\": False},\n            \"W-303\": {\"title\": \"Data Handling\", \"registrationOpen\": False},\n        },\n        \"allowedTransitions\": {\n            \"registered\": \"complete\",\n            \"waitlisted\": \"needs-input\",\n            \"absent\": {\"open\": \"needs-input\", \"closed\": \"blocked\"},\n        },\n    }\n    open_policy = {\n        \"workshops\": {\n            \"W-101\": {\"title\": \"Intro to Local Models\", \"registrationOpen\": True},\n            \"W-202\": {\"title\": \"Safety Review\", \"registrationOpen\": False},\n            \"W-303\": {\"title\": \"Data Handling\", \"registrationOpen\": True},\n        },\n        \"allowedTransitions\": {\n            \"registered\": \"complete\",\n            \"waitlisted\": \"needs-input\",\n            \"absent\": {\"open\": \"needs-input\", \"closed\": \"blocked\"},\n        },\n    }\n    records = {\n        \"P-001\": {\"W-101\": \"registered\"},\n        \"P-002\": {\"W-202\": \"waitlisted\"},\n        \"P-003\": {},\n    }\n    closed_candidate = envelope(\n        \"blocked\",\n        \"No registration record exists for P-003 in W-303; registration is closed.\",\n        \"P-003 is absent for W-303.\",\n        \"Human review required.\",\n    )\n    open_candidate = envelope(\n        \"needs-input\",\n        \"No registration record exists for P-003 in W-303; registration is open.\",\n        \"P-003 is absent for W-303.\",\n        \"Offer registration form.\",\n    )\n    return closed_policy, open_policy, records, closed_candidate, open_candidate\n\n\ndef main():\n    if version(\"jsonschema\") != PINNED_JSONSCHEMA:\n        raise SystemExit(\n            \"DEPENDENCY ERROR: expected jsonschema==\" + PINNED_JSONSCHEMA\n        )\n\n    Draft202012Validator.check_schema(SCHEMA)\n    print(\"schema: ACCEPT SCHEMA_OK\")\n\n    needs_input = envelope(\n        \"needs-input\",\n        \"P-002 is waitlisted for W-202.\",\n        \"P-002 is waitlisted for W-202.\",\n        \"Collect participant confirmation.\",\n    )\n    blocked = envelope(\n        \"blocked\",\n        \"No registration record exists for P-003 in W-202; registration is closed.\",\n        \"P-003 is absent for W-202.\",\n        \"Human review required.\",\n    )\n\n    cases = [\n        (\"valid-complete\", json.dumps(BASE), \"P-001\", \"W-101\", \"ACCEPT\"),\n        (\"valid-needs-input\", json.dumps(needs_input), \"P-002\", \"W-202\", \"ACCEPT\"),\n        (\"valid-blocked\", json.dumps(blocked), \"P-003\", \"W-202\", \"ACCEPT\"),\n        (\n            \"wrong-type\",\n            json.dumps({**BASE, \"result\": 1}),\n            \"P-001\",\n            \"W-101\",\n            \"REJECT SHAPE_TYPE\",\n        ),\n        (\n            \"extra-key\",\n            json.dumps({**BASE, \"permission\": \"approved\"}),\n            \"P-001\",\n            \"W-101\",\n            \"REJECT SHAPE_ADDITIONAL_PROPERTIES\",\n        ),\n        (\n            \"missing-evidence\",\n            json.dumps({key: value for key, value in BASE.items() if key != \"evidence\"}),\n            \"P-001\",\n            \"W-101\",\n            \"REJECT SHAPE_REQUIRED\",\n        ),\n        (\n            \"fabricated-source\",\n            json.dumps(\n                {\n                    **BASE,\n                    \"evidence\": [\n                        {\n                            \"claim\": \"P-001 is registered for W-101.\",\n                            \"source\": \"invented-live-db\",\n                        }\n                    ],\n                }\n            ),\n            \"P-001\",\n            \"W-101\",\n            \"REJECT EVIDENCE_MISMATCH\",\n        ),\n        (\n            \"fabricated-claim\",\n            json.dumps(\n                {\n                    **BASE,\n                    \"evidence\": [\n                        {\n                            \"claim\": \"P-001 paid and has permission.\",\n                            \"source\": \"records-v1\",\n                        }\n                    ],\n                }\n            ),\n            \"P-001\",\n            \"W-101\",\n            \"REJECT EVIDENCE_MISMATCH\",\n        ),\n        (\n            \"wrong-status\",\n            json.dumps({**blocked, \"status\": \"complete\"}),\n            \"P-003\",\n            \"W-202\",\n            \"REJECT MEANING_STATUS_MISMATCH\",\n        ),\n        (\n            \"wrong-result\",\n            json.dumps({**BASE, \"result\": \"P-001 might be registered.\"}),\n            \"P-001\",\n            \"W-101\",\n            \"REJECT MEANING_RESULT_MISMATCH\",\n        ),\n        (\n            \"unsupported-context\",\n            json.dumps({**BASE, \"assumptions\": [\"Assume payment was received.\"]}),\n            \"P-001\",\n            \"W-101\",\n            \"REJECT EVIDENCE_UNSUPPORTED_CONTEXT\",\n        ),\n        (\n            \"unauthorized-nextAction\",\n            json.dumps({**BASE, \"nextAction\": \"Send confirmation email.\"}),\n            \"P-001\",\n            \"W-101\",\n            \"REJECT AUTH_NEXT_ACTION\",\n        ),\n        (\n            \"oversized-string\",\n            json.dumps({**BASE, \"result\": \"x\" * 161}),\n            \"P-001\",\n            \"W-101\",\n            \"REJECT SHAPE_MAX_LENGTH\",\n        ),\n        (\n            \"oversized-input\",\n            \" \" * (MAX_INPUT_BYTES + 1),\n            \"P-001\",\n            \"W-101\",\n            \"REJECT SIZE_INPUT_TOO_LARGE\",\n        ),\n        (\n            \"malformed-json\",\n            '{\"contractVersion\":\"1.0\",',\n            \"P-001\",\n            \"W-101\",\n            \"REJECT PARSE_MALFORMED_JSON\",\n        ),\n        (\n            \"duplicate-keys\",\n            '{\"contractVersion\":\"1.0\",\"contractVersion\":\"9.9\"}',\n            \"P-001\",\n            \"W-101\",\n            \"REJECT PARSE_DUPLICATE_KEY\",\n        ),\n        (\n            \"nested-duplicate-keys\",\n            '{\"outer\":{\"claim\":\"first\",\"claim\":\"second\"}}',\n            \"P-001\",\n            \"W-101\",\n            \"REJECT PARSE_DUPLICATE_KEY\",\n        ),\n        (\n            \"explicit-NaN\",\n            '{\"value\":NaN}',\n            \"P-001\",\n            \"W-101\",\n            \"REJECT PARSE_NONSTANDARD_CONSTANT\",\n        ),\n        (\n            \"explicit-Infinity\",\n            '{\"value\":Infinity}',\n            \"P-001\",\n            \"W-101\",\n            \"REJECT PARSE_NONSTANDARD_CONSTANT\",\n        ),\n        (\n            \"explicit-negative-Infinity\",\n            '{\"value\":-Infinity}',\n            \"P-001\",\n            \"W-101\",\n            \"REJECT PARSE_NONSTANDARD_CONSTANT\",\n        ),\n    ]\n\n    for name, raw, participant, workshop, expected in cases:\n        actual = validate_case(raw, participant, workshop)\n        if actual != expected:\n            raise AssertionError(f\"{name}: expected {expected!r}, got {actual!r}\")\n        print(f\"{name}: {actual}\")\n\n    closed_policy, open_policy, records, closed_candidate, open_candidate = variation_fixtures()\n    variation_cases = [\n        (\n            \"variation-closed\",\n            json.dumps(closed_candidate),\n            closed_policy,\n            \"ACCEPT\",\n        ),\n        (\n            \"variation-open\",\n            json.dumps(open_candidate),\n            open_policy,\n            \"ACCEPT\",\n        ),\n    ]\n    for name, raw, policy, expected in variation_cases:\n        actual = validate_case(raw, \"P-003\", \"W-303\", policy, records)\n        if actual != expected:\n            raise AssertionError(f\"{name}: expected {expected!r}, got {actual!r}\")\n        print(f\"{name}: {actual}\")\n\n    if closed_candidate[\"status\"] == open_candidate[\"status\"]:\n        raise AssertionError(\"variation did not change the outcome\")\n    print(\"variation-changed-outcome: ACCEPT blocked->needs-input\")\n    print(\"all-fixtures: PASS\")\n\n\nDraft202012Validator.check_schema(SCHEMA)\nVALIDATOR = Draft202012Validator(SCHEMA)\n\nif __name__ == \"__main__\":\n    main()\n"
+      }
+    },
+    {
+      "id": "expected-result-and-verification",
+      "title": "Expected result and executable verification",
+      "paragraphs": [
+        "The program asserts the expected result of every fixture before printing it. A regression raises AssertionError and stops execution rather than merely printing an unexpected result.",
+        "Stable codes are used instead of third-party ValidationError.message text, whose wording is not part of this lab's output contract. The exact stdout below is the expected fixture for the supplied program with Python 3.12 or later and jsonschema 4.26.0. It is not claimed as an observed run in the pinned environment or as provider or model execution.",
+        "The three positive envelope fixtures cover complete, needs-input, and blocked. Negative fixtures cover input size, malformed JSON, top-level and nested duplicate keys, explicit NaN, Infinity, and -Infinity, a pure type violation, extra properties, missing evidence, excessive field length, unsupported meaning, fabricated evidence, unsupported context, and unauthorized nextAction."
+      ],
+      "callout": "A passing schema check is one gate. It does not replace meaning, evidence, or authorization checks.",
+      "code": {
+        "language": "text",
+        "label": "Exact expected stdout",
+        "code": "schema: ACCEPT SCHEMA_OK\nvalid-complete: ACCEPT\nvalid-needs-input: ACCEPT\nvalid-blocked: ACCEPT\nwrong-type: REJECT SHAPE_TYPE\nextra-key: REJECT SHAPE_ADDITIONAL_PROPERTIES\nmissing-evidence: REJECT SHAPE_REQUIRED\nfabricated-source: REJECT EVIDENCE_MISMATCH\nfabricated-claim: REJECT EVIDENCE_MISMATCH\nwrong-status: REJECT MEANING_STATUS_MISMATCH\nwrong-result: REJECT MEANING_RESULT_MISMATCH\nunsupported-context: REJECT EVIDENCE_UNSUPPORTED_CONTEXT\nunauthorized-nextAction: REJECT AUTH_NEXT_ACTION\noversized-string: REJECT SHAPE_MAX_LENGTH\noversized-input: REJECT SIZE_INPUT_TOO_LARGE\nmalformed-json: REJECT PARSE_MALFORMED_JSON\nduplicate-keys: REJECT PARSE_DUPLICATE_KEY\nnested-duplicate-keys: REJECT PARSE_DUPLICATE_KEY\nexplicit-NaN: REJECT PARSE_NONSTANDARD_CONSTANT\nexplicit-Infinity: REJECT PARSE_NONSTANDARD_CONSTANT\nexplicit-negative-Infinity: REJECT PARSE_NONSTANDARD_CONSTANT\nvariation-closed: ACCEPT\nvariation-open: ACCEPT\nvariation-changed-outcome: ACCEPT blocked->needs-input\nall-fixtures: PASS"
+      }
+    },
+    {
+      "id": "failure-recovery",
+      "title": "Failure recovery",
+      "paragraphs": [
+        "For a size or parse failure, discard the candidate and request a new JSON document. Do not silently repair malformed or ambiguous JSON because repair can change meaning. Duplicate keys and non-standard numeric constants must be rejected before schema validation.",
+        "For a shape failure, identify the stable failure category and ask for a new candidate that follows the contract. For a meaning or evidence failure, compare the candidate with trusted policy and records. A source string inside model output is only a provenance claim, not proof that the source exists or supports the claim.",
+        "For an authority failure, do not execute nextAction. Only trusted caller-owned code can decide whether a later side effect is permitted. The lab intentionally contains no network calls, API calls, external lookups, messages, registration changes, or other side effects.",
+        "If setup fails, confirm Python is version 3.12 or later, run python3 -m ensurepip --version, activate the new virtual environment, and reinstall from requirements.txt. If the protected lab path already exists, inspect or rename it rather than deleting or overwriting it automatically."
+      ],
+      "callout": "Never turn a parse, validation, evidence, or authorization error into permission.",
+      "code": {
+        "language": "json",
+        "label": "Repair example: valid needs-input envelope",
+        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"status\": \"needs-input\",\n  \"result\": \"P-002 is waitlisted for W-202.\",\n  \"evidence\": [\n    {\n      \"claim\": \"P-002 is waitlisted for W-202.\",\n      \"source\": \"records-v1\"\n    }\n  ],\n  \"assumptions\": [],\n  \"warnings\": [],\n  \"nextAction\": \"Collect participant confirmation.\"\n}"
+      }
+    },
+    {
+      "id": "learner-task",
+      "title": "Learner task: apply a changed policy",
+      "paragraphs": [
+        "Use the complete initial and modified inputs below. W-303 starts closed and changes to open. P-003 remains absent from W-303 in both record sets. Create one valid envelope for the initial input and a different valid envelope for the modified input.",
+        "Do not copy an answer from model output or treat nextAction as permission. Derive status and result from allowedTransitions, registrationOpen, and the historical record. Derive evidence only from records-v1, then compare nextAction with the caller-owned action policy implemented by the validator.",
+        "Run lab.py. Its variation-closed, variation-open, and variation-changed-outcome assertions provide executable verification that the full policy change produces a different outcome. Also confirm that extra-key, fabricated-source, and unauthorized-nextAction remain rejected."
+      ],
+      "callout": "The task gives the inputs and rules, not the completed envelopes. Produce both envelopes before opening the answer key.",
+      "code": {
+        "language": "json",
+        "label": "Full initial and modified learner inputs",
+        "code": "{\n  \"initialInput\": {\n    \"participant\": \"P-003\",\n    \"workshop\": \"W-303\",\n    \"policy\": {\n      \"workshops\": {\n        \"W-101\": {\n          \"title\": \"Intro to Local Models\",\n          \"registrationOpen\": true\n        },\n        \"W-202\": {\n          \"title\": \"Safety Review\",\n          \"registrationOpen\": false\n        },\n        \"W-303\": {\n          \"title\": \"Data Handling\",\n          \"registrationOpen\": false\n        }\n      },\n      \"allowedTransitions\": {\n        \"registered\": \"complete\",\n        \"waitlisted\": \"needs-input\",\n        \"absent\": {\n          \"open\": \"needs-input\",\n          \"closed\": \"blocked\"\n        }\n      }\n    },\n    \"records\": {\n      \"P-001\": {\n        \"W-101\": \"registered\"\n      },\n      \"P-002\": {\n        \"W-202\": \"waitlisted\"\n      },\n      \"P-003\": {}\n    }\n  },\n  \"modifiedInput\": {\n    \"participant\": \"P-003\",\n    \"workshop\": \"W-303\",\n    \"policy\": {\n      \"workshops\": {\n        \"W-101\": {\n          \"title\": \"Intro to Local Models\",\n          \"registrationOpen\": true\n        },\n        \"W-202\": {\n          \"title\": \"Safety Review\",\n          \"registrationOpen\": false\n        },\n        \"W-303\": {\n          \"title\": \"Data Handling\",\n          \"registrationOpen\": true\n        }\n      },\n      \"allowedTransitions\": {\n        \"registered\": \"complete\",\n        \"waitlisted\": \"needs-input\",\n        \"absent\": {\n          \"open\": \"needs-input\",\n          \"closed\": \"blocked\"\n        }\n      }\n    },\n    \"records\": {\n      \"P-001\": {\n        \"W-101\": \"registered\"\n      },\n      \"P-002\": {\n        \"W-202\": \"waitlisted\"\n      },\n      \"P-003\": {}\n    }\n  }\n}"
+      }
+    },
+    {
+      "id": "learner-answer-key",
+      "title": "Learner answer key and feedback",
+      "paragraphs": [
+        "Initial answer: P-003 has no W-303 record and registration is closed, so the absent.closed transition produces blocked. The evidence states only the historical absence. Human review is the caller-owned permitted action text, not authority granted by the candidate.",
+        "Modified answer: the historical record is still absent, but registration is now open. The absent.open transition therefore produces needs-input, and the result reports that a registration path is open. The change from blocked to needs-input demonstrates a genuine policy-driven outcome change.",
+        "Feedback check: if both envelopes have the same status, the policy branch was not applied. If either says registered, the historical record was invented. If nextAction contains a different command, AUTH_NEXT_ACTION must reject it. Passing output never means that an action was executed."
+      ],
+      "callout": "registrationOpen controls the new-registration path. It does not create or erase a historical registered record.",
+      "code": {
+        "language": "json",
+        "label": "Answer key: complete envelopes",
+        "code": "{\n  \"initialAnswer\": {\n    \"contractVersion\": \"1.0\",\n    \"status\": \"blocked\",\n    \"result\": \"No registration record exists for P-003 in W-303; registration is closed.\",\n    \"evidence\": [\n      {\n        \"claim\": \"P-003 is absent for W-303.\",\n        \"source\": \"records-v1\"\n      }\n    ],\n    \"assumptions\": [],\n    \"warnings\": [],\n    \"nextAction\": \"Human review required.\"\n  },\n  \"modifiedAnswer\": {\n    \"contractVersion\": \"1.0\",\n    \"status\": \"needs-input\",\n    \"result\": \"No registration record exists for P-003 in W-303; registration is open.\",\n    \"evidence\": [\n      {\n        \"claim\": \"P-003 is absent for W-303.\",\n        \"source\": \"records-v1\"\n      }\n    ],\n    \"assumptions\": [],\n    \"warnings\": [],\n    \"nextAction\": \"Offer registration form.\"\n  },\n  \"expectedVerification\": [\n    \"variation-closed: ACCEPT\",\n    \"variation-open: ACCEPT\",\n    \"variation-changed-outcome: ACCEPT blocked->needs-input\"\n  ]\n}"
+      }
+    },
+    {
+      "id": "portable-model-adaptation",
+      "title": "Adapt a local or hosted model portably",
+      "paragraphs": [
+        "A local or hosted model may be asked to produce an envelope as candidate text. Keep provider request syntax in an adapter and pass returned text through the same size, strict parsing, shape, meaning, evidence, and authority gates.",
+        "Do not infer provider support, live execution, a real registration, source access, permission, or a completed side effect from a model response. The reusable business contract remains independent of any provider feature.",
+        "If an application later performs an action, authorization must come from trusted caller-owned identity, policy, and state checks outside the model response. The candidate may suggest text, but it cannot authorize itself."
+      ],
+      "callout": "Portable means independently validated at the contract boundary, not universally supported by every provider.",
+      "code": {
+        "language": "text",
+        "label": "Trusted adapter boundary",
+        "code": "untrusted_text = model_adapter.request(task_prompt)\n# The model response has no authority.\ncandidate = strict_load(untrusted_text)\nshape_problem = shape_code(candidate, VALIDATOR)\nexpected = expected_values(POLICY, RECORDS, participant, workshop)\n# Compare meaning and evidence, then apply caller-owned authorization.\n# Perform no side effect unless separate trusted application checks allow it."
+      }
     }
   ],
   "sources": [
     {
-      "title": "Structured model outputs",
-      "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
-      "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "title": "Objects",
+      "url": "https://json-schema.org/understanding-json-schema/reference/object",
+      "publisher": "JSON Schema",
+      "lastVerified": "2026-09-19"
     },
     {
-      "title": "Structured output",
-      "url": "https://ai.google.dev/gemini-api/docs/structured-output",
-      "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "title": "Schema Validation",
+      "url": "https://python-jsonschema.readthedocs.io/en/stable/validate/",
+      "publisher": "python-jsonschema",
+      "lastVerified": "2026-09-19"
     },
     {
-      "title": "How tool use works",
-      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works",
-      "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "title": "json: JSON encoder and decoder",
+      "url": "https://docs.python.org/3/library/json.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
     }
   ]
 }
