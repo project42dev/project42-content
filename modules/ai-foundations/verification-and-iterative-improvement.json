@@ -11,9 +11,11 @@
   "estimatedMinutes": 34,
   "objectives": [
     "Match verification strength to claim type, volatility, and consequence.",
-    "Decompose a response into claims and attach the nearest practical evidence.",
-    "Diagnose whether a miss comes from the task, context, prompt, model, tool, or review process.",
-    "Version and compare prompt changes against representative cases."
+    "Decompose a response into checkable claims and compare each claim with suitable evidence.",
+    "Distinguish missing context and calculation errors from defects in prompt wording.",
+    "Evaluate one versioned workflow change against the same normal, missing-data, and conflicting-source cases.",
+    "Apply authoritative-source and HOLD rules without inventing missing values.",
+    "Explain what a three-case authored evaluation can and cannot establish."
   ],
   "prerequisites": [
     "examples-and-output-contracts"
@@ -23,119 +25,426 @@
       "id": "verify-by-claim",
       "title": "Verify claims, not confidence",
       "paragraphs": [
-        "Break a response into checkable units: factual claims, calculations, quotations, classifications, code behavior, recommendations, and actions. Each needs evidence suited to what it asserts.",
-        "Use current authoritative sources for volatile facts, recompute calculations, run code and tests, compare quotations with originals, and obtain domain review for consequential judgments."
+        "A fluent answer is not evidence that its claims are true. Break the answer into checkable units. In this module, those units include an exact quotation, a source fact, an eligibility interpretation, a calculation, and a recommended action.",
+        "Match each claim to evidence that can test it directly. Compare quotations with the original text, compare factual claims with the designated source, recompute arithmetic from visible inputs, and check whether an action is supported by all required information.",
+        "This module uses a fictional transit corpus written for offline practice. Its bulletins are authoritative only inside the exercise and do not describe real fares."
       ],
-      "callout": "The nearest evidence is usually stronger than another fluent summary."
+      "callout": "Confidence, fluency, and repetition are not substitutes for evidence.",
+      "code": {
+        "language": "text",
+        "label": "Claim types and direct checks",
+        "code": "Exact quotation -> compare it character by character with the source\nSource fact -> locate the fact in the applicable authoritative source\nEligibility interpretation -> distinguish a condition from a price or entitlement\nCalculation -> expose the inputs and recompute the operation\nRecommended action -> confirm that the evidence supports release rather than HOLD"
+      }
     },
     {
       "id": "scale-checks-to-risk",
       "title": "Scale verification to consequence and uncertainty",
       "paragraphs": [
-        "Low-consequence brainstorming may need only a usefulness review. Moderate-consequence work benefits from source comparison, examples, tests, and edge cases. High-consequence decisions require current authoritative evidence, independent review, domain expertise, and a safe approval boundary.",
-        "Verification should be planned before generation so time, tools, and responsible reviewers are available."
+        "Verification effort should rise with the consequence of being wrong. Low-consequence brainstorming may need a usefulness review. A moderate-consequence purchase estimate needs source and arithmetic checks. High-consequence work needs current authoritative evidence, independent review, relevant expertise, and an approval boundary.",
+        "Define pass criteria before evaluating an answer. A useful rule is that every required factual, quotation, calculation, conflict, and action check must pass. If a required input is absent or an applicable conflict has no resolution rule, HOLD is the correct result rather than a guess.",
+        "The OpenAI prompt-engineering guide recommends pinned model snapshots and evaluation suites when prompts or models change. That guidance supports controlled comparison, but it does not remove the need to verify individual claims."
+      ],
+      "callout": "HOLD is a safe decision state. It is a pass when the rubric requires withholding an unsupported result.",
+      "code": {
+        "language": "text",
+        "label": "Verification levels",
+        "code": "LOW CONSEQUENCE: usefulness and obvious-defect review\nMODERATE CONSEQUENCE: authoritative source comparison, recomputation, and edge cases\nHIGH CONSEQUENCE: current authoritative evidence, independent review, domain expertise, and approval boundary"
+      }
+    },
+    {
+      "id": "source-corpus",
+      "title": "Supplied fictional source corpus and case rules",
+      "paragraphs": [
+        "Read this complete corpus before reviewing the example or doing the practice task. All required exercise evidence is reproduced here, so the work can be completed offline without an account or external attachment.",
+        "Sources A and B demonstrate version selection. Source A is both newer and explicitly controlling for the normal and missing-data cases, so Source B does not create an unresolved conflict in those cases. Sources C and D create the separate conflict case because the exercise declares them equally authoritative, equally applicable, and subject to no precedence rule.",
+        "A valid reduced-fare card establishes eligibility to seek a reduced fare. It does not establish the amount of that fare. When a question specifically asks for the cost at the published standard single-ride price, the supported calculation may be released. A reduced-fare purchase recommendation requires a supplied reduced-fare amount."
       ],
       "code": {
         "language": "text",
-        "label": "Verification-plan template",
-        "code": "Output use: [DECISION OR ACTION]\nClaims to check: [FACTS, MATH, QUOTES, CODE, JUDGMENT]\nConsequence if wrong: [LOW, MODERATE, HIGH]\nEvidence per claim: [SOURCE, TEST, CALCULATION, REVIEW]\nIndependent check: [WHO OR WHAT]\nPass criteria: [OBSERVABLE RESULT]\nFailure action: [CORRECT, ESCALATE, OR STOP]"
+        "label": "Complete Harbor Transit workshop corpus",
+        "code": "SOURCE A\nPublisher: Harbor Transit Authority\nTitle: Fare Bulletin\nVersion: 3.2\nEffective date: 2026-01-01\nExercise status: controlling for the normal and missing-data cases\nExact text: \"Standard adult single ride: $3.00. A day pass costs $10.00. Reduced fares are available only to riders with a valid reduced-fare card.\"\n\nSOURCE B\nPublisher: Harbor Transit Authority\nTitle: Fare Bulletin\nVersion: 3.1\nEffective date: 2025-01-01\nExercise status: superseded by Source A for the normal and missing-data cases\nExact text: \"Standard adult single ride: $2.50. A day pass costs $9.00. Reduced fares are available only to riders with a valid reduced-fare card.\"\n\nSOURCE C\nPublisher: Harbor Transit Authority\nTitle: Special Event Fare Notice, East Pier route\nVersion: 1.0\nEffective date: 2026-07-01\nExercise status: authoritative and applicable to the conflict case\nExact text: \"East Pier single ride during the Harbor Festival: $3.00.\"\n\nSOURCE D\nPublisher: Harbor Transit Authority\nTitle: Harbor Festival Rider Notice, East Pier route\nVersion: 1.0\nEffective date: 2026-07-01\nExercise status: equally authoritative and applicable to the conflict case\nExact text: \"East Pier single ride during the Harbor Festival: $2.75.\"\n\nNo source states a reduced-fare amount. No policy supplied in this exercise gives Source C precedence over Source D or Source D precedence over Source C."
       }
     },
     {
       "id": "diagnose-the-miss",
-      "title": "Diagnose before changing the prompt",
+      "title": "Diagnose the miss with a completed claim audit",
       "paragraphs": [
-        "A failed result may come from an unclear objective, missing or bad context, contradictory instructions, unsuitable examples, a weak output contract, provider capability, tool failure, or an inadequate review method. Adding more words to the prompt will not fix every cause.",
-        "Record the failure category and the smallest change that addresses it. Keep safety and approval boundaries stable while testing changes."
-      ]
+        "The normal case asks: A rider has a valid reduced-fare card and will take 4 rides. Using controlling Source A, quote the standard single-ride sentence exactly and calculate the cost of 4 rides at that stated standard price.",
+        "Flawed authored response: \"Fare Bulletin v3.2 says, 'Adult rides are $3.00 and reduced-card riders pay $2.50.' Because the rider has a card, the applicable price is $2.50. Four rides cost 4 × $2.50 = $9.00, so the rider should buy four rides for $9.00.\" This is an intentionally flawed teaching artifact. It is not represented as output from an actual model run.",
+        "The audit below identifies every defect. It distinguishes observable defects from possible causes. The supplied artifact proves that the quotation, interpretation, arithmetic, and recommendation are wrong. It does not prove why a model would have produced them.",
+        "Corrected authored response: \"Harbor Transit Authority Fare Bulletin v3.2 states: 'Standard adult single ride: $3.00.' At the stated standard price, 4 rides cost 4 × $3.00 = $12.00. The valid card establishes reduced-fare eligibility, but the corpus does not state a reduced-fare amount, so this answer does not claim that $12.00 is the rider's reduced fare or recommend a reduced-fare purchase.\""
+      ],
+      "callout": "Describe observable defects confidently. Label an unobserved root cause as a hypothesis, not a fact.",
+      "code": {
+        "language": "text",
+        "label": "Completed claim-to-evidence table",
+        "code": "CLAIM 1\nType: exact quotation\nFlawed claim: \"Adult rides are $3.00 and reduced-card riders pay $2.50.\"\nEvidence: Source A says, \"Standard adult single ride: $3.00. A day pass costs $10.00. Reduced fares are available only to riders with a valid reduced-fare card.\"\nResult: FAIL\nDefect: the purported quotation changes the wording and invents a $2.50 reduced fare.\nAction: replace it with the exact requested sentence.\nDiagnosis: observable quotation and context-use error. Possible prompt, model, or review causes cannot be established from this artifact alone.\n\nCLAIM 2\nType: factual eligibility interpretation\nFlawed claim: a valid card makes $2.50 the applicable price.\nEvidence: Source A states only that reduced fares are available to riders with a valid card. It supplies no reduced-fare amount.\nResult: FAIL\nDefect: the response turns an eligibility condition into an unsupported price.\nAction: separate confirmed eligibility from the unknown reduced-fare amount.\nDiagnosis: required price context is absent. More confident wording cannot supply it.\n\nCLAIM 3\nType: calculation\nFlawed claim: 4 × $2.50 = $9.00.\nEvidence: direct recomputation gives 4 × $2.50 = $10.00. The requested Source A standard-price calculation is 4 × $3.00 = $12.00.\nResult: FAIL\nDefect: the response uses an unsupported input and also multiplies it incorrectly.\nAction: select the controlling input first, then recompute visibly.\nDiagnosis: observable calculation error plus unsupported context selection.\n\nCLAIM 4\nType: recommended action\nFlawed claim: buy four rides for $9.00.\nEvidence: no source supports a $9.00 four-ride total or a $2.50 reduced fare.\nResult: FAIL\nDefect: the recommendation depends on failed factual and calculation claims.\nAction: release only the requested $12.00 standard-price calculation and avoid a reduced-fare purchase recommendation.\nDiagnosis: observable downstream action error. A review gate should block release when an upstream claim fails."
+      }
     },
     {
       "id": "improve-with-cases",
-      "title": "Improve with representative cases",
+      "title": "Improve with the same cases and an explicit rubric",
       "paragraphs": [
-        "Save a small evaluation set containing normal, boundary, missing-data, conflicting-source, privacy-sensitive, and adversarial-like cases. Compare the previous and revised workflow on the same cases.",
-        "Version the prompt, context recipe, output contract, model or product, and evaluation result. A change is an improvement only when it raises the intended quality without unacceptable regressions."
+        "Diagnose the workflow before merely adding prompt words. Check the task and success criteria, supplied context, prompt and output contract, model behavior, tools, and review process. In the flawed artifact, missing reduced-fare context and incorrect arithmetic are observable. A prompt-wording root cause is not observable.",
+        "Workflow v1 contains only this instruction: answer from the supplied material and explain the result. Workflow v2 changes one controlled element by adding a mandatory verification gate. The source corpus, three cases, and rubric remain identical across versions.",
+        "The before and after responses below are authored evaluation artifacts. They demonstrate how the rubric is applied. They are not fabricated model executions, measured production results, or records of completed independent review.",
+        "Under the rubric, a case passes only if all five applicable checks pass. Correctly returning HOLD passes the action check when release conditions are unresolved. A regression is a requirement that passed in v1 but fails in v2."
       ],
-      "callout": "Do not optimize one impressive example and call the workflow reliable."
+      "code": {
+        "language": "text",
+        "label": "Workflow versions, conflict rule, rubric, and three controlled comparisons",
+        "code": "WORKFLOW v1\nAnswer from the supplied material and explain the result.\n\nWORKFLOW v2, the single versioned change\nBefore release, apply this verification gate:\n1. Record each source's publisher, title, version, effective date, authority, and applicability.\n2. Use the source explicitly designated controlling when it applies.\n3. Do not treat an older superseded source as an unresolved conflict with the controlling source.\n4. If applicable sources of equal authority and scope conflict and no precedence rule resolves them, quote both conflicting claims exactly and output HOLD.\n5. If a required input, authority, applicability, or effective date is missing, output HOLD and state what would release it.\n6. Never invent a value. Recompute every total from the selected source value and supplied quantity.\n7. Release an answer only after all applicable rubric checks pass.\n\nFIXED RUBRIC\nR1 Source: correct applicable authority and version selected.\nR2 Evidence: requested quotation is exact and every factual claim is supported.\nR3 Calculation: supplied inputs and arithmetic are correct and visible.\nR4 Conflict and missing data: unresolved requirements produce HOLD with the reason stated.\nR5 Action: RELEASE or HOLD follows from R1 through R4.\nCase result: PASS only when all applicable checks pass.\nRegression: any rubric item passing in v1 and failing in v2.\n\nCASE 1, NORMAL\nFixed input: valid reduced-fare card; 4 rides; calculate at Source A's stated standard single-ride price; Source A is controlling.\nv1 authored artifact: \"The card gives a $2.50 fare. Four rides cost $9.00.\"\nv1 results: R1 FAIL, R2 FAIL, R3 FAIL, R4 not applicable, R5 FAIL. Overall FAIL.\nv2 authored artifact: \"Source A v3.2 states: 'Standard adult single ride: $3.00.' At that stated standard price, 4 × $3.00 = $12.00. The card does not establish a reduced-fare amount. RELEASE the requested standard-price total only.\"\nv2 results: R1 PASS, R2 PASS, R3 PASS, R4 not applicable, R5 PASS. Overall PASS.\nRegression: none under the fixed rubric.\n\nCASE 2, MISSING DATA\nFixed input: valid reduced-fare card; ride count unspecified; calculate a total at Source A's stated standard single-ride price; Source A is controlling.\nv1 authored artifact: \"Four rides cost $12.00.\"\nv1 results: R1 PASS, R2 FAIL because the quantity is invented, R3 FAIL, R4 FAIL, R5 FAIL. Overall FAIL.\nv2 authored artifact: \"Source A states a $3.00 standard single-ride price, but the ride count is missing. HOLD the total until the ride count is supplied. No reduced-fare amount is stated.\"\nv2 results: R1 PASS, R2 PASS, R3 PASS because no unsupported total is calculated, R4 PASS, R5 PASS. Overall PASS.\nRegression: none under the fixed rubric.\n\nCASE 3, GENUINE EQUAL-AUTHORITY CONFLICT\nFixed input: 4 East Pier rides during the Harbor Festival; Sources C and D are equally authoritative, equally applicable, and effective on the same date; no precedence rule is supplied.\nv1 authored artifact: \"Use Source C. Four rides cost 4 × $3.00 = $12.00.\"\nv1 results: R1 FAIL because no basis selects C, R2 FAIL because D is omitted, R3 PASS conditionally on C's price but does not cure source selection, R4 FAIL, R5 FAIL. Overall FAIL.\nv2 authored artifact: \"Source C states, 'East Pier single ride during the Harbor Festival: $3.00.' Source D states, 'East Pier single ride during the Harbor Festival: $2.75.' Both are equally authoritative and applicable, and no precedence rule is supplied. HOLD the total until Harbor Transit identifies the governing notice.\"\nv2 results: R1 PASS because the unresolved equality is identified, R2 PASS, R3 PASS because no unsupported total is released, R4 PASS, R5 PASS. Overall PASS.\nRegression: none under the fixed rubric.\n\nBOUNDED CONCLUSION\nThe authored v2 artifacts pass this rubric for these three supplied cases. This does not establish an actual model success rate or general production reliability."
+      }
+    },
+    {
+      "id": "reusable-template",
+      "title": "Reusable worksheet after the filled example",
+      "paragraphs": [
+        "Use this worksheet for a new response only after reviewing the completed example. Copy exact evidence rather than paraphrasing it, and leave the result at HOLD whenever a required field cannot be established.",
+        "This blank worksheet is a reusable learning aid. It is not an incomplete input for the workshop cases, which are fully supplied elsewhere in this module."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Blank claim-to-evidence worksheet",
+        "code": "CASE ID:\nSOURCE TITLE AND VERSION:\nEFFECTIVE DATE:\nAUTHORITY AND APPLICABILITY:\nSUPPLIED INPUTS:\n\nCLAIM:\nCLAIM TYPE:\nCONSEQUENCE IF WRONG:\nEXACT EVIDENCE:\nVERIFICATION METHOD:\nRESULT: PASS / FAIL / HOLD\nOBSERVABLE DEFECT:\nFAILURE ACTION:\nDIAGNOSIS: TASK / CONTEXT / PROMPT / MODEL / TOOL / REVIEW / UNKNOWN\n\nCALCULATION INPUTS:\nOPERATION:\nRECOMPUTED RESULT:\n\nAPPLICABLE CONFLICTING SOURCES:\nEXACT CONFLICTING CLAIMS:\nPRECEDENCE RULE:\n\nFINAL ACTION: RELEASE / HOLD / ESCALATE\nREASON:\nREMAINING UNCERTAINTY:"
+      }
+    },
+    {
+      "id": "changed-input-task",
+      "title": "Changed-input practice",
+      "paragraphs": [
+        "This practice changes one input from the completed normal case: the rider will take 5 rides instead of 4. All other facts remain fixed. The rider has a valid reduced-fare card, Source A v3.2 is controlling, and the question asks for the cost at Source A's stated standard single-ride price.",
+        "Write a complete response that quotes the requested standard single-ride sentence exactly, shows the arithmetic, distinguishes the standard-price total from any unknown reduced-fare amount, and gives the correct RELEASE or HOLD action for the requested total.",
+        "Then score your response against R1 through R5 from the fixed rubric. Complete this work before reading the answer-key section."
+      ],
+      "callout": "The changed ride count must produce a changed total. Do not reuse the four-ride result.",
+      "code": {
+        "language": "text",
+        "label": "Practice input and response requirements",
+        "code": "PRACTICE INPUT\nRider status: valid reduced-fare card\nRide count: 5\nApplicable source: Source A, Fare Bulletin v3.2\nAuthority: controlling\nRequested output: exact standard single-ride sentence, total at that standard price, eligibility limitation, and RELEASE or HOLD action\n\nREQUIRED SELF-CHECK\nR1 Source\nR2 Evidence\nR3 Calculation\nR4 Conflict and missing data\nR5 Action"
+      }
+    },
+    {
+      "id": "changed-input-answer-key",
+      "title": "Changed-input answer key",
+      "paragraphs": [
+        "The changed ride count changes the supported standard-price total. Source A remains controlling, all required inputs for that calculation are present, and no applicable source conflict exists. The requested standard-price total can therefore be released.",
+        "Worked response: \"Harbor Transit Authority Fare Bulletin v3.2 states: 'Standard adult single ride: $3.00.' At that stated standard price, 5 rides cost 5 × $3.00 = $15.00. The rider's valid card establishes eligibility for reduced fares, but the corpus does not state a reduced-fare amount. RELEASE $15.00 as the requested standard-price total only; do not present it as the rider's reduced fare.\"",
+        "This is a distinct worked key for the changed five-ride input. It is an authored reference answer, not an actual model run or a claim that a human reviewer performed the exercise."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Complete scoring key and feedback",
+        "code": "R1 SOURCE: PASS. Source A v3.2 is explicitly controlling and applicable.\nR2 EVIDENCE: PASS. The response quotes \"Standard adult single ride: $3.00.\" exactly and does not invent a reduced-fare amount.\nR3 CALCULATION: PASS. The visible inputs are 5 rides and $3.00 per ride. Recalculation: 5 × $3.00 = $15.00.\nR4 CONFLICT AND MISSING DATA: PASS. No required input for the requested standard-price total is missing, and Source B is superseded rather than equally controlling.\nR5 ACTION: PASS. RELEASE is correct for the requested standard-price total. A reduced-fare purchase amount would remain unsupported.\nOVERALL: PASS.\n\nSPECIFIC FEEDBACK\nIf you wrote $12.00, you reused the old quantity instead of applying the changed input.\nIf you wrote $15.00 without showing 5 × $3.00, the result is numerically correct but fails the visible-calculation requirement.\nIf you called $15.00 the reduced fare, you converted eligibility into an unsupported price.\nIf you returned HOLD on the requested standard-price total solely because the reduced-fare amount is absent, you applied HOLD too broadly. The requested standard calculation has complete inputs."
+      }
+    },
+    {
+      "id": "limits-and-transfer",
+      "title": "Limits, provenance, and transfer across model families",
+      "paragraphs": [
+        "These three controlled cases expose wrong-version selection, invented values, arithmetic errors, missing quantities, and unresolved equal-authority conflicts. They do not establish performance across other topics, source layouts, languages, tools, model versions, or adversarial inputs. No success percentage can be calculated because no actual run dataset is supplied.",
+        "A broader evaluation would require a predeclared case set, fixed inputs, preserved outputs, a stable rubric, identified model snapshots or systems, and recorded review results. Until those observations exist, broader reliability is UNKNOWN.",
+        "Prompt guidance differs across model families. OpenAI documents explicit instructions, role authority, pinned snapshots, and evaluation suites. Anthropic documents clear instructions, structured tags, examples, and role assignment. Google documents constraints, response formats, and few-shot examples. Qwen3 documents thinking and non-thinking controls through enable_thinking and the soft switches /think and /no_think. These references motivate testing provider-specific prompts rather than assuming identical behavior.",
+        "The same caution applies to Meta Llama, Qwen, DeepSeek, Mistral, and other families. General practices may transfer, but equivalent behavior is untested unless the same cases and rubric are actually evaluated on each selected model and version."
+      ],
+      "callout": "Three authored examples demonstrate a method. They do not prove a model, provider, or production workflow is reliable.",
+      "code": {
+        "language": "text",
+        "label": "Workshop provenance",
+        "code": "Fictional exercise corpus: Harbor Transit Authority Sources A through D, authored for this module. The names, notices, and fares are not real-world claims.\nAuthored artifacts: flawed response, corrected response, v1 outputs, v2 outputs, and changed-input key. None is represented as an actual model execution.\nExternal documentation was checked on 2026-09-19 and is listed in the module sources.\nModule-level lastVerified metadata remains 2026-09-13 to preserve the original module metadata."
+      }
     }
   ],
   "activity": {
     "id": "activity-verify-and-improve",
     "title": "Verify a response and improve the workflow",
     "instructions": [
-      "Choose an AI response containing at least three different claim types.",
-      "List each claim, its consequence if wrong, and the nearest practical evidence needed to check it.",
-      "Record every failed check and classify its likely cause as task, context, prompt, model, tool, or review.",
-      "Change one controllable element, rerun the original case plus two boundary cases, and compare results."
+      "Read the complete fictional source corpus and the filled claim audit.",
+      "Compare each normal, missing-data, and conflict artifact with the same five-part rubric.",
+      "Explain why the normal case releases a $12.00 standard-price total, the missing-data case holds the total, and the equal-authority conflict case holds the total.",
+      "Complete the separate five-ride changed-input task before reading its answer key.",
+      "Record one remaining uncertainty without claiming that an unperformed model run or review occurred."
     ],
     "evidence": [
-      "A claim-to-evidence table with consequence, verification result, and failure action.",
-      "A before-and-after comparison that records one change, three cases, improvements, regressions, and remaining uncertainty."
+      "A claim-to-evidence audit covering quotation, factual interpretation, calculation, and action claims.",
+      "A per-case v1 and v2 pass/fail comparison using the fixed R1 through R5 rubric.",
+      "A five-ride response with exact evidence, visible arithmetic, an action decision, and self-scoring.",
+      "A statement limiting conclusions to the supplied authored cases."
     ],
-    "reflectionPrompt": "Which failure initially looked like a prompt problem but came from another part of the workflow?"
+    "reflectionPrompt": "Which defect can be fixed by better prompt wording, and which defects require missing data, arithmetic verification, source precedence, or a review gate?"
   },
   "instructorScript": {
     "schemaVersion": "1.0",
-    "estimatedSeconds": 1140,
+    "estimatedSeconds": 974.0,
     "cues": [
       {
-        "id": "cue-verification-claims",
+        "id": "verification-and-iterative-improvement-cue-01",
         "kind": "narration",
+        "text": "Verification starts by breaking an answer into claims we can test. Look separately at the exact quotation, the source fact, the eligibility interpretation, the calculation, and the recommended action. Fluency is not evidence. For a quotation, compare the words with the source. For a fact, locate it in the applicable authoritative version. For arithmetic, expose the inputs and recompute. For an action, ask whether every release condition has passed.",
         "sectionId": "verify-by-claim",
-        "text": "Decompose one polished paragraph into facts, calculation, quotation, recommendation, and action, then pair each with different evidence."
+        "accessibilityAlternative": "The lesson separates quotations, facts, interpretations, calculations, and actions, then matches each with a direct evidence check."
       },
       {
-        "id": "cue-verification-claim-map",
+        "id": "verification-and-iterative-improvement-cue-02",
         "kind": "visual",
+        "text": "Static visual: Claim type and direct check. Exact quotation: compare character by character. Source fact: locate it in the applicable authoritative source. Eligibility interpretation: separate a condition from a price. Calculation: show inputs and recompute. Recommended action: confirm RELEASE or HOLD from the evidence.",
         "sectionId": "verify-by-claim",
-        "text": "Connect claim types to source comparison, recomputation, original quotation, test execution, or expert review.",
-        "accessibilityAlternative": "A text mapping pairs facts with authoritative sources, math with recomputation, quotations with originals, code with tests, and consequential judgment with domain review. Reduced-motion mode shows all mappings."
+        "accessibilityAlternative": "A text map pairs each claim type with its corresponding verification method."
       },
       {
-        "id": "cue-verification-risk",
-        "kind": "narration",
-        "sectionId": "scale-checks-to-risk",
-        "text": "Build a verification ladder from low-consequence usefulness review to high-consequence authoritative evidence and approval."
-      },
-      {
-        "id": "cue-verification-plan-prompt",
+        "id": "verification-and-iterative-improvement-cue-03",
         "kind": "learner-prompt",
-        "sectionId": "scale-checks-to-risk",
-        "text": "Ask learners to name the evidence that would actually prove their highest-consequence claim."
+        "text": "Question: Is a confident answer evidence? Answer: no. What should test the claim that a rider's card proves a particular fare? Answer: the authoritative source must state that fare amount. A card may establish eligibility without establishing price.",
+        "sectionId": "verify-by-claim",
+        "accessibilityAlternative": "The learner hears the answer that confidence does not prove a claim and that eligibility is not the same as price."
       },
       {
-        "id": "cue-verification-pause",
+        "id": "verification-and-iterative-improvement-cue-04",
+        "kind": "checkpoint",
+        "text": "Checkpoint: explain, in one sentence, why a calculation can be numerically correct but still unsupported. Expected answer: the arithmetic may be correct while one or more inputs, such as the fare amount, are not established by the supplied evidence.",
+        "sectionId": "verify-by-claim",
+        "accessibilityAlternative": "The learner checks whether unsupported inputs can invalidate otherwise correct arithmetic."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-05",
+        "kind": "narration",
+        "text": "Verification effort should match consequence and uncertainty. A low-consequence brainstorm may need a usefulness check. A purchase estimate needs source comparison and recomputation. Higher-consequence work may require current authoritative evidence, independent review, expertise, and an approval boundary. HOLD is not failure when release conditions are unresolved. It is the correct safe action. The OpenAI documentation also recommends pinned model snapshots and evaluation suites when prompts or models change. Those controls support comparison, but they do not verify each individual claim.",
+        "sectionId": "scale-checks-to-risk",
+        "accessibilityAlternative": "Verification becomes more rigorous as the consequence of an error increases; unresolved requirements produce HOLD."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-06",
+        "kind": "visual",
+        "text": "Static visual: Verification levels. Low consequence: usefulness and obvious-defect review. Moderate consequence: authoritative source, arithmetic, and edge-case checks. High consequence: current evidence, independent review, expertise, and approval boundary.",
+        "sectionId": "scale-checks-to-risk",
+        "accessibilityAlternative": "Three text levels show increasing verification requirements."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-07",
+        "kind": "learner-prompt",
+        "text": "Question: what four things must establish a released fare total? Answer: the applicable fare source, the ride quantity, the arithmetic, and authority to release. If the quantity is absent, the total is HOLD, not an estimate.",
+        "sectionId": "scale-checks-to-risk",
+        "accessibilityAlternative": "The learner identifies source, quantity, arithmetic, and release authority as required evidence."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-08-pause",
         "kind": "pause",
         "sectionId": "scale-checks-to-risk",
-        "text": "Allow two minutes to complete a claim-to-evidence row."
+        "text": "Pause for 10 seconds."
       },
       {
-        "id": "cue-verification-diagnose",
-        "kind": "narration",
-        "sectionId": "diagnose-the-miss",
-        "text": "Walk through task, context, prompt, model, tool, and review failures before choosing a change."
-      },
-      {
-        "id": "cue-verification-cases",
-        "kind": "narration",
-        "sectionId": "improve-with-cases",
-        "text": "Explain controlled comparison using the same representative cases and one intentional change."
-      },
-      {
-        "id": "cue-verification-checkpoint",
+        "id": "verification-and-iterative-improvement-cue-08",
         "kind": "checkpoint",
-        "sectionId": "improve-with-cases",
-        "text": "Check that the learner can distinguish a single corrected example from measured workflow improvement."
+        "text": "Checkpoint: decide whether HOLD can be a passing rubric result. Correct answer: yes, when the rubric requires withholding an unsupported result.",
+        "sectionId": "scale-checks-to-risk",
+        "accessibilityAlternative": "A ten-second pause supports deciding when HOLD is correct."
       },
       {
-        "id": "cue-verification-activity",
+        "id": "verification-and-iterative-improvement-cue-09",
+        "kind": "narration",
+        "text": "Now read the fictional Harbor Transit corpus as an offline exercise, not as a real fare source. Source A is Fare Bulletin version 3.2, effective 2026-01-01, and is explicitly controlling. Its exact relevant sentence is, “Standard adult single ride: $3.00. A day pass costs $10.00. Reduced fares are available only to riders with a valid reduced-fare card.” Source B is version 3.1, effective 2025-01-01, and is superseded. Source B's older prices do not create an unresolved conflict where A controls. Sources C and D are both version 1.0, effective 2026-07-01, equally authoritative and applicable to the Harbor Festival East Pier case. C states $3.00 and D states $2.75. No precedence rule is supplied. Therefore the conflict case must HOLD. The corpus states no reduced-fare amount.",
+        "sectionId": "source-corpus",
+        "accessibilityAlternative": "Source A controls over superseded Source B. Equal-authority Sources C and D conflict without a precedence rule, and no reduced-fare amount is supplied."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-10",
+        "kind": "visual",
+        "text": "Static visual: Source table. A: version 3.2, effective 2026-01-01, controlling, standard ride $3.00. B: version 3.1, effective 2025-01-01, superseded, standard ride $2.50. C: version 1.0, effective 2026-07-01, East Pier festival ride $3.00. D: version 1.0, effective 2026-07-01, East Pier festival ride $2.75.",
+        "sectionId": "source-corpus",
+        "accessibilityAlternative": "A text table lists each source's version, date, status, and relevant fare."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-11",
         "kind": "learner-prompt",
-        "text": "Guide the learner through claim verification, cause classification, one change, and a three-case comparison."
+        "text": "Question: does the valid card tell us the reduced-fare amount? Answer: no. Question: does Source B override Source A? Answer: no, because the exercise marks B superseded and A controlling. Question: can C or D be selected without a precedence rule? Answer: no, so that case is HOLD.",
+        "sectionId": "source-corpus",
+        "accessibilityAlternative": "The learner hears the three source-rule answers: unknown reduced amount, A controls over B, and C versus D is unresolved."
       },
       {
-        "id": "cue-verification-assessment",
+        "id": "verification-and-iterative-improvement-cue-12-pause",
+        "kind": "pause",
+        "sectionId": "source-corpus",
+        "text": "Pause for 15 seconds."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-12",
+        "kind": "checkpoint",
+        "text": "Checkpoint: State the difference between supersession and equal-authority conflict. Expected answer: supersession supplies a selection rule; equal authority without precedence leaves the applicable choice unresolved.",
+        "sectionId": "source-corpus",
+        "accessibilityAlternative": "A fifteen-second pause supports distinguishing version selection from unresolved conflict."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-13",
+        "kind": "narration",
+        "text": "Here is the completed normal-case audit. The flawed authored response says, “Adult rides are $3.00 and reduced-card riders pay $2.50.” That fails as an exact quotation because the words are not in Source A and the $2.50 amount is invented. It also fails interpretation because a valid card establishes eligibility, not a price. Its arithmetic, 4 times $2.50 equals $9.00, is wrong: 4 times $2.50 equals $10.00. More importantly, the requested standard-price calculation uses Source A: 4 times $3.00 equals $12.00. The purchase recommendation for four rides at $9.00 therefore also fails. The corrected authored response quotes, “Standard adult single ride: $3.00.” It shows 4 times $3.00 equals $12.00, and carefully says that $12.00 is the requested standard-price total, not a claimed reduced fare. We can identify these observable defects. We cannot infer whether a prompt, model, tool, or reviewer caused them.",
+        "sectionId": "diagnose-the-miss",
+        "accessibilityAlternative": "The audit identifies an altered quotation, invented fare, incorrect multiplication, and unsupported recommendation, then demonstrates the corrected twelve-dollar standard-price result."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-14",
+        "kind": "visual",
+        "text": "Static visual: Audit chain. Source sentence: exact. Fare input: supported. Quantity: supplied. Arithmetic: 4 × $3.00 = $12.00. Action: release the requested standard-price total only.",
+        "sectionId": "diagnose-the-miss",
+        "accessibilityAlternative": "A text chain shows exact evidence, supported inputs, visible arithmetic, and a bounded action."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-15",
+        "kind": "learner-prompt",
+        "text": "Question: name one observable defect and one unknown cause. Answer: the response misquotes Source A, which is observable. Whether the cause was prompt wording or model behavior is unknown from this authored artifact.",
+        "sectionId": "diagnose-the-miss",
+        "accessibilityAlternative": "The learner distinguishes an observed output defect from an unproven cause."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-16",
+        "kind": "checkpoint",
+        "text": "Checkpoint: a correct review sentence is, “The response used an unsupported input and multiplied it incorrectly.” It is not, “The model ignored the prompt,” because no actual model run is supplied.",
+        "sectionId": "diagnose-the-miss",
+        "accessibilityAlternative": "The learner checks that diagnosis stays within the available provenance."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-17",
+        "kind": "narration",
+        "text": "The workflow comparison changes one element only. Version 1 says, “Answer from the supplied material and explain the result.” Version 2 adds a verification gate: record source metadata, use the designated controlling source, hold unresolved equal-authority conflicts, hold missing required inputs, never invent values, recompute totals, and release only after the rubric passes. The source corpus, three cases, and R1 through R5 remain fixed. These are authored comparison artifacts, not actual model executions or measured production results.",
+        "sectionId": "improve-with-cases",
+        "accessibilityAlternative": "Only the verification gate changes between workflow versions; cases, evidence, and rubric remain fixed."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-18",
+        "kind": "visual",
+        "text": "Static visual: Fixed rubric. R1 source selection. R2 exact evidence. R3 visible calculation. R4 conflict and missing-data handling. R5 action decision. Case PASS requires all applicable checks to pass.",
+        "sectionId": "improve-with-cases",
+        "accessibilityAlternative": "A five-item text rubric displays source, evidence, calculation, uncertainty handling, and action."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-19",
+        "kind": "narration",
+        "text": "The three comparisons have concrete results. In the normal case, v2 selects A, quotes it, calculates 4 times $3.00 equals $12.00, and RELEASES that standard-price total while separating the unknown reduced fare. In the missing-data case, the ride count is unspecified. V2 says Source A supplies $3.00 but HOLDs because no quantity is available. In the equal-authority conflict, v2 quotes both Source C's $3.00 and Source D's $2.75, explains that neither has precedence, and HOLDs. Each v2 artifact passes its applicable R1 through R5 checks. This demonstrates the method on three authored cases, not a success rate.",
+        "sectionId": "improve-with-cases",
+        "accessibilityAlternative": "The normal case releases twelve dollars, the missing-quantity case holds, and the equal-authority conflict case holds."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-20-pause",
+        "kind": "pause",
+        "sectionId": "improve-with-cases",
+        "text": "Pause for 20 seconds."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-20",
+        "kind": "checkpoint",
+        "text": "Checkpoint: What would count as a regression? Answer: a rubric item that passed in v1 but failed in v2. No regression is reported in the supplied three-case comparison.",
+        "sectionId": "improve-with-cases",
+        "accessibilityAlternative": "A twenty-second pause supports identifying regressions under a fixed rubric."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-21",
+        "kind": "narration",
+        "text": "The blank worksheet comes after the completed audit. Use it to record the source title and version, effective date, authority, applicability, supplied inputs, exact evidence, verification method, result, observable defect, diagnosis, calculation, conflicts, precedence, and final action. Copy evidence exactly. If a required field cannot be established, record HOLD and state what would release it. The worksheet is reusable, but it is not missing input for the supplied workshop cases.",
+        "sectionId": "reusable-template",
+        "accessibilityAlternative": "The worksheet fields cover source metadata, evidence, calculation, uncertainty, diagnosis, and final action."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-22",
+        "kind": "visual",
+        "text": "Static visual: Worksheet flow. Identify source, list inputs, quote evidence, test the claim, recompute, record conflicts, then choose RELEASE, HOLD, or ESCALATE.",
+        "sectionId": "reusable-template",
+        "accessibilityAlternative": "A text flow presents the worksheet sequence from source identification to action."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-23",
+        "kind": "learner-prompt",
+        "text": "Question: what should be copied exactly rather than paraphrased? Answer: the evidence quotation. Question: what should happen when a required field is absent? Answer: record the missing field, choose HOLD, and name the condition for release.",
+        "sectionId": "reusable-template",
+        "accessibilityAlternative": "The learner identifies exact quotation and explicit missing-data handling as worksheet requirements."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-24",
+        "kind": "checkpoint",
+        "text": "Checkpoint: explain why “unknown” and “HOLD” are different. Unknown describes an unestablished fact, such as the reduced-fare amount. HOLD is the resulting action when that missing fact blocks the requested decision.",
+        "sectionId": "reusable-template",
+        "accessibilityAlternative": "The learner distinguishes an information state from an action state."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-25",
+        "kind": "narration",
+        "text": "Now the practice changes exactly one input from the normal case. The rider takes 5 rides instead of 4. The valid card, Source A version 3.2, controlling authority, and request for the standard-price total remain fixed. Write the exact sentence, show the multiplication, distinguish standard price from reduced-fare eligibility, choose RELEASE or HOLD, and score R1 through R5. Do not reuse the four-ride result. The changed input should create a changed, observable total.",
+        "sectionId": "changed-input-task",
+        "accessibilityAlternative": "Only the ride count changes from four to five, so the learner must produce a new calculation."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-26",
+        "kind": "visual",
+        "text": "Static visual: Changed-input task. Original quantity: 4 rides. New quantity: 5 rides. Price used: Source A standard single ride, $3.00. Required evidence: exact sentence, visible multiplication, eligibility limitation, and action.",
+        "sectionId": "changed-input-task",
+        "accessibilityAlternative": "A text comparison highlights the changed quantity and the unchanged source and price."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-28",
+        "kind": "pause",
+        "text": "Pause for 120 seconds. Complete the five-ride response and score R1, R2, R3, R4, and R5 before continuing.",
+        "sectionId": "changed-input-task",
+        "accessibilityAlternative": "A two-minute independent work period occurs before the answer key."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-27",
+        "kind": "learner-prompt",
+        "text": "Question: what is the new operation? Answer after your attempt: 5 × $3.00. What action is appropriate for that requested standard-price total? Answer: RELEASE, while withholding any unsupported reduced-fare amount.",
+        "sectionId": "changed-input-task",
+        "accessibilityAlternative": "The learner is prompted to calculate five times three dollars and choose the bounded release action."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-29",
+        "kind": "narration",
+        "text": "Here is the answer key after the pause. Source A says, “Standard adult single ride: $3.00.” At that stated standard price, 5 rides cost 5 times $3.00 equals $15.00. The valid card establishes eligibility for reduced fares, but the corpus does not state a reduced-fare amount. Therefore RELEASE $15.00 as the requested standard-price total only. R1 passes because A is controlling. R2 passes because the sentence is exact and no reduced amount is invented. R3 passes because 5 and $3.00 are visible and recompute to $15.00. R4 passes because the requested standard calculation has complete inputs and B is superseded. R5 passes because RELEASE is bounded correctly. If you wrote $12.00, you reused the old quantity. If you wrote $15.00 without the multiplication, the number is right but the visible-calculation requirement fails. If you called $15.00 the reduced fare, you converted eligibility into price. If you chose HOLD solely because the reduced amount is unknown, you held too broadly.",
+        "sectionId": "changed-input-answer-key",
+        "accessibilityAlternative": "The answer key quotes Source A, calculates fifteen dollars from five rides, explains each rubric pass, and gives specific feedback for four common errors."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-30",
+        "kind": "visual",
+        "text": "Static visual: Five-ride key. Exact evidence: “Standard adult single ride: $3.00.” Calculation: 5 × $3.00 = $15.00. Eligibility: reduced-fare amount unknown. Action: RELEASE standard-price total only. Overall: PASS.",
+        "sectionId": "changed-input-answer-key",
+        "accessibilityAlternative": "A text summary displays the exact evidence, changed calculation, limitation, action, and overall result."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-31-pause",
+        "kind": "pause",
+        "sectionId": "changed-input-answer-key",
+        "text": "Pause for 10 seconds."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-31",
+        "kind": "checkpoint",
+        "text": "Checkpoint: compare your result. The changed result must be $15.00, not $12.00. The action is RELEASE for the requested standard-price total, not a claim about the reduced fare.",
+        "sectionId": "changed-input-answer-key",
+        "accessibilityAlternative": "A ten-second pause supports checking the changed numerical result and bounded action."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-32",
+        "kind": "narration",
+        "text": "The evidence supports a bounded conclusion only. These three authored cases expose wrong-version selection, invented values, arithmetic errors, missing quantities, and unresolved equal-authority conflict. They do not establish performance across topics, languages, tools, adversarial inputs, model versions, or production systems. No actual model run, approval, independent review, or success percentage is supplied. Broader reliability is UNKNOWN. A broader evaluation would need a predeclared case set, fixed inputs, preserved outputs, identified model snapshots or systems, a stable rubric, and recorded review results. Provider guidance also differs: OpenAI discusses roles, pinned snapshots, and evaluation suites; Anthropic discusses clarity, XML structure, examples, roles, and quoting documents; Google discusses constraints, formats, and few-shot examples; Qwen3 documents thinking controls including enable_thinking and the /think and /no_think switches. These are reasons to test provider-specific workflows, not reasons to assume transfer.",
+        "sectionId": "limits-and-transfer",
+        "accessibilityAlternative": "The lesson limits its conclusion to three authored cases, marks broader reliability UNKNOWN, and distinguishes provider guidance from tested evidence."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-33",
+        "kind": "visual",
+        "text": "Static visual: Provenance boundary. Demonstrated: three authored cases under one rubric. Not demonstrated: model success rate, production reliability, independent approval, or transfer across providers and versions.",
+        "sectionId": "limits-and-transfer",
+        "accessibilityAlternative": "A text boundary separates what the exercise demonstrates from what remains untested."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-34",
+        "kind": "learner-prompt",
+        "text": "Final question: which conclusion is justified? Answer: the authored v2 artifacts pass these supplied cases under the stated rubric. Which broader conclusion is not justified? Answer: that a model or production workflow is generally reliable.",
+        "sectionId": "limits-and-transfer",
+        "accessibilityAlternative": "The learner distinguishes the supported bounded conclusion from unsupported general reliability claims."
+      },
+      {
+        "id": "verification-and-iterative-improvement-cue-35",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner records both improvement and any regression or remaining uncertainty."
+        "text": "Begin the knowledge check now. Be ready to distinguish evidence from confidence, superseded sources from unresolved conflicts, missing data from arithmetic errors, RELEASE from HOLD, observable defects from unknown causes, and authored examples from actual model runs.",
+        "sectionId": "limits-and-transfer",
+        "accessibilityAlternative": "Assessment begins after the learner has reviewed evidence, source precedence, arithmetic, HOLD decisions, diagnosis, and provenance."
       }
     ]
   },
@@ -149,58 +458,58 @@
           "The model's confidence",
           "A second paraphrase",
           "An undated forum comment",
-          "The current authoritative product documentation and, when possible, direct observation"
+          "Current authoritative product documentation and, when practical, direct observation"
         ],
         "answerIndex": 3,
-        "explanation": "Volatile product claims need current primary evidence and direct testing when practical."
+        "explanation": "A volatile product claim needs current primary evidence and direct observation when that observation is practical."
       },
       {
         "id": "q-verification-iteration-2",
         "prompt": "How should verification change as consequences increase?",
         "choices": [
-          "It should add stronger evidence, independent review, expertise, and approval boundaries",
-          "It should become less visible",
-          "It should rely more on confidence",
-          "It should remove failure handling"
+          "Add stronger evidence, independent review, expertise, and approval boundaries",
+          "Make verification less visible",
+          "Rely more on confidence",
+          "Remove failure handling"
         ],
         "answerIndex": 0,
-        "explanation": "Higher-consequence work justifies more independent and authoritative checks."
+        "explanation": "Higher-consequence work justifies stronger, more independent checks and a clear boundary on who may approve action."
       },
       {
         "id": "q-verification-iteration-3",
-        "prompt": "A response omits a fact that was never supplied. What should be diagnosed first?",
+        "prompt": "The ride count is missing from a request for a total. What should the workflow do?",
         "choices": [
-          "Only the model",
-          "The color of the interface",
-          "Whether the objective or context was incomplete",
-          "The length of the final answer"
+          "Invent a typical ride count",
+          "Reuse the count from another case",
+          "State what is missing and HOLD the total",
+          "Return a confident estimate without labeling it"
         ],
         "answerIndex": 2,
-        "explanation": "Missing requirements or context can cause the miss even when the prompt wording is polished."
+        "explanation": "The total depends on a required quantity. The workflow must not invent that quantity and should hold the result until it is supplied."
       },
       {
         "id": "q-verification-iteration-4",
-        "prompt": "What is the fairest way to compare a prompt revision?",
+        "prompt": "What is the fairest way to compare the workflow revision?",
         "choices": [
           "Use only a new easy example",
-          "Run old and new versions on the same representative normal and boundary cases",
-          "Change the prompt, model, tools, and rubric simultaneously",
-          "Judge whichever answer is longer"
+          "Compare both versions on the same representative cases with the same rubric",
+          "Change the prompt, model, tools, inputs, and rubric simultaneously",
+          "Prefer whichever answer is longer"
         ],
         "answerIndex": 1,
-        "explanation": "Controlled comparison reveals improvements and regressions attributable to the change."
+        "explanation": "Holding cases and scoring rules constant makes improvements and regressions observable."
       },
       {
         "id": "q-verification-iteration-5",
-        "prompt": "When is a prompt change an improvement?",
+        "prompt": "What does the three-case authored comparison establish?",
         "choices": [
-          "When one response sounds better",
-          "When it contains more instructions",
-          "When verification is no longer needed",
-          "When representative evaluation shows the intended gain without unacceptable regression"
+          "General reliability across all model families",
+          "A measured production success rate",
+          "That an independent reviewer completed actual model runs",
+          "That the authored v2 artifacts handle these supplied cases better under the stated rubric, while broader performance remains unknown"
         ],
         "answerIndex": 3,
-        "explanation": "Measured performance across representative cases is stronger evidence than one anecdote."
+        "explanation": "The evidence supports only the bounded comparison shown. It does not contain actual run data from which broader reliability could be inferred."
       }
     ]
   },
@@ -209,19 +518,37 @@
       "title": "Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile",
       "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
       "publisher": "NIST",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-19"
     },
     {
       "title": "Prompt engineering",
       "url": "https://developers.openai.com/api/docs/guides/prompt-engineering",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-19"
     },
     {
       "title": "Prompt engineering overview",
       "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Prompting best practices",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Prompt design strategies",
+      "url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+      "publisher": "Google",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Qwen3-0.6B README",
+      "url": "https://huggingface.co/Qwen/Qwen3-0.6B/raw/main/README.md",
+      "publisher": "Qwen",
+      "lastVerified": "2026-09-19"
     }
   ]
 }
