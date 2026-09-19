@@ -27,6 +27,12 @@ Display the complete matrix with written Pass, Gap, and Not applicable values.
 
 Text alternative: Code criteria map to tests, builds, failure paths, and observed behavior. Analysis criteria map to type, key, join, missingness, unit, and reconciliation checks.
 
+## miniature-join-reconciliation
+
+Show the source tables, unsafe result, repaired result, row equations, and amount equations simultaneously without animation.
+
+Text alternative: Orders O1 and O3 share customer C1. Two customer rows use C1, so each C1 order appears twice. O2 appears once. The unsafe result has five rows totaling 1000 cents; the repaired result has three rows totaling 600 cents.
+
 ## failure-recovery-explanation
 
 Present the seven recovery fields as a numbered static sequence.
