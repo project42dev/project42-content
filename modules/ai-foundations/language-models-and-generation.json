@@ -1,19 +1,20 @@
 {
   "id": "language-models-and-generation",
   "title": "How Language Models Produce Responses",
-  "summary": "Build a practical mental model of training, inference, token-by-token generation, and uncertainty.",
+  "summary": "Build a practical mental model of training, inference, tokens, context, token-by-token generation, and the difference between fluent wording and verified correctness.",
   "level": "beginner",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-19",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 26,
+  "estimatedMinutes": 35,
   "objectives": [
-    "Distinguish model training from using a trained model.",
-    "Explain token-by-token generation without treating it as database lookup.",
-    "Recognize why prompts, context, settings, and system design affect outputs.",
-    "Separate capability, confidence of expression, and verified correctness."
+    "Distinguish model training from using a trained model during inference.",
+    "Explain how language models generate responses token by token from context.",
+    "Recognize that tokens are model-specific units and are not necessarily words.",
+    "Identify factual claims that are supported, contradicted, or not established by supplied evidence.",
+    "Correct a fluent but unsupported answer without inventing missing information."
   ],
   "prerequisites": [
     "ai-systems-and-use-cases"
@@ -21,114 +22,219 @@
   "sections": [
     {
       "id": "training-and-inference",
-      "title": "Training creates behavior; inference uses it",
+      "title": "Training creates parameters; inference uses them",
       "paragraphs": [
-        "During training, a model adjusts numerical parameters to become better at predicting patterns in examples. Training does not store a neat, searchable copy of every source. It produces a compressed capability that can generalize, fail, and reproduce undesirable patterns. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "Inference is the act of using the trained model. Your instructions and context are processed with those learned parameters to produce a response. Some products can also retrieve documents or call tools, but those are surrounding system capabilities rather than proof that the base model contains current facts. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ]
+        "A model is a mathematical structure and a set of parameters used to process inputs and produce outputs. A large language model is a language model with a very high number of parameters and is typically based on the Transformer architecture. These definitions describe the model itself, not every surrounding feature a product might add.",
+        "Training is the process of determining model parameters, including weights and biases. During training, a system reads examples and adjusts those parameters. Inference happens later: a trained language model receives an input prompt and generates a response. Typing a new prompt normally starts inference, not a new round of training.",
+        "This distinction prevents a common misunderstanding. A response is not proof that the model just searched a reliable record containing the answer. A surrounding application might provide retrieval or tools, but their availability must be established for that system. If a task requires a fact that is absent from the prompt and unavailable through a verified source or tool, asking for more confident prose does not supply the missing fact."
+      ],
+      "callout": "Training adjusts model parameters from examples. Inference uses the trained model with the current prompt and context."
     },
     {
-      "id": "generation-step-by-step",
-      "title": "Responses are generated step by step",
+      "id": "tokens-context-and-generation",
+      "title": "Tokens, context, and probabilistic generation",
       "paragraphs": [
-        "Text is represented as tokens—pieces of words, punctuation, or other symbols. A language model estimates possible next tokens from the conversation and selects one according to its decoding process. The selected token becomes part of the context for the next step. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "This repeated process can produce coherent explanations, code, plans, and stories because the model has learned rich language and reasoning patterns. It can also continue a plausible but unsupported direction. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "A token is an atomic unit on which a language model is trained and makes predictions. Depending on the model, a token can be a word, a character, or a subword. For example, one tokenizer might treat \"dogs\" as one token, while another might represent it using units corresponding to \"dog\" and \"s\". Counting words by splitting at spaces is therefore not a reliable way to reproduce a real model's tokenization.",
+        "A prompt is text supplied to condition model behavior. It can contain a question, instructions, examples, a role, facts, or partial text to complete. The context window is the number of tokens a model can process in a given prompt. Relevant information must fit within the available context and must be presented clearly enough to use. A large context window can make more information available, but it does not establish that every statement in the context is true.",
+        "During text generation, a language model estimates possible next tokens from the current context. A decoding process selects a token, that token joins the context, and the process repeats. The alternatives and their relative likelihoods can change after every selected token. This repeated next-token process can produce coherent paragraphs without retrieving a stored paragraph that exactly matches the request.",
+        "Probable is not the same as factual. Suppose a fictional teaching distribution after the unfinished text \"The event fee is\" assigns 0.60 to \"free\" and 0.40 to \"unknown\". Those numbers are invented for this lesson and are not measurements from a real model. Selecting \"free\" would make a fluent sentence, but it would not prove that an event is free. Changing a randomness setting can affect token selection, but no temperature setting guarantees truth. Evidence, not decoding temperature, determines whether the fee claim is supported."
       ],
-      "callout": "Plausibility is part of how the response is produced; correctness must be established separately.",
+      "callout": "A likely continuation can still be unsupported. Token likelihood concerns continuation under context, while factual support concerns evidence."
+    },
+    {
+      "id": "toy-generation-demonstration",
+      "title": "Toy word-level lookup demonstration",
+      "paragraphs": [
+        "The following Python program is a toy simulation for teaching the repeated selection pattern. It is not a trained language model, does not calculate probabilities, and does not use a real tokenizer. Its keys and next-word choices were written by hand. The program always follows one lookup from each current word, so its output is deterministic.",
+        "The second toy sequence intentionally emits the unsupported sentence \"Event fee is free.\" The lookup can produce that sentence even though the worked scenario later in this lesson supplies no fee fact. The correct learner response is not to trust the sentence because it appeared in output. The correction is \"Event fee is not provided.\"",
+        "To run it, save the code as toy_generation.py and run: python3 toy_generation.py",
+        "Expected deterministic output, including punctuation, is:\nToy 1 output: A small map can sound certain while being wrong.\nToy 1 trace: A -> small | small -> map | map -> can | can -> sound | sound -> certain | certain -> while | while -> being | being -> wrong.\nToy 2 output: Event fee is free.\nToy 2 trace: Event -> fee | fee -> is | is -> free.\nCorrection from supplied evidence: Event fee is not provided.",
+        "No execution is claimed here. The expected output follows directly from the fixed dictionaries and print statements. Real language models use learned parameters, model-specific tokens, and a decoding process rather than this one-next-word lookup."
+      ],
       "code": {
-        "language": "json",
-        "label": "Responses are generated step by step (Code Implementation)",
-        "code": "{\n  \"contractVersion\": \"1.0\",\n  \"executionBoundary\": \"bounded-task\",\n  \"inputValidation\": {\n    \"maxTokens\": 4096,\n    \"allowedModalities\": [\"text\", \"json\"]\n  },\n  \"outputSchema\": {\n    \"type\": \"object\",\n    \"required\": [\"status\", \"evidence\", \"confidence\"],\n    \"properties\": {\n      \"status\": { \"type\": \"string\", \"enum\": [\"verified\", \"rejected\"] },\n      \"evidence\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n      \"confidence\": { \"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0 }\n    }\n  }\n}"
+        "language": "python",
+        "label": "Toy word-level lookup simulation, save as toy_generation.py and run with python3 toy_generation.py",
+        "code": "def generate(first_word, transitions):\n    words = [first_word]\n    trace = []\n    current = first_word\n\n    while current in transitions:\n        next_word = transitions[current]\n        trace.append(f\"{current} -> {next_word}\")\n        words.append(next_word)\n        current = next_word\n\n    return \" \".join(words), \" | \".join(trace)\n\n\ntoy_one = {\n    \"A\": \"small\",\n    \"small\": \"map\",\n    \"map\": \"can\",\n    \"can\": \"sound\",\n    \"sound\": \"certain\",\n    \"certain\": \"while\",\n    \"while\": \"being\",\n    \"being\": \"wrong.\"\n}\n\ntoy_two = {\n    \"Event\": \"fee\",\n    \"fee\": \"is\",\n    \"is\": \"free.\"\n}\n\noutput_one, trace_one = generate(\"A\", toy_one)\noutput_two, trace_two = generate(\"Event\", toy_two)\n\nprint(f\"Toy 1 output: {output_one}\")\nprint(f\"Toy 1 trace: {trace_one}\")\nprint(f\"Toy 2 output: {output_two}\")\nprint(f\"Toy 2 trace: {trace_two}\")\nprint(\"Correction from supplied evidence: Event fee is not provided.\")"
       }
     },
     {
       "id": "inputs-shape-output",
       "title": "Inputs and system design shape the result",
       "paragraphs": [
-        "Instructions define the task and boundaries. Context supplies facts, examples, files, prior messages, and tool results. Product-level policies, model choice, retrieval, tools, decoding, and output validation also affect what appears. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "A weak answer may come from missing context, conflicting instructions, unsuitable tools, an ambiguous objective, or a task outside the system's evaluated capability. Changing only the wording is not always the correct fix. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
+        "Instructions specify the task, audience, format, and boundaries. Context supplies facts, examples, prior messages, files, or tool results. Policies, model choice, retrieval, tools, decoding, and validation can also affect a system's output. These inputs influence the response, but influence is not proof of correctness.",
+        "When a response is weak, diagnose what is missing. An ambiguous instruction may need a clearer task. An unsupported factual claim may require authoritative evidence. A calculation may need a suitable tool and a checked result. A high-impact decision may need qualified human review. Rephrasing the prompt is useful when the task is unclear, but it cannot turn an absent fact into evidence.",
+        "A practical review method is to divide a response into individual factual claims. For each claim, ask: Is it directly supported by the supplied facts? Is it contradicted by them? Is it not established? If it is not established, either remove it, mark it as unknown, or obtain an appropriate source. Do not infer one fact merely from a related fact. For example, the location of a parliament alone would not prove that the location is a national capital."
+      ],
+      "callout": "Classify claims against evidence: supported, contradicted, or not established."
+    },
+    {
+      "id": "worked-example-harborview",
+      "title": "Worked example: correct a fluent event announcement",
+      "paragraphs": [
+        "This is a fictional scenario created for this lesson. Its date, organization, event, and candidate answer are not claims about a real place or product. Assume the fictional writing assistant can use only the prompt and fact sheet below. It has no web access, retrieval system, calendar tool, or other source.",
+        "Scenario date: 2026-09-19.\nUser instruction: \"Write a two-sentence public announcement for Harborview Reading Day. Use only the supplied fact sheet. Do not infer missing details. If an important requested detail is absent, say that it is not provided.\"\nSupplied fact sheet:\n• Event: Harborview Reading Day\n• Event date: 2026-10-03\n• Venue: North Library, 8 Cedar Lane\n• Doors open: 09:30\n• Program time: 10:00 to 12:00\n• Registration is required\n• Registration deadline: 2026-09-28\n• The fact sheet does not state a fee, accessibility features, an organizer name, or a contact method.",
+        "Supplied candidate answer to critique: \"Harborview Reading Day is a free, fully wheelchair-accessible celebration at North Library, 8 Cedar Lane, on 2026-10-03. Doors open at 09:30 for the 10:00 to 12:00 program, and everyone can register by emailing the library before 2026-09-28.\"",
+        "Decision 1, split the candidate into claims. The named event, venue, address, date, door time, program time, registration requirement, and deadline are separate claims. \"Free,\" \"fully wheelchair-accessible,\" \"everyone can register,\" and \"by emailing the library\" are also factual claims. Fluent grammar does not merge these into one all-or-nothing statement.",
+        "Decision 2, compare each claim with the fact sheet. The event name, venue, address, date, door time, program time, and deadline are supported. The statement that registration is possible is supported because registration is required, but the exact registration method is not supplied. \"Free\" is not established because no fee is stated. \"Fully wheelchair-accessible\" is not established because no accessibility information is stated. \"Everyone can register\" is not established because eligibility is not stated. Email registration is not established because no contact method is stated.",
+        "Decision 3, distinguish unsupported from contradicted. None of the four added claims is explicitly contradicted by the fact sheet. They are still unsafe to present as facts because the evidence does not establish them. Absence of a stated fee does not mean free, and absence of accessibility details does not mean inaccessible. The correct label is \"not established,\" not an invented positive or negative answer.",
+        "Decision 4, revise within the instruction. Keep supported details, remove invented details, and disclose the requested missing information. A compliant two-sentence answer is: \"Harborview Reading Day takes place on 2026-10-03 at North Library, 8 Cedar Lane; doors open at 09:30 and the program runs from 10:00 to 12:00. Registration is required by 2026-09-28, while the fee, accessibility features, eligibility, and registration method are not provided in the fact sheet.\"",
+        "Decision 5, connect the correction to generation. A model can generate familiar event phrases such as \"free\" or \"email the library\" because they are plausible continuations in event announcements. That does not show why any particular real model produced them, and no hidden reasoning is assumed here. The observable problem is simply that the candidate contains claims not supported by its supplied context. Verification catches the problem even when the prose sounds confident."
+      ],
+      "callout": "Worked result: retain supported facts, label missing details as not provided, and do not convert plausible wording into evidence."
+    },
+    {
+      "id": "learner-variation-bicycle-basics",
+      "title": "Learner variation: audit a workshop notice",
+      "paragraphs": [
+        "This is a second fictional scenario. Complete it without an AI account, internet access, or outside facts. Use only the supplied instruction, fact sheet, and candidate answer. Do not use a calendar to add a weekday, and do not assume common policies about cost, age, or accessibility.",
+        "Scenario date: 2026-09-19.\nUser instruction: \"Create exactly three bullets for the Bicycle Basics workshop. Use only supplied facts. Include the schedule and venue, what participants must bring, capacity, and the registration deadline. If the candidate adds an unsupported detail, identify and correct it.\"\nSupplied fact sheet:\n• Workshop: Bicycle Basics\n• Workshop date: 2026-11-14\n• Time: 14:00 to 15:30\n• Venue: Workshop Room 2, Cedar Community Center, 40 Pine Street\n• Participants must bring a bicycle helmet\n• Capacity: 18 participants\n• Registration deadline: 2026-11-10\n• The fact sheet does not state a fee, age range, accessibility features, registration method, or bicycle requirement.",
+        "Supplied candidate answer:\n• \"Free Bicycle Basics workshop for all ages on 2026-11-14 from 14:00 to 15:30.\"\n• \"Meet in Workshop Room 2 at Cedar Community Center, 40 Pine Street, and bring a bicycle and helmet.\"\n• \"The accessible workshop accepts the first 25 people who email their registration by 2026-11-10.\"",
+        "Your task has three parts. First, list each factual claim and label it supported, contradicted, or not established. Second, explain the evidence for each correction. Third, write a corrected answer containing exactly three bullets and all requested supported details. Use \"not provided\" only when needed to correct an unsupported candidate claim; do not invent replacements.",
+        "Before reading the answer key, check that your revision contains the exact date, time, full venue, helmet requirement, capacity of 18, and registration deadline. It must not assert that the workshop is free, for all ages, accessible, limited to 25 people, requires a bicycle, or accepts registration by email."
       ]
     },
     {
-      "id": "capability-not-certainty",
-      "title": "Fluent confidence is not measured certainty",
+      "id": "learner-variation-answer-key",
+      "title": "Explained answer key and correction feedback",
       "paragraphs": [
-        "Natural language can sound certain even when the underlying statement is wrong, outdated, or unsupported. A model's tone is not a calibrated probability and should not be used as evidence. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies.",
-        "For factual work, require sources, compare claims with authoritative material, run relevant tests, and record uncertainty or disagreement. For creative work, evaluate usefulness and fit rather than pretending there is one factual answer. In production environments, engineers must account for token utilization patterns, context window pressure, and deterministic execution boundaries. When system constraints or rate limits are approached, explicit retry strategies with exponential backoff and jitter prevent cascading failures across downstream dependencies."
-      ]
+        "Claim review for bullet 1: \"Bicycle Basics\" is supported by the workshop name. The date and time are supported. \"Free\" is not established because the fee is not stated. \"For all ages\" is not established because the age range is not stated. Specific correction feedback: keep the name, date, and time; remove the fee and age claims or state that fee and age information are not provided.",
+        "Claim review for bullet 2: Workshop Room 2, Cedar Community Center, and 40 Pine Street are supported. Bringing a helmet is supported and required. Bringing a bicycle is not established. A bicycle workshop may make that addition sound plausible, but the fact sheet states only that participants must bring a bicycle helmet. Specific correction feedback: retain the full venue and helmet requirement, and delete the bicycle requirement.",
+        "Claim review for bullet 3: The registration deadline of 2026-11-10 is supported. Accessibility is not established because no accessibility features are stated. A capacity of 25 is contradicted by the supplied capacity of 18. Email registration is not established because the registration method is absent. \"First\" is not established because no first-come policy is supplied. Specific correction feedback: replace 25 with 18, retain the deadline, and do not invent accessibility, ordering, or email claims.",
+        "A complete corrected answer is:\n• \"Bicycle Basics is scheduled for 2026-11-14 from 14:00 to 15:30 in Workshop Room 2, Cedar Community Center, 40 Pine Street.\"\n• \"Participants must bring a bicycle helmet; the workshop capacity is 18 participants.\"\n• \"Registration closes on 2026-11-10; the fee, age range, accessibility features, registration method, and any requirement to bring a bicycle are not provided.\"",
+        "Why this answer works: it uses exactly three bullets, includes every requested supported detail, corrects the contradicted capacity, and explicitly marks the candidate's unsupported additions as unavailable. A response that merely changes \"25\" to \"18\" is incomplete because it leaves unsupported claims about cost, age, accessibility, a bicycle, and email. A response that says the workshop is not accessible or that bicycles are forbidden is also incorrect because neither negative claim is supplied.",
+        "If you labeled the 25-person claim \"not established,\" refine the label to \"contradicted\" because the fact sheet explicitly states 18. If you labeled missing fee or accessibility information \"false,\" use \"not established\" instead. Evidence is insufficient to conclude either the positive or the negative. If you omitted the helmet, capacity, or deadline, restore it because the user explicitly requested those supplied details."
+      ],
+      "callout": "Correction pattern: replace contradicted details, remove or disclose unsupported details, and preserve all requested supported facts."
+    },
+    {
+      "id": "fluency-hallucination-and-verification",
+      "title": "Fluency is not verification",
+      "paragraphs": [
+        "A hallucination is plausible-seeming but factually incorrect output that purports to assert something about the real world. More broadly, a response can create risk before a claim is proven false: an unsupported claim should not be treated as established merely because it is fluent. The worked examples therefore distinguish contradiction from missing evidence.",
+        "Tone is generated language, not a certificate of accuracy. A sentence can sound decisive while being unsupported, and cautious language can accompany a correct fact. Do not infer a measured confidence score from words such as \"certainly,\" \"definitely,\" or \"probably.\"",
+        "For factual tasks, verify individual claims against authoritative evidence, relevant tests, or checked tool results. Record unknowns instead of filling them with likely-sounding details. The level of review should match the consequences of error. The NIST Generative AI Profile provides risk-management guidance for generative AI, while this lesson's narrow practice is to trace each factual claim to supplied evidence.",
+        "The final mental model is: training adjusts parameters; inference uses the trained model; prompts and context condition the response; generation proceeds through token choices; and external evidence establishes factual correctness. Better prompts can make the requested boundary clearer, but they do not guarantee that every generated claim is true."
+      ],
+      "callout": "Generated confidence and verified correctness are different properties."
     }
   ],
   "activity": {
-    "id": "activity-generation-observation",
-    "title": "Observe how input changes a generated result",
+    "id": "activity-evidence-audit",
+    "title": "Complete the supplied workshop evidence audit",
     "instructions": [
-      "Choose a low-risk explanation task and ask an AI system with only a one-sentence request.",
-      "Repeat the task with a specific audience, supplied source paragraph, requested structure, and instruction to distinguish source-backed claims from assumptions.",
-      "Compare the two outputs for unsupported claims, clarity, omissions, and ease of verification.",
-      "Record which changes came from better context and which would require an external tool or authoritative source."
+      "Use the fictional Bicycle Basics instruction, fact sheet, and candidate answer in the section \"Learner variation: audit a workshop notice.\" No AI account, software, internet access, or outside information is required.",
+      "Break the candidate answer into individual factual claims. Label each claim supported, contradicted, or not established using only the supplied fact sheet.",
+      "For every contradicted or not-established claim, write a specific correction and name the fact-sheet line or missing category that justifies it.",
+      "Write a corrected answer with exactly three bullets. Include the date, time, full venue, helmet requirement, capacity of 18, and registration deadline.",
+      "Compare your work with the separate section \"Explained answer key and correction feedback.\" Expected result: your answer removes or discloses the unsupported fee, age, accessibility, bicycle, first-come, and email claims; replaces 25 with 18; and preserves every requested supported fact.",
+      "If your labels differ from the key, revise them using this rule: an explicit conflicting fact is contradicted, while a detail that the fact sheet does not settle is not established."
     ],
     "evidence": [
-      "The two requests and a claim-by-claim comparison of their outputs.",
-      "A list separating prompt or context improvements from changes that require retrieval, tools, tests, or human expertise."
+      "A claim-by-claim table or list containing a label, supporting reason, and correction for each problematic claim.",
+      "A corrected three-bullet workshop notice containing all requested supported details and no invented facts.",
+      "A brief note identifying at least one fluent phrase that sounded plausible but lacked evidence."
     ],
-    "reflectionPrompt": "Which problem in the first response could not be solved safely by asking the model to sound more confident?"
+    "reflectionPrompt": "Which candidate claim could not be made reliable merely by rewriting it more confidently, and what evidence would be needed to establish it?"
   },
   "instructorScript": {
     "schemaVersion": "1.0",
-    "estimatedSeconds": 900,
+    "estimatedSeconds": 1200,
     "cues": [
       {
         "id": "cue-training-inference-narration",
         "kind": "narration",
         "sectionId": "training-and-inference",
-        "text": "Separate the expensive process that creates learned behavior from the everyday process that uses that behavior with a new request."
+        "text": "Contrast training, which adjusts parameters from examples, with inference, which uses a trained model for the current prompt."
       },
       {
         "id": "cue-training-inference-visual",
         "kind": "visual",
         "sectionId": "training-and-inference",
-        "text": "Show two columns: training adjusts model parameters from many examples; inference combines fixed parameters with current instructions and context.",
-        "accessibilityAlternative": "A two-column text comparison states that training adjusts parameters from examples, while inference uses trained parameters with the current instructions and context. Reduced-motion mode displays both columns simultaneously."
+        "text": "Show two columns labeled Training and Inference. Place parameter adjustment under Training and current prompt plus generated response under Inference.",
+        "accessibilityAlternative": "A text comparison states: training reads examples and adjusts parameters; inference uses trained parameters with the current prompt to generate a response."
       },
       {
-        "id": "cue-generation-narration",
+        "id": "cue-token-context-narration",
         "kind": "narration",
-        "sectionId": "generation-step-by-step",
-        "text": "Explain token-by-token generation using a short unfinished sentence, while avoiding the claim that a model merely copies stored sentences."
+        "sectionId": "tokens-context-and-generation",
+        "text": "Explain that tokens may be words, characters, or subwords, so space-separated words are not a universal model tokenizer."
       },
       {
         "id": "cue-generation-checkpoint",
         "kind": "checkpoint",
-        "sectionId": "generation-step-by-step",
-        "text": "Ask the learner to explain in one sentence why a plausible continuation can still be factually wrong."
+        "sectionId": "tokens-context-and-generation",
+        "text": "Ask: If \"free\" is a likely continuation after \"The event fee is,\" what additional evidence is required before publishing that claim?"
       },
       {
-        "id": "cue-inputs-narration",
+        "id": "cue-toy-generation-narration",
+        "kind": "narration",
+        "sectionId": "toy-generation-demonstration",
+        "text": "Explain that this Python program is a hand-written, deterministic word lookup, not a trained language model, probability calculation, or real tokenizer. Walk through how each selected word becomes the next lookup and compare the trace with the exact expected output. Focus on the second sequence: the code prints \"Event fee is free.\" because the fixed mapping says to do so, not because evidence establishes a fee. Have learners state the evidence-based correction, \"Event fee is not provided.\""
+      },
+      {
+        "id": "cue-toy-demonstration",
+        "kind": "visual",
+        "sectionId": "toy-generation-demonstration",
+        "text": "Trace each fixed lookup in the toy and emphasize that the hand-written word mapping is neither a tokenizer nor a trained model.",
+        "accessibilityAlternative": "Read the printed trace in order, including the final punctuation: Event to fee, fee to is, and is to free. Then read the evidence-based correction that the event fee is not provided."
+      },
+      {
+        "id": "cue-input-diagnosis",
         "kind": "narration",
         "sectionId": "inputs-shape-output",
-        "text": "Layer instructions, supplied context, retrieval, tools, policies, model choice, and validation around the generation process."
+        "text": "Introduce the three evidence labels: supported, contradicted, and not established. Stress that a related fact does not prove an unstated claim."
       },
       {
-        "id": "cue-inputs-prompt",
-        "kind": "learner-prompt",
-        "sectionId": "inputs-shape-output",
-        "text": "Invite the learner to diagnose whether an example failure needs clearer instructions, better evidence, a tool, or a different workflow."
-      },
-      {
-        "id": "cue-certainty-narration",
+        "id": "cue-worked-example",
         "kind": "narration",
-        "sectionId": "capability-not-certainty",
-        "text": "Contrast confident wording with verified evidence and remind the learner that tone is not a calibrated confidence score."
+        "sectionId": "worked-example-harborview",
+        "text": "Model the complete review sequence: split the announcement into claims, compare each claim with the fact sheet, classify it, and revise without inventing details."
       },
       {
-        "id": "cue-generation-activity",
+        "id": "cue-worked-example-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "worked-example-harborview",
+        "text": "Ask why an unstated fee should be labeled not established rather than free or not free."
+      },
+      {
+        "id": "cue-variation-narration",
+        "kind": "narration",
+        "sectionId": "learner-variation-bicycle-basics",
+        "text": "Ask learners to separate every statement in the Bicycle Basics candidate into individual claims and compare each one only with the fictional fact sheet. They should identify 25 participants as contradicted by the stated capacity of 18 and classify the claims about a free workshop, all ages, accessibility, bringing a bicycle, first-come admission, and email registration as not established. Before they consult the key, check that their revision contains exactly three bullets and includes the exact date, time, full venue, helmet requirement, capacity, and registration deadline."
+      },
+      {
+        "id": "cue-variation-prompt",
         "kind": "learner-prompt",
-        "text": "Guide the learner through the two-output comparison and require them to label every factual claim as supported, unsupported, or needing verification."
+        "sectionId": "learner-variation-bicycle-basics",
+        "text": "Have learners audit the supplied workshop notice independently. Remind them that all required inputs are in the section and that outside facts are not allowed."
       },
       {
-        "id": "cue-generation-assessment",
+        "id": "cue-answer-key-narration",
+        "kind": "narration",
+        "sectionId": "learner-variation-answer-key",
+        "text": "Review the answer key claim by claim. Emphasize that the stated capacity of 18 contradicts the candidate's 25, while the claims about cost, age, accessibility, bringing a bicycle, first-come ordering, and email registration are not established because the fact sheet does not supply them. Check that the corrected response has exactly three bullets, preserves the date, time, full venue, helmet requirement, capacity, and deadline, and does not replace missing information with invented negative claims."
+      },
+      {
+        "id": "cue-answer-key-feedback",
+        "kind": "checkpoint",
+        "sectionId": "learner-variation-answer-key",
+        "text": "Compare labels before comparing prose. Correct 25 as contradicted by 18, while treating absent fee, age, accessibility, bicycle, ordering, and email details as not established."
+      },
+      {
+        "id": "cue-fluency-verification",
+        "kind": "narration",
+        "sectionId": "fluency-hallucination-and-verification",
+        "text": "Reinforce that confident tone is generated style. Verification requires evidence outside the tone of the answer."
+      },
+      {
+        "id": "cue-activity-handoff",
+        "kind": "learner-prompt",
+        "text": "Direct learners to submit their claim labels, correction reasons, and corrected three-bullet notice before consulting the answer key."
+      },
+      {
+        "id": "cue-assessment-handoff",
         "kind": "assessment-handoff",
-        "text": "Transition to the knowledge check after the learner distinguishes generation, retrieval, tool use, and verification."
+        "text": "Begin the knowledge check after learners can distinguish training from inference, explain token-by-token generation, and correct unsupported claims."
       }
     ]
   },
@@ -139,82 +245,160 @@
         "id": "q-language-generation-1",
         "prompt": "What is the main difference between training and inference?",
         "choices": [
-          "Training changes model parameters from examples; inference uses the trained model for a request",
-          "Training is typing a prompt; inference is reading the answer",
-          "Training retrieves current web pages; inference stores them forever",
-          "There is no practical difference"
+          "Training adjusts model parameters from examples; inference uses a trained model for a current prompt",
+          "Training means typing a prompt; inference means reading the response",
+          "Training retrieves current web pages; inference stores them permanently",
+          "Training and inference are two names for exactly the same process"
         ],
         "answerIndex": 0,
-        "explanation": "Training develops learned parameters; inference applies those parameters to current instructions and context."
+        "explanation": "Training determines or adjusts model parameters. Inference applies a trained model to an input, such as a prompt, to generate a response."
       },
       {
         "id": "q-language-generation-2",
-        "prompt": "How does a language model generally produce text?",
+        "prompt": "Which statement correctly describes tokens?",
         "choices": [
-          "It returns an exact stored paragraph for every question",
-          "It repeatedly selects a next token based on learned patterns and the current context",
-          "It contacts a human writer for every token",
-          "It searches a guaranteed factual database automatically"
+          "Every token is exactly one whole word",
+          "Tokens are always created by splitting text at spaces",
+          "A token can be a word, character, or subword depending on the model",
+          "Tokens are verified facts retrieved from a database"
         ],
-        "answerIndex": 1,
-        "explanation": "Generation proceeds token by token using learned patterns and the current context."
+        "answerIndex": 2,
+        "explanation": "Tokens are model units and may be words, characters, or subwords. Space-based word splitting is not a universal model tokenizer."
       },
       {
         "id": "q-language-generation-3",
-        "prompt": "Which statement about retrieval and tools is correct?",
+        "prompt": "Why can token-by-token generation produce a fluent but unsupported sentence?",
         "choices": [
-          "Every language model response automatically uses current web retrieval",
-          "Retrieval and tools are surrounding system capabilities that must be explicitly available and checked",
-          "Tools make verification unnecessary",
-          "Retrieval turns every source into a trusted instruction"
+          "A plausible continuation is selected from context, but plausibility does not establish factual evidence",
+          "Every selected token has already been checked by an authoritative source",
+          "Fluent sentences cannot contain unsupported claims",
+          "Generation always copies a complete stored paragraph"
         ],
-        "answerIndex": 1,
-        "explanation": "Retrieval and tool access come from the surrounding product or application and still require trust and verification controls."
+        "answerIndex": 0,
+        "explanation": "The generation process selects continuations based on learned patterns and context. Whether a factual claim is supported must be checked separately."
       },
       {
         "id": "q-language-generation-4",
-        "prompt": "Why is confident wording not proof that a claim is correct?",
+        "prompt": "A fact sheet says capacity is 18, but a candidate answer says capacity is 25. How should the candidate claim be labeled?",
         "choices": [
-          "Models are never useful",
-          "Language style is generated and is not a calibrated measure of factual certainty",
-          "Short answers are always wrong",
-          "Only uncertain wording can be accurate"
+          "Supported",
+          "Contradicted",
+          "Not established because all numbers are uncertain",
+          "Correct if the sentence sounds confident"
         ],
         "answerIndex": 1,
-        "explanation": "A model can generate confident language for both supported and unsupported claims, so evidence must establish correctness."
+        "explanation": "The supplied fact explicitly conflicts with the candidate, so the candidate claim is contradicted and should be replaced with 18."
       },
       {
         "id": "q-language-generation-5",
-        "prompt": "A response omits a fact that was never supplied and is not available through a tool. What is the most direct diagnosis?",
+        "prompt": "A fact sheet gives no information about an event fee. What is the evidence-based conclusion?",
         "choices": [
-          "The font was wrong",
-          "The workflow lacks necessary context or evidence",
-          "The model needs more confident wording",
-          "Verification should be removed"
+          "The event is free",
+          "The event charges a fee",
+          "The fee is not established by the supplied fact sheet",
+          "A lower temperature would reveal the fee"
+        ],
+        "answerIndex": 2,
+        "explanation": "Missing fee information supports neither free nor paid. Decoding settings do not create evidence about the fee."
+      },
+      {
+        "id": "q-language-generation-6",
+        "prompt": "What does a context window describe?",
+        "choices": [
+          "The number of tokens a model can process in a prompt",
+          "A guarantee that every included statement is true",
+          "A permanent archive of every response",
+          "The number of authoritative sources checked automatically"
+        ],
+        "answerIndex": 0,
+        "explanation": "A context window concerns how many tokens can be processed in a prompt. It does not verify the truth of the content."
+      },
+      {
+        "id": "q-language-generation-7",
+        "prompt": "What does the Python example in this lesson demonstrate?",
+        "choices": [
+          "The internal tokenizer and parameters of a real large language model",
+          "A hand-written deterministic word lookup used only to illustrate repeated selection and unsupported output",
+          "A factual event database",
+          "A temperature setting that guarantees correct answers"
         ],
         "answerIndex": 1,
-        "explanation": "If the system lacks the necessary fact, the workflow needs relevant context, retrieval, a tool, or human expertise."
+        "explanation": "The program is explicitly a toy word-level lookup. It is not trained, probabilistic, or representative of real model tokenization."
+      },
+      {
+        "id": "q-language-generation-8",
+        "prompt": "Which revision best handles a confident claim that a workshop is accessible when the supplied facts contain no accessibility information?",
+        "choices": [
+          "Keep the claim because accessibility is desirable",
+          "Change it to inaccessible",
+          "State that accessibility information is not provided or obtain authoritative evidence",
+          "Make the sentence shorter but keep the claim"
+        ],
+        "answerIndex": 2,
+        "explanation": "The supplied evidence establishes neither accessible nor inaccessible. The safe correction records the unknown or obtains an appropriate source."
       }
     ]
   },
   "sources": [
     {
-      "title": "Key concepts",
-      "url": "https://developers.openai.com/api/docs/concepts",
-      "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "title": "Machine Learning Glossary: Model",
+      "url": "https://developers.google.com/machine-learning/glossary#model",
+      "publisher": "Google",
+      "lastVerified": "2026-09-19"
     },
     {
-      "title": "Context windows",
-      "url": "https://platform.claude.com/docs/en/build-with-claude/context-windows",
-      "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "title": "Machine Learning Glossary: Large Language Model",
+      "url": "https://developers.google.com/machine-learning/glossary#large-language-model",
+      "publisher": "Google",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Machine Learning Glossary: Training",
+      "url": "https://developers.google.com/machine-learning/glossary#training",
+      "publisher": "Google",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Machine Learning Glossary: Inference",
+      "url": "https://developers.google.com/machine-learning/glossary#inference",
+      "publisher": "Google",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Machine Learning Glossary: Token",
+      "url": "https://developers.google.com/machine-learning/glossary#token",
+      "publisher": "Google",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Machine Learning Glossary: Prompt",
+      "url": "https://developers.google.com/machine-learning/glossary#prompt",
+      "publisher": "Google",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Machine Learning Glossary: Context Window",
+      "url": "https://developers.google.com/machine-learning/glossary#context-window",
+      "publisher": "Google",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Machine Learning Glossary: Hallucination",
+      "url": "https://developers.google.com/machine-learning/glossary#hallucination",
+      "publisher": "Google",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Machine Learning Glossary: Temperature",
+      "url": "https://developers.google.com/machine-learning/glossary#temperature",
+      "publisher": "Google",
+      "lastVerified": "2026-09-19"
     },
     {
       "title": "Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile",
       "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
       "publisher": "NIST",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-19"
     }
   ]
 }
