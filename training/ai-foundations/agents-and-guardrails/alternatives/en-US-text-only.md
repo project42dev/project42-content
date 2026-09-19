@@ -99,7 +99,7 @@ Stop because recent actions produced no new evidence or progress. Remaining turn
 
 If correct: You stopped repeated non-progress, preserved the evidence gap and spending, and identified a useful handoff or materially different authorized recovery.
 
-If retrying: Compare consecutive observations. If evidence and trusted state did not improve, remaining budget does not justify another equivalent action.
+If retrying: Compare the last steps: if state and evidence did not improve, the remaining turn budget does not justify another equivalent action.
 
 Sources:
 
