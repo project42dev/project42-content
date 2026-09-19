@@ -8,7 +8,7 @@
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 30,
+  "estimatedMinutes": 39,
   "objectives": [
     "Explain what chain-of-thought prompting is, what the original research showed, and why guidance for selected reasoning models recommends clear goals instead of hand-written step-by-step instructions.",
     "Choose between built-in model thinking, prompted reasoning, and an explicit prompt chain for a given task, justifying the choice in terms of inspectability, latency, and token cost.",
@@ -63,28 +63,74 @@
         "label": "Documents first, quoted evidence next, question last",
         "code": "<documents>\n  <document index=\"1\">\n    <source>annual_report_2023.pdf</source>\n    <document_content>{{ANNUAL_REPORT}}</document_content>\n  </document>\n  <document index=\"2\">\n    <source>competitor_analysis_q2.xlsx</source>\n    <document_content>{{COMPETITOR_ANALYSIS}}</document_content>\n  </document>\n</documents>\n\nFirst, copy the passages that bear on the question into <quotes> tags, citing the document index.\nThen answer using only those quotes, inside <answer> tags. If the quotes do not support an answer, say so.\n\nQuestion: Which strategic advantages does the annual report claim, and does the competitor analysis contradict any of them?"
       }
+    },
+    {
+      "id": "fictional-source-document",
+      "title": "Practice source: Harbor Room event agreement",
+      "paragraphs": [
+        "The agreement below is an original fictional document created for this lesson. It is complete for the exercises that follow. Because every learner uses the same supplied source, the core practice can be completed offline without an AI account.",
+        "Treat each numbered clause as evidence. A claim passes an evidence check only when the cited clause supports it. If the document does not answer a question, report that the answer is not stated rather than filling the gap."
+      ],
+      "callout": "Fictional practice material. It is not a real contract and is not legal advice.",
+      "code": {
+        "language": "text",
+        "label": "Complete fictional Harbor Room event agreement",
+        "code": "HARBOR ROOM EVENT AGREEMENT\nFictional practice document\n\n1. PARTIES AND EVENT. Northstar Learning Cooperative, called the Organizer, books the Harbor Room from Seaview Community Center, called the Venue, for the Organizer's public workshop on October 18, 2026.\n\n2. CAPACITY. Attendance must not exceed 120 people, including presenters and staff.\n\n3. SCHEDULE. Organizer access begins at 8:00 a.m. Doors open to attendees at 9:00 a.m. The program begins at 9:30 a.m. and must end by 4:30 p.m. The room must be vacated by 5:30 p.m.\n\n4. CATERING. The Venue will provide a vegetarian lunch and nonalcoholic drinks for the confirmed attendee count. The Organizer must provide the final attendee count and identified dietary restrictions by October 11, 2026.\n\n5. DEPOSIT. The Organizer must pay a nonrefundable deposit of $2,000 when signing the agreement.\n\n6. BALANCE. The remaining venue fee of $3,500 is due by October 4, 2026.\n\n7. ORGANIZER CANCELLATION. If the Organizer cancels in writing on or before September 20, 2026, the Venue will refund any venue fee paid beyond the deposit. The deposit remains nonrefundable. If the Organizer cancels after September 20, 2026, amounts already paid are not refundable.\n\n8. VENUE CANCELLATION. If the Venue cancels the event, it will refund all amounts the Organizer paid. The Venue is not responsible for the Organizer's travel, lodging, printing, or other indirect costs.\n\n9. INCLUDED EQUIPMENT. The venue fee includes one projector, one projection screen, two handheld microphones, and standard room Wi-Fi. Additional equipment is not included.\n\n10. ACCESSIBILITY REQUESTS. The Organizer must send requests for reserved accessible seating, live captioning, or other event-specific accessibility arrangements by September 27, 2026. The Venue will confirm in writing which requested arrangements it can provide.\n\n11. PUBLICITY. The Organizer may use the Venue's name in factual event listings but may not state or imply that the Venue sponsors the workshop.\n\n12. CHANGES. A change to this agreement is effective only if it is written and signed by both the Organizer and the Venue."
+      }
+    },
+    {
+      "id": "worked-single-call-and-chain",
+      "title": "Worked comparison: one call and an inspectable two-stage chain",
+      "paragraphs": [
+        "The single-call version places the complete document first, separates it with tags, asks for supporting quotations, and puts the question last. Its supplied output is an illustration written for this lesson, not the result of a live model execution and not evidence of how any model will behave.",
+        "The two-stage version makes extraction independently inspectable. Its intentionally flawed intermediate output omits the on-or-before-September-20 Organizer cancellation case and says that the Venue must reimburse travel costs. Clause 7 supplies the omitted cancellation case, while clause 8 states that the Venue is not responsible for travel costs. The checks label the extraction incomplete, reject the unsupported reimbursement claim, and identify the controlling source evidence without speculating about why either error appeared.",
+        "The second stage receives both the original source and the intermediate extraction. It verifies each item, removes or corrects unsupported content, and produces the final summary. The checks evaluate quotations, clause references, dates, amounts, and scope. They do not request or grade private chain of thought."
+      ],
+      "callout": "Illustrative outputs show how to apply evidence checks. They do not prove actual model behavior.",
+      "code": {
+        "language": "xml",
+        "label": "Worked prompts, illustrative outputs, and evidence checks",
+        "code": "WORKED SINGLE-CALL VERSION\n\nPROMPT\n<document>\n  <source>Harbor Room Event Agreement, fictional practice document</source>\n  <document_content>\n1. PARTIES AND EVENT. Northstar Learning Cooperative, called the Organizer, books the Harbor Room from Seaview Community Center, called the Venue, for the Organizer's public workshop on October 18, 2026.\n2. CAPACITY. Attendance must not exceed 120 people, including presenters and staff.\n3. SCHEDULE. Organizer access begins at 8:00 a.m. Doors open to attendees at 9:00 a.m. The program begins at 9:30 a.m. and must end by 4:30 p.m. The room must be vacated by 5:30 p.m.\n4. CATERING. The Venue will provide a vegetarian lunch and nonalcoholic drinks for the confirmed attendee count. The Organizer must provide the final attendee count and identified dietary restrictions by October 11, 2026.\n5. DEPOSIT. The Organizer must pay a nonrefundable deposit of $2,000 when signing the agreement.\n6. BALANCE. The remaining venue fee of $3,500 is due by October 4, 2026.\n7. ORGANIZER CANCELLATION. If the Organizer cancels in writing on or before September 20, 2026, the Venue will refund any venue fee paid beyond the deposit. The deposit remains nonrefundable. If the Organizer cancels after September 20, 2026, amounts already paid are not refundable.\n8. VENUE CANCELLATION. If the Venue cancels the event, it will refund all amounts the Organizer paid. The Venue is not responsible for the Organizer's travel, lodging, printing, or other indirect costs.\n9. INCLUDED EQUIPMENT. The venue fee includes one projector, one projection screen, two handheld microphones, and standard room Wi-Fi. Additional equipment is not included.\n10. ACCESSIBILITY REQUESTS. The Organizer must send requests for reserved accessible seating, live captioning, or other event-specific accessibility arrangements by September 27, 2026. The Venue will confirm in writing which requested arrangements it can provide.\n11. PUBLICITY. The Organizer may use the Venue's name in factual event listings but may not state or imply that the Venue sponsors the workshop.\n12. CHANGES. A change to this agreement is effective only if it is written and signed by both the Organizer and the Venue.\n  </document_content>\n</document>\n\nFirst copy the passages supporting your answer into <quotes>. Include a clause number with every quotation. Then write an <answer> of no more than 120 words using only those quotations. If a requested fact is not stated, say that it is not stated.\n\nQuestion: What payments and Organizer deadlines must be tracked, and what happens if either party cancels?\n\nILLUSTRATIVE SINGLE-CALL OUTPUT\n<quotes>\n  <quote clause=\"4\">The Organizer must provide the final attendee count and identified dietary restrictions by October 11, 2026.</quote>\n  <quote clause=\"5\">The Organizer must pay a nonrefundable deposit of $2,000 when signing the agreement.</quote>\n  <quote clause=\"6\">The remaining venue fee of $3,500 is due by October 4, 2026.</quote>\n  <quote clause=\"7\">If the Organizer cancels in writing on or before September 20, 2026, the Venue will refund any venue fee paid beyond the deposit.</quote>\n  <quote clause=\"7\">If the Organizer cancels after September 20, 2026, amounts already paid are not refundable.</quote>\n  <quote clause=\"8\">If the Venue cancels the event, it will refund all amounts the Organizer paid.</quote>\n  <quote clause=\"8\">The Venue is not responsible for the Organizer's travel, lodging, printing, or other indirect costs.</quote>\n  <quote clause=\"10\">The Organizer must send requests for reserved accessible seating, live captioning, or other event-specific accessibility arrangements by September 27, 2026.</quote>\n</quotes>\n<answer>Track the $2,000 nonrefundable deposit at signing and the $3,500 balance due October 4. Send accessibility requests by September 27 and the final attendee count and dietary restrictions by October 11. If the Organizer cancels in writing by September 20, amounts paid beyond the deposit are refunded; after that date, amounts already paid are not refundable. If the Venue cancels, it refunds all amounts paid but does not cover the Organizer's travel, lodging, printing, or other indirect costs.</answer>\n\nSINGLE-CALL EVIDENCE CHECK\nPASS: Every date and amount in the answer appears in a quoted clause.\nPASS: The cancellation summary distinguishes Organizer cancellation from Venue cancellation.\nPASS: The answer does not say that travel or other indirect costs will be reimbursed.\nPASS: Each quotation is copied from the supplied document and carries the correct clause number.\n\nTWO-STAGE CHAIN\n\nSTAGE 1 PROMPT: EXTRACT\n<document>\nUse the complete Harbor Room Event Agreement supplied in the preceding section. Clauses 1 through 12 are part of this stage's input.\n</document>\n\nExtract the payment terms, Organizer deadlines, and cancellation consequences. For each item, provide a short claim, a clause number, and an exact supporting quotation. Do not provide private reasoning. Return only the extraction table.\n\nILLUSTRATIVE STAGE 1 INTERMEDIATE OUTPUT\n1. Claim: The $2,000 deposit is nonrefundable and due at signing.\n   Clause: 5\n   Quote: \"The Organizer must pay a nonrefundable deposit of $2,000 when signing the agreement.\"\n2. Claim: The $3,500 balance is due October 4, 2026.\n   Clause: 6\n   Quote: \"The remaining venue fee of $3,500 is due by October 4, 2026.\"\n3. Claim: Accessibility requests are due September 27, 2026.\n   Clause: 10\n   Quote: \"The Organizer must send requests for reserved accessible seating, live captioning, or other event-specific accessibility arrangements by September 27, 2026.\"\n4. Claim: The final attendee count and dietary restrictions are due October 11, 2026.\n   Clause: 4\n   Quote: \"The Organizer must provide the final attendee count and identified dietary restrictions by October 11, 2026.\"\n5. Claim: An Organizer cancellation after September 20 makes amounts already paid nonrefundable.\n   Clause: 7\n   Quote: \"If the Organizer cancels after September 20, 2026, amounts already paid are not refundable.\"\n6. Claim: If the Venue cancels, it refunds all payments and reimburses the Organizer's travel costs.\n   Clause: 8\n   Quote: \"If the Venue cancels the event, it will refund all amounts the Organizer paid.\"\n\nSTAGE 1 EVIDENCE CHECK\nINCOMPLETE: Items 1 through 5 have quotations that support their claims, but the extraction does not cover all requested cancellation consequences. It omits the clause 7 rule for an Organizer cancellation in writing on or before September 20, 2026, so the extraction must not receive a complete-coverage pass.\nFAIL: Item 6 adds reimbursement of travel costs, but its quotation supports only a refund of amounts paid to the Venue. Clause 8 also says, \"The Venue is not responsible for the Organizer's travel, lodging, printing, or other indirect costs.\" The unsupported travel-reimbursement claim must not pass to the final summary.\n\nSTAGE 2 PROMPT: VERIFY, CORRECT, AND SUMMARIZE\n<document>\nUse the complete Harbor Room Event Agreement supplied in the preceding section. Clauses 1 through 12 are part of this stage's input.\n</document>\n<extraction>\nInsert the complete Stage 1 intermediate output here.\n</extraction>\n\nCheck every extraction claim against the original document. Correct or remove any unsupported claim. Also check whether the extraction covers every requested payment term, Organizer deadline, and cancellation consequence; recover any omitted case from the original document before writing the summary. Then provide:\n1. A verification list marking each extraction item SUPPORTED, PARTLY SUPPORTED, or UNSUPPORTED, with the controlling clause.\n2. A coverage check that identifies and recovers any requested case omitted from the extraction.\n3. A corrected summary of no more than 120 words.\nDo not infer a reason for any error and do not provide private chain of thought.\n\nILLUSTRATIVE STAGE 2 FINAL OUTPUT\nVerification:\n1. SUPPORTED, clause 5.\n2. SUPPORTED, clause 6.\n3. SUPPORTED, clause 10.\n4. SUPPORTED, clause 4.\n5. SUPPORTED, clause 7.\n6. PARTLY SUPPORTED, clause 8. Refund of amounts paid is supported. Travel reimbursement is contradicted by clause 8 and has been removed.\n\nCoverage check: INCOMPLETE. Stage 1 omitted the on-or-before-September-20 Organizer cancellation case requested by the extraction prompt.\nRECOVERED FROM CLAUSE 7: If the Organizer cancels in writing on or before September 20, 2026, the Venue refunds any venue fee paid beyond the nonrefundable deposit. Supporting quote: \"If the Organizer cancels in writing on or before September 20, 2026, the Venue will refund any venue fee paid beyond the deposit. The deposit remains nonrefundable.\"\n\nCorrected summary: The Organizer owes a $2,000 nonrefundable deposit at signing and a $3,500 balance by October 4. Accessibility requests are due September 27, and the final attendee count and dietary restrictions are due October 11. If the Organizer cancels in writing on or before September 20, payments beyond the nonrefundable deposit are refunded; after September 20, amounts already paid are not refundable. If the Venue cancels, it refunds all amounts paid. It is not responsible for the Organizer's travel, lodging, printing, or other indirect costs.\n\nSTAGE 2 EVIDENCE CHECK\nPASS: All six supplied extraction items receive an explicit verification status.\nFAIL THEN CORRECTED: The supplied extraction has incomplete cancellation coverage because it omits the on-or-before-September-20 case. Stage 2 recovers that case from clause 7 before producing the corrected summary.\nPASS: The final summary corrects the unsupported travel-reimbursement claim using clause 8.\nPASS: Every final date, amount, and cancellation consequence is supported by clauses 4 through 8 and 10.\nPASS: The correction identifies the evidence conflict without asserting a hidden cause for the Stage 1 error."
+      }
+    },
+    {
+      "id": "learner-variation-and-feedback",
+      "title": "Learner variation: answer a different operational question",
+      "paragraphs": [
+        "Complete this variation without reusing the worked summary. It asks about a hypothetical event decision, included equipment, and publicity rather than asking for a general list of payments and deadlines. Use only the supplied Harbor Room agreement.",
+        "Write your answer before opening the key. For each sentence, record the clause that supports it. Mark a sentence for revision if its clause does not support the whole sentence.",
+        "The explained key shows both the expected conclusions and their limits. Specific feedback statements help distinguish a fully supported answer from common overclaims."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Offline learner task, explained answer key, and feedback",
+        "code": "LEARNER VARIATION\n\nScenario: The Organizer paid both the $2,000 deposit and the $3,500 balance early. On September 25, 2026, the Organizer considers cancelling. The team also wants a third handheld microphone and plans to advertise the Venue as a sponsor.\n\nTask: Using only the Harbor Room Event Agreement, answer all three questions. Cite the controlling clause after each answer.\n\nA. If the Organizer cancels in writing on September 25, how much of the $5,500 already paid does the agreement say is refundable?\nB. Is a third handheld microphone included in the venue fee?\nC. May the Organizer advertise that the Venue sponsors the workshop?\n\nFor each answer, copy one exact supporting quotation. If the agreement does not provide enough information, say so.\n\nEVIDENCE CHECKS FOR THE LEARNER\n1. Every conclusion has a clause number and an exact quotation.\n2. The cancellation answer applies the rule for a date after September 20.\n3. The equipment answer distinguishes the two included microphones from additional equipment.\n4. The publicity answer distinguishes factual use of the Venue's name from a sponsorship claim.\n\nEXPLAINED ANSWER KEY\n\nA. None of the $5,500 already paid is refundable under the stated scenario. Clause 7 controls because September 25 is after September 20. Supporting quote: \"If the Organizer cancels after September 20, 2026, amounts already paid are not refundable.\" The answer concerns only what this fictional agreement states. It should not add penalties or remedies that the document does not mention.\n\nB. No. A third handheld microphone is not included. Clause 9 includes \"two handheld microphones\" and then states, \"Additional equipment is not included.\" The document does not state whether a third microphone can be rented or what it would cost, so an answer should not invent those details.\n\nC. No. Clause 11 permits the Organizer to use the Venue's name in factual event listings but says it \"may not state or imply that the Venue sponsors the workshop.\" A correct answer may mention the permitted factual listing, but it must not convert that permission into a sponsorship claim.\n\nSPECIFIC FEEDBACK\n\nIf you answered A with a full refund: Recheck the date. The full-refund rule in clause 8 applies when the Venue cancels, not when the Organizer cancels after September 20.\n\nIf you answered A with a $3,500 refund: You applied the on-or-before-September-20 rule. September 25 falls under the later-cancellation sentence, which says amounts already paid are not refundable.\n\nIf you answered B yes because microphones are listed: Compare the requested quantity with the included quantity. Clause 9 includes two, not three, and excludes additional equipment.\n\nIf you gave a rental price or said a third microphone is unavailable: The document supplies neither fact. Keep the supported conclusion that it is not included and state that rental availability and price are not specified.\n\nIf you answered C yes because the Venue's name may be used: Clause 11 permits factual listings but separately prohibits stating or implying sponsorship.\n\nIf all three answers match the key and each has the controlling quotation: Your conclusions are grounded in the supplied clauses and appropriately avoid filling information gaps."
+      }
     }
   ],
   "activity": {
     "id": "prompt-architecture-activity",
     "title": "Re-architect one multi-step task two ways",
     "instructions": [
-      "Step 1: Pick a real task with at least two distinct steps over a document several pages long, for example extracting the commitments in a contract and then drafting a summary email about them. Use a document you are permitted to share with the AI tool.",
-      "Step 2: Version A: write a single prompt with the document first and the question last, and instruct the model to quote the supporting passages before answering. Run it and save the output.",
-      "Step 3: Version B: split the same task into a chain of two or three calls, saving each output and passing it into the next call. Include the original document in every call that must verify or revise factual claims. Write a pass or fail acceptance check for every intermediate output, such as \"every extracted commitment cites a quoted clause.\"",
-      "Step 4: Run both versions on the same document, apply your acceptance checks, and check every factual claim in both final outputs against the source document.",
-      "Step 5: If your tool shows reasoning or thinking text, compare it with the final answer and note any step the reasoning describes that the answer does not reflect, or any part of the answer the reasoning never mentions."
+      "Step 1: Work from the complete fictional Harbor Room Event Agreement in this module. No account, model, code, API, or outside document is required.",
+      "Step 2: Copy the worked single-call prompt structure, keeping the complete agreement first and the question last. Use the existing Learner Variation questions A, B, and C about September 25 cancellation, a third handheld microphone, and sponsorship publicity. Draft an illustrative answer yourself, cite the controlling clause after each answer, and copy one exact supporting quotation for each. Complete your answer before consulting the existing Explained Answer Key, then compare each answer with that key.",
+      "Step 3: Re-architect the same supplied A/B/C task as a two-stage chain. Stage 1 must extract claims, clause numbers, and exact quotations. Stage 2 must receive the original agreement and the Stage 1 output, verify every claim, and produce corrected final answers to A, B, and C.",
+      "Step 4: Write a separate pass or fail evidence check for each stage. Check whether every claim is supported by its quotation, whether the clause number is correct, and whether the final answer introduces any fact absent from the agreement.",
+      "Step 5: Compare the single-call result with the chain. Explain which errors the intermediate extraction would make easier to locate and what extra handoff the chain requires.",
+      "Optional actual model execution: You may run either prompt in a tool if permitted, but this is not required. Label the work as an actual run and record the tool or provider, model name or displayed model identifier, run date, exact prompt, raw output, and any settings the interface exposes. Do not claim that the supplied illustrative outputs came from that run, and do not submit private chain of thought."
     ],
     "evidence": [
-      "Both prompt versions, their raw outputs, and every intermediate output from the chain.",
-      "A per-step acceptance table showing pass or fail and, for each failure, which step caused it.",
-      "A short decision naming single call or chain for this task, justified by what the chain let you inspect against what it cost in calls and time."
+      "A completed single-call prompt with the supplied agreement first, the existing Learner Variation questions A, B, and C last, quoted evidence, and learner-authored illustrative answers checked against the existing Explained Answer Key.",
+      "A completed two-stage chain showing the Stage 1 extraction, the Stage 2 verification and corrected answers to A, B, and C, and the original agreement available to both stages.",
+      "A per-stage evidence table with pass or fail results, cited clauses, and a correction for every failed claim.",
+      "A short architecture decision comparing what the chain makes inspectable with the cost of an additional handoff.",
+      "If optional actual execution was used, a clearly labelled run record containing the tool or provider, model identifier, run date, exact prompt, raw output, and exposed settings."
     ],
-    "reflectionPrompt": "In which version would you have found a wrong answer faster, and did reading the model's reasoning help you find problems or only reassure you?"
+    "reflectionPrompt": "Which unsupported or incomplete answer to the supplied cancellation, equipment, or publicity questions would be easier to locate in the two-stage chain than in the single-call answer, and which clause would you use to correct it?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 1800,
+    "estimatedSeconds": 2340,
     "cues": [
       {
         "id": "cue-prompt-architecture-reasoning",
@@ -144,9 +190,27 @@
         "id": "cue-prompt-architecture-assessment",
         "kind": "assessment-handoff",
         "text": "Begin the check once learners can choose between built-in thinking, prompted reasoning, and a chain, and justify the choice by what each lets them inspect."
+      },
+      {
+        "id": "cue-prompt-architecture-fictional-source",
+        "kind": "narration",
+        "sectionId": "fictional-source-document",
+        "text": "Introduce the Harbor Room agreement as the complete fictional evidence set for the remaining practice. Demonstrate that a claim passes only when a numbered clause supports the whole claim, and that missing information must be reported as unstated rather than inferred."
+      },
+      {
+        "id": "cue-prompt-architecture-worked-comparison",
+        "kind": "narration",
+        "sectionId": "worked-single-call-and-chain",
+        "text": "Walk through the document-first single-call prompt and then the two-stage chain. At Stage 1, stop on the unsupported travel-reimbursement claim, compare it with clause 8, mark the check failed, and show how Stage 2 corrects it without guessing why it appeared."
+      },
+      {
+        "id": "cue-prompt-architecture-learner-variation",
+        "kind": "narration",
+        "sectionId": "learner-variation-and-feedback",
+        "text": "Ask learners to solve the cancellation, equipment, and publicity variation before reading the key. Emphasize that each conclusion needs an exact quotation and that unsupported rental terms, prices, remedies, or sponsorship permissions must be omitted."
       }
     ],
-    "transcript": "Chain-of-thought prompting showed that writing intermediate steps can help sufficiently large models reason. Selected current model families also perform reasoning before responding, so first determine where reasoning should happen in the workflow. For a model documented as reasoning before it responds, give clear goals instead of scripted steps, and test whether the added reasoning cost improves results on the task. Chain prompts when an intermediate output can be checked on its own; each link gets its own input, output, and acceptance test, and a revision link must also receive the original source. Put long documents first and the question last, ground answers in quotes, and remember that a model's written reasoning is output, not a faithful record of how it decided. Begin the check once learners can choose between built-in thinking, prompted reasoning, and a chain, and justify the choice by what each lets them inspect.",
+    "transcript": "Chain-of-thought prompting showed that writing intermediate steps can help sufficiently large models reason. Selected current model families also perform reasoning before responding, so first determine where reasoning should happen in the workflow. For a model documented as reasoning before it responds, give clear goals instead of scripted steps, and test whether the added reasoning cost improves results on the task. Chain prompts when an intermediate output can be checked on its own; each link gets its own input, output, and acceptance test, and a revision link must also receive the original source. Put long documents first and the question last, ground answers in quotes, and remember that a model's written reasoning is output, not a faithful record of how it decided. Begin the check once learners can choose between built-in thinking, prompted reasoning, and a chain, and justify the choice by what each lets them inspect. Introduce the Harbor Room agreement as the complete fictional evidence set for the remaining practice. Demonstrate that a claim passes only when a numbered clause supports the whole claim, and that missing information must be reported as unstated rather than inferred. Walk through the document-first single-call prompt and then the two-stage chain. At Stage 1, stop on the unsupported travel-reimbursement claim, compare it with clause 8, mark the check failed, and show how Stage 2 corrects it without guessing why it appeared. Ask learners to solve the cancellation, equipment, and publicity variation before reading the key. Emphasize that each conclusion needs an exact quotation and that unsupported rental terms, prices, remedies, or sponsorship permissions must be omitted.",
     "captions": [
       {
         "cueId": "cue-prompt-architecture-reasoning",
@@ -177,6 +241,24 @@
         "startSeconds": 1650,
         "endSeconds": 1800,
         "text": "Begin the check once learners can choose between built-in thinking, prompted reasoning, and a chain, and justify the choice by what each lets them inspect."
+      },
+      {
+        "cueId": "cue-prompt-architecture-fictional-source",
+        "startSeconds": 1801,
+        "endSeconds": 1980,
+        "text": "Introduce the Harbor Room agreement as the complete fictional evidence set for the remaining practice. Demonstrate that a claim passes only when a numbered clause supports the whole claim, and that missing information must be reported as unstated rather than inferred."
+      },
+      {
+        "cueId": "cue-prompt-architecture-worked-comparison",
+        "startSeconds": 1981,
+        "endSeconds": 2160,
+        "text": "Walk through the document-first single-call prompt and then the two-stage chain. At Stage 1, stop on the unsupported travel-reimbursement claim, compare it with clause 8, mark the check failed, and show how Stage 2 corrects it without guessing why it appeared."
+      },
+      {
+        "cueId": "cue-prompt-architecture-learner-variation",
+        "startSeconds": 2161,
+        "endSeconds": 2340,
+        "text": "Ask learners to solve the cancellation, equipment, and publicity variation before reading the key. Emphasize that each conclusion needs an exact quotation and that unsupported rental terms, prices, remedies, or sponsorship permissions must be omitted."
       }
     ],
     "reducedMotionAlternative": "Present the reasoning-location comparison and the prompt-chain flow as static tables and a numbered list with focus-based highlighting instead of animated sequences."
@@ -255,6 +337,42 @@
         ],
         "answerIndex": 2,
         "explanation": "The revision call needs the original source as well as the draft and review. Without the source, it cannot independently verify whether the review findings or revised claims are supported."
+      },
+      {
+        "id": "q-prompt-architecture-7",
+        "prompt": "In the worked chain, Stage 1 says the Venue will reimburse the Organizer's travel costs if the Venue cancels. How should the evidence check classify that claim?",
+        "choices": [
+          "Pass, because clause 8 requires a refund of all amounts paid",
+          "Pass, because travel is normally part of an event budget",
+          "Fail, because clause 8 says the Venue is not responsible for travel or other listed indirect costs",
+          "Unknown, because the model's private reasoning is unavailable"
+        ],
+        "answerIndex": 2,
+        "explanation": "Clause 8 expressly excludes responsibility for travel, lodging, printing, and other indirect costs. A refund of amounts paid to the Venue does not support travel reimbursement. The classification rests on the document, not on speculation about how the claim was produced."
+      },
+      {
+        "id": "q-prompt-architecture-8",
+        "prompt": "Why does the worked Stage 2 prompt include both the original agreement and the Stage 1 extraction?",
+        "choices": [
+          "So the verifier can compare every extracted claim with the source and correct unsupported content",
+          "So the verifier can reveal the model's private chain of thought",
+          "So clause quotations no longer need to be checked",
+          "So the final answer may add reasonable details absent from the agreement"
+        ],
+        "answerIndex": 0,
+        "explanation": "The original agreement lets Stage 2 independently verify the extraction. The chain is designed to inspect claims and evidence, not to obtain private reasoning or authorize unsupported additions."
+      },
+      {
+        "id": "q-prompt-architecture-9",
+        "prompt": "In the learner variation, what does the agreement say about a third handheld microphone?",
+        "choices": [
+          "It is included because microphones appear in clause 9",
+          "It is not included, and the agreement does not state its rental availability or price",
+          "It is prohibited at the event",
+          "It is included only if requested by September 27"
+        ],
+        "answerIndex": 1,
+        "explanation": "Clause 9 includes two handheld microphones and says additional equipment is not included. The agreement does not state whether another microphone can be rented or what it would cost, so those details must remain unstated."
       }
     ]
   },
