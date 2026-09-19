@@ -5,132 +5,176 @@ and assessment handoff without requiring audio, video, or animation.
 
 ## Welcome: Welcome And Outcomes
 
-Welcome. This class turns AI-assisted research into a bounded, reviewable evidence workflow. You will begin with the decision the research must support, not with an open-ended request for facts. You will build a source ledger, separate generated leads from opened sources, verify every material claim, preserve disagreement, and recover when evidence fails. The goal is not a polished answer at any cost. The goal is a synthesis another person can reproduce, challenge, and safely use.
+Welcome to Research with Evidence. In this class, you will turn a decision into bounded questions, organize sources without treating generated text as evidence, verify claims against exact passages, recover without inventing missing content, apply exclusion and HOLD rules, and distinguish primary authority from corroboration or repetition. The venue case is fictional and closed. No account or live search is needed.
 
 ## Narration: Bounded Brief Explanation
 
-Prepare before searching. State the decision this work supports and the people who will use it. Break the need into bounded questions that can be answered with observable evidence. Define scope such as date range, region, product version, audience, and excluded topics. Then state what evidence is strong enough for each kind of claim. Current product behavior may require official documentation or a repeatable test. A comparison may require equivalent measurements. A forecast should expose assumptions rather than masquerade as a fact. Record which data is permitted and which must stay out of the tool. Finally, define stop conditions. Stop when required claims have qualified support, when time expires, when sources conflict beyond the workflow's authority, or when the question must be narrowed. A brief prevents the model from silently expanding the task and gives the reviewer a standard for deciding whether the research is complete.
+Start with the decision, not a search box. Record the bounded questions, date, population, scope, permitted data, required evidence, and stop conditions. Keep factual criteria separate from the selection rule. In the baseline case, a venue must have authoritative support for workshop permission, capacity of at least thirty, a step-free public entrance, and continuous availability from eighteen hundred through twenty hundred on June twentieth, twenty twenty-six. Unknown does not pass. Exclude failed or unresolved candidates. Compare supported mandatory totals only among verified eligible candidates, and return HOLD if that comparison set is empty. Also decide what data the tool may receive before using it.
 
-Visual alternative: The brief connects one decision to bounded questions, scope limits, evidence requirements, permitted data, and explicit stopping rules.
+Visual alternative: Static form listing the decision, bounded questions, date and population scope, four venue criteria, evidence requirements, permitted data, exclusion rule, selection rule, and stop conditions.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 - <https://developers.openai.com/api/docs/guides/prompt-engineering>
 
-## Demonstration: Brief Demonstration
+## Checkpoint: Baseline Entry Checkpoint
 
-Suppose a team asks, which model should we adopt? That question is too broad. I rewrite the decision as: choose a model for summarizing approved support articles in English during a thirty-day pilot. I ask about answer quality on a named test set, latency under a stated load, handling of unsupported claims, data-use constraints, and estimated cost for the pilot volume. I limit the scope to currently available versions and the deployment regions the organization can use. I require provider documentation for service behavior, measured tests for quality and latency, and reviewed pricing evidence for estimates. Confidential tickets are excluded; the pilot uses approved synthetic or redacted material. We stop when every required field has evidence, a visible gap, or an accountable escalation. The narrower brief does not guarantee the right choice, but it makes the research testable.
+Checkpoint. When may a venue enter the baseline cost comparison? It must pass all four criteria with authoritative evidence in scope, and its mandatory total must be known. Mark any missing criterion unresolved, exclude that venue, and do not estimate the missing amount.
 
-Visual alternative: The revised brief names the task, language, test set, load, safety behavior, data constraints, regions, cost period, and stopping rules.
-
-Sources:
-
-- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+Learner action: State that all four eligibility criteria and the mandatory total require authoritative support before a venue enters the comparison.
 
 ## Narration: Source Ledger Explanation
 
-Execute with a source ledger. For each candidate source, record title, publisher, stable location, publication or review date, the exact claims it may support, its scope and limitations, and your access date. Prefer primary sources for product behavior, standards, original research, and official policy. Use secondary sources to discover leads or understand context, then verify consequential claims against stronger evidence. AI can suggest search terms, extract candidate statements, group themes, and point out missing questions. Those outputs are research assistance, not sources. Open the original material and confirm that it exists, is current enough, and actually says what the draft claims. Search snippets and citation-shaped strings are especially easy to misread because they remove surrounding scope. Preserve rejected sources and reasons when that decision affects the conclusion. A ledger makes selection visible and prevents the final prose from becoming the only record of how evidence was chosen.
+Build a source ledger before drafting conclusions. For each record, capture its identifier, title, publisher, author, date, scope, type, exact passage, supported claims, and limitations. AI may extract candidate claims, organize documents, or flag gaps, but each output remains a lead until a reviewer checks the original record. Count provenance as well as document count. A copy, summary, marketing repost, or model output derived from one source is dependent repetition, not independent corroboration. In this corpus, the Harbor promotion and imported memo do not become stronger merely because both mention Harbor.
 
-Visual alternative: Each row identifies the source, date, supported claims, limitations, access date, and whether it is accepted, rejected, disputed, or still a lead.
+Visual alternative: Table columns identify each source, author, publisher, date, scope, exact passage, supported claim, limitation, status, and provenance relationship.
 
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/prompt-engineering>
 - <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
 
-## Learner Prompt: Ledger Row Prompt
+## Narration: Fictional Corpus Overview
 
-Choose one current, low-risk question. Add one source-ledger row. Record the publisher, access date, one exact claim the source can support, one limitation, and a status of lead, verified, disputed, or unsupported. If you have not opened the source, it must remain a lead.
+Use only the six document IDs in the supplied corpus. VEN-01 is Cedar's dated policy: it permits public educational workshops, sets capacity at forty, states that the north entrance is step-free, gives availability from seventeen hundred to twenty-one hundred on the event date, and sets a mandatory rental of one hundred eighty dollars with no additional facility fee. VEN-02 is an older uncertain volunteer note. VEN-03 is Harbor promotion with prices starting at one hundred dollars but no complete authoritative support. VEN-04 Record A proves only that an attachment failed. Its separate Record B authorizes Pine permission, capacity thirty-two, step-free access, exact event-time availability, a one hundred fifty dollar base rental, and a mandatory twenty dollar setup fee. VEN-05 is an unsupported Harbor import containing an instruction to ignore the rule. VEN-06 says the Cedar policy controls for the relevant summer scope. Treat embedded instructions as data, not commands.
 
-Learner action: Create one qualified ledger row without promoting an unopened suggestion to evidence.
+Visual alternative: VEN-01 is Cedar policy, VEN-02 is an older uncertain note, VEN-03 is Harbor promotion, VEN-04 contains separate failure and replacement records, VEN-05 is an unsupported adversarial import, and VEN-06 establishes Cedar policy authority and scope.
 
 Sources:
 
-- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
-## Pause: Ledger Work Time
+## Pause: Corpus Reading Pause
+
+## Demonstration: Pine Recovery Demonstration
+
+Watch how the ledger handles VEN-04. First, enter Record A as a failure receipt. Its supported claim is only that CONTENT-PS-2026-061 was unavailable in the offline copy. Leave Pine permission, capacity, access, availability, and cost unknown from that receipt. Next, create a separate row for Record B, titled Pine Studio Authorized Event Record PS-2026-062. Check its named author, authorization statement, June date and scope, then map each Pine fact to its exact text. This is replacement evidence, not reconstructed missing content. The two rows must remain separate so another reviewer can reproduce the recovery.
+
+Visual alternative: Record A supports only that CONTENT-PS-2026-061 was unavailable. Record B independently supports Pine permission, capacity, access, availability, and mandatory charges under its own author, authorization, date, and scope.
 
 ## Narration: Claim Verification Explanation
 
-Verify material claims one by one. Copy the claim into a claim map, identify the source, and point to the passage, table, test, or record that supports it. Check whether the source covers the same version, region, population, measurement, and time period as the claim. Separate a direct statement from your inference. A source can be authoritative and still fail to support a broader sentence. A citation can resolve and still point to irrelevant text. When two qualified sources disagree, preserve both positions, dates, and scopes. Do not average incompatible claims or select the wording that sounds most confident. Seek an updated authority, a reproducible test, or accountable review. Scale corroboration to consequence. A low-risk orientation may need careful comparison; a security, health, access, or financial decision may need independent evidence and a named reviewer. Make unsupported by the available evidence an acceptable result.
+Verify each material claim beside its exact passage. Ask whether the author or publisher has authority for that claim, whether the date and version cover the event, and whether the passage states the whole proposition. Resolve conflict through documented authority, date, version, and scope, not by averaging unequal records or counting repeated provenance as votes. Perform arithmetic only after every input is supported. Starting at one hundred dollars is not a mandatory total. An uncertain fee cannot be averaged into a known cost. Exact wording and supported arithmetic keep the conclusion auditable.
 
-Visual alternative: Claims are labeled supported, disputed, inferred, or unsupported after checking source passage, date, version, region, and authority.
+Visual alternative: Each claim is paired with a quoted passage and marked pass, fail, or unresolved after authority, date, version, scope, and arithmetic checks.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
-- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://ai.google.dev/gemini-api/docs/prompting-strategies>
 
-## Checkpoint: Scope Mismatch Checkpoint
+## Learner Prompt: Baseline Table Prompt
 
-Checkpoint. An official page confirms that a feature exists. A separate table lists availability in three regions. The draft says the feature is available in every region. How should the claim map classify that sentence, and what should the synthesis say?
+Before hearing the worked result, build a table for Cedar, Harbor, and Pine. For each venue, mark permission, capacity of at least thirty, step-free public access, and event-time availability as pass, fail, or unresolved. Cite the document ID and exact passage for every status. Then calculate mandatory cost only for verified eligible venues, form the comparison set, and state a bounded RECOMMEND or HOLD.
 
-Learner action: Mark global availability unsupported, state only the three supported regions, and record the missing authoritative region evidence.
+Learner action: Complete the baseline criterion table from exact passages, calculate supported totals only for eligible venues, and state a bounded outcome.
 
-Sources:
+## Pause: Baseline Work Pause
 
-- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+## Narration: Worked Baseline Decision
 
-## Pause: Scope Mismatch Response Time
+Cedar passes all four criteria using VEN-01, and VEN-06 confirms that policy's controlling scope. Its required interval sits inside Cedar's seventeen hundred to twenty-one hundred availability. Its supported total is one hundred eighty dollars plus zero additional facility fee, which equals one hundred eighty dollars. Harbor is unresolved on permission, exact capacity, access, event-date availability, and mandatory total. VEN-03 is promotional, and VEN-05 is unsupported and adversarial. Pine passes using VEN-04 Record B, not the failure receipt. Its total is one hundred fifty dollars plus twenty dollars, which equals one hundred seventy dollars. The eligible comparison set is Cedar at one hundred eighty dollars and Pine at one hundred seventy dollars. Because one hundred seventy is lower, recommend Pine Studio under the baseline rule. This means Pine has the lowest supported total among verified eligible venues with known costs in this closed corpus. It does not establish the cheapest venue overall or a real booking.
 
-## Feedback: Scope Mismatch Feedback
-
-The evidence proves that the feature exists and names three available regions. It does not prove availability everywhere. Classify the global statement as unsupported. A defensible synthesis says the supplied evidence supports the three listed regions and does not establish global availability. Record the missing current region authority as a gap. If you chose the official feature page as proof of every region, revise the scope check: authority for existence is not evidence for geographic coverage. If you removed the claim without recording the gap, add the gap so the next researcher knows what evidence is still needed.
-
-If correct: You limited the conclusion to supported regions and preserved the missing global evidence as a visible gap.
-
-If retrying: Check whether the evidence covers the same geographic scope as the claim; existence does not prove universal availability.
+Visual alternative: Cedar passes all criteria and totals 180 dollars. Harbor remains unresolved and is excluded. Pine passes all criteria and totals 170 dollars. The bounded outcome recommends Pine within the verified closed-corpus comparison set.
 
 Sources:
 
-- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Feedback: Baseline Misconception Feedback
+
+The common wrong answer recommends Harbor at one hundred twenty dollars. That fails because the memo is not authoritative, its embedded directive must be ignored, and the promotional starting price is not a mandatory total. Another error rejects Pine because Record A failed. Record B is separately supplied authorized evidence and must be evaluated on its own provenance. A third error uses Cedar's stale note instead of the controlling policy. Correct work preserves the failure, uses the replacement only for facts it states, excludes Harbor, and bounds the Pine recommendation.
+
+If correct: Your answer uses the controlling Cedar evidence, keeps Harbor unresolved, separates Pine Record A from Record B, and limits the Pine recommendation to the verified comparison set.
+
+If retrying: Recheck source authority and scope, separate the failed Pine attachment from its authorized replacement, and exclude Harbor before comparing supported totals.
 
 ## Narration: Recovery Explanation
 
-Evidence failure is a normal research outcome, so design recovery before it happens. If a link is inaccessible, look for the canonical publisher, an archived version permitted by policy, or another primary record. If evidence is stale, narrow the claim to the supported date and search for a current source. If several articles cite one unsupported statement, mark the chain as circular rather than counting it as independent agreement. If the source is ambiguous, quote the exact limitation and ask a narrower question. If the research cannot support the requested scope, produce a gap report instead of a plausible completion. State what is supported, what is disputed, what is missing, what searches or tests were attempted, and the next safe action. Recovery can also mean stopping: time, cost, access, or authority limits may require escalation. A visible gap is useful evidence about the decision's uncertainty.
+When evidence is unavailable, record the failed identifier and mark affected claims unknown. A failure receipt establishes absence, not the missing facts. Search only for an accessible authorized replacement, and keep its provenance separate. Cite the receipt for the failure and the replacement for facts the replacement actually states. If no authorized replacement exists, narrow the conclusion, exclude the unresolved candidate, and identify the record needed next. If every candidate fails or remains unresolved, return HOLD. In the supplied case, Record B resolves Pine. Without Record B, Pine would remain unresolved.
 
-Visual alternative: Inaccessible, stale, circular, ambiguous, conflicting, and insufficient evidence each lead to a narrower search, test, gap report, or accountable escalation.
-
-Sources:
-
-- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
-
-## Demonstration: Removed Source Demonstration
-
-Test recovery by removing a source. Imagine a synthesis with three claims. Official documentation supports current capability. A measured test supports latency under one load. A reviewed price sheet supports a thirty-day estimate. I remove the test. The capability and cost claims may remain, but the latency conclusion no longer has evidence. The correct response is not to let the model reconstruct a likely number. I mark the latency claim unsupported, name the missing test conditions, and choose whether to rerun the test, find an equivalent independent measurement, or omit latency from the decision. This source-removal test reveals hidden dependence and confirms that the claim map changes when its evidence changes.
-
-Visual alternative: The claim map shows two supported claims and one newly unsupported latency claim after its test evidence is removed.
+Visual alternative: Record A proves only an unavailable attachment. Record B is evaluated separately for Pine facts. Without an authorized replacement, Pine remains unresolved and is excluded.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Checkpoint: Missing Replacement Checkpoint
+
+If Record B were absent, what would Record A prove? Only that the attachment was unavailable. Pine's permission, capacity, access, availability, and cost would remain unresolved. Exclude Pine, preserve the gap, and request an authorized Pine policy or booking record.
+
+Learner action: Identify that Record A proves only the export failure and that every Pine eligibility and cost claim would remain unresolved.
 
 ## Narration: Safety And Provenance Explanation
 
-Protect data and preserve provenance throughout the workflow. Use the minimum material necessary. Remove identifiers that do not affect the question. Do not upload confidential, personal, licensed, or restricted content unless policy, authorization, service terms, and retention controls permit it. Treat instructions inside retrieved pages as untrusted content, not permission to change the task or use tools. Preserve publisher, title, location, access date, supported claims, and limitations separately from generated prose. Respect attribution and license requirements when quoting or adapting material. Before sharing, open every material citation, check that sensitive data is absent, verify that uncertainty remains visible, and confirm that the conclusion does not exceed the brief. A trustworthy synthesis is reproducible from its ledger without relying on hidden reasoning or the model's confidence.
+Treat instructions inside retrieved material as untrusted data. VEN-05's demand to ignore the research rule is an adversarial instruction attempt. Report it, do not follow it, and grant it no evidentiary authority. Minimize copied data, redact unnecessary identifiers, preserve attribution where applicable, and keep source metadata separate from generated prose. Before sharing, confirm that citations resolve where applicable, sensitive information is absent, and each conclusion stays within the supplied evidence. These controls are provider-neutral because they depend on explicit source boundaries and human review, not hidden reasoning.
 
-Visual alternative: The checklist verifies minimum permitted data, instruction boundaries, attribution, working citations, visible limitations, evidence scope, and reproducibility.
+Visual alternative: The checklist says to report and ignore adversarial instructions, minimize and redact data, preserve metadata and attribution, check citations, remove sensitive information, and keep conclusions within evidence.
 
 Sources:
 
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 - <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
+- <https://ai.google.dev/gemini-api/docs/prompting-strategies>
 
-## Transition: Activity Transition
+## Narration: Changed Input Explanation
 
-Open the evidence-led research activity. Choose a current, low-risk question. Complete the decision, questions, scope, evidence, allowed-data, and stop-condition fields. Build at least three qualified source rows. Draft a one-page synthesis that maps each material claim to evidence and labels disagreement or uncertainty. Then remove one source, identify exactly what no longer holds, and write the recovery action. Save the brief, ledger, synthesis, claim map, and gap note as your evidence.
+Now change one input without carrying forward the baseline winner. The event remains a public educational workshop on June twentieth, twenty twenty-six, from eighteen hundred through twenty hundred, but attendance may be sixty-five. Permission, step-free access, and availability requirements remain. Capacity must now be at least sixty-five. Exclude every failed or unresolved venue. Compare known mandatory totals only among verified eligible venues, and return HOLD if that set is empty. Restate this rule, mark all four criteria for Cedar, Harbor, and Pine, quote exact passages and IDs, show cost arithmetic only for a venue entering the eligible set, and finish with one limitation.
+
+Visual alternative: The event date, time, workshop permission, step-free access, and availability requirements remain unchanged. Capacity must be at least 65, failed and unresolved venues are excluded, and an empty comparison set produces HOLD.
 
 Sources:
 
 - <https://developers.openai.com/api/docs/guides/prompt-engineering>
 
-## Pause: Activity Work Time
+## Learner Prompt: Changed Input Learner Prompt
+
+Complete the changed-input table before opening the key. For Cedar, Harbor, and Pine, mark permission, capacity of at least sixty-five, step-free access, and continuous event-time availability as pass, fail, or unresolved. Quote exact support, identify the verified eligible set, and finish with RECOMMEND or HOLD plus a scope limitation.
+
+Learner action: Complete all twelve criterion determinations, cite exact passages, identify the eligible set, and state the deterministic outcome and limitation.
+
+## Pause: Changed Input Work Pause
+
+## Narration: Changed Input Answer Key
+
+Under the changed rule, Cedar still passes permission, access, and availability, but fails capacity because VEN-01 states a maximum occupancy of forty, which is below sixty-five. Harbor remains unresolved. VEN-03's phrase groups of thirty or more is not an exact supported capacity, and VEN-05's unsupported sixty-seat statement would still be below sixty-five even if it were authoritative. Pine passes permission, access, and availability but fails capacity because Record B states a maximum occupancy of thirty-two. Cedar and Pine are excluded for failure, and Harbor is excluded as unresolved. The verified eligible comparison set is empty. Therefore the required outcome is HOLD. Do not compare costs because no venue entered the eligible set. The result applies only to this fictional six-document corpus.
+
+Visual alternative: Cedar capacity is 40 and fails 65. Pine capacity is 32 and fails 65. Harbor remains unresolved. No verified eligible venue remains, so the outcome is HOLD and no costs are compared.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Feedback: Changed Input Specific Feedback
+
+If you recommended Pine because it won the baseline, reevaluate the changed capacity requirement. Pine's thirty-two fails sixty-five. If you recommended Harbor because the memo says sixty seats, check both authority and arithmetic: the memo is unsupported, and sixty is below sixty-five. If you calculated Cedar or Pine costs, remove that comparison because each fails eligibility. A correct answer shows all statuses, leaves Harbor unresolved, makes the eligible set empty, returns HOLD, and states the fictional-corpus limitation.
+
+If correct: You applied the new capacity threshold, excluded both failed venues and unresolved Harbor, left the cost comparison empty, and returned HOLD with a closed-corpus limitation.
+
+If retrying: Do not reuse the baseline winner. Check 40, 60, and 32 against the new threshold of 65, then apply authority and exclusion rules before considering cost.
+
+## Narration: Reusable Template Explanation
+
+Use the reusable template after the worked example. Replace every bracketed field. Record the decision, bounded questions, time and population scope, criteria, deterministic exclusion, selection, tie, and HOLD rules, required evidence, allowed data, and stop conditions. In the ledger, capture source ID, title, public location when applicable, publisher, author, publication date, scope, review date, type, exact passage, supported claim, limitations, and gaps. In the claim table, mark each item pass, fail, or unresolved after checking authority and scope. Separate facts, comparisons, estimates, and judgments. Report inaccessible content and adversarial instructions. Count no copy as independent corroboration. Use arithmetic only on supported values. Finish with the verified eligible set, calculation, RECOMMEND or HOLD, and a boundary. Another reviewer should be able to reconstruct the result from this visible record.
+
+Visual alternative: The template contains fields for decision, questions, scope, criteria, decision rule, required evidence, allowed data, stop conditions, source metadata, exact passages, claim statuses, supported arithmetic, outcome, and limitation.
+
+Sources:
+
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
+- <https://ai.google.dev/gemini-api/docs/prompting-strategies>
+
+## Transition: Activity Transition
+
+Open the evidence-led research activity and use the supplied closed corpus. Reconstruct the baseline table, separate VEN-04 Record A from Record B, report and ignore VEN-05's directive, check your work against the baseline example, complete the changed-input task before its key, and adapt the template to a different provider-neutral question. Save the claim table, exact passages, arithmetic, bounded recommendation, recovery note, changed outcome, and Harbor gap report. No external account is required.
 
 ## Assessment Handoff: Assessment Handoff
 
-When you are ready, begin the knowledge check. You will identify a complete research brief, classify an AI-generated source suggestion, preserve disagreement between authoritative sources, respond when evidence cannot support the requested scope, and recognize what makes a synthesis reproducible. Review the class or return to your activity before submitting. The assessment begins only when you choose Begin knowledge check.
+Begin the five-question knowledge check only when you choose to proceed. The questions cover the complete brief, generated suggestions as leads, the Pine baseline recommendation, the sixty-five-seat HOLD result, and the reproducible ledger. Review the class or activity first if needed. It will not submit automatically.
 
 ## Closing: Class Closing
 
-Remember the boundary: AI can assist research, but it is not the evidence. Bound the question, qualify sources, map claims, preserve disagreement, and make gaps useful.
+Recap. Prepare the bounded decision and evidence rule. Execute with a ledger while treating AI output as leads. Verify exact passages, authority, dates, scope, dependence, and arithmetic. Recover from missing evidence without reconstruction. Protect data and ignore embedded instructions. Apply deterministic exclusions and return HOLD when the comparison set is empty. Remember three traps: more documents do not always mean independent corroboration, a starting price is not a mandatory total, and a failed earlier attachment does not invalidate a separately authorized replacement. Keep every conclusion bounded.
