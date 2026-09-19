@@ -14,13 +14,15 @@
     "provider-neutral"
   ],
   "prerequisites": [
-    "A supported Python environment",
-    "A version-controlled working copy",
-    "An approved model-provider credential path"
+    "PowerShell 7 or later",
+    "Python 3 available either as the python command or through the Windows launcher command py -3",
+    "Git available as the git command; the exercise uses repository-local identity settings and does not require or modify global Git configuration",
+    "Permission to create and delete a disposable repository under the current user's temporary directory",
+    "Optional only: approval to install or run Aider and either an approved provider credential or a running local Ollama service with an explicitly selected model"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-19",
   "tags": [
     "coding-tools",
     "aider",
@@ -32,50 +34,265 @@
       "id": "fit",
       "title": "Use it for a Git-centered terminal pairing loop",
       "paragraphs": [
-        "Aider is a terminal pair-programming tool that edits files in a local Git repository and can connect to multiple model providers. Choose it when you want a conversational editing loop with visible repository changes and locally controlled tests.",
-        "Install through a supported isolated Python path, choose the provider and model deliberately, and keep credentials in the supported environment or configuration mechanism rather than prompts or committed files."
-      ]
-    },
-    {
-      "id": "operate",
-      "title": "Bound files, commits, and validation",
-      "paragraphs": [
-        "Begin from a reviewed Git status and add only the files needed for the task. State the outcome, conventions, test command, and files that must not change. Inspect Aider's edits and commits as evidence, not as proof that behavior is correct.",
-        "Run the smallest relevant lint or test during the loop and the repository's release gate before accepting. Recover from the last known Git checkpoint when changes cross scope or verification fails."
+        "Aider is an AI pair-programming tool for the terminal. It edits files added to its chat and is tightly integrated with Git. This exercise first uses a completely runnable, no-model baseline. You will create a disposable repository, observe a failing Python standard-library test, inspect the defect, repair it manually, and verify the result. The later Aider path is optional, metered or locally resourced, and was not executed in preparing this card.",
+        "The exercise intentionally uses only Python's standard library. The unittest module supplies TestCase and assertions and can be run with either python -m unittest or, on Windows when python is unavailable, py -3 -m unittest. The setup verifies a Python 3 executable and Git before creating the repository. It refuses to continue if the selected directory already exists, uses repository-local Git identity settings, and does not change global Git configuration."
       ],
       "code": {
         "language": "text",
-        "label": "Aider task card",
-        "code": "Task: [one observable code outcome]\nScope: [repository, branch, and files allowed]\nPermissions: [local edit, model access, shell/test limits]\nModel: [approved provider and model]\nConventions: [repository instructions]\nVerification: [diff review and exact checks]\nStop conditions: [scope drift, secret request, failing invariant]\nRecovery: [Git checkpoint and safe retry]"
+        "label": "Operational card",
+        "code": "Task: Make factorial(0), factorial(1), and factorial(5) return 1, 1, and 120 without changing the tests.\nScope: A newly created disposable Git repository named aider-factorial-lab; only factorial.py and test_factorial.py may be edited.\nPermissions: Local file edits, local Python 3 test execution, local Git inspection and commits. Optional model access only after explicit learner consent.\nModel: None for the baseline. For the optional path, select either deepseek/deepseek-chat with DEEPSEEK_API_KEY or ollama_chat/<an already approved and locally installed model> with a local Ollama endpoint.\nConventions: Python standard library only; preserve the factorial function name; do not weaken, remove, or skip tests; do not add dependencies.\nVerification: Review git diff; run the verified Python 3 command with -m unittest -v; require three passing tests; inspect git status and git log.\nTest evidence: Initial boundary test errors with ValueError: n must be non-negative because factorial(0) calls factorial(-1), which reaches the existing negative-input guard. After repair, test_factorial_of_zero, test_factorial_of_one, and test_factorial_of_five report ok, followed by Ran 3 tests and OK.\nStop conditions: Stop on an existing target path, an unavailable Python 3 or Git command, unexpected files, a request for a secret, edits outside factorial.py, weakened tests, dependency installation, unresolved test failure, or a diff you do not understand.\nRecovery: Exit Aider if open. Use /undo only when the last commit was made by Aider and you have reviewed what it will undo. Otherwise, from the verified disposable repository, restore the supplied bug with git restore --source baseline-bug --staged --worktree -- factorial.py test_factorial.py. Never run recovery in another repository."
       }
     },
     {
-      "id": "verify",
-      "title": "Expected evidence and verification",
+      "id": "setup",
+      "title": "Create the disposable repository safely in PowerShell 7",
       "paragraphs": [
-        "Expected evidence includes the starting Git state, selected model, files placed in context, reviewed diff, and exact test output. Verify that unrelated files, secrets, and dependency caches were not added.",
-        "If verification fails, preserve the failure, return only the affected files to a reviewed checkpoint, narrow the file set or prompt, and rerun the deterministic check."
+        "Open PowerShell 7. The following script first verifies Git and selects a working Python 3 command. It prefers python when that command runs Python 3 and otherwise falls back to the Windows launcher command py -3. It then chooses a folder under your temporary directory and throws an error before creating or entering it if that exact path already exists. It creates both complete files with literal here-strings, initializes Git, and sets an explicit identity only in this repository. The git config commands omit --global intentionally.",
+        "The intentional defect is concrete: factorial uses n == 1 as its only base case. factorial(1) and factorial(5) work, but factorial(0) calls factorial(-1). The existing n < 0 guard then immediately raises ValueError with the message n must be non-negative. Do not repair the defect yet."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Verify prerequisites, create a new fixture, and commit the baseline",
+        "code": "$ErrorActionPreference = 'Stop'\n\nif (-not (Get-Command git -ErrorAction SilentlyContinue)) {\n    throw 'Git is required and was not found as the git command.'\n}\ngit --version\nif ($LASTEXITCODE -ne 0) { throw 'The git command did not run successfully.' }\n\n$PythonExe = $null\n$PythonArgs = @()\nif (Get-Command python -ErrorAction SilentlyContinue) {\n    python -c \"import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)\"\n    if ($LASTEXITCODE -eq 0) {\n        $PythonExe = 'python'\n    }\n}\nif (-not $PythonExe -and (Get-Command py -ErrorAction SilentlyContinue)) {\n    py -3 -c \"import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)\"\n    if ($LASTEXITCODE -eq 0) {\n        $PythonExe = 'py'\n        $PythonArgs = @('-3')\n    }\n}\nif (-not $PythonExe) {\n    throw 'Python 3 is required. Neither python nor py -3 provided a working Python 3 interpreter.'\n}\n& $PythonExe @PythonArgs --version\n\n$Lab = Join-Path ([System.IO.Path]::GetTempPath()) 'aider-factorial-lab'\nif (Test-Path -LiteralPath $Lab) {\n    throw \"Refusing to use existing path: $Lab. Remove it yourself only after confirming it is disposable, or change the lab name.\"\n}\n\nNew-Item -ItemType Directory -Path $Lab | Out-Null\nSet-Location -LiteralPath $Lab\n\ngit init\ngit config user.name 'Aider Exercise'\ngit config user.email 'aider-exercise@example.invalid'\n\n@'\n\"\"\"Small factorial example with one intentional boundary bug.\"\"\"\n\n\ndef factorial(n):\n    \"\"\"Return n factorial for a non-negative integer n.\"\"\"\n    if not isinstance(n, int) or isinstance(n, bool):\n        raise TypeError(\"n must be an integer\")\n    if n < 0:\n        raise ValueError(\"n must be non-negative\")\n    if n == 1:  # Intentional bug: zero is also a base case.\n        return 1\n    return n * factorial(n - 1)\n'@ | Set-Content -LiteralPath factorial.py -Encoding utf8\n\n@'\nimport unittest\n\nfrom factorial import factorial\n\n\nclass FactorialTests(unittest.TestCase):\n    def test_factorial_of_zero(self):\n        self.assertEqual(factorial(0), 1)\n\n    def test_factorial_of_one(self):\n        self.assertEqual(factorial(1), 1)\n\n    def test_factorial_of_five(self):\n        self.assertEqual(factorial(5), 120)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n'@ | Set-Content -LiteralPath test_factorial.py -Encoding utf8\n\ngit add -- factorial.py test_factorial.py\ngit commit -m 'test: add intentional factorial boundary bug'\ngit tag baseline-bug\ngit status --short\ngit config --local --get user.name\ngit config --local --get user.email\n& $PythonExe @PythonArgs -B -m unittest -v"
+      }
+    },
+    {
+      "id": "baseline-task",
+      "title": "No-model learner task",
+      "paragraphs": [
+        "Run the setup exactly once. The final command should return a nonzero status, which is expected evidence rather than a setup failure. Its traceback should show ValueError: n must be non-negative for the zero case. Read factorial.py and test_factorial.py. Explain why only the zero case fails. Then change only factorial.py so zero and one are both terminating base cases. Do not alter test_factorial.py and do not copy the answer key until you have attempted the repair.",
+        "Use the same verified Python 3 command selected during setup. If you open a new PowerShell session, run the selection block below again. A correct result has one changed line in factorial.py, no test-file change, and three passing tests. Commit only after reviewing the diff and seeing the tests pass."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Manual review, verification, and controlled commit",
+        "code": "$PythonExe = $null\n$PythonArgs = @()\nif (Get-Command python -ErrorAction SilentlyContinue) {\n    python -c \"import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)\"\n    if ($LASTEXITCODE -eq 0) { $PythonExe = 'python' }\n}\nif (-not $PythonExe -and (Get-Command py -ErrorAction SilentlyContinue)) {\n    py -3 -c \"import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)\"\n    if ($LASTEXITCODE -eq 0) { $PythonExe = 'py'; $PythonArgs = @('-3') }\n}\nif (-not $PythonExe) { throw 'No working Python 3 command was found.' }\n\ngit status --short\ngit diff -- factorial.py test_factorial.py\n& $PythonExe @PythonArgs -B -m unittest -v\nif ($LASTEXITCODE -ne 0) { throw 'Tests failed. Do not commit.' }\n\n# Run these only after the diff is understood and all tests pass.\ngit add -- factorial.py\ngit diff --cached --check\ngit diff --cached -- test_factorial.py\ngit commit -m 'fix: handle zero factorial base case'\ngit status --short\ngit log --oneline --decorate -2"
+      }
+    },
+    {
+      "id": "diagnostics",
+      "title": "Expected result and verification",
+      "paragraphs": [
+        "Before the repair, unittest should report test_factorial_of_zero as ERROR and include a traceback ending with ValueError: n must be non-negative. This happens because factorial(0) calls factorial(-1), and the explicit negative-input guard raises before another recursive call can occur. The run should report Ran 3 tests and end with FAILED (errors=1). The tests for one and five should report ok. If all tests pass before you edit, compare both files with the fixture because the intentional bug is absent.",
+        "After the repair, all three named tests should report ok, followed by Ran 3 tests and OK. The elapsed time is machine-dependent and is represented below as a pattern rather than a promised figure. A successful unittest run exits with status zero. Git status should be empty after the controlled commit. If factorial_of_one fails, you changed the base case incorrectly. If factorial_of_five fails, inspect the recursive return expression. If test_factorial.py appears in git diff, restore that file rather than weakening the tests."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Expected initial failing output pattern",
+        "code": "test_factorial_of_five (test_factorial.FactorialTests.test_factorial_of_five) ... ok\ntest_factorial_of_one (test_factorial.FactorialTests.test_factorial_of_one) ... ok\ntest_factorial_of_zero (test_factorial.FactorialTests.test_factorial_of_zero) ... ERROR\n...\nValueError: n must be non-negative\n\n----------------------------------------------------------------------\nRan 3 tests in <time>s\n\nFAILED (errors=1)"
+      }
+    },
+    {
+      "id": "passing-pattern",
+      "title": "Passing output pattern",
+      "paragraphs": [
+        "unittest may order discovered test methods alphabetically. The important checks are the three ok results, the count of three tests, and final OK."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Expected passing output pattern",
+        "code": "test_factorial_of_five (test_factorial.FactorialTests.test_factorial_of_five) ... ok\ntest_factorial_of_one (test_factorial.FactorialTests.test_factorial_of_one) ... ok\ntest_factorial_of_zero (test_factorial.FactorialTests.test_factorial_of_zero) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in <time>s\n\nOK"
+      }
+    },
+    {
+      "id": "optional-aider",
+      "title": "Optional, metered and unexecuted Aider path",
+      "paragraphs": [
+        "This path is optional and was not executed to produce this resource. A hosted provider may charge for API usage. A local Ollama run avoids a hosted model API but still consumes local compute and requires Ollama plus a capable model that you have selected and pulled. Do not assume that any option is free or equally capable. Aider warns that less capable models can fail to return usable code edits.",
+        "If Aider is not already installed, the documented isolated installer path is python -m pip install aider-install followed by aider-install. When py -3 is the verified Python command, use py -3 -m pip install aider-install instead. Run aider --version and record its actual output locally. The exact current version is UNKNOWN in this card because the supplied evidence does not establish it. Installing software changes the user's Python or tool environment, so obtain approval first.",
+        "Start the optional run only after the manual solution is committed. The script below verifies the exact disposable repository path, requires a clean worktree and index, refuses a detached HEAD, refuses an existing aider-practice branch, and creates that named branch directly from baseline-bug. This keeps the manual solution on its original branch and reproducibly places the optional branch at the supplied bug without resetting or changing any global configuration. The final test command must be observed locally before launching Aider. It should fail with the zero-case ValueError. If it passes or fails differently, stop and inspect the fixture."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Install optionally, then create a clean practice branch from the bug",
+        "code": "$ErrorActionPreference = 'Stop'\n$PythonExe = $null\n$PythonArgs = @()\nif (Get-Command python -ErrorAction SilentlyContinue) {\n    python -c \"import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)\"\n    if ($LASTEXITCODE -eq 0) { $PythonExe = 'python' }\n}\nif (-not $PythonExe -and (Get-Command py -ErrorAction SilentlyContinue)) {\n    py -3 -c \"import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)\"\n    if ($LASTEXITCODE -eq 0) { $PythonExe = 'py'; $PythonArgs = @('-3') }\n}\nif (-not $PythonExe) { throw 'No working Python 3 command was found.' }\nif (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'Git was not found.' }\n\n# Optional. Obtain approval before installing.\n# & $PythonExe @PythonArgs -m pip install aider-install\n# aider-install\nif (-not (Get-Command aider -ErrorAction SilentlyContinue)) {\n    throw 'Aider is not installed or is not available as the aider command.'\n}\naider --version\n\n$Expected = Join-Path ([System.IO.Path]::GetTempPath()) 'aider-factorial-lab'\nif ((Get-Location).Path -ne $Expected) {\n    throw \"Refusing to continue outside the disposable path: $Expected\"\n}\n$RepoRoot = (git rev-parse --show-toplevel 2>$null)\nif ($LASTEXITCODE -ne 0 -or [System.IO.Path]::GetFullPath($RepoRoot) -ne [System.IO.Path]::GetFullPath($Expected)) {\n    throw 'The current directory is not the expected disposable repository root.'\n}\ngit symbolic-ref --quiet --short HEAD | Out-Null\nif ($LASTEXITCODE -ne 0) { throw 'Refusing to create the practice branch from a detached HEAD.' }\nif (git status --porcelain) { throw 'Commit or discard pending changes before starting the optional path.' }\ngit rev-parse --verify 'baseline-bug^{commit}' | Out-Null\nif ($LASTEXITCODE -ne 0) { throw 'The baseline-bug tag is missing.' }\ngit show-ref --verify --quiet refs/heads/aider-practice\nif ($LASTEXITCODE -eq 0) { throw 'Refusing to reuse the existing aider-practice branch.' }\n\ngit switch -c aider-practice baseline-bug\nif ((git branch --show-current) -ne 'aider-practice') { throw 'The expected practice branch is not checked out.' }\nif (git status --porcelain) { throw 'The new practice branch is unexpectedly dirty.' }\ngit log --oneline --decorate -1\n& $PythonExe @PythonArgs -B -m unittest -v\nif ($LASTEXITCODE -eq 0) { throw 'The supplied bug was not reproduced. Do not launch Aider.' }\n# Confirm that the observed zero-case traceback ends with:\n# ValueError: n must be non-negative"
+      }
+    },
+    {
+      "id": "providers",
+      "title": "Choose one documented provider without persisting secrets",
+      "paragraphs": [
+        "DeepSeek setup below uses DEEPSEEK_API_KEY, as documented by Aider. The SecureString conversion places plain text in the current process environment because command-line programs require that form, but it avoids echoing or saving the key. Close the PowerShell process after the exercise and remove the variable as shown. Never commit an environment file.",
+        "The launch uses --no-auto-commits for this bounded exercise. Aider normally commits edits automatically, but this option leaves its edits pending so you can review and test them before deciding whether to use /commit. Launch only from the verified aider-practice branch created in the optional setup. The commands do not print the environment, Git configuration, or remote URLs."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Option A: hosted DeepSeek, optional and potentially metered",
+        "code": "if ((git branch --show-current) -ne 'aider-practice') {\n    throw 'Launch Aider only from the aider-practice branch.'\n}\nif (git status --porcelain) {\n    throw 'Launch Aider only from a clean practice branch.'\n}\n\n$Secret = Read-Host 'DeepSeek API key for this PowerShell process only' -AsSecureString\n$Ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secret)\ntry {\n    $env:DEEPSEEK_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($Ptr)\n} finally {\n    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Ptr)\n    $Secret = $null\n}\n\n# Launch only after reviewing provider pricing and data policy.\naider --no-auto-commits --model deepseek/deepseek-chat factorial.py test_factorial.py\n\n# After exiting Aider:\nRemove-Item Env:DEEPSEEK_API_KEY -ErrorAction SilentlyContinue"
+      }
+    },
+    {
+      "id": "ollama-option",
+      "title": "Option B: local Ollama, optional and locally resourced",
+      "paragraphs": [
+        "In terminal 1, replace the marker with an approved local model name and run the pull only if the model is not already present. Keep the server running. In terminal 2, enter the verified disposable repository, require the clean aider-practice branch, and launch Aider with the same exact model name. The --no-auto-commits option leaves edits pending for review instead of allowing Aider's normal automatic commit."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Ollama commands with required explicit model selection",
+        "code": "# Terminal 1. Replace the marker before running either command.\n$LocalModel = '<approved-local-model>'\nif ($LocalModel -match '[<>]') { throw 'Set $LocalModel to an approved Ollama model name first.' }\nollama pull $LocalModel\n$env:OLLAMA_CONTEXT_LENGTH = '8192'\nollama serve\n\n# Terminal 2, from the disposable repository.\n$Lab = Join-Path ([System.IO.Path]::GetTempPath()) 'aider-factorial-lab'\nSet-Location -LiteralPath $Lab\n$RepoRoot = (git rev-parse --show-toplevel 2>$null)\nif ($LASTEXITCODE -ne 0 -or [System.IO.Path]::GetFullPath($RepoRoot) -ne [System.IO.Path]::GetFullPath($Lab)) {\n    throw 'This is not the expected disposable repository root.'\n}\nif ((git branch --show-current) -ne 'aider-practice') {\n    throw 'Launch Aider only from the aider-practice branch.'\n}\nif (git status --porcelain) {\n    throw 'Launch Aider only from a clean practice branch.'\n}\n$LocalModel = '<same-approved-local-model>'\nif ($LocalModel -match '[<>]') { throw 'Set $LocalModel to the same approved Ollama model name first.' }\n$env:OLLAMA_API_BASE = 'http://127.0.0.1:11434'\naider --no-auto-commits --model \"ollama_chat/$LocalModel\" factorial.py test_factorial.py"
+      }
+    },
+    {
+      "id": "aider-loop",
+      "title": "Run a bounded Aider edit, review, test, and recover",
+      "paragraphs": [
+        "The launch command explicitly adds only factorial.py and test_factorial.py to the chat. Aider documentation recommends adding only needed files. At the Aider prompt, paste the complete request below. This is an instruction to a future optional run, not a transcript. No response or patch is predicted.",
+        "Aider normally commits each edit automatically. The provider commands in this exercise use --no-auto-commits so the learner can review and test pending edits first. Inside Aider, /diff shows changes since the preceding message. The /test command runs a child shell command and adds its output to the chat only when that command exits nonzero. Because that child shell cannot use the parent PowerShell variables or aliases, enter one literal test command chosen from the next section according to the executable you already verified.",
+        "Use /commit only if Git status shows pending changes, only factorial.py changed, the diff is understood, and the full test suite passes. The /commit command commits all dirty changes with a sensible message, so stop instead if any file outside the allowed scope is dirty. If you omit --no-auto-commits in another run, Aider may already have committed its edits automatically. In that case, do not run /commit merely to follow the sequence. Inspect /diff and /git show --stat --oneline HEAD instead. Aider marks commits it authored with (aider) in author and committer metadata by default. The /undo command applies only when the last commit was made by Aider. Never claim a commit or test passed without inspecting the actual local evidence."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Focused request to paste at the Aider prompt",
+        "code": "Fix the intentional boundary bug in factorial.py so factorial(0) returns 1 while factorial(1) remains 1 and factorial(5) remains 120. Edit only factorial.py. Do not edit, remove, skip, or weaken test_factorial.py. Do not add dependencies or files. Preserve the existing TypeError and ValueError validation. Make the smallest clear change. After editing, stop so I can review the diff and run python -m unittest -v."
+      }
+    },
+    {
+      "id": "aider-commands",
+      "title": "In-chat review and controlled commit",
+      "paragraphs": [
+        "Use this sequence only after launching with --no-auto-commits. Enter /diff first. For /test, choose exactly one literal command based on the Python 3 executable verified in PowerShell: use the python form if python was selected, or the py -3 form if the launcher fallback was selected. Do not enter both, and do not reference $PythonExe, $PythonArgs, a PowerShell function, or an alias because Aider runs the test in a child shell.",
+        "After the test passes, inspect status. Continue only if factorial.py is the sole changed file and test_factorial.py is unchanged. Run /commit only when those pending changes exist. If status is already clean, an automatic or external commit may already have occurred, so inspect the log and do not create an unnecessary commit. Aider's /test adds output to the chat on a nonzero exit; independently inspect the command result rather than assuming silence proves the requested behavior."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Aider in-chat commands with an explicit Python choice",
+        "code": "/diff\n\n# Choose exactly one of the following based on the verified executable:\n/test python -B -m unittest -v\n# OR\n/test py -3 -B -m unittest -v\n\n/git status --short\n\n# Only if factorial.py is the sole pending change and all tests passed:\n/commit fix: handle zero factorial base case\n\n/git status --short\n/git log --oneline --decorate -2\n/exit"
+      }
+    },
+    {
+      "id": "recovery",
+      "title": "Safe recovery inside this disposable repository",
+      "paragraphs": [
+        "Stop immediately if a credential appears in chat or a file, the model requests broader access, files outside scope change, tests are weakened, the diff is unclear, or verification fails. Press Control-C to interrupt an unhelpful response. Exit Aider before using the PowerShell recovery. The recovery script verifies both the disposable path and repository root, requires the named practice branch, and rejects changes or untracked files outside the two fixture files. It does not print environment variables, Git configuration, remote URLs, or file contents that might expose credentials.",
+        "The scoped git restore command restores only factorial.py and test_factorial.py in the index and worktree from baseline-bug. It does not reset a branch, detach HEAD, rewrite history, remove untracked files, change global configuration, or affect another repository. The verification test should again fail with ValueError: n must be non-negative for the zero case. That nonzero result is evidence that the supplied bug was restored, not a passing solution."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Restore the committed buggy checkpoint and verify it safely",
+        "code": "$ErrorActionPreference = 'Stop'\n$Expected = Join-Path ([System.IO.Path]::GetTempPath()) 'aider-factorial-lab'\nif ((Get-Location).Path -ne $Expected) {\n    throw \"Refusing recovery outside disposable repository: $Expected\"\n}\n$RepoRoot = (git rev-parse --show-toplevel 2>$null)\nif ($LASTEXITCODE -ne 0 -or [System.IO.Path]::GetFullPath($RepoRoot) -ne [System.IO.Path]::GetFullPath($Expected)) {\n    throw 'The current directory is not the expected disposable repository root.'\n}\nif ((git branch --show-current) -ne 'aider-practice') {\n    throw 'Refusing optional-path recovery outside the aider-practice branch.'\n}\ngit rev-parse --verify 'baseline-bug^{commit}' | Out-Null\nif ($LASTEXITCODE -ne 0) { throw 'The baseline-bug tag is missing.' }\n\n$Allowed = @('factorial.py', 'test_factorial.py')\n$Changed = @(\n    git diff --name-only\n    git diff --cached --name-only\n    git ls-files --others --exclude-standard\n) | Where-Object { $_ } | Sort-Object -Unique\n$Unexpected = @($Changed | Where-Object { $_ -notin $Allowed })\nif ($Unexpected.Count -gt 0) {\n    throw \"Refusing recovery because files outside scope changed: $($Unexpected -join ', ')\"\n}\ngit status --short\ngit restore --source baseline-bug --staged --worktree -- factorial.py test_factorial.py\ngit status --short\n\n$PythonExe = $null\n$PythonArgs = @()\nif (Get-Command python -ErrorAction SilentlyContinue) {\n    python -c \"import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)\"\n    if ($LASTEXITCODE -eq 0) { $PythonExe = 'python' }\n}\nif (-not $PythonExe -and (Get-Command py -ErrorAction SilentlyContinue)) {\n    py -3 -c \"import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)\"\n    if ($LASTEXITCODE -eq 0) { $PythonExe = 'py'; $PythonArgs = @('-3') }\n}\nif (-not $PythonExe) { throw 'No working Python 3 command was found.' }\n& $PythonExe @PythonArgs -B -m unittest -v\nif ($LASTEXITCODE -eq 0) { throw 'Recovery did not reproduce the supplied bug.' }\n# Inspect the output and require the zero-case traceback to end with:\n# ValueError: n must be non-negative"
+      }
+    },
+    {
+      "id": "answer-key",
+      "title": "Answer key for the main task",
+      "paragraphs": [
+        "Compare this answer only after attempting the task. The smallest successful patch changes the base-case comparison from equality with one to less than or equal to one. The existing negative-input guard runs first, so this broader base case does not accept negative integers. Zero now returns 1 directly, one still returns 1, and larger values recurse toward the base case."
+      ],
+      "code": {
+        "language": "diff",
+        "label": "Successful patch",
+        "code": "diff --git a/factorial.py b/factorial.py\n--- a/factorial.py\n+++ b/factorial.py\n@@\n-    if n == 1:  # Intentional bug: zero is also a base case.\n+    if n <= 1:  # Zero and one are factorial base cases.\n         return 1"
+      }
+    },
+    {
+      "id": "variation",
+      "title": "Variation: add explicit invalid-input tests",
+      "paragraphs": [
+        "Start this variation only after the main repair passes and is committed. The concrete task is to add two tests without changing factorial.py: factorial(-1) must raise ValueError with the exact message n must be non-negative, and factorial(2.5) must raise TypeError with the exact message n must be an integer. Add the complete methods shown below inside FactorialTests and before the if __name__ block, then run the full suite. This variation practices specifying exceptions and preserving an already-correct implementation.",
+        "Each method first uses assertRaises to capture the required exception object. It then compares str(caught.exception) with the complete expected string using assertEqual. This is a literal string equality check, so additional prefixes, suffixes, punctuation, or whitespace cause the test to fail. Expected success is five ok tests, Ran 5 tests, and OK. If the required exception type is not raised, inspect the implementation's guards. If the string comparison fails, compare the actual and expected messages. If discovery reports only three tests, inspect indentation and placement."
+      ],
+      "code": {
+        "language": "python",
+        "label": "Complete learner variation methods to add inside FactorialTests",
+        "code": "    def test_negative_integer_is_rejected(self):\n        with self.assertRaises(ValueError) as caught:\n            factorial(-1)\n        self.assertEqual(str(caught.exception), \"n must be non-negative\")\n\n    def test_non_integer_is_rejected(self):\n        with self.assertRaises(TypeError) as caught:\n            factorial(2.5)\n        self.assertEqual(str(caught.exception), \"n must be an integer\")"
+      }
+    },
+    {
+      "id": "variation-solution",
+      "title": "Explained solution for the variation",
+      "paragraphs": [
+        "The two tests use unittest's exception context manager to capture exceptions. assertRaises requires the specified exception type. The following assertEqual compares the exception's complete string representation with one literal expected message, which makes the message check genuinely exact rather than a regular-expression match. No production-code change is needed because the fixture checks type before numeric range and rejects negative integers. A bool is also rejected by the existing explicit isinstance(n, bool) check, although that input is outside this variation.",
+        "After inserting both complete methods inside FactorialTests, review the diff and run the full suite with the verified Python 3 command. Commit only test_factorial.py because factorial.py should remain unchanged. If verification fails or factorial.py changed, restore both files from HEAD. That recovery is safe here because the main solution was committed before starting the variation."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Verify, commit, or recover the variation",
+        "code": "$PythonExe = $null\n$PythonArgs = @()\nif (Get-Command python -ErrorAction SilentlyContinue) {\n    python -c \"import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)\"\n    if ($LASTEXITCODE -eq 0) { $PythonExe = 'python' }\n}\nif (-not $PythonExe -and (Get-Command py -ErrorAction SilentlyContinue)) {\n    py -3 -c \"import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)\"\n    if ($LASTEXITCODE -eq 0) { $PythonExe = 'py'; $PythonArgs = @('-3') }\n}\nif (-not $PythonExe) { throw 'No working Python 3 command was found.' }\n\ngit diff -- factorial.py test_factorial.py\n& $PythonExe @PythonArgs -B -m unittest -v\nif ($LASTEXITCODE -ne 0) { throw 'Variation tests failed. Do not commit.' }\n\n# On success, confirm factorial.py has no diff, then commit the test file.\ngit diff --quiet -- factorial.py\nif ($LASTEXITCODE -ne 0) { throw 'factorial.py changed during the test-only variation.' }\ngit add -- test_factorial.py\ngit diff --cached --check\ngit commit -m 'test: cover invalid factorial inputs'\ngit status --short\n\n# On failure instead of committing, restore only the exercise files from HEAD:\n# git restore -- factorial.py test_factorial.py"
+      }
+    },
+    {
+      "id": "variation-output",
+      "title": "Variation output and diagnostics",
+      "paragraphs": [
+        "unittest normally lists these method names alphabetically. Exact timing is variable. A five-test OK result proves the two specified calls raised the expected types and messages during that run, but it does not prove correctness for every possible input."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Expected successful variation output pattern",
+        "code": "test_factorial_of_five (...) ... ok\ntest_factorial_of_one (...) ... ok\ntest_factorial_of_zero (...) ... ok\ntest_negative_integer_is_rejected (...) ... ok\ntest_non_integer_is_rejected (...) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in <time>s\n\nOK"
+      }
+    },
+    {
+      "id": "evidence-notes",
+      "title": "Evidence boundaries and assumptions",
+      "paragraphs": [
+        "The source pages were checked on 2026-09-19 as documentation evidence, not as evidence that any command in this card was executed. Expected unittest output is a pattern derived from the complete fixture. With the supplied negative-input guard, factorial(0) calls factorial(-1), and that call raises ValueError: n must be non-negative before further recursion. Exact traceback formatting, method qualification, and elapsed time vary by Python version and environment.",
+        "ASSUMPTIONS. PowerShell 7 and a writable temporary directory are available. Python 3 is approved and available through either python or the Windows py -3 launcher. Git is approved and available through git. The learner starts the initial setup with no path named aider-factorial-lab in the temporary directory. Before the optional path, the learner has committed the manual solution and has no existing local branch named aider-practice. Optional installation, provider terms, billing, data policy, Ollama installation, and local model suitability are reviewed by the learner or organization before use.",
+        "OMITTED. No actual Aider or model execution, deterministic model response, literal credential, current Aider version, or universal Ollama model ID is supplied. Those would be unsupported or unsafe given the supplied evidence. No requested core exercise component is omitted."
       ]
     }
   ],
   "sources": [
     {
-      "title": "Aider documentation",
-      "url": "https://aider.chat/docs/",
-      "publisher": "Aider",
-      "lastVerified": "2026-09-13"
-    },
-    {
       "title": "Aider installation",
       "url": "https://aider.chat/docs/install.html",
       "publisher": "Aider",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-19"
     },
     {
       "title": "Aider usage",
       "url": "https://aider.chat/docs/usage.html",
       "publisher": "Aider",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Aider in-chat commands",
+      "url": "https://aider.chat/docs/usage/commands.html",
+      "publisher": "Aider",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Aider Git integration",
+      "url": "https://aider.chat/docs/git.html",
+      "publisher": "Aider",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Aider model guidance",
+      "url": "https://aider.chat/docs/llms.html",
+      "publisher": "Aider",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Aider DeepSeek setup",
+      "url": "https://aider.chat/docs/llms/deepseek.html",
+      "publisher": "Aider",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Aider Ollama setup",
+      "url": "https://aider.chat/docs/llms/ollama.html",
+      "publisher": "Aider",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Python unittest documentation",
+      "url": "https://docs.python.org/3/library/unittest.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "Python math.factorial documentation",
+      "url": "https://docs.python.org/3/library/math.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-19"
+    },
+    {
+      "title": "PowerShell New-Item documentation",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/new-item",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-19"
     }
   ]
 }
