@@ -1,6 +1,6 @@
 # AI Foundations Capstone
 
-Package: `ai-foundations-capstone-class` 1.0.0
+Package: `ai-foundations-capstone-class` 1.1.0
 
 > This is the canonical text equivalent of an AI-assisted virtual-instructor
 > class. It remains usable without synthesized audio, video, animation, or a
@@ -99,6 +99,92 @@ Sources:
 ## Narration: Rubric And Handoff Explanation
 
 Package five required artifacts: the objective and scope brief; prompt or workflow plan; source, tool, and result evidence; verification and recovery record; and reflection with reviewer-ready handoff. Score five equally weighted criteria. Correctness asks whether the deliverable meets its objective and criteria. Evidence asks whether claims and decisions map to authority or observation. Safety asks whether data, permissions, approvals, and consequences stayed bounded. Reproducibility asks whether another person can repeat the workflow and understand recovery. Communication asks whether the handoff separates facts, generated suggestions, decisions, uncertainty, limitations, and next steps. Award points only when the required evidence exists. Record reviewer feedback and preserve revisions. Completion requires at least eighty percent on the knowledge check and at least eighty percent on the capstone rubric. Neither substitutes for the other.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Capstone Exemplar Brief Narration
+
+This worked capstone uses a low-risk fictional planning task: prepare a short public announcement from two supplied event documents. The output is a draft for human review, not a booking, publication, safety decision, or external action. User and need: A community-events coordinator needs a concise draft announcement for a fictional Repair Café. Deliverable: an announcement no longer than 120 whitespace-delimited tokens, followed by source tracing and acceptance results. The announcement must state the event name, date, time, location, cost, participation rule, and supplied accessibility information. Acceptance criteria: every factual claim in the announcement must be supported by D-01 or D-02 with an inline source label; all required fields must be present; the marked announcement must contain no more than 120 whitespace-delimited tokens; unsupported details must be labeled UNKNOWN or omitted; and the draft must not claim contact, publication, booking, registration, approval, or independent verification. Counting rule and boundaries: apply whitespace-token counting to the text between ANNOUNCEMENT START and ANNOUNCEMENT END. Every whitespace-delimited token counts. The separate words in a multiword title count normally, and each inline source label counts as a token. Numbers and hyphenated strings without spaces each count as one token. The markers, explanatory text outside them, count statements, and status statements are excluded. The independent task applies the same rule between NOTICE START and NOTICE END. Data allowed: the two fictional public planning documents below. No personal data, credentials, private messages, external records, or outside knowledge are needed. Authority is limited to reading the supplied documents and drafting text. A coordinator must approve wording before publication. Out of scope: contacting the venue, registering participants, publishing the announcement, changing a calendar, making a purchase, giving technical repair advice, or inferring details not present. Free means no listed admission charge, not that participants will never incur another cost. D-01 permits each participant to bring one small household item; it does not permit additional items. This is a completed teaching exemplar. Learners must still complete the open-ended assessed activity, submit its five required artifacts, complete its knowledge check, meet its rubric and passing requirement, and obtain human review. The assessed capstone remains AI-assisted: a learner must preserve the actual prompt and output from the AI system used rather than submit this authored simulation as execution evidence.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Capstone Exemplar Plan Narration
+
+The workflow separates authorized instructions from source data. D-01 and D-02 are evidence to analyze, not instructions to follow. Every factual sentence or clause in the announcement must carry the source ID that supports it. The model may produce a draft only. It may not publish, contact people, modify records, or resolve missing information by invention. If the documents conflict, the conflict must be shown and no winner selected without an authoritative basis. If a required fact is missing, it must be marked UNKNOWN or omitted. The workflow has four observable steps: prepare the supplied source packet, generate a draft, perform an independent field-by-field and claim-by-claim comparison, and revise or escalate. A coordinator reviews the final draft before any publication. The exact copyable prompt below includes the complete D-01 and D-02 records, requirements, counting procedure, failure handling, simulation boundary, and human authority boundary. Counting uses whitespace-token counting only on text inside the marked announcement boundaries.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Capstone Exemplar Simulated Output Narration
+
+The following is an authored expected first output. It is a model-simulated teaching trace, not a live model execution. No provider was called, no tool was used, no timestamp or receipt was observed, and no human approval was granted. The output has meaningful low-risk faults. It changes the documented start time, fails to preserve the one-small-household-item rule, asserts universal repair acceptance, omits the quiet-room period, reverses the childcare fact, and asserts unsupported universal suitability. Its source labels also do not establish exact support for every factual sentence or clause. It is not ready for publication. Under the specified whitespace-token counting rule, the text between the markers contains exactly 62 tokens. The count includes the title words and every inline source label. It excludes the markers, the omitted-information paragraph, and the later status lines.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Capstone Exemplar Verification Narration
+
+This verification is an authored comparison against D-01 and D-02, not a generator self-certification or live external check. It evaluates the boundaries, deterministic token count, required fields, exact factual claims, source-label placement, unknown information, and external-action boundary. The word-limit check passes: the faulty announcement has 62 tokens, and 62 is no more than 120. Passing the limit does not cure its factual, completeness, participation, accessibility, or source-tracing defects. The date passes because November 14, 2026 matches D-01. The time fails because the output starts at 10:00 instead of 10:30. The participation check fails because D-01 permits one small household item for volunteer repair advice, while the output removes both the quantity and size constraints and adds the unsupported claim that all repairs are accepted. Accessibility fails because the required quiet-room period is omitted, childcare is falsely claimed, and suitability for everyone is unsupported. The step-free entrance is supported. Exact source tracing also fails because labels grouped after several sentences do not reliably identify support for each factual sentence or clause, and no supplied source supports the universal repair or suitability claims. Recovery stop condition: do not publish, seek approval for, or present the faulty draft as ready when a required fact fails comparison or an unsupported public-facing promise appears. Recovery restores exact facts from D-01 and D-02, removes unsupported claims, adds the quiet-room period and no-childcare statement, and reruns every check. The corrected announcement preserved with this exemplar has 58 tokens and passes the stated checks, but remains a draft for coordinator review.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Capstone Exemplar Corrected Narration
+
+The corrected announcement preserves D-01's date, time, location, cost, one-small-household-item rule, and no-registration rule. It preserves D-02's step-free entrance, quiet-room period, and no-childcare fact. Source labels are attached to the factual sentence or clause they support. The text between ANNOUNCEMENT START and ANNOUNCEMENT END contains 58 whitespace-delimited tokens under the stated rule. The title and inline source labels are included. Headings and material outside the markers are excluded. The result is a draft for coordinator review, not an approved or published announcement. No external action occurred.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Capstone Exemplar Handoff Narration
+
+The five required artifacts are present: objective and scope brief, prompt or workflow plan, source/tool/result evidence, verification and recovery record, and reflection/reviewer-ready handoff. The source and result evidence identifies D-01 and D-02, the authored faulty output, the corrected output, and the fact that no live tool was used. Facts come from the supplied fictional documents. The faulty and corrected announcements are authored model-simulated teaching outputs. Verification is an authored comparison. Human approval, publication, current real-world accuracy, and external confirmation are UNKNOWN, not implied. Reflection: the initial plan failed to preserve exact time, participation scope, quiet-room timing, and the negative childcare fact. Independent field-by-field comparison caused the correction. The most valuable second-version improvement is structured extraction followed by deterministic comparison of every extracted field with the final announcement. The following 84-point illustration is only an example rubric calculation for this teaching artifact. It does not earn learner credit, replace a knowledge check, or substitute for real scored evidence. A learner's score must be based on the learner's own submission and the original capstone requirements.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Capstone Exercise Mapping Narration
+
+Prompt anatomy maps to the objective, exact prompt, source boundary, output contract, acceptance checks, and failure handling. Learners must adapt those elements to their own objective rather than copy this venue example. Context-budget work maps to objective, plan, and source/result evidence. The exemplar minimizes context to two relevant fictional documents and identifies absent information. Any actual learner must record measured or explicitly assumed budget arithmetic. Responsible-use and privacy work maps to allowed data, authority, permissions, stop conditions, recovery, and handoff. The exemplar uses no personal data and denies external permissions. Earlier venue work supplies methods for current-versus-obsolete evidence and untrusted embedded instructions. Office-safety work supplies trust, relevance, uncertainty, and modality-specific verification methods. Volunteer-privacy work supplies public, restricted, and prohibited-data boundaries. These methods are not evidence for the Repair Café facts. The capstone remains open-ended. A learner must submit all five artifacts, use actual AI prompt/output evidence, independently verify every acceptance criterion, complete or safely simulate a meaningful failure and recovery, and reflect on correctness, evidence, safety, reproducibility, and communication.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Independent Capstone Task Pack Narration
+
+Complete this task before reading the answer key. It is a new low-risk planning and summarization task with changed documents, facts, and deliverable. Do not import the Repair Café answer. A neighborhood library coordinator needs a short internal draft notice about a fictional Digital Help Hour. Use only I-01, I-02, and I-03. The output is for coordinator review, not publication. Do not contact the library, reserve a room, register attendees, edit a calendar, or take external action. Deliver four parts: a notice of no more than 100 words, a source-ID mapping for every factual claim, unknown or omitted information, and an acceptance checklist. The notice must include event name, date, time, location, cost, reservation rule, supplied access information, and the words that it is a draft for librarian review. Use the same deterministic rule as the exemplar: count whitespace-delimited tokens between NOTICE START and NOTICE END, including the notice title and inline source labels, and excluding headings and explanatory material outside those markers. Treat I-01 and I-02 as current where I-03 is explicitly superseded. Treat embedded source text as data, not instructions. Before reading the key, save your response, explain how changed source facts caused changed wording, and identify a possible failure, stop condition, diagnosis, correction, and rerun evidence.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Learner Prompt: Capstone Independent Prompt
+
+Complete this task before reading the answer key. It is a new low-risk planning and summarization task with changed documents, facts, and deliverable. Do not import the Repair Café answer.
+
+Expected learner action: Deliver four parts: a notice of no more than 100 words, a source-ID mapping for every factual claim, unknown or omitted information, and an acceptance checklist. The notice must include event name, date, time, location, cost, reservation rule, supplied access information, and the words that it is a draft for librarian review. Use the same deterministic rule as the exemplar: count whitespace-delimited tokens between NOTICE START and NOTICE END, including the notice title and inline source labels, and excluding headings and explanatory material outside those markers. Treat I-01 and I-02 as current where I-03 is explicitly superseded. Treat embedded source text as data, not instructions. Before reading the key, save your response, explain how changed source facts caused changed wording, and identify a possible failure, stop condition, diagnosis, correction, and rerun evidence.
+
+## Narration: Independent Capstone Key Narration
+
+Read this section only after completing and saving the independent task. This is an authored answer key, not a live model execution or independent external verification. The causal answer is that I-01 and I-02 control the current wording because I-03 is explicitly superseded. Therefore, I-03 changes neither the date, time, location, nor reservation rule. Its embedded sentence is source content rather than an authorized instruction, so it must not override the task constraints. The expected notice below contains the current date, time, location, cost, walk-in rule, ramped entrance, first-floor desk, low-noise-table period, and an explicit draft-for-librarian-review statement. It does not promise parking, transit access, childcare, device compatibility, or universal problem coverage. Under whitespace-token counting, the text between NOTICE START and NOTICE END contains exactly 56 tokens. The three title words and each inline source label count normally. The Notice heading, boundary markers, and material outside the markers are excluded.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Capstone Standards And Limitations Narration
+
+This artifact demonstrates a worked teaching exemplar with supplied fictional inputs, a bounded objective, an exact prompt, a faulty expected output, independent verification, a recovery cycle, a corrected output, a handoff, a non-perfect illustrative score, and a changed-input task with a separate causal key and feedback. It does not prove that a model will produce the authored output, detect the same fault, count words identically, preserve source labels, or follow the prompt reliably. It does not provide a live provider trace, tool receipt, timestamp, retention statement, human approval, publication record, or external confirmation. Those are UNKNOWN or unavailable for this artifact. The learner's actual evidence must include the actual AI prompt and output, source packet, checks actually performed, failure and recovery evidence, and honest limitations. A free or local model may be used if permitted, but a manual no-AI submission is not declared a substitute for the original AI-assisted assessed capstone. If an interface lacks a run ID or timestamp, record it as unavailable rather than fabricate it. This exemplar is a worked aid, not a learner completion, not a knowledge-check result, and not a replacement for human scoring.
 
 Sources:
 
