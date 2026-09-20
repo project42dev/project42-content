@@ -29,7 +29,6 @@ Sources:
 
 - <https://json-schema.org/draft/2020-12/json-schema-validation.html>
 - <https://json-schema.org/draft/2020-12/json-schema-core.html>
-- <https://json-schema.org/draft/2020-12/json-schema-core.html>
 
 ## Narration: Runtime Output Contract
 
@@ -68,6 +67,10 @@ Sources:
 In the happy path, ticket_12345678 begins OPEN at version seven, with zero receipts and zero mutations. The request asks for RESOLVED at expectedVersion seven under op_resolve_acme_0001. After checks pass, the fixture changes status to RESOLVED, increments version to eight, records one mutation, and adds one matching receipt. Verification proves exactly that ticket and receipt pair, so result kind is success, UPDATED.
 
 Visual alternative: Before execution there are zero mutations and receipts. After verified execution there is one mutation, one matching receipt, and a success result.
+
+Sources:
+
+- <https://github.com/project42dev/project42-content/blob/4000879/training/reliable-agent-workflows/control-agent-actions/lab/contract.js>
 
 ## Demonstration: Counter Demonstration
 
