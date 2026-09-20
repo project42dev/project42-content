@@ -5,36 +5,42 @@ depend on animation timing, autoplay, or pointer gestures.
 
 ## host-client-server
 
-Present all roles and boundaries in one static architecture diagram.
+Show the complete architecture as one static labeled diagram.
 
-Text alternative: The host owns users, consent, model, policy, and aggregation. Client A connects only to Server A, and Client B connects only to Server B.
+Text alternative: The host owns policy. Curriculum client connects only to curriculum child, and assessment client connects only to assessment child.
 
 ## role-demonstration
 
-Show both operations as separate static rows.
+Use a static transcript table with one annotation per line.
 
-Text alternative: File lookup stays on the file connection. Ticket comment stays on the ticket connection. The host alone authorizes any cross-connection use.
+Text alternative: READY and QUALIFIED describe sessions, CREATED and DENIED show policy, STATE shows isolation, PROMPT rejects implied authority, and SHUTDOWN shows cleanup.
 
 ## lifecycle-negotiation
 
-Present the entire sequence as a static message table.
+Present every message and state transition in a static sequence table.
 
-Text alternative: Client and server initialize, agree on revision and capabilities, acknowledge readiness, operate within the agreement, and shut down.
+Text alternative: Client sends initialize, server returns capabilities, client sends initialized without an id, and operations begin only after that notification.
 
 ## primitives-control
 
-Show primitives and authorization in a static two-layer table.
+Use a static two-layer control and authorization table.
 
-Text alternative: Users select prompts, applications select resources, and models may select tools, but host policy and trusted execution authorize every consequential operation.
+Text alternative: Users select prompts, applications select resources, and models may propose tools, while the host independently authorizes exposure and execution.
 
 ## tool-contract
 
-Show both contracts side by side without animated construction.
+Display schema, policy, error channels, and receipt checks in a static table.
 
-Text alternative: Name, description, input, output, and errors define exchange; side effects, authorization, approval, idempotency, postcondition, limits, and recovery define safe operation.
+Text alternative: Schema validates shape. Host policy checks server, tool, exact workspace, title, and five-element approval binding before validating the returned receipt.
+
+## timeout-and-reconciliation
+
+Show the complete timeout and shutdown decision tree statically.
+
+Text alternative: A timed-out write becomes UNKNOWN, its id is quarantined, state is reconciled, and shutdown cleanup is awaited.
 
 ## provider-adapters
 
-Display the portable row and adapter differences as a static matrix.
+Use a static invariant-to-adapter verification matrix.
 
-Text alternative: Capability, server identity, tools, data, approval, results, telemetry, and recovery stay portable while SDK and transport details remain in adapters.
+Text alternative: Architecture, policy, errors, and recovery stay neutral; each transport and SDK adapter is tested independently.

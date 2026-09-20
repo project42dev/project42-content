@@ -1,492 +1,1047 @@
 WEBVTT
 
 1
-00:00:00.000 --> 00:00:06.000
-Welcome. This class gives you a reliable
-mental model for
+00:00:00.000 --> 00:00:05.000
+Welcome. In this class, you will run a
+local MCP
 
 2
-00:00:06.000 --> 00:00:12.000
-Model Context Protocol. You will separate
-host, client, and server
+00:00:05.000 --> 00:00:10.000
+teaching fixture rather than watching a
+simulated diagram. The fixture
 
 3
-00:00:12.000 --> 00:00:18.000
-responsibilities, trace lifecycle
-negotiation, distinguish prompts,
+00:00:10.000 --> 00:00:15.000
+starts two real Node.js child processes
+and requires Node.js 24
 
 4
-00:00:18.000 --> 00:00:24.000
-resources, and tools, design narrow tool
-contracts, and keep application
+00:00:15.000 --> 00:00:20.000
+or later. It uses no network, model,
+provider SDK, credential,
 
 5
-00:00:24.000 --> 00:00:30.000
-policy portable when providers expose
-different MCP integration surfaces.
+00:00:20.000 --> 00:00:25.000
+or paid service. You will use it to
+separate host,
 
 6
-00:00:30.000 --> 00:00:36.500
-Start with three roles. The host is the AI
+00:00:25.000 --> 00:00:30.000
+client, and server responsibilities, trace
+the pinned 2025-11-25 initialization
 
 7
-00:00:36.500 --> 00:00:43.000
-application. It owns the user experience,
-consent, policy, model access,
+00:00:30.000 --> 00:00:35.000
+sequence, compare prompts, resources, and
+tools, repair an authorization defect,
 
 8
-00:00:43.000 --> 00:00:49.500
-aggregation, and decisions about what
-crosses boundaries. The host creates
+00:00:35.000 --> 00:00:40.000
+and reason about timeouts and shutdown.
+Keep one limitation in
 
 9
-00:00:49.500 --> 00:00:56.000
-one MCP client for each server connection.
-A client maintains
+00:00:40.000 --> 00:00:45.000
+view: success here demonstrates the
+fixture's architecture and policy tests.
 
 10
-00:00:56.000 --> 00:01:02.500
-session and negotiated-capability state,
-routes protocol messages, and isolates
+00:00:45.000 --> 00:00:50.000
+It does not establish compatibility with
+any hosted provider or
 
 11
-00:01:02.500 --> 00:01:09.000
-that connection from others. A server
-exposes a focused set
+00:00:50.000 --> 00:00:55.000
+with a later MCP revision.
 
 12
-00:01:09.000 --> 00:01:15.500
-of prompts, resources, or tools. It may be
-a local
+00:00:55.000 --> 00:01:00.200
+Start with the host. The host is the AI
 
 13
-00:01:15.500 --> 00:01:22.000
-process or a remote service. Local does
-not automatically mean
+00:01:00.200 --> 00:01:05.400
+application coordinating user intent,
+consent, policy, model access, and results
 
 14
-00:01:22.000 --> 00:01:28.500
-safe, and remote does not automatically
-mean untrusted. Assess identity,
+00:01:05.400 --> 00:01:10.600
+from multiple connections. It creates one
+MCP client per server.
 
 15
-00:01:28.500 --> 00:01:35.000
-code or service provenance, credentials,
-data flow, and actions. One
+00:01:10.600 --> 00:01:15.800
+Each client owns an isolated session,
+including negotiated capabilities, request
 
 16
-00:01:35.000 --> 00:01:41.500
-server must not observe another server's
-data merely because the
+00:01:15.800 --> 00:01:21.000
+identifiers, deadlines, and failure state.
+The server exposes focused prompts,
 
 17
-00:01:41.500 --> 00:01:48.000
-host can access both.
+00:01:21.000 --> 00:01:26.200
+resources, or tools. In our fixture,
+curriculum and assessment are
 
 18
-00:01:48.000 --> 00:01:53.273
-Consider a learning assistant connected to
-a file server and
+00:01:26.200 --> 00:01:31.400
+separate child processes. Each has its own
+identity, lifecycle, capability
 
 19
-00:01:53.273 --> 00:01:58.545
-a ticket server. The file client
-negotiates resource and read-tool
+00:01:31.400 --> 00:01:36.600
+record, and in-memory drafts. If
+assessment fails, curriculum does not
 
 20
-00:01:58.545 --> 00:02:03.818
-capabilities. The ticket client negotiates
-search and comment tools. A
+00:01:36.600 --> 00:01:41.800
+lose its session state. If both advertise
+create_training_draft, the host
 
 21
-00:02:03.818 --> 00:02:09.091
-ticket result must not flow to the file
-server unless
+00:01:41.800 --> 00:01:47.000
+qualifies the names with server identity.
+It must not merge
 
 22
-00:02:09.091 --> 00:02:14.364
-the host makes an explicit, authorized
-decision. Each server receives
+00:01:47.000 --> 00:01:52.200
+them into one ambiguous permission. Local
+placement does not create
 
 23
-00:02:14.364 --> 00:02:19.636
-only the context required for its
-operation. If the ticket
+00:01:52.200 --> 00:01:57.400
+trust. The host still evaluates code
+provenance, credentials, data flow,
 
 24
-00:02:19.636 --> 00:02:24.909
-server fails, the file session can remain
-healthy. If one
+00:01:57.400 --> 00:02:02.600
+side effects, and exact authorization.
+Invalid definitions and duplicate
 
 25
-00:02:24.909 --> 00:02:30.182
-server changes tools, only its capability
-state changes. This separation
+00:02:02.600 --> 00:02:07.800
+identities are rejected during
+initialized-session setup, while an
 
 26
-00:02:30.182 --> 00:02:35.455
-makes data movement, failure,
-authorization, and incident response
+00:02:07.800 --> 00:02:13.000
+invalid constructor creates no child.
 
 27
-00:02:35.455 --> 00:02:40.727
-inspectable instead of creating one
-invisible pool of tools and
+00:02:13.000 --> 00:02:18.467
+Open a terminal at the repository root.
+First run cd
 
 28
-00:02:40.727 --> 00:02:46.000
-context.
+00:02:18.467 --> 00:02:23.933
+training slash reliable-agent-workflows
+slash mcp-architecture slash lab. Check
 
 29
-00:02:46.000 --> 00:02:53.000
-Negotiate before operating. During
-initialization, client and server exchange
+00:02:23.933 --> 00:02:29.400
+that node dash-dash-version reports major
+version 24 or later. Then
 
 30
-00:02:53.000 --> 00:03:00.000
-protocol revision and capabilities. Only
-after initialization completes may normal
+00:02:29.400 --> 00:02:34.867
+run node src slash demo dot mjs. Read the
 
 31
-00:03:00.000 --> 00:03:07.000
-operations use the features both sides
-support. Treat negotiated state
+00:02:34.867 --> 00:02:40.333
+eight lines as evidence. READY names
+curriculum and assessment, pins
 
 32
-00:03:07.000 --> 00:03:14.000
-as runtime evidence. A configured tool
-name does not prove
+00:02:40.333 --> 00:02:45.800
+profile 2025-11-25, and reports two
+isolated sessions. The two QUALIFIED
 
 33
-00:03:14.000 --> 00:03:21.000
-the connected server currently exposes
-tools, supports notifications, or
+00:02:45.800 --> 00:02:51.267
+lines show that the same unqualified tool
+name belongs to
 
 34
-00:03:21.000 --> 00:03:28.000
-implements the expected revision. Record
-server identity, requested and agreed
+00:02:51.267 --> 00:02:56.733
+different server identities. CREATED
+reports one unpublished curriculum
 
 35
-00:03:28.000 --> 00:03:35.000
-protocol, advertised client and server
-capabilities, and fallback behavior. If
+00:02:56.733 --> 00:03:02.200
+receipt. DENIED shows that assessment
+cannot act in curriculum's workspace,
 
 36
-00:03:35.000 --> 00:03:42.000
-a required capability is absent, fail
-closed or degrade through
+00:03:02.200 --> 00:03:07.667
+even when given text claiming approval.
+STATE confirms curriculum has
 
 37
-00:03:42.000 --> 00:03:49.000
-a declared path. Do not invent support,
-call an unnegotiated
+00:03:07.667 --> 00:03:13.133
+one draft and assessment has zero. PROMPT
+says the user-selected
 
 38
-00:03:49.000 --> 00:03:56.000
-operation, or silently substitute a more
-powerful capability.
+00:03:13.133 --> 00:03:18.600
+template is not authorization. SHUTDOWN
+describes transport cleanup. Notice what
 
 39
-00:03:56.000 --> 00:04:02.000
-Prompts, resources, and tools have
-different control models. Prompts are
+00:03:18.600 --> 00:03:24.067
+the output does not prove. It does not
+prove remote
 
 40
-00:04:02.000 --> 00:04:08.000
-commonly user-selected templates.
-Resources are application-selected
+00:03:24.067 --> 00:03:29.533
+authentication, provider support, durable
+persistence, or compatibility with
 
 41
-00:04:08.000 --> 00:04:14.000
-context. Tools are functions the model may
-propose calling. These
+00:03:29.533 --> 00:03:35.000
+specifications after the pinned revision.
 
 42
-00:04:14.000 --> 00:04:20.000
-labels help design the interface, but none
-creates authorization. A
+00:05:05.000 --> 00:05:10.111
+Now trace the lifecycle precisely. The
+client sends a JSON-RPC
 
 43
-00:04:20.000 --> 00:04:26.000
-resource can contain stale facts,
-malicious instructions, or sensitive data.
+00:05:10.111 --> 00:05:15.222
+initialize request. Its params include
+protocolVersion set to 2025-11-25,
 
 44
-00:04:26.000 --> 00:04:32.000
-A tool result can attempt to redirect the
-model. A
+00:05:15.222 --> 00:05:20.333
+capabilities as an object, and clientInfo.
+The server response uses
 
 45
-00:04:32.000 --> 00:04:38.000
-discovered tool can still be denied by
-host policy. The
+00:05:20.333 --> 00:05:25.444
+the same id and returns protocolVersion,
+capabilities, and serverInfo. Both
 
 46
-00:04:38.000 --> 00:04:44.000
-host decides which servers and primitives
-are exposed, what context
+00:05:25.444 --> 00:05:30.556
+sides use the exact wire key capabilities.
+After accepting that
 
 47
-00:04:44.000 --> 00:04:50.000
-is sent, what requires user confirmation,
-and which trusted executor
+00:05:30.556 --> 00:05:35.667
+result, the client sends notifications
+slash initialized with no id.
 
 48
-00:04:50.000 --> 00:04:56.000
-may act. Protocol compatibility enables
-exchange. It does not certify
+00:05:35.667 --> 00:05:40.778
+Because it is a notification, the server
+returns no response.
 
 49
-00:04:56.000 --> 00:05:02.000
-the server, validate content, grant
-permission, or prove a side
+00:05:40.778 --> 00:05:45.889
+The server does not send its own
+initialized notification. This
 
 50
-00:05:02.000 --> 00:05:08.000
-effect.
+00:05:45.889 --> 00:05:51.000
+fixture has uninitialized,
+awaiting-initialized-notification, and
 
 51
-00:05:08.000 --> 00:05:15.000
-Make a tool narrow and inspectable. Give
-it a stable
+00:05:51.000 --> 00:05:56.111
+ready states. It blocks tools and other
+operations until the
 
 52
-00:05:15.000 --> 00:05:22.000
-name and a decision-oriented description
-that distinguishes it from similar
+00:05:56.111 --> 00:06:01.222
+client notification arrives. Duplicate or
+out-of-order initialized notifications
 
 53
-00:05:22.000 --> 00:05:29.000
-tools. Constrain inputs with required
-fields, explicit types, enums, formats,
+00:06:01.222 --> 00:06:06.333
+close the fixture transport. Capability
+state is runtime evidence for
 
 54
-00:05:29.000 --> 00:05:36.000
-bounds, and rejected additional
-properties. Where supported, publish an
+00:06:06.333 --> 00:06:11.444
+this session. A configured tool is not
+callable when tools
 
 55
-00:05:36.000 --> 00:05:43.000
-output schema and return structured
-success and error variants. Separately
+00:06:11.444 --> 00:06:16.556
+capability was not advertised. The correct
+response is a declared
 
 56
-00:05:43.000 --> 00:05:50.000
-document side effects, data sent, identity
-and object authorization, approval
+00:06:16.556 --> 00:06:21.667
+fallback or a closed failure, not invented
+support. During shutdown,
 
 57
-00:05:50.000 --> 00:05:57.000
-rule, idempotency, limits, postcondition,
-retryability, and recovery. A schema can
+00:06:21.667 --> 00:06:26.778
+the host closes stdin, waits within a
+bound, escalates signals
 
 58
-00:05:57.000 --> 00:06:04.000
-prove that workspace ID has the expected
-form. It cannot
+00:06:26.778 --> 00:06:31.889
+if needed, and awaits cleanup. It sends no
+JSON-RPC shutdown
 
 59
-00:06:04.000 --> 00:06:11.000
-prove the workspace belongs to the caller.
-An output schema
+00:06:31.889 --> 00:06:37.000
+request.
 
 60
-00:06:11.000 --> 00:06:18.000
-can make a result parseable. It cannot
-prove the draft
+00:06:37.000 --> 00:06:41.400
+Checkpoint. Configuration names
+create_training_draft, but the initialize
 
 61
-00:06:18.000 --> 00:06:25.000
-was created in the real system.
+00:06:41.400 --> 00:06:45.800
+result has no tools capability. Should the
+client call the
 
 62
-00:06:25.000 --> 00:06:30.231
-Keep the product contract above provider
-adapters. Define the required
+00:06:45.800 --> 00:06:50.200
+configured tool? State your answer and the
+causal reason. Also
 
 63
-00:06:30.231 --> 00:06:35.462
-capability, approved server identity,
-allowed primitive and tool set, data
+00:06:50.200 --> 00:06:54.600
+identify who sends notifications slash
+initialized and whether that message
 
 64
-00:06:35.462 --> 00:06:40.692
-policy, approval rule, stable result,
-telemetry, and recovery once. Then
+00:06:54.600 --> 00:06:59.000
+receives a response.
 
 65
-00:06:40.692 --> 00:06:45.923
-map provider SDK objects, request fields,
-remote connector identifiers, supported
+00:07:44.000 --> 00:07:48.800
+Do not call the tool. Configuration
+expresses desired behavior, while
 
 66
-00:06:45.923 --> 00:06:51.154
-transports, approval surfaces, beta
-status, limitations, and errors in
+00:07:48.800 --> 00:07:53.600
+initialization records what the connected
+session supports. Use the declared
 
 67
-00:06:51.154 --> 00:06:56.385
-replaceable adapters. Different providers
-and frameworks may expose MCP in
+00:07:53.600 --> 00:07:58.400
+no-tool path or stop with
+missing-capability evidence. The client
 
 68
-00:06:56.385 --> 00:07:01.615
-different products or maturity stages. Do
-not claim identical behavior
+00:07:58.400 --> 00:08:03.200
+sends notifications slash initialized
+after accepting the initialize response.
 
 69
-00:07:01.615 --> 00:07:06.846
-from a shared acronym. Verify each adapter
-against current first-party
+00:08:03.200 --> 00:08:08.000
+It omits id, so the server sends no
+response. If
 
 70
-00:07:06.846 --> 00:07:12.077
-documentation and the same application
-tests. Unsupported behavior must be
+00:08:08.000 --> 00:08:12.800
+you proposed retrying initialization until
+tools appears, separate availability
 
 71
-00:07:12.077 --> 00:07:17.308
-explicit, not emulated silently when it
-changes safety or user
+00:08:12.800 --> 00:08:17.600
+policy from protocol truth. A reconnect
+may be allowed by
 
 72
-00:07:17.308 --> 00:07:22.538
-control. Record the exact adapter version,
-verified feature subset, test
+00:08:17.600 --> 00:08:22.400
+application policy, but it cannot
+manufacture a capability. If you
 
 73
-00:07:22.538 --> 00:07:27.769
-date, and rollback route so later changes
-can be reproduced
+00:08:22.400 --> 00:08:27.200
+called before the notification, move
+readiness gating ahead of every
 
 74
-00:07:27.769 --> 00:07:33.000
-and compared.
+00:08:27.200 --> 00:08:32.000
+operation.
 
 75
-00:07:33.000 --> 00:07:40.000
-Sketch one host with two MCP servers. For
-each connection,
+00:08:32.000 --> 00:08:36.800
+Prompts, resources, and tools differ by
+control model. A prompt
 
 76
-00:07:40.000 --> 00:07:47.000
-name the client, server identity, required
-capability, data sent, tool
+00:08:36.800 --> 00:08:41.600
+is a template the user selects. A resource
+is context
 
 77
-00:07:47.000 --> 00:07:54.000
-exposed, approval point, postcondition,
-and fallback when negotiation fails.
+00:08:41.600 --> 00:08:46.400
+the application elects to read. A tool is
+a function
 
 78
-00:09:24.000 --> 00:09:31.000
-Checkpoint. Configuration lists a write
-tool, but the connected server
+00:08:46.400 --> 00:08:51.200
+the model may propose calling. These
+labels describe initiation, not
 
 79
-00:09:31.000 --> 00:09:38.000
-did not advertise tool capability during
-initialization. Should the client
+00:08:51.200 --> 00:08:56.000
+permission. Prompt text can contain
+misleading instructions. Resource data can
 
 80
-00:09:38.000 --> 00:09:45.000
-call that tool because configuration says
-it exists?
+00:08:56.000 --> 00:09:00.800
+be stale, sensitive, or adversarial. Tool
+descriptions and results can
 
 81
-00:10:45.000 --> 00:10:50.429
-Do not call it. Configuration describes
-intent, while initialization records
+00:09:00.800 --> 00:09:05.600
+attempt to influence later decisions.
+Discovery and valid schemas do
 
 82
-00:10:50.429 --> 00:10:55.857
-what this session supports. Use the
-declared no-tool fallback or
+00:09:05.600 --> 00:09:10.400
+not make any of them trusted. The host
+decides which
 
 83
-00:10:55.857 --> 00:11:01.286
-stop with missing-capability evidence. If
-you chose to try the
+00:09:10.400 --> 00:09:15.200
+servers and primitives are exposed, what
+context crosses a boundary,
 
 84
-00:11:01.286 --> 00:11:06.714
-call, move capability validation before
-operation. If you assumed the
+00:09:15.200 --> 00:09:20.000
+what requires confirmation, and which
+trusted executor may act. In
 
 85
-00:11:06.714 --> 00:11:12.143
-server was unsafe, refine the conclusion:
-absence may be version,
+00:09:20.000 --> 00:09:24.800
+the demo, SERVER SAYS APPROVED is only
+untrusted text. It
 
 86
-00:11:12.143 --> 00:11:17.571
-configuration, or server behavior, but the
-safe operational result is
+00:09:24.800 --> 00:09:29.600
+does not match a host-created approval
+bound to identity and
 
 87
-00:11:17.571 --> 00:11:23.000
-still no unnegotiated call.
+00:09:29.600 --> 00:09:34.400
+scope. Protocol compatibility enables
+communication, but it does not
 
 88
-00:11:23.000 --> 00:11:29.400
-Open the MCP contract activity. Draw the
-host and two
+00:09:34.400 --> 00:09:39.200
+authenticate a principal, establish
+ownership, grant consent, or prove a
 
 89
-00:11:29.400 --> 00:11:35.800
-isolated connections, record
-initialization and fallback behavior,
+00:09:39.200 --> 00:09:44.000
+real-world effect.
 
 90
-00:11:35.800 --> 00:11:42.200
-define one read and one write tool, and
-map the
+00:09:44.000 --> 00:09:48.500
+Build the write contract in two layers.
+The protocol-facing definition
 
 91
-00:11:42.200 --> 00:11:48.600
-portable contract into one provider
-adapter. Retain the architecture,
+00:09:48.500 --> 00:09:53.000
+has a stable name, a description that says
+it creates
 
 92
-00:11:48.600 --> 00:11:55.000
-lifecycle record, contracts, and adapter
-assumptions.
+00:09:53.000 --> 00:09:57.500
+one unpublished draft, and a strict input
+schema. Workspace identity
 
 93
-00:15:01.000 --> 00:15:05.400
-When ready, begin the knowledge check. You
-will identify host
+00:09:57.500 --> 00:10:02.000
+must match caret ws underscore, four
+through twelve lowercase letters
 
 94
-00:15:05.400 --> 00:15:09.800
-policy ownership, enforce negotiated
-capabilities, separate schema from
+00:10:02.000 --> 00:10:06.500
+or digits, dollar sign. Title length is
+three through one
 
 95
-00:15:09.800 --> 00:15:14.200
-authorization, preserve one client per
-server, and choose a portable
+00:10:06.500 --> 00:10:11.000
+hundred twenty. Both fields are required,
+and additional properties are
 
 96
-00:15:14.200 --> 00:15:18.600
-adapter boundary. The assessment begins
-only when you choose Begin
+00:10:11.000 --> 00:10:15.500
+rejected. That establishes shape only. The
+host-facing policy separately checks
 
 97
-00:15:18.600 --> 00:15:23.000
-knowledge check.
+00:10:15.500 --> 00:10:20.000
+exact server identity, exact tool name,
+workspace identity that is
 
 98
-00:15:23.000 --> 00:15:27.333
-Keep roles separate, negotiate before use,
-treat primitives as untrusted
+00:10:20.000 --> 00:10:24.500
+an exact member of the trusted allowlist,
+title within bounds,
 
 99
-00:15:27.333 --> 00:15:31.667
-inputs or proposals, own policy in the
-host, and verify
+00:10:24.500 --> 00:10:29.000
+and an approval value bound to those
+preceding values. The
 
 100
-00:15:31.667 --> 00:15:36.000
-every adapter.
+00:10:29.000 --> 00:10:33.500
+fixture serializes that value exactly as
+JSON.stringify of an array
+
+101
+00:10:33.500 --> 00:10:38.000
+containing the fixed APPROVE sentinel,
+expected identity, tool name, workspace,
+
+102
+00:10:38.000 --> 00:10:42.500
+and title. That is exactly five elements,
+not a circular
+
+103
+00:10:42.500 --> 00:10:47.000
+token field and not a cryptographic
+security token. A token
+
+104
+00:10:47.000 --> 00:10:51.500
+for another server, workspace, tool, or
+title must fail. Valid
+
+105
+00:10:51.500 --> 00:10:56.000
+call shape with invalid tool input returns
+a normal tool
+
+106
+00:10:56.000 --> 00:11:00.500
+result with isError true. Unknown tool
+names and malformed tools
+
+107
+00:11:00.500 --> 00:11:05.000
+slash call requests use JSON-RPC invalid
+params, code negative thirty-two
+
+108
+00:11:05.000 --> 00:11:09.500
+six zero two. After success, the host
+validates receipt identity,
+
+109
+00:11:09.500 --> 00:11:14.000
+workspace, title, status, and
+postcondition before reporting success.
+
+110
+00:11:14.000 --> 00:11:19.125
+Timeouts require a separate outcome model.
+If a read fails
+
+111
+00:11:19.125 --> 00:11:24.250
+before reaching the server, you may know
+it was not
+
+112
+00:11:24.250 --> 00:11:29.375
+applied. If a write times out after
+transmission, its outcome
+
+113
+00:11:29.375 --> 00:11:34.500
+is UNKNOWN. The child may have created the
+draft while
+
+114
+00:11:34.500 --> 00:11:39.625
+the response was delayed. Do not replay
+automatically. This fixture
+
+115
+00:11:39.625 --> 00:11:44.750
+places the expired request id in
+quarantine, records a matching
+
+116
+00:11:44.750 --> 00:11:49.875
+late response as quarantined, and prevents
+that response from satisfying
+
+117
+00:11:49.875 --> 00:11:55.000
+a new request. The diagnostic history is
+bounded to 64
+
+118
+00:11:55.000 --> 00:12:00.125
+identifiers and 5,000 milliseconds. An
+unrelated response id remains a
+
+119
+00:12:00.125 --> 00:12:05.250
+fatal protocol error. Reconcile
+deliberately through the read-only state
+
+120
+00:12:05.250 --> 00:12:10.375
+resource, then decide whether policy
+permits another attempt. On shutdown,
+
+121
+00:12:10.375 --> 00:12:15.500
+close stdin and wait 200 milliseconds. If
+needed, send SIGTERM
+
+122
+00:12:15.500 --> 00:12:20.625
+and wait 200 more. Finally send SIGKILL
+and wait no
+
+123
+00:12:20.625 --> 00:12:25.750
+more than 500 milliseconds. Await cleanup
+and reject pending requests.
+
+124
+00:12:25.750 --> 00:12:30.875
+These exact limits teach bounded behavior;
+they are not production
+
+125
+00:12:30.875 --> 00:12:36.000
+timing advice.
+
+126
+00:12:36.000 --> 00:12:41.000
+Transfer these lessons without making
+vendor claims. Keep the application
+
+127
+00:12:41.000 --> 00:12:46.000
+invariants provider-neutral: one isolated
+session per server, negotiated
+
+128
+00:12:46.000 --> 00:12:51.000
+capabilities, approved server identity,
+allowed tools, exact workspace scope,
+
+129
+00:12:51.000 --> 00:12:56.000
+explicit approval, stable error mapping,
+timeout classification, reconciliation,
+
+130
+00:12:56.000 --> 00:13:01.000
+postcondition validation, and cleanup.
+Then create replaceable adapters for a
+
+131
+00:13:01.000 --> 00:13:06.000
+hosted provider, a local-model runtime, an
+open-weight stack, or another
+
+132
+00:13:06.000 --> 00:13:11.000
+framework. For each adapter, verify
+transport, supported MCP revision, SDK
+
+133
+00:13:11.000 --> 00:13:16.000
+request objects, credential handling,
+approval surface, error behavior,
+
+134
+00:13:16.000 --> 00:13:21.000
+streaming behavior, and fallback against
+dated first-party documentation. Run
+
+135
+00:13:21.000 --> 00:13:26.000
+integration tests that exercise the same
+invariants. The local fixture
+
+136
+00:13:26.000 --> 00:13:31.000
+has tested none of those adapters.
+Therefore say not tested
+
+137
+00:13:31.000 --> 00:13:36.000
+until that evidence exists. Do not treat
+the pinned 2025-11-25
+
+138
+00:13:36.000 --> 00:13:41.000
+profile as latest-spec compatibility, and
+do not infer remote authorization
+
+139
+00:13:41.000 --> 00:13:46.000
+from a local in-memory allowlist.
+
+140
+00:13:46.000 --> 00:13:49.793
+Now repair a defect that changes a real
+child-process outcome.
+
+141
+00:13:49.793 --> 00:13:53.586
+Confirm Node.js 24 or later. Run npm test
+and record
+
+142
+00:13:53.586 --> 00:13:57.379
+its actual result as the full runtime
+suite, without attributing
+
+143
+00:13:57.379 --> 00:14:01.172
+independent qualification probes to those
+cases. Run npm run learner:test.
+
+144
+00:14:01.172 --> 00:14:04.966
+The baseline test imports
+test/learner-scope.test.mjs, which imports
+
+145
+00:14:04.966 --> 00:14:08.759
+src/scope-policy.broken.mjs. It
+intentionally fails because allowed
+
+146
+00:14:08.759 --> 00:14:12.552
+workspace ws_aaaa is treated as a prefix
+of requested workspace
+
+147
+00:14:12.552 --> 00:14:16.345
+ws_aaaaaaaa. Both strings satisfy the
+schema, but only the shorter
+
+148
+00:14:16.345 --> 00:14:20.138
+identity belongs to the allowlist. The
+test's host call must
+
+149
+00:14:20.138 --> 00:14:23.931
+demonstrate denial and zero effects. Open
+src/scope-policy.broken.mjs. Replace
+
+150
+00:14:23.931 --> 00:14:27.724
+startsWith logic with allowedWorkspaces
+dot includes requestedWorkspace. Then
+
+151
+00:14:27.724 --> 00:14:31.517
+rerun npm run learner:test. This rerun
+imports the edited file
+
+152
+00:14:31.517 --> 00:14:35.310
+and proves that exact repaired
+implementation. Next make a meaningful
+
+153
+00:14:35.310 --> 00:14:39.103
+changed-input assertion in
+test/learner-scope.test.mjs: use
+
+154
+00:14:39.103 --> 00:14:42.897
+schema-valid unauthorized ws_aaaab while
+leaving the allowlist as ws_aaaa. Expect
+
+155
+00:14:42.897 --> 00:14:46.690
+host.callDraft denial and
+state.drafts.length equal to 0. Do not
+
+156
+00:14:46.690 --> 00:14:50.483
+change only the requested ID to an
+authorized value while
+
+157
+00:14:50.483 --> 00:14:54.276
+leaving denial assertions. Run npm run
+learner:test again and save
+
+158
+00:14:54.276 --> 00:14:58.069
+the actual result. Then run npm test again
+after your
+
+159
+00:14:58.069 --> 00:15:01.862
+edit and save the actual full-regression
+result, including the reported
+
+160
+00:15:01.862 --> 00:15:05.655
+23-test result only if the command output
+confirms it. Finally
+
+161
+00:15:05.655 --> 00:15:09.448
+run npm run learner:solution separately.
+It imports scope-policy.solution.mjs, so
+
+162
+00:15:09.448 --> 00:15:13.241
+it is reference comparison, not proof of
+your edit. Its
+
+163
+00:15:13.241 --> 00:15:17.034
+supplied cases deny ws_aaaaaaaa with zero
+effects and permit exact
+
+164
+00:15:17.034 --> 00:15:20.828
+ws_aaaa with receipt exercise-ok:1. Finish
+by explaining separate child sessions,
+
+165
+00:15:20.828 --> 00:15:24.621
+initialize and the client-sent initialized
+notification, primitive control labels,
+
+166
+00:15:24.621 --> 00:15:28.414
+schema validity versus authority, the
+exact five-element approval serialization,
+
+167
+00:15:28.414 --> 00:15:32.207
+UNKNOWN timeout outcomes, reconciliation,
+bounded diagnostics, awaited shutdown, and
+
+168
+00:15:32.207 --> 00:15:36.000
+what a provider adapter would still need
+to test.
+
+169
+00:17:36.000 --> 00:17:41.176
+Check the cause, not merely the green
+test. The broken
+
+170
+00:17:41.176 --> 00:17:46.353
+startsWith comparison asks whether one
+string begins with another. That
+
+171
+00:17:46.353 --> 00:17:51.529
+relation is useful for text prefixes but
+wrong for workspace
+
+172
+00:17:51.529 --> 00:17:56.706
+identity. Exact authorization asks whether
+the complete requested identity is
+
+173
+00:17:56.706 --> 00:18:01.882
+a member of a trusted set. Array includes
+performs that
+
+174
+00:18:01.882 --> 00:18:07.059
+exact string comparison here. A complete
+result has denial and
+
+175
+00:18:07.059 --> 00:18:12.235
+zero effects for ws_aaaaaaaa, denial and
+zero effects for your
+
+176
+00:18:12.235 --> 00:18:17.412
+changed unauthorized ws_aaaab, and, in the
+separate reference comparison, one
+
+177
+00:18:17.412 --> 00:18:22.588
+effect and receipt exercise-ok colon one
+for exact ws_aaaa. If
+
+178
+00:18:22.588 --> 00:18:27.765
+you fixed only a test expectation, the
+child could still
+
+179
+00:18:27.765 --> 00:18:32.941
+create an unauthorized draft. If you
+tightened the schema to
+
+180
+00:18:32.941 --> 00:18:38.118
+reject the longer identity, you hid the
+policy defect. If
+
+181
+00:18:38.118 --> 00:18:43.294
+you added the longer identity to the
+allowlist, you changed
+
+182
+00:18:43.294 --> 00:18:48.471
+policy to match the attack. The causal
+repair belongs in
+
+183
+00:18:48.471 --> 00:18:53.647
+the trusted comparator. The host enforces
+exact scope before tools
+
+184
+00:18:53.647 --> 00:18:58.824
+slash call, while the child schema remains
+responsible only for
+
+185
+00:18:58.824 --> 00:19:04.000
+input shape.
+
+186
+00:19:04.000 --> 00:19:08.667
+Save the exact demo transcript, actual
+runtime-suite outcome, independent
+
+187
+00:19:08.667 --> 00:19:13.333
+qualification evidence when available,
+repaired function, changed-input result,
+
+188
+00:19:13.333 --> 00:19:18.000
+and causal explanation. Your explanation
+should connect all four objectives
+
+189
+00:19:18.000 --> 00:19:22.667
+to observed process behavior: isolated
+children for roles, initialize and
+
+190
+00:19:22.667 --> 00:19:27.333
+the client notification for lifecycle,
+prompt text that lacks authority
+
+191
+00:19:27.333 --> 00:19:32.000
+for primitives, and exact scope plus
+five-element approval binding for
+
+192
+00:19:32.000 --> 00:19:36.667
+the tool contract. Add UNKNOWN timeout
+handling, reconciliation, bounded
+
+193
+00:19:36.667 --> 00:19:41.333
+diagnostics, awaited shutdown, and a list
+of provider-adapter tests still
+
+194
+00:19:41.333 --> 00:19:46.000
+missing.
+
+195
+00:19:46.000 --> 00:19:51.333
+When your evidence is saved, begin the
+knowledge check. Question
+
+196
+00:19:51.333 --> 00:19:56.667
+q-mcp-architecture-1 asks who owns consent
+and cross-connection policy. Question
+
+197
+00:19:56.667 --> 00:20:02.000
+q-mcp-architecture-2 asks what missing
+negotiated tools capability causes.
+
+198
+00:20:02.000 --> 00:20:07.333
+Question q-mcp-architecture-3 separates
+schema-valid workspace shape from
+
+199
+00:20:07.333 --> 00:20:12.667
+authority. Question q-mcp-architecture-4
+asks how to handle an UNKNOWN timed-out
+
+200
+00:20:12.667 --> 00:20:18.000
+write. Question q-mcp-architecture-5 asks
+how to transfer the design without
+
+201
+00:20:18.000 --> 00:20:23.333
+inventing provider compatibility. Read
+each explanation, including the causal
+
+202
+00:20:23.333 --> 00:20:28.667
+feedback for incorrect choices. The check
+opens only when you
+
+203
+00:20:28.667 --> 00:20:34.000
+choose Begin knowledge check.
+
+204
+00:20:34.000 --> 00:20:39.889
+Close with six rules. Keep one isolated
+client session per
+
+205
+00:20:39.889 --> 00:20:45.778
+server. Negotiate version and capabilities
+before operation. Remember that primitive
+
+206
+00:20:45.778 --> 00:20:51.667
+control labels are not authorization.
+Validate shape, then enforce exact
+
+207
+00:20:51.667 --> 00:20:57.556
+identity, scope, and five-element approval
+binding in separate host policy.
+
+208
+00:20:57.556 --> 00:21:03.444
+Treat a timed-out write as UNKNOWN until
+reconciliation, and await
+
+209
+00:21:03.444 --> 00:21:09.333
+bounded shutdown. Finally, preserve these
+invariants across provider adapters while
+
+210
+00:21:09.333 --> 00:21:15.222
+testing every adapter separately. The
+local profile is valuable evidence
+
+211
+00:21:15.222 --> 00:21:21.111
+for these lessons, but it is neither a
+production security
+
+212
+00:21:21.111 --> 00:21:27.000
+claim nor proof of latest-spec or provider
+compatibility.
