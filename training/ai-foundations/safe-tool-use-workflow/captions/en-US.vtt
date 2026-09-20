@@ -618,88 +618,602 @@ because reliable authority is deliberately
 narrower than capability.
 
 126
-00:13:50.000 --> 00:13:55.625
+00:13:50.000 --> 00:13:54.615
+This is a paper simulation of a fictional
+system named
+
+127
+00:13:54.615 --> 00:13:59.231
+DraftVault. No tool ran, no provider
+implementation is represented, and
+
+128
+00:13:59.231 --> 00:14:03.846
+no real system state changed. Every
+request, approval, response, trace,
+
+129
+00:14:03.846 --> 00:14:08.462
+and readback below is fictional teaching
+data. The bounded outcome
+
+130
+00:14:08.462 --> 00:14:13.077
+is to update the title and body of draft
+
+131
+00:14:13.077 --> 00:14:17.692
+dr_1042 in workspace ws_training. The
+workflow must preserve its owner,
+
+132
+00:14:17.692 --> 00:14:22.308
+tags, status, archived state, and revision
+history. It must not
+
+133
+00:14:22.308 --> 00:14:26.923
+send email, make payments, delete data,
+change permissions, or update
+
+134
+00:14:26.923 --> 00:14:31.538
+another record. The learning goals are to
+define bounded inputs,
+
+135
+00:14:31.538 --> 00:14:36.154
+outputs, errors, reads, writes, and side
+effects; apply authentication, least
+
+136
+00:14:36.154 --> 00:14:40.769
+privilege, and exact approval; verify
+results independently; and recover safely
+
+137
+00:14:40.769 --> 00:14:45.385
+from timeouts, duplicates, unsafe
+requests, untrusted output, and partial
+
+138
+00:14:45.385 --> 00:14:50.000
+execution.
+
+139
+00:14:50.000 --> 00:14:54.696
+Authentication and authorization occur
+before any idempotency lookup. After that
+
+140
+00:14:54.696 --> 00:14:59.391
+check, the ledger lookup key is exactly
+the pair (workspaceId,
+
+141
+00:14:59.391 --> 00:15:04.087
+requestKey). recordId, canonicalPayload,
+expectedRevision, and approvalId are
+
+142
+00:15:04.087 --> 00:15:08.783
+stored binding fields that must then be
+compared with the
+
+143
+00:15:08.783 --> 00:15:13.478
+existing entry. The server computes
+canonicalPayload as JSON.stringify([title,
+
+144
+00:15:13.478 --> 00:15:18.174
+body]). This serializes an ordered
+two-element string array and avoids
+
+145
+00:15:18.174 --> 00:15:22.870
+ambiguity from delimiters or embedded
+newlines. For the approved request,
+
+146
+00:15:22.870 --> 00:15:27.565
+the exact resulting literal is ["Quarterly
+access review: manager checklist","Review
+
+147
+00:15:27.565 --> 00:15:32.261
+access requests before Friday. Managers
+must confirm each request has
+
+148
+00:15:32.261 --> 00:15:36.957
+a current business owner."]. No digest or
+invented hash is
+
+149
+00:15:36.957 --> 00:15:41.652
+used. Only an absent (workspaceId,
+requestKey) ledger key may enter
+
+150
+00:15:41.652 --> 00:15:46.348
+the fresh-mutation branch. Every existing
+status has an explicit no-write
+
+151
+00:15:46.348 --> 00:15:51.043
+outcome. A completed matching entry
+returns a replay response. A
+
+152
+00:15:51.043 --> 00:15:55.739
+mismatched binding returns
+KEY_PAYLOAD_MISMATCH. Matching
+
+153
+00:15:55.739 --> 00:16:00.435
+in_progress, incomplete, unknown, and
+rejected_no_mutation entries stop for
+
+154
+00:16:00.435 --> 00:16:05.130
+reconciliation and cannot fall through to
+a new mutation. A
+
+155
+00:16:05.130 --> 00:16:09.826
+stale or rejected binding can be
+superseded only by a
+
+156
+00:16:09.826 --> 00:16:14.522
+separately authorized request with a new
+request key after reconciliation.
+
+157
+00:16:14.522 --> 00:16:19.217
+A replay reports the original mutation's
+recordId, previousRevision, and result
+
+158
+00:16:19.217 --> 00:16:23.913
+revision. Its changed value is false
+because the current invocation
+
+159
+00:16:23.913 --> 00:16:28.609
+performed no mutation. The stored original
+result retains changed true
+
+160
+00:16:28.609 --> 00:16:33.304
+and replay false. Therefore, the replay
+response is not claimed
+
+161
+00:16:33.304 --> 00:16:38.000
+to be identical to the original response.
+
+162
+00:16:38.000 --> 00:16:43.000
+The fictional caller resolves the exact
+workspace and record, computes
+
+163
+00:16:43.000 --> 00:16:48.000
+the canonical payload, compares all
+material fields with the approval,
+
+164
+00:16:48.000 --> 00:16:53.000
+and previews the expected effect before
+the simulated call. Missing
+
+165
+00:16:53.000 --> 00:16:58.000
+or ambiguous identifiers cause a stop
+rather than a guess.
+
+166
+00:16:58.000 --> 00:17:03.000
+The expected response is checked against
+independent state. The complete
+
+167
+00:17:03.000 --> 00:17:08.000
+readback establishes the exact record
+fields, protected fields, completed ledger
+
+168
+00:17:08.000 --> 00:17:13.000
+binding, consumed approval, single audit
+event, and absence of forbidden
+
+169
+00:17:13.000 --> 00:17:18.000
+effects. Later scenarios refer to this
+readback by section ID
+
+170
+00:17:18.000 --> 00:17:23.000
+and JSON path when they use the same
+observations.
+
+171
+00:17:23.000 --> 00:17:27.733
+A transport timeout does not establish
+business failure. Reconciliation must
+
+172
+00:17:27.733 --> 00:17:32.467
+inspect the exact record fields, protected
+fields, ledger binding and
+
+173
+00:17:32.467 --> 00:17:37.200
+status, approval state, audit count, and
+forbidden effects before deciding
+
+174
+00:17:37.200 --> 00:17:41.933
+whether to retry or stop. A completed
+replay confirms historical
+
+175
+00:17:41.933 --> 00:17:46.667
+facts about the original mutation. It does
+not prove that
+
+176
+00:17:46.667 --> 00:17:51.400
+the record still has those values later.
+For example, a
+
+177
+00:17:51.400 --> 00:17:56.133
+separately authorized later edit could
+move the record to revision
+
+178
+00:17:56.133 --> 00:18:00.867
+9. The replay can still report the
+original result revision
+
+179
+00:18:00.867 --> 00:18:05.600
+8 while current-state verification
+correctly reports that the original
+
+180
+00:18:05.600 --> 00:18:10.333
+payload is no longer current. Untrusted
+returned text has no
+
+181
+00:18:10.333 --> 00:18:15.067
+authority. It cannot expand the target,
+create approval, reveal secrets,
+
+182
+00:18:15.067 --> 00:18:19.800
+or replace contract validation and
+independent readback. Partial execution
+
+183
+00:18:19.800 --> 00:18:24.533
+remains incomplete even when the record
+fields changed. A partial
+
+184
+00:18:24.533 --> 00:18:29.267
+record write must never be followed by a
+fresh mutation
+
+185
+00:18:29.267 --> 00:18:34.000
+under the same key.
+
+186
+00:18:34.000 --> 00:18:38.769
+Choose a different tool-enabled task and
+produce a one-capability contract.
+
+187
+00:18:38.769 --> 00:18:43.538
+Include typed inputs and limits,
+validation, complete success and error
+
+188
+00:18:43.538 --> 00:18:48.308
+shapes, reads and writes, authentication,
+least privilege, exact approval, side
+
+189
+00:18:48.308 --> 00:18:53.077
+effects, forbidden effects, timeout and
+concurrency controls, idempotency
+
+190
+00:18:53.077 --> 00:18:57.846
+behavior, independent verification, and
+recovery. Draw the sequence from intent
+
+191
+00:18:57.846 --> 00:19:02.615
+through target resolution, preview,
+approval, call, independent readback,
+
+192
+00:19:02.615 --> 00:19:07.385
+audit evidence, and completion. Test
+timeout after success, a duplicate
+
+193
+00:19:07.385 --> 00:19:12.154
+request, and untrusted instructions in
+returned data. Classify each outcome
+
+194
+00:19:12.154 --> 00:19:16.923
+as confirmed success, confirmed failure,
+unknown, or partial, then state
+
+195
+00:19:16.923 --> 00:19:21.692
+the required stop, reconciliation,
+compensation, rollback, disablement, or
+
+196
+00:19:21.692 --> 00:19:26.462
+escalation action. This remains a paper
+exercise. Label every invented
+
+197
+00:19:26.462 --> 00:19:31.231
+approval, request, response, and state
+transition as fictional. Do not
+
+198
+00:19:31.231 --> 00:19:36.000
+imply that a provider tool or real system
+ran.
+
+199
+00:19:36.000 --> 00:19:40.857
+Solve this task before opening the answer
+key. It uses
+
+200
+00:19:40.857 --> 00:19:45.714
+the same fictional DraftVault contract,
+but all state needed for
+
+201
+00:19:45.714 --> 00:19:50.571
+the decision is repeated below. Determine
+whether the changed request
+
+202
+00:19:50.571 --> 00:19:55.429
+may be sent, what the existing lookup and
+binding evidence
+
+203
+00:19:55.429 --> 00:20:00.286
+means, and which postconditions must be
+checked. Do not assume
+
+204
+00:20:00.286 --> 00:20:05.143
+that a replay, an unchanged record
+revision, or an approved
+
+205
+00:20:05.143 --> 00:20:10.000
+older payload establishes completion or
+authorizes changed input.
+
+206
+00:20:10.000 --> 00:20:14.333
+Solve this task before opening the answer
+key. It uses
+
+207
+00:20:14.333 --> 00:20:18.667
+the same fictional DraftVault contract,
+but all state needed for
+
+208
+00:20:18.667 --> 00:20:23.000
+the decision is repeated below.
+
+209
+00:20:23.000 --> 00:20:27.810
+The lookup key is (ws_training, req_7f31).
+An entry exists, so
+
+210
+00:20:27.810 --> 00:20:32.619
+the changed request cannot enter the
+fresh-mutation branch. recordId and
+
+211
+00:20:32.619 --> 00:20:37.429
+approvalId match, but canonicalPayload and
+expectedRevision differ from the stored
+
+212
+00:20:37.429 --> 00:20:42.238
+binding. The exact title also falls
+outside the old approval,
+
+213
+00:20:42.238 --> 00:20:47.048
+which is already consumed. The safe
+decision is not to
+
+214
+00:20:47.048 --> 00:20:51.857
+call the write. If the changed request was
+already sent,
+
+215
+00:20:51.857 --> 00:20:56.667
+the binding mismatch is a confirmed
+non-retryable rejection. The existing
+
+216
+00:20:56.667 --> 00:21:01.476
+incomplete entry must still be reconciled
+because its record write
+
+217
+00:21:01.476 --> 00:21:06.286
+and approval consumption were observed but
+its audit event is
+
+218
+00:21:06.286 --> 00:21:11.095
+missing. Its incompleteness is not
+repaired by rejecting the changed
+
+219
+00:21:11.095 --> 00:21:15.905
+request. Historical result revision 8 and
+current revision 9 are
+
+220
+00:21:15.905 --> 00:21:20.714
+compatible because the fixture explicitly
+supplies a later separately authorized
+
+221
+00:21:20.714 --> 00:21:25.524
+edit. A replay could report the original
+revision facts, but
+
+222
+00:21:25.524 --> 00:21:30.333
+replay changed false would describe the
+current invocation. It would
+
+223
+00:21:30.333 --> 00:21:35.143
+not establish that revision 8 or the old
+payload remains
+
+224
+00:21:35.143 --> 00:21:39.952
+current. If the urgent edit is still
+needed, an authorized
+
+225
+00:21:39.952 --> 00:21:44.762
+operator must first reconcile the
+incomplete request. The operator then
+
+226
+00:21:44.762 --> 00:21:49.571
+needs separate exact fictional approval
+bound to the current revision
+
+227
+00:21:49.571 --> 00:21:54.381
+9, urgent payload, a new approval ID as
+applicable, and
+
+228
+00:21:54.381 --> 00:21:59.190
+a new request key. The old key and
+approval cannot
+
+229
+00:21:59.190 --> 00:22:04.000
+be reused.
+
+230
+00:22:04.000 --> 00:22:09.625
 Open the safe tool plan activity. Choose
 one tool-enabled task
 
-127
-00:13:55.625 --> 00:14:01.250
+231
+00:22:09.625 --> 00:22:15.250
 and complete its purpose, inputs, outputs,
 errors, reads and writes,
 
-128
-00:14:01.250 --> 00:14:06.875
+232
+00:22:15.250 --> 00:22:20.875
 side effects, limits, retry behavior,
 approval, verification, and recovery
 
-129
-00:14:06.875 --> 00:14:12.500
+233
+00:22:20.875 --> 00:22:26.500
 contract. Draw the sequence from intent
 through resolved target, preview,
 
-130
-00:14:12.500 --> 00:14:18.125
+234
+00:22:26.500 --> 00:22:32.125
 approval, call, postcondition, audit, and
 completion. Test timeout after success,
 
-131
-00:14:18.125 --> 00:14:23.750
+235
+00:22:32.125 --> 00:22:37.750
 a duplicate request, and malicious
 instructions inside tool output. For
 
-132
-00:14:23.750 --> 00:14:29.375
+236
+00:22:37.750 --> 00:22:43.375
 each, record stop, reconciliation,
 compensation, rollback, disablement, or
 
-133
-00:14:29.375 --> 00:14:35.000
+237
+00:22:43.375 --> 00:22:49.000
 escalation behavior.
 
-134
-00:17:35.000 --> 00:17:38.571
+238
+00:25:49.000 --> 00:25:52.571
 When you are ready, begin the knowledge
 check. You will
 
-135
-00:17:38.571 --> 00:17:42.143
+239
+00:25:52.571 --> 00:25:56.143
 identify a complete tool contract, respond
 to a timeout after
 
-136
-00:17:42.143 --> 00:17:45.714
+240
+00:25:56.143 --> 00:25:59.714
 a payment request, classify instructions
 inside tool output, distinguish a
 
-137
-00:17:45.714 --> 00:17:49.286
+241
+00:25:59.714 --> 00:26:03.286
 response from a verified postcondition,
 and recognize an action requiring
 
-138
-00:17:49.286 --> 00:17:52.857
+242
+00:26:03.286 --> 00:26:06.857
 exact current approval. Review the class
 or return to the
 
-139
-00:17:52.857 --> 00:17:56.429
+243
+00:26:06.857 --> 00:26:10.429
 activity before submitting. The assessment
 begins only when you choose
 
-140
-00:17:56.429 --> 00:18:00.000
+244
+00:26:10.429 --> 00:26:14.000
 Begin knowledge check.
 
-141
-00:18:00.000 --> 00:18:05.000
+245
+00:26:14.000 --> 00:26:19.000
 Remember the boundary: tool access is
 delegated authority. Resolve the
 
-142
-00:18:05.000 --> 00:18:10.000
+246
+00:26:19.000 --> 00:26:24.000
 target, expose consequence, approve
 exactly, verify reality, and recover from
 
-143
-00:18:10.000 --> 00:18:15.000
+247
+00:26:24.000 --> 00:26:29.000
 recorded state.

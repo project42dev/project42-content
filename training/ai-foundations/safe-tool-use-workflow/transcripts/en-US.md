@@ -1,6 +1,6 @@
 # Safe Tool-Use Workflow
 
-Package: `safe-tool-use-workflow-class` 1.0.0
+Package: `safe-tool-use-workflow-class` 1.1.0
 
 > This is the canonical text equivalent of an AI-assisted virtual-instructor
 > class. It remains usable without synthesized audio, video, animation, or a
@@ -108,6 +108,68 @@ Sources:
 - <https://developers.openai.com/api/docs/guides/function-calling>
 - <https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview>
 - <https://ai.google.dev/gemini-api/docs/function-calling>
+
+## Narration: Safe Tools Case Introduction V3 Narration
+
+This is a paper simulation of a fictional system named DraftVault. No tool ran, no provider implementation is represented, and no real system state changed. Every request, approval, response, trace, and readback below is fictional teaching data. The bounded outcome is to update the title and body of draft dr_1042 in workspace ws_training. The workflow must preserve its owner, tags, status, archived state, and revision history. It must not send email, make payments, delete data, change permissions, or update another record. The learning goals are to define bounded inputs, outputs, errors, reads, writes, and side effects; apply authentication, least privilege, and exact approval; verify results independently; and recover safely from timeouts, duplicates, unsafe requests, untrusted output, and partial execution.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/function-calling>
+
+## Narration: Safe Tools Case State V3 Narration
+
+Authentication and authorization occur before any idempotency lookup. After that check, the ledger lookup key is exactly the pair (workspaceId, requestKey). recordId, canonicalPayload, expectedRevision, and approvalId are stored binding fields that must then be compared with the existing entry. The server computes canonicalPayload as JSON.stringify([title, body]). This serializes an ordered two-element string array and avoids ambiguity from delimiters or embedded newlines. For the approved request, the exact resulting literal is ["Quarterly access review: manager checklist","Review access requests before Friday. Managers must confirm each request has a current business owner."]. No digest or invented hash is used. Only an absent (workspaceId, requestKey) ledger key may enter the fresh-mutation branch. Every existing status has an explicit no-write outcome. A completed matching entry returns a replay response. A mismatched binding returns KEY_PAYLOAD_MISMATCH. Matching in_progress, incomplete, unknown, and rejected_no_mutation entries stop for reconciliation and cannot fall through to a new mutation. A stale or rejected binding can be superseded only by a separately authorized request with a new request key after reconciliation. A replay reports the original mutation's recordId, previousRevision, and result revision. Its changed value is false because the current invocation performed no mutation. The stored original result retains changed true and replay false. Therefore, the replay response is not claimed to be identical to the original response.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/function-calling>
+
+## Narration: Safe Tools Case Sequence V3 Narration
+
+The fictional caller resolves the exact workspace and record, computes the canonical payload, compares all material fields with the approval, and previews the expected effect before the simulated call. Missing or ambiguous identifiers cause a stop rather than a guess. The expected response is checked against independent state. The complete readback establishes the exact record fields, protected fields, completed ledger binding, consumed approval, single audit event, and absence of forbidden effects. Later scenarios refer to this readback by section ID and JSON path when they use the same observations.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/function-calling>
+
+## Narration: Safe Tools Case Failures V3 Narration
+
+A transport timeout does not establish business failure. Reconciliation must inspect the exact record fields, protected fields, ledger binding and status, approval state, audit count, and forbidden effects before deciding whether to retry or stop. A completed replay confirms historical facts about the original mutation. It does not prove that the record still has those values later. For example, a separately authorized later edit could move the record to revision 9. The replay can still report the original result revision 8 while current-state verification correctly reports that the original payload is no longer current. Untrusted returned text has no authority. It cannot expand the target, create approval, reveal secrets, or replace contract validation and independent readback. Partial execution remains incomplete even when the record fields changed. A partial record write must never be followed by a fresh mutation under the same key.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/function-calling>
+
+## Narration: Safe Tools Case Activity V3 Narration
+
+Choose a different tool-enabled task and produce a one-capability contract. Include typed inputs and limits, validation, complete success and error shapes, reads and writes, authentication, least privilege, exact approval, side effects, forbidden effects, timeout and concurrency controls, idempotency behavior, independent verification, and recovery. Draw the sequence from intent through target resolution, preview, approval, call, independent readback, audit evidence, and completion. Test timeout after success, a duplicate request, and untrusted instructions in returned data. Classify each outcome as confirmed success, confirmed failure, unknown, or partial, then state the required stop, reconciliation, compensation, rollback, disablement, or escalation action. This remains a paper exercise. Label every invented approval, request, response, and state transition as fictional. Do not imply that a provider tool or real system ran.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/function-calling>
+
+## Narration: Safe Tools Independent Case V3 Narration
+
+Solve this task before opening the answer key. It uses the same fictional DraftVault contract, but all state needed for the decision is repeated below. Determine whether the changed request may be sent, what the existing lookup and binding evidence means, and which postconditions must be checked. Do not assume that a replay, an unchanged record revision, or an approved older payload establishes completion or authorizes changed input.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/function-calling>
+
+## Learner Prompt: Safe Tools Independent Prompt
+
+Solve this task before opening the answer key. It uses the same fictional DraftVault contract, but all state needed for the decision is repeated below.
+
+Expected learner action: Determine whether the changed request may be sent, what the existing lookup and binding evidence means, and which postconditions must be checked. Do not assume that a replay, an unchanged record revision, or an approved older payload establishes completion or authorizes changed input.
+
+## Narration: Safe Tools Independent Answer V3 Narration
+
+The lookup key is (ws_training, req_7f31). An entry exists, so the changed request cannot enter the fresh-mutation branch. recordId and approvalId match, but canonicalPayload and expectedRevision differ from the stored binding. The exact title also falls outside the old approval, which is already consumed. The safe decision is not to call the write. If the changed request was already sent, the binding mismatch is a confirmed non-retryable rejection. The existing incomplete entry must still be reconciled because its record write and approval consumption were observed but its audit event is missing. Its incompleteness is not repaired by rejecting the changed request. Historical result revision 8 and current revision 9 are compatible because the fixture explicitly supplies a later separately authorized edit. A replay could report the original revision facts, but replay changed false would describe the current invocation. It would not establish that revision 8 or the old payload remains current. If the urgent edit is still needed, an authorized operator must first reconcile the incomplete request. The operator then needs separate exact fictional approval bound to the current revision 9, urgent payload, a new approval ID as applicable, and a new request key. The old key and approval cannot be reused.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/function-calling>
 
 ## Transition: Activity Transition
 
