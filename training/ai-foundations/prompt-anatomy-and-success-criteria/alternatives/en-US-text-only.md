@@ -156,7 +156,7 @@ Sources:
 
 Complete this task before viewing the separate feedback key. Use the same purpose, event brief, Venue B records, source-use policy, instructions, constraints, deliverable, and verification checks from the complete prompt. Change exactly one relevant input: replace [A-current] with [A-changed].
 
-Learner action: [A-changed] Status: current fictional planning record. Venue A has 100 seats. An accessible entrance and step-free route are recorded as available. Rental is $600. Availability is Saturdays. Record date: 2026-08-15.
+Learner action: Write your own response under these headings: Decision; Evidence and calculations; Conflicting, obsolete, or untrusted evidence; Source ID mapping; Acceptance checklist; Remaining assumption and clarification. Use [A-changed] instead of [A-current]. Determine whether the changed input alters the recommendation, alters only part of the explanation or arithmetic, or leaves the evidence insufficient for a decision. Show the calculation for Venue A and rerun Venue B's calculation. Explain the causal path from the changed price through the hard constraint and priority order to the decision. Keep the Venue B conflict and embedded untrusted instruction visible. State which observable checks must be rerun. Do not contact either venue, make a reservation, conduct a transaction, use an external tool, or describe any such action as having occurred.
 
 ## Narration: Venue Feedback Key Narration
 
