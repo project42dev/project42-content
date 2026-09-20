@@ -1,14 +1,14 @@
 {
   "id": "context-engineering",
   "title": "Engineer Context for Reliable Decisions",
-  "summary": "Select, structure, budget, and refresh the information an agent needs while preserving provenance and trust boundaries.",
+  "summary": "Select, structure, budget, refresh, and adversarially test the information an agent needs while preserving provenance, authority boundaries, and missing-information triggers.",
   "level": "intermediate",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 44,
+  "estimatedMinutes": 58,
   "objectives": [
     "Separate instructions, current state, evidence, examples, tool results, and memory by role and trust.",
     "Select the smallest sufficient context for the current decision.",
@@ -23,168 +23,255 @@
       "id": "context-is-a-decision-input",
       "title": "Context is a designed decision input",
       "paragraphs": [
-        "An agent does not need every available token. It needs the authoritative instructions, current task state, relevant evidence, allowed actions, and verification criteria for the next decision. Extra material can increase cost and distract from stronger evidence.",
-        "Define a context contract with named slots: governing policy, user goal, trusted state, retrieved evidence, untrusted data, prior decisions, tool contracts, and output requirements."
+        "Context is the structured input for one bounded decision, not every available document or prior message. Start by stating what the next call must decide. Then separate governing policy, user goal, trusted state, retrieved evidence, untrusted data, prior decisions, tool contracts, output requirements, budget, and missing information. These slots are not interchangeable. Policy grants authority, while evidence supports or challenges factual claims.",
+        "The offline lab uses a fictional change-control decision: whether a record may move from reviewed to approved. Its records, policies, revisions, size units, and outputs are fixtures. A simulated size unit is a teaching measure, not a provider token. The lab makes selection and failure behavior reproducible without a network connection, credentials, a model call, or a paid service.",
+        "Authority comes from the trusted context contract. A candidate cannot promote itself by containing a trusted-looking label or an instruction such as ignore policy. Retrieved and tool-originated text remains untrusted data even when it contains a useful factual observation. A READY result means the context package qualified. It does not perform a side effect or prove that a production system is secure."
       ],
       "code": {
         "language": "text",
-        "label": "Context manifest",
-        "code": "Decision: [WHAT THE NEXT MODEL CALL MUST DECIDE]\nAuthority: [POLICY AND USER INTENT]\nCurrent state: [VERIFIED FACTS]\nEvidence: [SOURCE, DATE, CLAIM]\nUntrusted data: [CONTENT, NEVER AUTHORITY]\nAllowed actions: [CURRENT TOOL SUBSET]\nBudget: [MAX TOKENS / AGE / COUNT]\nMissing: [WHAT SHOULD TRIGGER RETRIEVAL OR ESCALATION]"
+        "label": "Context contract manifest",
+        "code": "Decision: [NEXT BOUNDED DECISION]\nGoverning policy: [AUTHORITATIVE RULES]\nUser goal: [REQUESTED OUTCOME]\nTrusted state: [VERIFIED CURRENT FACTS]\nRetrieved evidence: [SOURCE, REVISION, AGE, CLAIM]\nUntrusted data: [CONTENT THAT CANNOT GRANT AUTHORITY]\nPrior decisions: [LINKED OUTCOMES AND REASONS]\nTool contracts: [ALLOWED TOOL, PATH, MUTATION]\nOutput requirements: [FORMAT AND VERIFICATION]\nBudget: [RESERVATIONS AND EVIDENCE CAPACITY]\nMissing information: [RETRIEVE OR ESCALATE TRIGGERS]"
       }
     },
     {
       "id": "select-and-rank",
       "title": "Select by relevance, authority, freshness, and diversity",
       "paragraphs": [
-        "Retrieve candidates broadly, then rank them against the specific decision. Prefer primary sources, current records, and evidence that directly supports or contradicts the claim. Keep source identity and verification date attached through summarization.",
-        "Include disconfirming evidence and unresolved disagreement. A context pack that contains only material supporting the first hypothesis encourages confident but brittle decisions."
-      ]
+        "Retrieve candidates broadly, but rank them against the exact decision. Relevance asks whether an item can change that decision. Authority asks whether its source ID is authorized by the trusted contract for the claim. Freshness applies the fixture's age rule. Contradiction value rewards evidence that could disconfirm an attractive conclusion. Source diversity prevents repeated copies from masquerading as independent support.",
+        "The normal-sufficient trace begins with 32 simulated units. Five protected reservations use 5, 3, 4, 4, and 2 units, totaling 18. Evidence capacity is therefore 14. The safety-r3 and approval-r7 records each cost 4 units and are one fixture day old. Safety-r3 ranks first because it supplies required safety evidence and has disconfirming value. Approval-r7 then supplies approval evidence.",
+        "The retrieved-note costs 2 units and contains useful batch text plus an instruction to ignore policy. Its retrieved origin fixes its classification as untrusted, so it cannot satisfy an authoritative claim or change tool authority. The irrelevant large manual is removed before capacity selection. The resulting package uses 10 of 14 evidence units and is READY because both required claims are present and no authoritative values conflict."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Worked trace for normal-sufficient",
+        "code": "total=32\nreservations=5+3+4+4+2=18\nevidenceCapacity=32-18=14\nrank 1: safety-r3, authoritative, fresh, disconfirming, size=4\nrank 2: approval-r7, authoritative, fresh, size=4\nuntrusted: retrieved-note, retrieved origin, size=2\nomit: large-manual, reason=irrelevant\nused=4+4+2=10\nstatus=READY\nnormal-sufficient READY selected=safety-r3,approval-r7 untrusted=retrieved-note missing=- conflicts=- budget=10/14"
+      }
     },
     {
       "id": "budget-and-compress",
       "title": "Budget the active window deliberately",
       "paragraphs": [
-        "Reserve space for governing instructions, the current request, tool schemas, model output, and expected tool results before filling the remaining budget with history. Remove duplicate and dead intermediate output first.",
-        "Summaries are derived evidence. Store the source references and the transformation that produced a summary, then rehydrate originals when exact language, current state, or high-consequence detail matters."
+        "Reserve capacity for governing instructions, the current request, tool schemas, output, and expected tool results before adding evidence or history. Mandatory control slots exist independently of evidence capacity. If required evidence or required disconfirming evidence cannot fit, the lab fails closed with ESCALATE rather than silently dropping the requirement.",
+        "Remove irrelevant and duplicate material before compressing relevant evidence. A summary remains derived evidence. Keep its source identity, revision or verification date, transformation record, omissions, and a path to the exact source. When a contract marks a claim as exact, a summary is insufficient and the original must be rehydrated.",
+        "The summary-provenance case accepts approval-summary because its provenance satisfies the non-exact requirement. The exact-claim-rehydrated case instead selects approval-original, records that the summary was superseded, and uses 6 of 12 evidence units. The independent stale-rehydration defect test demonstrates the opposite path: when the original is stale and refresh returns no record, the package escalates with fresh, exact, and claim requirements missing.",
+        "Caching can reduce repeated processing, but it does not establish truth, freshness, relevance, permission, or security. Provider tokenization and caching behavior are outside this fixture. Do not convert simulated size units into token or cost claims."
       ],
-      "callout": "Prompt or context caching may reduce cost; it does not make stale or irrelevant content safer."
+      "callout": "Compression is safe only when the decision contract permits a summary and the exact source remains traceable and available.",
+      "code": {
+        "language": "text",
+        "label": "Run the qualified offline lab from the repository root",
+        "code": "cd training/reliable-agent-workflows/context-engineering/lab\nnode --version\nnpm test\nnpm run lab\nnpm run exercise"
+      }
     },
     {
       "id": "refresh-across-turns",
       "title": "Refresh state across turns and providers",
       "paragraphs": [
-        "Conversation-state features differ by provider and API. Some applications resend history, some reference stored responses or interactions, and some edit or compact earlier tool results. Treat those mechanisms as transport choices, not proof that the retained state is correct.",
-        "At each consequential step, refresh volatile facts from the system of record, preserve tool-call/result linkage, and discard instructions that no longer apply. Record what was omitted so a reviewer can reconstruct the decision."
-      ]
+        "Conversation state is transport, not proof. An application may resend history, reference stored responses, compact prior turns, edit tool results, or use a cache. Before a consequential decision, refresh volatile facts from the applicable system of record and preserve the link between each tool call and result.",
+        "The stale-refreshed fixture demonstrates a successful refresh and produces READY with approval-r7. A failed or missing refresh must remain visible as missing information and cause escalation when the decision depends on it. Prior text in a conversation does not override that requirement.",
+        "Provider-neutral transfer is limited. The manifest, provenance map, reservations, missing-information triggers, and tool gate can surround hosted, local, or open-weight models. Provider transports, role handling, hidden state, tool APIs, retention, caching, and semantic behavior differ. Passing this deterministic fixture suite does not show that a model resists semantic prompt injection, interprets evidence correctly, or behaves safely in production."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Changed-input exercise and separate solution check",
+        "code": "# Before editing exercise/learner-case.json\nnpm run exercise\n# Expected:\nchanged-input ESCALATE selected=approval-r7 untrusted=- missing=claim:safety conflicts=- budget=4/10\n\n# Add the documented record only after making your own attempt:\n{\"id\":\"safety-r5\",\"sourceId\":\"safety-register\",\"revision\":\"5\",\"digest\":\"s5\",\"role\":\"evidence\",\"sizeUnits\":4,\"relevant\":true,\"claimId\":\"safety\",\"value\":\"clear\",\"ageDays\":1}\n\nnpm run exercise\nnpm test\n# Expected after the solution:\nchanged-input READY selected=approval-r7,safety-r5 untrusted=- missing=- conflicts=- budget=8/10"
+      }
     },
     {
       "id": "attack-and-regression-test",
       "title": "Test the context package as an attack surface",
       "paragraphs": [
-        "Place conflicting instructions, stale records, poisoned retrieval results, oversized irrelevant files, and missing evidence into test cases. The agent should preserve governing authority, identify the conflict, retrieve or escalate when necessary, and avoid acting from unsupported assumptions.",
-        "Run the same evaluation set after changes to prompts, retrieval, summarization, tools, or model versions. Context engineering is part of the system behavior, not a one-time prompt edit."
-      ]
+        "Run the fixed cases after changing validation, retrieval, ranking, budgeting, summarization, rehydration, or tool gating. Compare the complete generated lines, not only READY or ESCALATE. Selected IDs, untrusted IDs, missing claims, conflicts, and budget use reveal why the decision changed.",
+        "The eight cases cover sufficient context, stale-state refresh, missing material, authoritative contradiction, injected text retained as untrusted, irrelevant oversized material, summary provenance, and exact-source rehydration. The supplied qualification record reports 19 passing tests under Node 24.18.0 with zero failures. It also reports four independent defect checks plus the baseline and changed-input solution. This is evidence about the supplied offline implementation and runtime only, not a live model or a production deployment.",
+        "For the changed-input task, do not delete the forum record or weaken requiredClaims. Add one current fictional safety record from safety-register with role evidence, a unique revision and digest, claim safety, value clear, age no more than seven fixture days, relevance true, and size 4. Before the edit, safety is absent from authoritative evidence. After the edit, approval-r7 and safety-r5 use 8 of 10 evidence units. Authority comes from the contract's authoritative source IDs, not wording or a candidate trust label.",
+        "Use the causal rubric after attempting the edit. Explain the missing authoritative safety claim, the contract source of authority, reservations of 14 and capacity of 10, selected use of 8, preservation of the irrelevant forum record, the effect of a non-authoritative source ID, the escalation caused by a conflicting authoritative safety value, and the link from the changed fixture to the changed output. A result below 8 of 10 rubric points should be revised."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Exact expected output for all eight fixed cases",
+        "code": "normal-sufficient READY selected=safety-r3,approval-r7 untrusted=retrieved-note missing=- conflicts=- budget=10/14\nstale-refreshed READY selected=approval-r7 untrusted=- missing=- conflicts=- budget=4/10\nmissing-material ESCALATE selected=approval-r7 untrusted=- missing=claim:safety conflicts=- budget=4/10\nauthoritative-contradiction ESCALATE selected=board-r2,approval-r7 untrusted=- missing=- conflicts=approval budget=8/11\ninjection-preserved-untrusted READY selected=approval-r7 untrusted=tool-text-1 missing=- conflicts=- budget=6/10\nirrelevant-oversize READY selected=approval-r7 untrusted=- missing=- conflicts=- budget=4/10\nsummary-provenance READY selected=approval-summary untrusted=- missing=- conflicts=- budget=2/10\nexact-claim-rehydrated READY selected=approval-original untrusted=- missing=- conflicts=- budget=6/12"
+      }
     }
   ],
   "activity": {
     "id": "activity-context-manifest",
-    "title": "Build and adversarially test a context manifest",
+    "title": "Run, change, and explain the qualified context lab",
     "instructions": [
-      "Choose one agent decision and define the authority, state, evidence, untrusted-data, action, budget, and missing-information slots.",
-      "Create a ranking table for six candidate context items using relevance, authority, freshness, and contradiction value.",
-      "Produce a bounded context pack and a provenance-preserving summary of any omitted source.",
-      "Test a stale fact, a prompt injection inside retrieved content, a conflicting primary source, and an omitted required fact."
+      "From the repository root, first run `cd training/reliable-agent-workflows/context-engineering/lab`. Run `node --version`, `npm test`, and `npm run lab`. Record the runtime, test count, failures, and all eight generated lines. Compare every line with `expected-cli-results.txt`.",
+      "Trace normal-sufficient without relying on its saved output. Show 32 total simulated units, reservations of 5, 3, 4, 4, and 2 totaling 18, evidence capacity of 14, safety-r3 ranked before approval-r7, retrieved-note classified as 2 units of untrusted data, 10 units used, and READY without a side effect.",
+      "For each fixed case, identify the causal control: sufficiency, refresh, omission, authoritative conflict, injection classification, irrelevant oversize removal, summary provenance, or exact-source rehydration. Explain why the output follows from the fixture rather than from a precomputed answer.",
+      "Run `npm run exercise` before editing and record `changed-input ESCALATE selected=approval-r7 untrusted=- missing=claim:safety conflicts=- budget=4/10`. Follow `exercise/README.md` and edit `exercise/learner-case.json`. Do not remove the forum record or weaken the contract.",
+      "Add one current fictional safety record meeting the task constraints. Run `npm run exercise` and `npm test` again. Record the changed line. Only after your attempt, compare with `exercise/SOLUTION.md`, whose supplied record is safety-r5 and whose expected result is `changed-input READY selected=approval-r7,safety-r5 untrusted=- missing=- conflicts=- budget=8/10`.",
+      "Complete `exercise/artifact-template.md` with the context manifest, candidate ranking table, bounded package, provenance map, omissions, observable controls, and reflection. Apply the separate 10-point causal rubric. Revise if the explanation scores below 8.",
+      "State the transfer limit in your artifact: deterministic fixture success does not establish semantic model behavior, provider behavior, full system security, or production safety."
     ],
     "evidence": [
-      "A context manifest, ranked candidate table, final bounded context pack, and provenance map.",
-      "Four adversarial test results showing the expected retrieval, rejection, refresh, or escalation behavior."
+      "The Node version, passing test report, and exact output comparison for all eight fixed cases.",
+      "A worked normal-sufficient calculation showing 18 reserved units, 14 evidence units, the rank order, untrusted classification, 10 units used, and READY.",
+      "The learner's edited `exercise/learner-case.json`, before and after changed-input lines, and a test run after the edit.",
+      "A completed artifact template containing the manifest, ranking table, bounded package, provenance map, omissions, ten observable-control observations, reflection, and causal-rubric score.",
+      "An explanation that a non-authoritative safety source leaves claim:safety missing and that a conflicting authoritative safety value causes escalation."
     ],
-    "reflectionPrompt": "Which context item felt useful but weakened the next decision when measured against authority and relevance?"
+    "reflectionPrompt": "Which candidate initially looked useful but was removed or demoted after you applied relevance, contract-defined authority, freshness, and exact-source requirements, and what fixture change causally produced the changed-input result?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 1320,
+    "estimatedSeconds": 390,
     "cues": [
       {
         "id": "cue-context-engineering-input",
         "kind": "narration",
         "sectionId": "context-is-a-decision-input",
-        "text": "Design context for one decision by separating authority, state, evidence, untrusted data, actions, and missing information."
+        "text": "Design context for one bounded decision by separating policy, goal, trusted state, evidence, untrusted data, tools, budget, and missing information."
       },
       {
         "id": "cue-context-engineering-rank",
         "kind": "narration",
         "sectionId": "select-and-rank",
-        "text": "Rank candidate material by relevance, authority, freshness, and its ability to challenge the current hypothesis."
+        "text": "Rank candidates by relevance, contract-defined authority, freshness, and disconfirming value; in the worked trace, eighteen reserved units leave fourteen for evidence."
       },
       {
         "id": "cue-context-engineering-visual",
         "kind": "visual",
         "sectionId": "select-and-rank",
-        "text": "Sort six context cards into include, summarize, retrieve later, and reject lanes.",
-        "accessibilityAlternative": "A text table lists each context item, its trust and freshness, and one of four outcomes: include, summarize, retrieve later, or reject. Reduced-motion mode shows the completed table."
+        "text": "Show safety-r3 before approval-r7, with retrieved-note in the untrusted lane and large-manual omitted as irrelevant.",
+        "accessibilityAlternative": "A static table shows safety-r3 ranked first, approval-r7 second, retrieved-note as untrusted, and large-manual omitted."
       },
       {
         "id": "cue-context-engineering-budget",
         "kind": "narration",
         "sectionId": "budget-and-compress",
-        "text": "Reserve the active window for instructions, output, and tool results before selecting history, then preserve provenance through compression."
+        "text": "Reserve control and output capacity before evidence, preserve summary provenance, and rehydrate the original whenever the contract requires exact language."
       },
       {
         "id": "cue-context-engineering-refresh",
         "kind": "narration",
         "sectionId": "refresh-across-turns",
-        "text": "Treat provider state features as transport and refresh volatile facts from the system of record before consequential action."
+        "text": "Treat conversation state as transport, refresh volatile facts from the applicable system of record, and carry an application-owned manifest across providers."
       },
       {
         "id": "cue-context-engineering-test",
         "kind": "narration",
         "sectionId": "attack-and-regression-test",
-        "text": "Regression-test context against stale facts, conflicting evidence, omission, overload, and prompt injection."
+        "text": "Run all eight deterministic cases, then change the supplied learner fixture and explain why authoritative safety evidence changes escalation to readiness."
       },
       {
         "id": "cue-context-engineering-prompt",
         "kind": "learner-prompt",
         "sectionId": "attack-and-regression-test",
-        "text": "Ask learners which test proves that retrieved instructions cannot replace governing policy."
+        "text": "Ask learners which contract rule prevents retrieved forum text from satisfying the safety claim."
       },
       {
         "id": "cue-context-engineering-pause",
         "kind": "pause",
         "sectionId": "attack-and-regression-test",
-        "text": "Allow two minutes to add one disconfirming source and one missing-information trigger."
+        "text": "Allow two minutes to calculate reservations, evidence capacity, and the changed-input result."
       },
       {
         "id": "cue-context-engineering-checkpoint",
         "kind": "checkpoint",
         "sectionId": "attack-and-regression-test",
-        "text": "Check that every included claim retains source identity and verification date."
+        "text": "Check that every included claim retains source identity, revision or age, transformation provenance, and an exact-source path when required."
       },
       {
         "id": "cue-context-engineering-activity",
         "kind": "learner-prompt",
-        "text": "Guide the manifest, ranking, compression, provenance, and four adversarial tests."
+        "text": "Guide the eight-case run, worked trace, changed-input edit, artifact template, and causal rubric."
       },
       {
         "id": "cue-context-engineering-assessment",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can defend every included, summarized, omitted, and rejected item."
+        "text": "Begin the check after the learner can explain every inclusion, omission, escalation, conflict, refresh, and rehydration result."
       }
     ],
-    "transcript": "Design context for one decision by separating authority, state, evidence, untrusted data, actions, and missing information. Rank candidate material by relevance, authority, freshness, and its ability to challenge the current hypothesis. Reserve the active window for instructions, output, and tool results before selecting history, then preserve provenance through compression. Treat provider state features as transport and refresh volatile facts from the system of record before consequential action. Regression-test context against stale facts, conflicting evidence, omission, overload, and prompt injection.",
+    "transcript": "Design context for one bounded decision by separating policy, goal, trusted state, evidence, untrusted data, tools, budget, and missing information. Rank candidates by relevance, contract-defined authority, freshness, and disconfirming value; in the worked trace, eighteen reserved units leave fourteen for evidence. Reserve control and output capacity before evidence, preserve summary provenance, and rehydrate the original whenever the contract requires exact language. Treat conversation state as transport, refresh volatile facts from the applicable system of record, and carry an application-owned manifest across providers. Run all eight deterministic cases, then change the supplied learner fixture and explain why authoritative safety evidence changes escalation to readiness.",
     "captions": [
       {
         "cueId": "cue-context-engineering-input",
         "startSeconds": 0,
-        "endSeconds": 210,
-        "text": "Design context for one decision by separating authority, state, evidence, untrusted data, actions, and missing information."
+        "endSeconds": 4.714,
+        "text": "Design context for one bounded decision by\nseparating policy, goal, trusted"
+      },
+      {
+        "cueId": "cue-context-engineering-input",
+        "startSeconds": 4.714,
+        "endSeconds": 8.571,
+        "text": "state, evidence, untrusted data, tools,\nbudget, and missing information."
       },
       {
         "cueId": "cue-context-engineering-rank",
-        "startSeconds": 240,
-        "endSeconds": 450,
-        "text": "Rank candidate material by relevance, authority, freshness, and its ability to challenge the current hypothesis."
+        "startSeconds": 50,
+        "endSeconds": 53.429,
+        "text": "Rank candidates by relevance,\ncontract-defined authority, freshness, and"
+      },
+      {
+        "cueId": "cue-context-engineering-rank",
+        "startSeconds": 53.429,
+        "endSeconds": 57.715,
+        "text": "disconfirming value; in the worked trace,\neighteen reserved units leave"
+      },
+      {
+        "cueId": "cue-context-engineering-rank",
+        "startSeconds": 57.715,
+        "endSeconds": 59.001,
+        "text": "fourteen for evidence."
       },
       {
         "cueId": "cue-context-engineering-budget",
-        "startSeconds": 480,
-        "endSeconds": 720,
-        "text": "Reserve the active window for instructions, output, and tool results before selecting history, then preserve provenance through compression."
+        "startSeconds": 130,
+        "endSeconds": 133.857,
+        "text": "Reserve control and output capacity before\nevidence, preserve summary"
+      },
+      {
+        "cueId": "cue-context-engineering-budget",
+        "startSeconds": 133.857,
+        "endSeconds": 138.143,
+        "text": "provenance, and rehydrate the original\nwhenever the contract requires exact"
+      },
+      {
+        "cueId": "cue-context-engineering-budget",
+        "startSeconds": 138.143,
+        "endSeconds": 138.572,
+        "text": "language."
       },
       {
         "cueId": "cue-context-engineering-refresh",
-        "startSeconds": 750,
-        "endSeconds": 990,
-        "text": "Treat provider state features as transport and refresh volatile facts from the system of record before consequential action."
+        "startSeconds": 205,
+        "endSeconds": 209.286,
+        "text": "Treat conversation state as transport,\nrefresh volatile facts from the"
+      },
+      {
+        "cueId": "cue-context-engineering-refresh",
+        "startSeconds": 209.286,
+        "endSeconds": 213.572,
+        "text": "applicable system of record, and carry an\napplication-owned manifest across"
+      },
+      {
+        "cueId": "cue-context-engineering-refresh",
+        "startSeconds": 213.572,
+        "endSeconds": 214.001,
+        "text": "providers."
       },
       {
         "cueId": "cue-context-engineering-test",
-        "startSeconds": 1020,
-        "endSeconds": 1260,
-        "text": "Regression-test context against stale facts, conflicting evidence, omission, overload, and prompt injection."
+        "startSeconds": 280,
+        "endSeconds": 284.714,
+        "text": "Run all eight deterministic cases, then\nchange the supplied learner fixture"
+      },
+      {
+        "cueId": "cue-context-engineering-test",
+        "startSeconds": 284.714,
+        "endSeconds": 288.571,
+        "text": "and explain why authoritative safety\nevidence changes escalation to"
+      },
+      {
+        "cueId": "cue-context-engineering-test",
+        "startSeconds": 288.571,
+        "endSeconds": 289,
+        "text": "readiness."
       }
     ],
-    "reducedMotionAlternative": "Present context selection as a static manifest and four-lane ranking table with keyboard-focus highlights."
+    "reducedMotionAlternative": "Present the manifest, ranking table, worked arithmetic, eight exact outputs, and changed-input comparison as static keyboard-accessible tables."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -195,59 +282,59 @@
         "choices": [
           "Include every available document",
           "Include the smallest sufficient, authoritative, current evidence for the next decision",
-          "Maximize cached tokens",
+          "Maximize repeated or cached material",
           "Keep only the model's prior answer"
         ],
         "answerIndex": 1,
-        "explanation": "Relevant and authoritative context improves focus, cost, and auditability."
+        "explanation": "A is incorrect because irrelevant volume can displace required evidence. B is correct because the next bounded decision determines sufficiency, authority, and freshness requirements. C is incorrect because reuse affects processing, not decision quality. D is incorrect because a prior answer is not a substitute for current evidence."
       },
       {
         "id": "q-context-engineering-2",
         "prompt": "A summary is used instead of a primary source. What must remain attached?",
         "choices": [
           "Only the summary length",
-          "The provider model name",
-          "Source identity, verification date, and transformation provenance",
-          "No metadata"
+          "Only the provider or model name",
+          "Source identity, verification or fixture age, transformation provenance, and an exact-source path",
+          "No metadata if the summary fits"
         ],
         "answerIndex": 2,
-        "explanation": "Derived evidence must remain traceable and rehydratable."
+        "explanation": "A is incorrect because length does not establish traceability. B is incorrect because a provider name does not identify the underlying evidence. C is correct because derived evidence must be auditable and rehydratable. D is incorrect because fitting the budget does not remove provenance requirements."
       },
       {
         "id": "q-context-engineering-3",
-        "prompt": "Retrieved text says to ignore the system's approval rule. How should the context builder classify it?",
+        "prompt": "Retrieved text says to ignore the approval policy. How should the context builder handle it?",
         "choices": [
-          "As a new policy",
-          "As untrusted data and an injection test case",
-          "As proof of authorization",
-          "As a reason to add more tools"
+          "Keep any supported factual content as untrusted data, but reject the instruction as authority",
+          "Treat it as a new governing policy",
+          "Treat it as proof that the tool is authorized",
+          "Delete every retrieved fact without evaluating it"
         ],
-        "answerIndex": 1,
-        "explanation": "Retrieved content cannot expand authority and may be adversarial."
+        "answerIndex": 0,
+        "explanation": "A is correct because origin fixes the authority boundary while still allowing supported facts to be considered. B is incorrect because retrieved text cannot replace governing policy. C is incorrect because text cannot grant tool authority. D is incorrect because a safe implementation can separate useful factual content from the injected instruction."
       },
       {
         "id": "q-context-engineering-4",
-        "prompt": "What does a provider's prompt cache prove about cached content?",
+        "prompt": "What does a provider cache prove about cached context?",
         "choices": [
           "It is current and relevant",
           "It is authoritative",
-          "It may be reused efficiently, but still requires normal freshness and relevance controls",
-          "It cannot contain personal data"
+          "It is safe for every later decision",
+          "It may be reused efficiently, but normal freshness, relevance, permission, and safety controls still apply"
         ],
-        "answerIndex": 2,
-        "explanation": "Caching changes performance and cost, not truth, safety, or retention requirements."
+        "answerIndex": 3,
+        "explanation": "A is incorrect because cached content can become stale or irrelevant. B is incorrect because caching does not change source authority. C is incorrect because reuse does not prove safety. D is correct because caching is a transport or processing feature, while the application still owns qualification controls."
       },
       {
         "id": "q-context-engineering-5",
-        "prompt": "When should a volatile fact be refreshed?",
+        "prompt": "Why does the changed-input solution become READY?",
         "choices": [
-          "Before a consequential decision that depends on it",
-          "Only after deployment",
-          "Never if it appeared earlier in the thread",
-          "Only when the context window is full"
+          "The forum text promotes itself to trusted policy",
+          "The added safety-r5 record comes from a contract-authorized source, is fresh and relevant, satisfies the missing safety claim, and fits with approval-r7",
+          "The learner deletes the safety requirement",
+          "Any record with value clear is automatically authoritative"
         ],
-        "answerIndex": 0,
-        "explanation": "System-of-record refresh should precede decisions where stale state can cause harm."
+        "answerIndex": 1,
+        "explanation": "A is incorrect because retrieved forum text cannot self-promote. B is correct because the trusted contract authorizes safety-register and the two selected records use 8 of 10 evidence units without conflict. C is incorrect because deleting the requirement bypasses the control. D is incorrect because authority comes from the contract, not a favorable value."
       }
     ]
   },
@@ -269,6 +356,30 @@
       "url": "https://ai.google.dev/gemini-api/docs/caching",
       "publisher": "Google",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "ECMAScript modules",
+      "url": "https://nodejs.org/api/esm.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Test runner",
+      "url": "https://nodejs.org/api/test.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Strict assertion mode",
+      "url": "https://nodejs.org/api/assert.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Context engineering offline lab implementation",
+      "url": "https://github.com/project42dev/project42-content/blob/9760305/training/reliable-agent-workflows/context-engineering/lab/src/engine.js",
+      "publisher": "Project 42",
+      "lastVerified": "2026-09-20"
     }
   ]
 }

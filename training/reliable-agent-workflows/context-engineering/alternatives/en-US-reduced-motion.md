@@ -5,36 +5,18 @@ depend on animation timing, autoplay, or pointer gestures.
 
 ## decision-input
 
-Show the complete manifest as a static table.
+Show the completed manifest as a static table.
 
-Text alternative: Policy, goal, state, evidence, untrusted data, prior decisions, tools, output requirements, budget, and missing information occupy separate rows with provenance.
+Text alternative: Rows identify policy, goal, trusted state, evidence, untrusted data, prior decisions, tool contracts, output requirements, budget, and missing information.
 
-## rank-candidates
+## lab-setup-demonstration
 
-Present all candidates, scores, and final lanes simultaneously.
+Display all commands at once with the first directory change highlighted.
 
-Text alternative: Each candidate receives one outcome: include, summarize with provenance, retrieve later on a trigger, or reject.
+Text alternative: From the repository root, enter the lab directory, inspect Node, run tests, run eight cases, and run the exercise.
 
-## ranking-demonstration
+## worked-trace
 
-Show the six candidate rows and dispositions in a static matrix.
+Present the arithmetic and dispositions in one static table.
 
-Text alternative: Current primary sources are included, duplicate and stale material is rejected or deferred, injected instructions remain untrusted, and contradiction stays visible.
-
-## budget-and-compress
-
-Display the final budget allocation and compression rules as a static table.
-
-Text alternative: Instructions, current request, tool schemas, response, and tool results are reserved; evidence is ranked; duplicate and dead history is removed first.
-
-## refresh-state
-
-Present transport and authority layers in one static diagram.
-
-Text alternative: Messages, stored responses, compaction, and caches transport context; the application refreshes authoritative state and owns provenance.
-
-## attack-context
-
-Show all cases and outcomes in a static test table.
-
-Text alternative: Injection, stale facts, contradiction, omission, overload, poisoned summary, and unnecessary sensitive data each have an explicit safe outcome.
+Text alternative: Thirty-two total units minus eighteen reserved leaves fourteen. Safety and approval each use four, and an untrusted note uses two, for ten used and READY.
