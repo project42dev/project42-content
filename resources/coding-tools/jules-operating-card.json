@@ -20,7 +20,7 @@
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "coding-tools",
     "jules",
@@ -32,16 +32,35 @@
       "id": "fit",
       "title": "Use it for plan-first isolated repository work",
       "paragraphs": [
-        "Jules connects to selected GitHub repositories, prepares a virtual-machine environment, and generates a plan before changing code. Choose it for a specific bug, documentation task, test, or feature that has an observable result.",
-        "Connect only the required repositories and select the intended branch. Keep AGENTS.md and environment setup current so the plan reflects the actual build and test process."
-      ]
+        "Jules connects to selected GitHub repositories, lets you choose a branch, and accepts a task prompt. You can optionally provide setup instructions, ask Jules to give you a plan, and review or approve that plan before code changes. Choose it for a specific bug, documentation task, test, or feature with an observable result.",
+        "A root AGENTS.md file is automatically consulted by Jules. Use it to describe repository-specific build and test guidance, but keep that guidance accurate and review the resulting plan yourself. Connect only the repositories needed for the task and select the intended branch.",
+        "These product-operation statements are sourced from Google's Jules documentation and were verified on 2026-09-20. The local exercise in this card is provider-neutral and does not contact Jules or demonstrate a Jules session."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Jules operating sequence",
+        "code": "1. Connect the required GitHub repository.\n2. Select the intended branch.\n3. Write a narrow task prompt.\n4. Add optional, non-secret setup guidance if needed.\n5. Ask Jules to give you a plan.\n6. Review and approve the plan before code changes.\n7. Inspect the diff and independently run checks.\n8. Review the result before accepting or merging."
+      }
     },
     {
       "id": "operate",
       "title": "Review the plan and environment before execution",
       "paragraphs": [
-        "Write a narrow task, add only necessary setup, and inspect the proposed plan before approval. Avoid placing credentials in setup scripts or prompts; use only the product's approved secret path when a task truly needs one.",
-        "Review the resulting diff and run the repository's checks independently before accepting or merging changes."
+        "Jules uses an ephemeral Ubuntu virtual machine for task execution. Setup scripts can prepare the environment, and Run to Validate can be used to check the result. A runtime check such as node -v helps establish which runtime is available before relying on it.",
+        "Write a narrow task, add only necessary setup, and inspect the proposed plan before approval. Do not put credentials in setup scripts or prompts. Use an approved secret-handling path only when a task genuinely requires one.",
+        "Review the resulting diff and run the repository's checks independently before accepting or merging changes. Treat the task as authorized only for the named repository, branch, paths, and outcome. Do not infer product permission enforcement, secret-file paths, frontmatter, pull-request behavior, or other controls unless the official documentation confirms them."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Environment review checklist",
+        "code": "Repository: Is this the intended connected repository?\nBranch: Is this the intended selected branch?\nRuntime: Run the relevant version check, such as node -v.\nSetup: Does setup use only reproducible, non-secret instructions?\nPlan: Does the plan stay within the requested paths and outcome?\nValidation: What command will Run to Validate or the repository checks execute?\nDiff: Did the change remain within scope?\nReview: Has a person inspected the plan, diff, and checks?"
+      }
+    },
+    {
+      "id": "task-card-template",
+      "title": "Reusable task-card template",
+      "paragraphs": [
+        "Use this provider-neutral template when preparing a delegation. Replace every bracketed item with a concrete value before submitting it. The template is a planning aid, not evidence that a provider supports every listed control."
       ],
       "code": {
         "language": "text",
@@ -50,32 +69,159 @@
       }
     },
     {
+      "id": "worked-delegation",
+      "title": "Filled fictional delegation task",
+      "paragraphs": [
+        "The following is a fictional worked card for a repository named acme/invoice-service. It demonstrates narrow scope, authority, review, and recovery. It does not report a real Jules session, repository, branch, plan, diff, or test run."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Fictional invoice-limit task card",
+        "code": "Task: In acme/invoice-service, on branch fix/invoice-limit, correct the invoice limit predicate so a value equal to the limit is accepted. Add or update only the focused unit test needed to demonstrate below-limit, equal-limit, and above-limit behavior. Do not change public APIs, formatting, dependencies, or unrelated files.\n\nScope: Repository acme/invoice-service; target branch fix/invoice-limit; allowed paths src/invoiceLimit.js and test/invoiceLimit.test.js; no generated files; no default-branch changes; no merge or release action.\n\nPermissions: The requester has authorized access to the named repository and branch only. Use the repository's existing non-secret build and test commands. Network access is not required for this task. Do not request, print, commit, or place credentials in prompts or setup scripts. This describes intended authority for the simulation, not a verified product permission boundary.\n\nSetup: Read the repository's existing instructions and current test command. Use the existing environment only. If setup guidance is missing or conflicts with the repository, stop and report the discrepancy rather than inventing a file path or configuration format.\n\nPlan gate: Before mutation, confirm that the proposed plan identifies the intended branch, changes only the allowed paths, changes the comparison predicate, adds the three boundary cases, runs the focused test command, and does not use credentials or unrelated network access. Reject a broader plan.\n\nVerification: Confirm the actual checked-out branch with the repository's version-control command. Inspect the complete diff. Run the focused test command independently, then any broader checks defined by the repository. Check below-limit and equal-limit inputs pass, above-limit inputs fail, and no unrelated files changed. A reviewer decides whether the branch is ready for merge.\n\nRecovery: If the branch, plan, setup, or diff is wrong, stop before further mutation. Preserve evidence, use the repository's approved recovery procedure for isolated unaccepted changes, and restore the environment without deleting unrelated data. Do not use broad destructive commands."
+      }
+    },
+    {
+      "id": "agents-guidance",
+      "title": "Concrete repository guidance for this invoice task",
+      "paragraphs": [
+        "Place the following guidance at the repository root as AGENTS.md for this exercise. It is guidance for the agent and reviewer, not an enforcement mechanism. Jules automatically consults a root AGENTS.md according to the supplied Jules documentation."
+      ],
+      "code": {
+        "language": "markdown",
+        "label": "AGENTS.md",
+        "code": "# Invoice limit task\n\n## Scope\n- Change only `invoiceLimit.js` for this exercise.\n- Do not edit `test.js`.\n- Do not add dependencies, generated files, or unrelated changes.\n\n## Behavior\n- `isWithinLimit(value, limit)` must return `true` when `value` is less than or equal to `limit`.\n- It must return `false` when `value` is greater than `limit`.\n\n## Validation\n- Run `node --version`.\n- Run `node test.js` from the exercise directory.\n- Inspect the complete diff after the test passes.\n\n## Review boundary\n- Do not use credentials or network access.\n- Do not merge, publish, deploy, or modify unrelated files.\n- Report discrepancies instead of inventing setup or configuration."
+      }
+    },
+    {
+      "id": "local-exercise",
+      "title": "Runnable local exercise: repair one wrong predicate",
+      "paragraphs": [
+        "This dependency-free exercise simulates the review loop locally with Node.js. It intentionally starts with one wrong predicate. You will repair the starter after reading the immutable tests. The exercise does not contact Jules, GitHub, or a network, and its output is specified expected behavior, not a claim that it was executed here.",
+        "Use a fresh directory. The setup refuses to continue if the directory already exists, so it cannot overwrite an existing exercise. The setup creates local CommonJS configuration and AGENTS.md. Copy three required exercise files into the directory: invoiceLimit.js, test.js, and the separate reference answer under answer/invoiceLimit.js only when you are ready to compare. The answer is optional during the initial attempt."
+      ],
+      "code": {
+        "language": "sh",
+        "label": "Fresh-directory setup",
+        "code": "set -eu\nDIR=\"invoice-limit-exercise\"\nif [ -e \"$DIR\" ]; then\n  printf '%s\\n' \"Refusing to continue: $DIR already exists.\" >&2\n  exit 1\nfi\nmkdir \"$DIR\"\nprintf '%s\\n' '{\"type\":\"commonjs\"}' > \"$DIR/package.json\"\nprintf '%s\\n' '# Invoice limit task' '- Change only invoiceLimit.js.' '- Do not edit test.js.' '- Run node test.js after the repair.' > \"$DIR/AGENTS.md\"\nprintf '%s\\n' \"Created $DIR with local CommonJS configuration and AGENTS.md. Copy the three required exercise files into it; add the optional answer file only after attempting the repair.\""
+      }
+    },
+    {
+      "id": "exercise-starter",
+      "title": "Exercise starter file",
+      "paragraphs": [
+        "Copy this complete file to invoice-limit-exercise/invoiceLimit.js. The only deliberate defect is the comparison predicate: it rejects equality and accepts values above the limit."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "invoiceLimit.js, intentionally failing starter",
+        "code": "'use strict';\n\nfunction isWithinLimit(value, limit) {\n  return value > limit;\n}\n\nmodule.exports = { isWithinLimit };"
+      }
+    },
+    {
+      "id": "exercise-tests",
+      "title": "Immutable positive and changed-input tests",
+      "paragraphs": [
+        "Copy this complete file to invoice-limit-exercise/test.js. Treat it as immutable. The cases include below-limit, equal-limit, and above-limit behavior, plus changed inputs that prevent a hard-coded answer from passing. The test file reports the exact expected and actual boolean values."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "test.js, immutable tests",
+        "code": "'use strict';\n\nconst assert = require('node:assert/strict');\nconst { isWithinLimit } = require('./invoiceLimit.js');\n\nconst cases = [\n  { name: 'below limit is accepted', value: 80, limit: 100, expected: true },\n  { name: 'equal to limit is accepted', value: 100, limit: 100, expected: true },\n  { name: 'above limit is rejected', value: 120, limit: 100, expected: false },\n  { name: 'changed lower input is accepted', value: 1, limit: 2, expected: true },\n  { name: 'changed higher input is rejected', value: 200, limit: 150, expected: false }\n];\n\nlet failures = 0;\nfor (const testCase of cases) {\n  const actual = isWithinLimit(testCase.value, testCase.limit);\n  try {\n    assert.strictEqual(actual, testCase.expected);\n    console.log(`PASS ${testCase.name}: expected ${testCase.expected}, got ${actual}`);\n  } catch (error) {\n    failures += 1;\n    console.log(`FAIL ${testCase.name}: expected ${testCase.expected}, got ${actual}`);\n  }\n}\n\nif (failures > 0) {\n  console.log(`RESULT FAIL: ${failures} of ${cases.length} cases failed`);\n  process.exitCode = 1;\n} else {\n  console.log(`RESULT PASS: ${cases.length} of ${cases.length} cases passed`);\n}"
+      }
+    },
+    {
+      "id": "exercise-answer",
+      "title": "Separate repair answer",
+      "paragraphs": [
+        "Do not copy this file before attempting the repair. When ready, create the answer directory and copy this complete file to invoice-limit-exercise/answer/invoiceLimit.js. The repair accepts values less than or equal to the limit and rejects values greater than the limit."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "answer/invoiceLimit.js, repaired reference file",
+        "code": "'use strict';\n\nfunction isWithinLimit(value, limit) {\n  return value <= limit;\n}\n\nmodule.exports = { isWithinLimit };"
+      }
+    },
+    {
+      "id": "exercise-workflow",
+      "title": "Learner workflow and exact expected outcomes",
+      "paragraphs": [
+        "1. Run the fresh-directory setup block. Copy the starter and immutable test files into the new directory. Do not copy the answer yet.",
+        "2. From invoice-limit-exercise, run node --version, then run node test.js. The starter is deliberately wrong, so a failing result is expected.",
+        "3. Diagnose the causal feedback. The > predicate returns false for the equal case even though equality should be accepted. It returns true for above-limit cases even though those should be rejected. The same cause explains the changed-input failures.",
+        "4. Repair only invoiceLimit.js by changing > to <=. Do not edit test.js. Run node test.js again.",
+        "5. Optionally create answer/invoiceLimit.js from the separate answer file and compare it with your repair. In a real repository, independently inspect the diff, confirm the branch, run repository checks, and obtain review before accepting or merging.",
+        "Expected first run, before repair, exactly: `FAIL below limit is accepted: expected true, got false`; `FAIL equal to limit is accepted: expected true, got false`; `FAIL above limit is rejected: expected false, got true`; `FAIL changed lower input is accepted: expected true, got false`; `FAIL changed higher input is rejected: expected false, got true`; `RESULT FAIL: 5 of 5 cases failed`. These are specified expected lines, not a claim that they were executed here.",
+        "Expected second run, after changing only the predicate to <=, exactly: `PASS below limit is accepted: expected true, got true`; `PASS equal to limit is accepted: expected true, got true`; `PASS above limit is rejected: expected false, got false`; `PASS changed lower input is accepted: expected true, got true`; `PASS changed higher input is rejected: expected false, got false`; `RESULT PASS: 5 of 5 cases passed`. These are specified expected lines, not a claim that they were executed here.",
+        "If output differs, first check that invoiceLimit.js and test.js match the complete files, test.js was not changed, package.json has type commonjs, and the command was run from the exercise directory. A different result is not evidence of a Jules action or a product failure."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Expected output blocks",
+        "code": "Before repair:\nFAIL below limit is accepted: expected true, got false\nFAIL equal to limit is accepted: expected true, got false\nFAIL above limit is rejected: expected false, got true\nFAIL changed lower input is accepted: expected true, got false\nFAIL changed higher input is rejected: expected false, got true\nRESULT FAIL: 5 of 5 cases failed\n\nAfter changing > to <=:\nPASS below limit is accepted: expected true, got true\nPASS equal to limit is accepted: expected true, got true\nPASS above limit is rejected: expected false, got false\nPASS changed lower input is accepted: expected true, got true\nPASS changed higher input is rejected: expected false, got false\nRESULT PASS: 5 of 5 cases passed"
+      }
+    },
+    {
       "id": "verify",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence includes repository and branch selection, task prompt, environment setup, approved plan, produced diff, and test results. Verify the actual branch rather than relying only on the session summary.",
-        "When the environment or plan is wrong, stop before mutation, correct the setup or AGENTS.md guidance, and submit a narrower task. Discard isolated changes that cannot be verified."
+        "For a delegated task, expected evidence includes repository and branch selection, task prompt, environment setup, approved plan, produced diff, and test results. Verify the actual branch rather than relying only on a session summary.",
+        "Jules's environment documentation describes an ephemeral Ubuntu VM, setup scripts, Run to Validate, and runtime checks such as node -v. When the environment or plan is wrong, stop before mutation, correct the setup or AGENTS.md guidance, and submit a narrower task.",
+        "For the local simulation, evidence consists only of the copied files, the learner's command transcript, the immutable test file, and the inspected one-line repair. No product or session evidence is available. Do not claim that an actual product action occurred without primary logs or other reviewable evidence.",
+        "Before merge, verify that the task remains on the named branch and allowed paths, inspect the full diff, run checks independently, and keep publishing, deployment, sending messages, and merging outside the task unless separately authorized and verified."
+      ]
+    },
+    {
+      "id": "sources-and-uncertainty",
+      "title": "Primary sources and verification dates",
+      "paragraphs": [
+        "Google's Jules documentation describes the operating sequence used in this card: connected repositories, branch selection, task prompts, optional setup, plan generation, review before code changes, and automatic consultation of a root AGENTS.md. Google documents the execution environment as an ephemeral Ubuntu VM with setup scripts, Run to Validate, and runtime checks. These claims were verified from the supplied research on 2026-09-20.",
+        "The local exercise uses CommonJS. Node.js documentation describes CommonJS modules and the module.exports interface. The strict assertion used by the tests compares actual and expected values strictly. The exercise's expected outputs follow directly from the displayed predicate and test inputs.",
+        "The shell setup uses set -eu and refuses to continue when the target directory already exists. It is non-destructive and does not remove or overwrite an existing path. The local package.json explicitly sets type to commonjs so the .js files work even when copied inside a parent repository configured as type:module."
       ]
     }
   ],
   "sources": [
     {
-      "title": "Jules getting started",
+      "title": "Jules documentation",
       "url": "https://jules.google/docs/",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
-      "title": "Jules environment setup",
+      "title": "Jules environment documentation",
       "url": "https://jules.google/docs/environment/",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Jules documentation index",
       "url": "https://jules.google/docs/llms.txt",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Node.js modules documentation",
+      "url": "https://nodejs.org/api/modules.html#modules_modules",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Node.js assert.strictEqual documentation",
+      "url": "https://nodejs.org/api/assert.html#assert_strictequal_actual_expected_message",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Node.js packages documentation",
+      "url": "https://nodejs.org/api/packages.html#packages_packagejson",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Bash set builtin documentation",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/The-Set-Builtin.html",
+      "publisher": "GNU Project",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
