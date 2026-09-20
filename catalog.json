@@ -1495,7 +1495,7 @@
     {
       "id": "review-agent-results",
       "title": "Review Agent Results Against Evidence",
-      "summary": "Check an agent result against the work order, source evidence, real postconditions, and safety boundaries before accepting or publishing it.",
+      "summary": "Check an agent result against its work order, bounded source evidence, revision-bound authorization, observed state, and the limits of automated checking before accepting it.",
       "level": "intermediate",
       "providers": [
         "provider-neutral"
@@ -1515,156 +1515,202 @@
           "id": "review-contract",
           "title": "Start with the work order",
           "paragraphs": [
-            "Read the original outcome, scope, constraints, and acceptance criteria before reading the agent summary. List each required artifact and the evidence that would prove it exists. A fluent summary does not close an unverified requirement.",
-            "Compare the delivered files or external state with the work order. Record omissions, scope changes, and assumptions as separate findings rather than treating them as completed work."
+            "Read the requested outcome, scope, constraints, and five acceptance criteria before trusting the agent summary. Give C1 through C5 separate rows. For each row, record the required artifact or postcondition, evidence reference, revision, direct observation, inference, status, and next action.",
+            "Use only three evidence statuses: verified when sufficient bounded evidence supports the criterion, failed when the evidence contradicts the criterion, and unknown when the available evidence cannot establish the result. Do not average a failed or unknown mandatory row into an overall pass."
           ]
         },
         {
           "id": "review-evidence",
-          "title": "Trace claims and actions",
+          "title": "Trace source claims and observed state",
           "paragraphs": [
-            "For factual claims, open the cited source and confirm that it supports the precise claim and date. Label unsupported statements and inferences. For code or configuration, inspect the diff and run the specified checks in the intended environment.",
-            "For a consequential tool action, inspect authorization, arguments, execution record, and the system of record. A tool response or model assertion alone does not prove the real postcondition. If the outcome is uncertain, preserve the correlation key and reconcile before retrying."
+            "For each material claim, compare the exact source wording, revision, authority, effective scope, and provenance. Citation presence does not establish support. Keep direct observations separate from conclusions that require human judgment.",
+            "In the synthetic Orion dossier, the applicable policy says 30 days after delivery, not the claimed 45 days. The separate claim that an unresolved request may be escalated within seven calendar days after the first support response is supported. Because the criterion requires both material claims to be supported, C1 fails.",
+            "The Orion state snapshot at revision `state-orion-2026-09-20-r4` records `draft_present=true`. That bounded observation verifies C2. It does not prove external delivery, absence of delivery, production durability, or any state outside the synthetic fixture."
           ]
         },
         {
           "id": "review-authority",
-          "title": "Check authority independently of success",
+          "title": "Check authority independently of effects",
           "paragraphs": [
-            "An action can succeed and still violate the work order. Review the identity used, the resource it addressed, the permission boundary, and the approval that covered that particular operation. OWASP Excessive Agency distinguishes excessive functionality, permissions, and autonomy; inspect all three instead of treating a tool response as permission.",
-            "Use a synthetic account-isolation case to confirm that the action cannot cross into another account. Check the downstream authorization decision as well as the bridge arguments. If an approval allowed a draft, evidence of delivery establishes an effect but not authority to send. Record the failed boundary and escalate to the responsible owner; a reviewer must not invent permission to reverse or repeat the action."
+            "Inspect identity, operation, target, tenant, and approval as separate fields. The Orion authorization permits `synthetic-agent-reviewer` to perform `draft_ticket_comment` on `ticket-SYN-1042` in `tenant-orion`. The trace attempts `send_external_notification`. The actor, target, and tenant match, but the operation does not, so C3 fails while C5 verifies.",
+            "The external-notification attempt times out, and delivery state for correlation identifier `corr-SYN-77` remains unknown. A timeout proves neither delivery nor absence. C4 must remain unknown until an authorized owner reconciles the correlation identifier. The reviewer has no authority to invent a retry, reversal, or broader inspection. This separation of effect, permission, and uncertainty is consistent with reviewing functionality, permissions, and autonomy as distinct agency risks."
           ]
         },
         {
           "id": "review-tests",
-          "title": "Match test evidence to the delivered revision",
+          "title": "Qualify the offline checker and its limits",
           "paragraphs": [
-            "Record the exact artifact revision, test inputs, environment, expected outcome, and observed outcome. Reproduce the check that matters to the acceptance criterion. A formatting test cannot establish factual accuracy, and a successful unit test cannot establish that a deployment reached users. Compare the test scope with the claim before recording the criterion as verified.",
-            "Include failure cases that could invalidate acceptance: an unsupported citation, denied operation, incorrect account, unavailable dependency, or uncertain write result. Keep unavailable evidence marked unknown rather than converting it into a pass. When a repair changes behavior, repeat the affected check and connected checks that could regress. Keep the earlier result so the evidence shows what changed and why the final decision is justified."
+            "The supplied lab uses synthetic fixtures, native ECMAScript modules, Node.js built-ins, no network requests, no credentials, and no external effects. It requires Node.js 22 or later. The supplied qualification run used Node.js 24.18.0, where all 15 supplied tests passed.",
+            "The checker validates packet structure and machine-readable fixture consistency. It checks identifiers, revisions, evidence references, relevant evidence, exact bindings, reproduced output, criterion statuses, and decision consistency. It does not understand natural-language truth and does not establish production authorization, delivery, durability, tenant isolation, or provider quality.",
+            "The supplied tests include changed-observation and empty-evidence-reference cases. A false observed Boolean produces `result FAIL` and a nonzero exit, while empty criterion evidence is rejected. These are existing checker tests, not a learner mutation exercise or a request to build another tool."
           ]
         },
         {
           "id": "review-decision",
-          "title": "Make a reviewable decision",
+          "title": "Make a criterion-level decision",
           "paragraphs": [
-            "Accept only when the required artifacts and postconditions are observed and remaining risks meet the work order. Request changes for a reproducible defect; escalate when evidence, authority, or impact is uncertain. Record the exact failing criterion and the smallest evidence needed for a new review.",
-            "Do not turn a failed test, an absent citation, or a missing artifact into approval because the answer sounds plausible. Keep the original result and review findings so a revised result can be compared honestly."
+            "The Orion result is C1 failed, C2 verified, C3 failed, C4 unknown, and C5 verified. The totals are two verified, two failed, and one unknown. The required decision is escalate. Correct the policy-dependent draft, escalate the operation mismatch, and ask the authorized owner to reconcile `corr-SYN-77`.",
+            "The independent Lyra dossier contains changed policy, authorization, trace, target, tenant, and state inputs. Both material claims are supported, the authorized and attempted operations match, identity and resource bindings match, and `internal_note_present=true` is independently observed. All five criteria verify, so the bounded Lyra decision is accept.",
+            "Accept only when every mandatory criterion has sufficient evidence. Request changes for a reproducible defect the author can repair. Escalate when authority is missing, consequential state remains unknown, or the required action lies outside the reviewer's role. Checker success remains insufficient for semantic, editorial, accessibility, or production claims."
           ]
         }
       ],
       "activity": {
         "id": "activity-review-agent-results",
-        "title": "Audit an agent delivery",
+        "title": "Audit the Orion and Lyra dossiers",
         "instructions": [
-          "Take an agent work order, its result, source links, a tool trace, and a test report. Build a row for each acceptance criterion and mark it verified, failed, or unknown.",
-          "Open at least two material sources, inspect one consequential action in the system of record, and reproduce one test or postcondition check.",
-          "Issue an accept, request-changes, or escalate decision with precise evidence and the next action for each failed or unknown criterion."
+          "Read the Orion work order and all five criteria before reading its delivery summary.",
+          "Compare both Orion material claims with the applicable and superseded policy excerpts. Record source wording, revision, scope, observation, inference, and status.",
+          "Compare the Orion authorization and trace field by field. Keep operation authority separate from actor, target, and tenant binding.",
+          "Run the supplied Orion inspection and validation commands from the lab directory. Preserve their exact outputs without claiming they establish production facts.",
+          "Run the supplied flawed-packet validation and explain why structural validity does not repair C1, C4, or the incorrect accept decision.",
+          "Review Lyra independently before opening its supplied solution, then run the changed-dossier validation.",
+          "Run the supplied 15-test qualification suite. Review its existing changed-observation and empty-evidence-reference coverage without creating a separate mutation exercise.",
+          "Submit both five-row matrices, reproduced outputs, observations, inferences, decisions, and the smallest authorized next action for each failed or unknown row."
+        ],
+        "commands": [
+          {
+            "purpose": "Inspect the Orion draft state",
+            "command": "cd <lab-directory> && node checker.js inspect fixtures/baseline-dossier.json check-draft-state",
+            "expectedOutput": "CHECK check-draft-state\nrevision state-orion-2026-09-20-r4\nobserved draft_present=true\nresult PASS"
+          },
+          {
+            "purpose": "Validate the worked Orion packet",
+            "command": "cd <lab-directory> && node checker.js validate fixtures/baseline-dossier.json submissions/solution.json",
+            "expectedOutput": "STRUCTURAL PASS\nPOLICY PASS\nDECISION escalate\nCRITERIA verified=2 failed=2 unknown=1\nRESULT PASS"
+          },
+          {
+            "purpose": "Diagnose the flawed packet",
+            "command": "cd <lab-directory> && node checker.js validate fixtures/baseline-dossier.json submissions/flawed.json",
+            "expectedOutput": "STRUCTURAL PASS\nPOLICY FAIL\n- criterion C1 packet=verified evidence=failed\n- criterion C4 packet=verified evidence=unknown\n- decision packet=accept evidence=escalate\nRESULT FAIL",
+            "expectedExitStatus": 1
+          },
+          {
+            "purpose": "Validate the independent Lyra solution",
+            "command": "cd <lab-directory> && node checker.js validate fixtures/changed-dossier.json submissions/changed-solution.json",
+            "expectedOutput": "STRUCTURAL PASS\nPOLICY PASS\nDECISION accept\nCRITERIA verified=5 failed=0 unknown=0\nRESULT PASS"
+          },
+          {
+            "purpose": "Run the supplied qualification suite",
+            "command": "cd <lab-directory> && node --test",
+            "expectedResult": "15 tests passed under Node.js 24.18.0"
+          }
         ],
         "evidence": [
-          "A criterion-to-artifact matrix with citations, test results, tool authorization, and observed postconditions.",
-          "A decision record that separates verified facts, missing evidence, defects, and risks."
+          "An Orion matrix with C1 failed, C2 verified, C3 failed, C4 unknown, and C5 verified.",
+          "An Orion escalation decision that corrects the policy claim, preserves timeout uncertainty, and identifies authorized reconciliation as the next action.",
+          "A separate Lyra matrix with five verified rows and an accept decision bounded to the synthetic fixture.",
+          "Exact reproduced checker outputs and an explanation of what each output does and does not establish.",
+          "A human semantic review separating source support, authorization, observed state, inference, and checker consistency."
         ],
-        "reflectionPrompt": "Which claim seemed complete until you checked the source or real postcondition?"
+        "reflectionPrompt": "Which conclusion would have been wrong if you had trusted the summary or checker result without reviewing source scope, operation authority, and observed state?"
       },
       "instructorScript": {
         "schemaVersion": "1.1",
-        "estimatedSeconds": 37,
+        "estimatedSeconds": 84,
         "cues": [
           {
             "id": "cue-result-contract",
             "kind": "narration",
             "sectionId": "review-contract",
-            "text": "Begin with acceptance criteria and observable artifacts, not the agent summary."
+            "text": "Begin with C1 through C5, the required artifacts, and their revisions."
           },
           {
             "id": "cue-result-evidence",
             "kind": "narration",
             "sectionId": "review-evidence",
-            "text": "Open cited sources and verify material claims, tests, permissions, and real postconditions."
+            "text": "In Orion, C1 and C3 fail, C4 is unknown, and C2 and C5 verify."
+          },
+          {
+            "id": "cue-result-policy",
+            "kind": "narration",
+            "sectionId": "review-evidence",
+            "text": "The 30-day policy controls; the separate seven-day escalation claim is supported."
           },
           {
             "id": "cue-result-authority",
             "kind": "narration",
             "sectionId": "review-authority",
-            "text": "Check the identity, resource, permission, and approval independently of the observed effect. Successful delivery cannot authorize itself."
+            "text": "A draft exists, but the attempted external send exceeds approval and timed out."
+          },
+          {
+            "id": "cue-result-visual",
+            "kind": "visual",
+            "sectionId": "review-decision",
+            "text": "Show Orion's five-row matrix beside Lyra's five verified rows.",
+            "accessibilityAlternative": "A static comparison shows Orion with two verified, two failed, and one unknown row, while Lyra has five verified rows."
           },
           {
             "id": "cue-result-tests",
             "kind": "narration",
             "sectionId": "review-tests",
-            "text": "Match each test to the acceptance criterion and exact delivered revision. Reproduce relevant checks, include failure cases, and preserve unknown outcomes."
-          },
-          {
-            "id": "cue-result-visual",
-            "kind": "visual",
-            "sectionId": "review-evidence",
-            "text": "Show a criterion-to-evidence table with verified, failed, and unknown rows.",
-            "accessibilityAlternative": "A static table lists each acceptance criterion, its evidence, and verified, failed, or unknown status."
-          },
-          {
-            "id": "cue-result-decision",
-            "kind": "narration",
-            "sectionId": "review-decision",
-            "text": "Record accept, request changes, or escalate with exact criterion-level evidence."
+            "text": "The offline checker passed all 15 supplied tests under Node.js 24.18.0."
           },
           {
             "id": "cue-result-prompt",
             "kind": "learner-prompt",
             "sectionId": "review-decision",
-            "text": "Ask learners what they would do when an external tool outcome is unknown."
+            "text": "Ask learners to decide Lyra from its changed evidence before viewing the solution."
           },
           {
             "id": "cue-result-checkpoint",
             "kind": "checkpoint",
             "sectionId": "review-decision",
-            "text": "Check that every accepted criterion has an observed artifact or postcondition."
+            "text": "Check that timeout stays unknown and that operation authority is reviewed separately."
           },
           {
             "id": "cue-result-assessment",
             "kind": "assessment-handoff",
-            "text": "Begin the check after the learner can separate verified results from missing evidence and uncertain actions."
+            "sectionId": "review-decision",
+            "text": "Begin the check after learners can defend both decisions from bounded evidence."
+          },
+          {
+            "id": "cue-result-decision-narration",
+            "kind": "narration",
+            "sectionId": "review-decision",
+            "text": "Use this decision rule. Accept only when every mandatory row has sufficient evidence. Request changes for a reproducible defect the author can repair. Escalate when consequential state is unknown, authority is missing, or the required decision exceeds your role. Several passes never average away one mandatory failure."
           }
         ],
-        "transcript": "Begin with acceptance criteria and observable artifacts, not the agent summary. Open cited sources and verify material claims, tests, permissions, and real postconditions. Check the identity, resource, permission, and approval independently of the observed effect. Successful delivery cannot authorize itself. Match each test to the acceptance criterion and exact delivered revision. Reproduce relevant checks, include failure cases, and preserve unknown outcomes. Record accept, request changes, or escalate with exact criterion-level evidence. Begin the check after the learner can separate verified results from missing evidence and uncertain actions.",
+        "transcript": "Begin with C1 through C5, the required artifacts, and their revisions. In Orion, C1 and C3 fail, C4 is unknown, and C2 and C5 verify. The 30-day policy controls; the separate seven-day escalation claim is supported. A draft exists, but the attempted external send exceeds approval and timed out. The offline checker passed all 15 supplied tests under Node.js 24.18.0. Use this decision rule. Accept only when every mandatory row has sufficient evidence. Request changes for a reproducible defect the author can repair. Escalate when consequential state is unknown, authority is missing, or the required decision exceeds your role. Several passes never average away one mandatory failure.",
         "captions": [
           {
             "cueId": "cue-result-contract",
             "startSeconds": 0,
-            "endSeconds": 5,
-            "text": "Begin with acceptance criteria and observable artifacts, not the agent summary."
+            "endSeconds": 7,
+            "text": "Begin with C1 through C5, the required artifacts, and their revisions."
           },
           {
             "cueId": "cue-result-evidence",
-            "startSeconds": 5,
-            "endSeconds": 10,
-            "text": "Open cited sources and verify material claims, tests, permissions, and real postconditions."
+            "startSeconds": 7,
+            "endSeconds": 14,
+            "text": "In Orion, C1 and C3 fail, C4 is unknown, and C2 and C5 verify."
+          },
+          {
+            "cueId": "cue-result-policy",
+            "startSeconds": 14,
+            "endSeconds": 21,
+            "text": "The 30-day policy controls; the separate seven-day escalation claim is supported."
           },
           {
             "cueId": "cue-result-authority",
-            "startSeconds": 10,
-            "endSeconds": 17,
-            "text": "Check the identity, resource, permission, and approval independently of the observed effect. Successful delivery cannot authorize itself."
+            "startSeconds": 21,
+            "endSeconds": 28,
+            "text": "A draft exists, but the attempted external send exceeds approval and timed out."
           },
           {
             "cueId": "cue-result-tests",
-            "startSeconds": 17,
-            "endSeconds": 26,
-            "text": "Match each test to the acceptance criterion and exact delivered revision. Reproduce relevant checks, include failure cases, and preserve unknown outcomes."
+            "startSeconds": 35,
+            "endSeconds": 42,
+            "text": "The offline checker passed all 15 supplied tests under Node.js 24.18.0."
           },
           {
-            "cueId": "cue-result-decision",
-            "startSeconds": 26,
-            "endSeconds": 30,
-            "text": "Record accept, request changes, or escalate with exact criterion-level evidence."
-          },
-          {
-            "cueId": "cue-result-assessment",
-            "startSeconds": 30,
-            "endSeconds": 37,
-            "text": "Begin the check after the learner can separate verified results from missing evidence and uncertain actions."
+            "cueId": "cue-result-decision-narration",
+            "startSeconds": 63,
+            "endSeconds": 84,
+            "text": "Use this decision rule. Accept only when every mandatory row has sufficient evidence. Request changes for a reproducible defect the author can repair. Escalate when consequential state is unknown, authority is missing, or the required decision exceeds your role. Several passes never average away one mandatory failure."
           }
         ],
-        "reducedMotionAlternative": "Show a static criterion-to-evidence table with verified, failed, and unknown rows."
+        "reducedMotionAlternative": "Show a static five-row comparison. Orion has C1 failed, C2 verified, C3 failed, C4 unknown, and C5 verified. Lyra has five verified rows."
       },
       "knowledgeCheck": {
         "passPercent": 80,
@@ -1678,7 +1724,7 @@
               "The number of tool calls"
             ],
             "answerIndex": 1,
-            "explanation": "The work order defines what completion requires."
+            "explanation": "The work order defines completion and the evidence each criterion requires."
           },
           {
             "id": "q-review-agent-2",
@@ -1686,52 +1732,70 @@
             "choices": [
               "The timeout alone",
               "The model summary",
-              "A check in the system of record using a correlation key"
+              "A system-of-record check using a correlation key"
             ],
             "answerIndex": 2,
-            "explanation": "Unknown external outcomes must be reconciled before retry or acceptance."
+            "explanation": "A timeout leaves the effect unknown. An authorized reconciliation using the correlation identifier is required."
           },
           {
             "id": "q-review-agent-3",
-            "prompt": "A cited page does not support a material claim. What is the review result?",
+            "prompt": "A cited source does not support a material claim. What is the review result?",
             "choices": [
               "Request a correction or supporting evidence",
-              "Accept because a URL is present",
+              "Accept because a citation is present",
               "Ignore the claim if the format is valid"
             ],
             "answerIndex": 0,
-            "explanation": "A citation is useful only if it supports the exact claim."
+            "explanation": "Citation presence is not support. The wording, revision, authority, and scope must support the precise claim."
           },
           {
             "id": "q-review-agent-4",
             "prompt": "When should a reviewer accept the delivery?",
             "choices": [
               "When it sounds complete",
-              "When each required artifact and postcondition is observed",
-              "When the agent says tests passed"
+              "When every mandatory criterion has sufficient evidence",
+              "When the agent reports passing tests"
             ],
             "answerIndex": 1,
-            "explanation": "Acceptance rests on observed evidence for the work order."
+            "explanation": "Acceptance requires sufficient evidence for every mandatory criterion. Narrow tests cannot replace missing evidence."
           },
           {
             "id": "q-review-agent-5",
-            "prompt": "The system confirms an email was sent, but the approval permitted only drafting. How should the review record this?",
+            "prompt": "A trace targets the correct ticket and tenant but uses an unapproved operation. How should the review record it?",
             "choices": [
-              "Delivery verified; authorization failed and requires escalation",
-              "Accept because delivery succeeded",
-              "Mark delivery failed because authorization was absent"
+              "Target binding verified; operation authorization failed",
+              "Accept because the target matches",
+              "Fail every binding field"
             ],
             "answerIndex": 0,
-            "explanation": "Observed effects and permitted effects are separate criteria. Confirmation cannot retroactively authorize the send."
+            "explanation": "Target and tenant binding are independent of operation authority. Preserve both the verified binding and the failed authorization."
           }
         ]
       },
       "sources": [
         {
-          "title": "Incident Response Recommendations and Considerations for Cybersecurity Risk Management",
-          "url": "https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf",
-          "publisher": "NIST",
-          "lastVerified": "2026-07-25"
+          "title": "Node.js Packages documentation",
+          "url": "https://nodejs.org/api/packages.html#packages_type",
+          "publisher": "Node.js",
+          "lastVerified": "2026-09-20"
+        },
+        {
+          "title": "Node.js Test Runner documentation",
+          "url": "https://nodejs.org/api/test.html",
+          "publisher": "Node.js",
+          "lastVerified": "2026-09-20"
+        },
+        {
+          "title": "Node.js File System documentation",
+          "url": "https://nodejs.org/api/fs.html#fspromisesreadfilepath-options",
+          "publisher": "Node.js",
+          "lastVerified": "2026-09-20"
+        },
+        {
+          "title": "Node.js Child Process documentation",
+          "url": "https://nodejs.org/api/child_process.html#child_processspawnsynccommand-args-options",
+          "publisher": "Node.js",
+          "lastVerified": "2026-09-20"
         },
         {
           "title": "Artificial Intelligence Risk Management Framework",
@@ -1746,10 +1810,10 @@
           "lastVerified": "2026-09-18"
         },
         {
-          "title": "NIST AI RMF: Generative Artificial Intelligence Profile",
-          "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
+          "title": "Incident Response Recommendations and Considerations for Cybersecurity Risk Management: A CSF 2.0 Community Profile",
+          "url": "https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf",
           "publisher": "NIST",
-          "lastVerified": "2026-09-18"
+          "lastVerified": "2026-09-20"
         }
       ]
     }
