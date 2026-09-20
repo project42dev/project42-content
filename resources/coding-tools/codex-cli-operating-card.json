@@ -20,7 +20,7 @@
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "coding-tools",
     "codex-cli",
@@ -32,30 +32,155 @@
       "id": "fit",
       "title": "Use it for interactive or repeatable terminal work",
       "paragraphs": [
-        "Codex CLI can inspect code, edit files, run commands, review changes, and participate in scripted workflows from a project directory. Choose the interactive surface for collaborative implementation and the non-interactive surface only when inputs, permissions, output handling, and failure behavior are already controlled.",
-        "Select permissions for the current task, not for every task the tool might perform later. Keep filesystem roots and network destinations narrow, examine approval prompts, and never treat a model request as proof that an action is safe."
-      ]
+        "Codex CLI supports interactive inspection, editing, and command execution from a project directory. Use the interactive surface when a person will examine requests, diffs, and test evidence while work proceeds. Codex exec is the non-interactive surface for controlled scripts or CI workflows. Do not treat either surface as authority to approve its own changes.",
+        "Use the official Codex CLI documentation to install the supported CLI and complete an OpenAI-supported sign-in path. Confirm that the installed command responds to codex --help before entering a working copy. Exact installation and authentication steps can vary by supported environment, so this card does not substitute an invented universal installer.",
+        "The offline lab below simulates a bounded coding task with Node.js 22 and Git. Its test output proves only what the local files do. It does not prove that Codex ran, used a particular model, received a particular permission profile, or produced the edit."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Codex CLI operating task card",
+        "code": "Task: Repair the eligibility boundary in src/check.mjs by changing the age predicate from >18 to >=18 while keeping acceptedTerms === true.\n\nScope: Work only in the Node.js 22 repository codex-cli-operating-lab at the lab-baseline Git commit. Read AGENTS.md, src/check.mjs, test/immutable-contract.test.mjs, fixtures/positive.json, fixtures/negative.json, fixtures/changed.json, fixtures/malformed.json, reference/check.repaired.mjs, and reference/expected-after-repair.txt. Edit only src/check.mjs. Do not change AGENTS.md, test/, fixtures/, reference/, package metadata, Git configuration, or the baseline commit.\n\nPermissions: Start from the lab root. Before editing, run /status and /permissions if the installed Codex CLI offers them, and record the effective filesystem and network access exactly as displayed. Use read-only access for inspection. Authorize only the workspace-scoped write access needed for src/check.mjs. No network access, dependency installation, remote, push, secret access, or permission expansion is authorized.\n\nInstructions: Read AGENTS.md before editing. First reproduce and explain the initial boundary failure. Make the smallest causal repair in src/check.mjs: change row.age > 18 to row.age >= 18, preserving validation, input order, and the exact acceptedTerms check. Do not weaken or modify tests. Show git diff -- src/check.mjs, then run node test/immutable-contract.test.mjs. Treat local Node.js and Git output as exercise evidence only, not as proof that Codex ran or used a particular permission profile.\n\nExpected output: Before repair, node test/immutable-contract.test.mjs must report RESULT 2 passed, 2 failed and status 1. After only the authorized repair, it must report:\nPASS positive input\nPASS negative input\nPASS changed input\nPASS malformed input\nRESULT 4 passed, 0 failed\nThe repaired command must have empty stderr and status 0. git diff --no-index -- src/check.mjs reference/check.repaired.mjs must produce no output and status 0.\n\nVerification: Run git status --short. Run git diff -- src/check.mjs. Run git diff --exit-code HEAD -- AGENTS.md test fixtures reference and require no output with status 0. Run git diff --no-index -- src/check.mjs reference/check.repaired.mjs and require no output with status 0. Run node test/immutable-contract.test.mjs and require RESULT 4 passed, 0 failed with status 0. Record the actual Codex version and permission display only if captured; otherwise record UNKNOWN or NOT RUN.\n\nStop conditions: Stop if any file other than src/check.mjs must change; protected files differ; network, dependency installation, a secret, a remote, or a permission expansion is requested; the displayed permissions exceed the task; the initial output is not the documented two-failure result; or verification output or status differs from the contract. Do not approve a broader threshold or a test edit.\n\nRecovery: Stop further mutations and preserve the initial output, current diff, git status, and any provider-session evidence before restoring anything. For rejected changes limited to the intended paths, preserve them with git stash push -m 'rejected-change' -- src/check.mjs test/immutable-contract.test.mjs, then inspect git stash show --patch stash@{0}. Confirm git status --short, restore only after evidence is retained, and rerun node test/immutable-contract.test.mjs to distinguish the failed baseline, RESULT 2 passed, 2 failed, status 1, from the successful repaired behavior, RESULT 4 passed, 0 failed, status 0. Never use unrestricted permissions as recovery."
+      }
+    },
+    {
+      "id": "permissions",
+      "title": "Inspect effective permissions instead of assuming them",
+      "paragraphs": [
+        "Codex permissions include beta named profiles that govern filesystem and network access. Built-in profiles include :read-only and :workspace. Profiles can inherit settings, a default can be selected, and managed requirements can constrain what is allowed. If no managed profile is selected, older sandbox settings may still apply.",
+        "At the beginning of an interactive session, run /status and /permissions. Read the effective result shown by the installed product. For discovery, prefer the offered read-only choice. Before an authorized edit, select the offered workspace-scoped choice only if its displayed roots and network access match the task. Profile names are not proof of effective access, and this card does not invent a universal profile configuration.",
+        "Deny or stop when a request reaches outside the working copy, seeks unnecessary network access, exposes a secret, changes protected tests, or expands permissions to bypass a failure. AGENTS.md guidance can constrain intended behavior, but it is not a security boundary."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Interactive permission check",
+        "code": "/status\n/permissions\n\nDecision record:\n- Effective filesystem access: copy what /status or /permissions displays\n- Effective network access: copy what /status or /permissions displays\n- Discovery decision: use the offered read-only option when sufficient\n- Edit decision: use the offered workspace option only for the authorized file\n- Stop if displayed access or a later request exceeds the task contract"
+      }
+    },
+    {
+      "id": "instruction-chain",
+      "title": "Load concrete repository guidance at session startup",
+      "paragraphs": [
+        "At startup, Codex builds an instruction chain from AGENTS.override.md or AGENTS.md. Global guidance is considered, then project guidance is loaded from the project root toward the current working directory. Deeper applicable guidance wins. Within a directory, use an override file when an override is intended.",
+        "Start Codex from the lab root only after creating the AGENTS.md below. If instructions change, begin a new session so startup loading is not ambiguous. The filled file authorizes one source-file repair, protects fixtures and the test harness, prohibits network use, and states verification and stop conditions.",
+        "These instructions guide the agent. Filesystem and network controls must still come from effective Codex permissions and any managed policy."
+      ],
+      "code": {
+        "language": "markdown",
+        "label": "Filled AGENTS.md used by the lab",
+        "code": "# Codex instructions for this repository\n\n## Task\nRepair the eligibility implementation so an integer age of 18 is accepted when `acceptedTerms` is exactly `true`.\n\n## Allowed change\nEdit only `src/check.mjs`. Make the smallest causal repair to the eligibility predicate.\n\n## Protected evidence\nDo not edit files under `test/`, `fixtures/`, or `reference/`. Do not alter package metadata, Git configuration, or the baseline commit.\n\n## Input and result contract\nInput is a UTF-8 JSON array. Every row must contain a nonempty string `id`, an integer `age` from 0 through 130, and a boolean `acceptedTerms`. A valid report is compact JSON with `approved` and `rejected` arrays in input order. Eligibility requires age at least 18 and accepted terms.\n\n## Commands and network\nUse Node.js 22. Run `node test/immutable-contract.test.mjs` from the repository root. No network access or dependency installation is required.\n\n## Review and stop conditions\nBefore editing, explain the failing boundary. After editing, show `git diff -- src/check.mjs` and run the immutable test. Stop if another file appears necessary, a permission expansion is requested, a secret appears, or the test contract seems wrong. Do not repair a failure by weakening or changing a test."
+      }
+    },
+    {
+      "id": "offline-setup",
+      "title": "Create the fresh Node.js 22 exercise and checkpoint",
+      "paragraphs": [
+        "Run this Bash block from a writable parent directory. It requires Bash, Git, and Node.js major version 22. It refuses to continue if codex-cli-operating-lab already exists, creates no remote, sets a fictional identity only in this repository, and makes the tracked lab-baseline commit after all fixtures, starter code, instructions, immutable tests, expected output, and reference implementation exist.",
+        "The input domain is explicit in AGENTS.md and enforced by both implementations. The malformed fixture tests normalized parse failure. The positive fixture tests the age-18 boundary, the negative fixture tests two unchanged rejections, and the changed fixture changes one record to age 19 while adding a second age-18 record.",
+        "The starter is valid Node.js 22 syntax and contains one deliberate defect: it uses the strict predicate row.age > 18. The separately inspectable reference/check.repaired.mjs is a complete implementation with the intended inclusive predicate. It is protected evidence and is not imported by the immutable test, so the learner must still repair src/check.mjs."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Fresh lab setup",
+        "code": "set -eu\nPROJECT='codex-cli-operating-lab'\nif [ -e \"$PROJECT\" ]; then\n  printf 'Refusing to overwrite existing path: %s\\n' \"$PROJECT\" >&2\n  exit 1\nfi\nif ! command -v node >/dev/null 2>&1; then\n  printf 'Node.js is required.\\n' >&2\n  exit 1\nfi\ncase \"$(node --version)\" in\n  v22.*) ;;\n  *) printf 'Node.js 22 is required; found %s\\n' \"$(node --version)\" >&2; exit 1 ;;\nesac\nif ! command -v git >/dev/null 2>&1; then\n  printf 'Git is required.\\n' >&2\n  exit 1\nfi\nmkdir -p \"$PROJECT/src\" \"$PROJECT/test\" \"$PROJECT/fixtures\" \"$PROJECT/reference\"\ncd \"$PROJECT\"\ncat > AGENTS.md <<'EOF'\n# Codex instructions for this repository\n\n## Task\nRepair the eligibility implementation so an integer age of 18 is accepted when `acceptedTerms` is exactly `true`.\n\n## Allowed change\nEdit only `src/check.mjs`. Make the smallest causal repair to the eligibility predicate.\n\n## Protected evidence\nDo not edit files under `test/`, `fixtures/`, or `reference/`. Do not alter package metadata, Git configuration, or the baseline commit.\n\n## Input and result contract\nInput is a UTF-8 JSON array. Every row must contain a nonempty string `id`, an integer `age` from 0 through 130, and a boolean `acceptedTerms`. A valid report is compact JSON with `approved` and `rejected` arrays in input order. Eligibility requires age at least 18 and accepted terms.\n\n## Commands and network\nUse Node.js 22. Run `node test/immutable-contract.test.mjs` from the repository root. No network access or dependency installation is required.\n\n## Review and stop conditions\nBefore editing, explain the failing boundary. After editing, show `git diff -- src/check.mjs` and run the immutable test. Stop if another file appears necessary, a permission expansion is requested, a secret appears, or the test contract seems wrong. Do not repair a failure by weakening or changing a test.\nEOF\ncat > fixtures/positive.json <<'EOF'\n[{\"id\":\"boundary-adult\",\"age\":18,\"acceptedTerms\":true}]\nEOF\ncat > fixtures/negative.json <<'EOF'\n[{\"id\":\"minor\",\"age\":17,\"acceptedTerms\":true},{\"id\":\"declined\",\"age\":25,\"acceptedTerms\":false}]\nEOF\ncat > fixtures/changed.json <<'EOF'\n[{\"id\":\"boundary-adult\",\"age\":19,\"acceptedTerms\":true},{\"id\":\"new-boundary\",\"age\":18,\"acceptedTerms\":true}]\nEOF\ncat > fixtures/malformed.json <<'EOF'\n[{\"id\":\"broken\",\"age\":18,\"acceptedTerms\":true}\nEOF\ncat > src/check.mjs <<'EOF'\nimport { readFileSync } from 'node:fs';\nimport { pathToFileURL } from 'node:url';\n\nexport function buildReport(rows) {\n  if (!Array.isArray(rows)) throw new Error('input must be an array');\n  const approved = [];\n  const rejected = [];\n  for (const row of rows) {\n    const valid = row !== null\n      && typeof row === 'object'\n      && typeof row.id === 'string'\n      && row.id.length > 0\n      && Number.isInteger(row.age)\n      && row.age >= 0\n      && row.age <= 130\n      && typeof row.acceptedTerms === 'boolean';\n    if (!valid) throw new Error('invalid record');\n    const eligible = row.age > 18 && row.acceptedTerms === true;\n    (eligible ? approved : rejected).push(row.id);\n  }\n  return { approved, rejected };\n}\n\nfunction readInput(path) {\n  const text = readFileSync(path, 'utf8');\n  try {\n    return JSON.parse(text);\n  } catch (error) {\n    if (error instanceof SyntaxError) throw new Error('malformed JSON');\n    throw error;\n  }\n}\n\nif (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {\n  try {\n    if (process.argv.length !== 3) throw new Error('usage: node src/check.mjs <input.json>');\n    process.stdout.write(`${JSON.stringify(buildReport(readInput(process.argv[2])))}\\n`);\n  } catch (error) {\n    process.stderr.write(`ERROR: ${error.message}\\n`);\n    process.exitCode = 2;\n  }\n}\nEOF\ncat > reference/check.repaired.mjs <<'EOF'\nimport { readFileSync } from 'node:fs';\nimport { pathToFileURL } from 'node:url';\n\nexport function buildReport(rows) {\n  if (!Array.isArray(rows)) throw new Error('input must be an array');\n  const approved = [];\n  const rejected = [];\n  for (const row of rows) {\n    const valid = row !== null\n      && typeof row === 'object'\n      && typeof row.id === 'string'\n      && row.id.length > 0\n      && Number.isInteger(row.age)\n      && row.age >= 0\n      && row.age <= 130\n      && typeof row.acceptedTerms === 'boolean';\n    if (!valid) throw new Error('invalid record');\n    const eligible = row.age >= 18 && row.acceptedTerms === true;\n    (eligible ? approved : rejected).push(row.id);\n  }\n  return { approved, rejected };\n}\n\nfunction readInput(path) {\n  const text = readFileSync(path, 'utf8');\n  try {\n    return JSON.parse(text);\n  } catch (error) {\n    if (error instanceof SyntaxError) throw new Error('malformed JSON');\n    throw error;\n  }\n}\n\nif (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {\n  try {\n    if (process.argv.length !== 3) throw new Error('usage: node src/check.mjs <input.json>');\n    process.stdout.write(`${JSON.stringify(buildReport(readInput(process.argv[2])))}\\n`);\n  } catch (error) {\n    process.stderr.write(`ERROR: ${error.message}\\n`);\n    process.exitCode = 2;\n  }\n}\nEOF\ncat > test/immutable-contract.test.mjs <<'EOF'\nimport { readFileSync } from 'node:fs';\nimport { spawnSync } from 'node:child_process';\nimport { buildReport } from '../src/check.mjs';\n\nconst load = (name) => JSON.parse(readFileSync(`fixtures/${name}`, 'utf8'));\nconst cases = [\n  {\n    name: 'positive input',\n    expected: { approved: ['boundary-adult'], rejected: [] },\n    actual: () => buildReport(load('positive.json'))\n  },\n  {\n    name: 'negative input',\n    expected: { approved: [], rejected: ['minor', 'declined'] },\n    actual: () => buildReport(load('negative.json'))\n  },\n  {\n    name: 'changed input',\n    expected: { approved: ['boundary-adult', 'new-boundary'], rejected: [] },\n    actual: () => buildReport(load('changed.json'))\n  },\n  {\n    name: 'malformed input',\n    expected: { status: 2, stdout: '', stderr: 'ERROR: malformed JSON\\n' },\n    actual: () => {\n      const result = spawnSync(process.execPath, ['src/check.mjs', 'fixtures/malformed.json'], { encoding: 'utf8' });\n      return { status: result.status, stdout: result.stdout, stderr: result.stderr };\n    }\n  }\n];\n\nlet passed = 0;\nfor (const item of cases) {\n  const actual = item.actual();\n  if (JSON.stringify(actual) === JSON.stringify(item.expected)) {\n    passed += 1;\n    console.log(`PASS ${item.name}`);\n  } else {\n    console.log(`FAIL ${item.name}`);\n    console.log(`  expected: ${JSON.stringify(item.expected)}`);\n    console.log(`  actual:   ${JSON.stringify(actual)}`);\n  }\n}\nconst failed = cases.length - passed;\nconsole.log(`RESULT ${passed} passed, ${failed} failed`);\nprocess.exitCode = failed === 0 ? 0 : 1;\nEOF\ncat > reference/expected-after-repair.txt <<'EOF'\nPASS positive input\nPASS negative input\nPASS changed input\nPASS malformed input\nRESULT 4 passed, 0 failed\nEOF\ngit init -q\ngit config user.name 'Learner Example'\ngit config user.email 'learner@example.invalid'\ngit add AGENTS.md src test fixtures reference\ngit commit -q -m 'lab-baseline'\nprintf 'Created codex-cli-operating-lab\\nNode major version: 22\\nBaseline checkpoint: lab-baseline\\n'"
+      }
+    },
+    {
+      "id": "initial-failure",
+      "title": "Reproduce the genuine failure before using Codex",
+      "paragraphs": [
+        "Enter the new directory and run the complete immutable harness once. Do not pipe through a command that would hide the exit status. The harness gathers all four cases before setting its status, so the displayed count is the true total rather than an early-exit estimate.",
+        "With the corrected setup syntax and untouched defective predicate, stdout is exactly the block below, stderr is empty, and the process status is 1. Two cases fail for the same causal reason: records whose age is exactly 18 are rejected. The unchanged negative case and normalized malformed-input case pass.",
+        "If setup did not print its three documented lines, Node is not major version 22, Git could not create the checkpoint, or the initial output differs, stop before involving Codex. Preserve the terminal output and inspect git status --short. A clean baseline should produce no status lines."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Exact initial command and result",
+        "code": "$ cd codex-cli-operating-lab\n$ node test/immutable-contract.test.mjs\nFAIL positive input\n  expected: {\"approved\":[\"boundary-adult\"],\"rejected\":[]}\n  actual:   {\"approved\":[],\"rejected\":[\"boundary-adult\"]}\nPASS negative input\nFAIL changed input\n  expected: {\"approved\":[\"boundary-adult\",\"new-boundary\"],\"rejected\":[]}\n  actual:   {\"approved\":[\"boundary-adult\"],\"rejected\":[\"new-boundary\"]}\nPASS malformed input\nRESULT 2 passed, 2 failed\n\nstdout: exactly the nine result lines above, excluding shell prompts\nstderr: empty\nstatus: 1"
+      }
     },
     {
       "id": "operating-loop",
       "title": "Bind the task to a permission and evidence contract",
       "paragraphs": [
-        "Record the worktree baseline, governing AGENTS.md instructions, allowed paths, network requirements, and verification command. Use read-only discovery before edits and review the final diff independently of the chat summary.",
-        "If a command targets an unexpected path, asks for broader network access, or changes files outside the contract, deny it and reassess. Recovery begins from the last verified checkpoint and a preserved record of what failed."
+        "Start a new interactive Codex session from codex-cli-operating-lab. Explicitly ask it to read AGENTS.md. Before asking for work, inspect the effective controls offered by the installed version. If that version offers /status or /permissions, record their output before proceeding. First request inspection only. After Codex identifies the strict boundary comparison, authorize only the write access actually needed for src/check.mjs.",
+        "The task is intentionally limited to changing one predicate from a strict lower bound to an inclusive lower bound. The protected fixtures, harness, and reference files must remain byte-for-byte at the checkpoint version. No network, package installation, generated dependency tree, remote, push, or broad refactor is needed.",
+        "After the proposed edit, use the installed product's review feature if one is documented and available. If /review is offered, it may be used, but its output is an additional model opinion rather than independent proof. Independently inspect Git status, the complete diff, protected-file differences, reference equivalence, and the deterministic harness."
       ],
       "code": {
         "language": "text",
-        "label": "Codex CLI task card",
-        "code": "Task: [one observable result]\nScope: [workspace roots and protected paths]\nPermissions: [filesystem, command, network, and browser limits]\nInstructions: [AGENTS.md and task-specific constraints]\nExpected output: [diff, report, or artifact]\nVerification: [tests, review, and runtime observation]\nStop conditions: [unexpected target, permission expansion, secret exposure]\nRecovery: [Git checkpoint, local backup, and rerun boundary]"
+        "label": "Filled interactive task and command sequence",
+        "code": "Optional product checks, only if offered by the installed version:\n/status\n/permissions\n\nInspection prompt:\nRead AGENTS.md, src/check.mjs, test/immutable-contract.test.mjs, the four fixtures, and reference/check.repaired.mjs. Do not edit yet. Explain why the positive and changed cases fail while the negative and malformed cases pass. Do not use the network.\n\nEdit prompt after permission review:\nEdit only src/check.mjs. Make the single-predicate repair required by AGENTS.md: the age threshold must include 18 while acceptedTerms must remain exactly true. Do not change formatting or unrelated validation. Then run node test/immutable-contract.test.mjs and show git diff -- src/check.mjs.\n\nOptional review command, only if offered by the installed version:\n/review\n\nIndependent shell checks after Codex stops:\ngit status --short\ngit diff -- src/check.mjs\ngit diff --exit-code HEAD -- AGENTS.md test fixtures reference\ngit diff --no-index -- src/check.mjs reference/check.repaired.mjs\nnode test/immutable-contract.test.mjs"
+      }
+    },
+    {
+      "id": "review-decisions",
+      "title": "Reject a plausible bad diff and recover without losing evidence",
+      "paragraphs": [
+        "A plausible but unacceptable proposal may lower the threshold to 17 and edit the test to accept the broader behavior. The source change violates the stated age-domain rule, and the test change destroys independent evidence. Reject the proposal even if its modified test reports success.",
+        "The example diff below is a stop decision, not a claimed Codex response. Do not approve it, do not grant broader permissions, and do not continue making mutations. Preserve all rejected changes in a named Git stash, which records recoverable evidence while returning the listed paths to the verified checkpoint. Then confirm that the worktree is clean and rerun the baseline harness, which must again show the documented two failures and status 1.",
+        "Only after recovery should a new bounded attempt edit src/check.mjs alone. If unrelated changes exist, include and preserve them deliberately rather than using the path-limited stash commands blindly."
+      ],
+      "code": {
+        "language": "diff",
+        "label": "Bad diff to reject, followed by bounded recovery commands",
+        "code": "diff --git a/src/check.mjs b/src/check.mjs\n--- a/src/check.mjs\n+++ b/src/check.mjs\n@@\n-    const eligible = row.age > 18 && row.acceptedTerms === true;\n+    const eligible = row.age >= 17 && row.acceptedTerms === true;\ndiff --git a/test/immutable-contract.test.mjs b/test/immutable-contract.test.mjs\n--- a/test/immutable-contract.test.mjs\n+++ b/test/immutable-contract.test.mjs\n@@\n-    expected: { approved: [], rejected: ['minor', 'declined'] },\n+    expected: { approved: ['minor'], rejected: ['declined'] },\n\n# Run only if these are the rejected paths you intend to preserve:\ngit stash push -m 'rejected-broad-threshold-and-test-edit' -- src/check.mjs test/immutable-contract.test.mjs\ngit status --short\ngit stash list\ngit stash show --patch stash@{0}\nnode test/immutable-contract.test.mjs"
+      }
+    },
+    {
+      "id": "repaired-output",
+      "title": "Verify the one-predicate repair and every input class",
+      "paragraphs": [
+        "The intended source diff changes only row.age > 18 to row.age >= 18. After that single-predicate repair, the immutable harness stdout is exactly the five PASS and RESULT lines below, stderr is empty, and status is 0. The unchanged positive boundary now passes, the unchanged negative behavior still passes, and the changed fixture verifies both an age-19 record and a newly introduced age-18 record.",
+        "The direct invocations below make each result contract independently observable. For positive, negative, and changed valid inputs, stdout is the shown compact JSON plus a newline, stderr is empty, and status is 0. For malformed input, stdout is empty, stderr is ERROR: malformed JSON plus a newline, and status is 2. A no-output, status-0 comparison against reference/check.repaired.mjs independently establishes that the repaired source equals the complete protected reference.",
+        "These direct commands and the harness are local deterministic evidence. Record a Codex session separately only if it actually occurred. Never relabel these Node.js results as provider-session logs."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Exact repaired outputs and statuses",
+        "code": "$ node test/immutable-contract.test.mjs\nPASS positive input\nPASS negative input\nPASS changed input\nPASS malformed input\nRESULT 4 passed, 0 failed\nstdout: exactly the five result lines above\nstderr: empty\nstatus: 0\n\n$ git diff --no-index -- src/check.mjs reference/check.repaired.mjs\nstdout: empty\nstderr: empty\nstatus: 0\n\n$ node src/check.mjs fixtures/positive.json\n{\"approved\":[\"boundary-adult\"],\"rejected\":[]}\nstdout: the JSON line above\nstderr: empty\nstatus: 0\n\n$ node src/check.mjs fixtures/negative.json\n{\"approved\":[],\"rejected\":[\"minor\",\"declined\"]}\nstdout: the JSON line above\nstderr: empty\nstatus: 0\n\n$ node src/check.mjs fixtures/changed.json\n{\"approved\":[\"boundary-adult\",\"new-boundary\"],\"rejected\":[]}\nstdout: the JSON line above\nstderr: empty\nstatus: 0\n\n$ node src/check.mjs fixtures/malformed.json\nstdout: empty\nstderr: ERROR: malformed JSON\nstatus: 2"
+      }
+    },
+    {
+      "id": "diff-checkpoint",
+      "title": "Accept only the bounded diff and create a reviewed checkpoint",
+      "paragraphs": [
+        "Before accepting the repair, git status --short must list only src/check.mjs. The protected-path diff command must return status 0 with no output. The source diff must contain one predicate change, the source must compare equal to the complete protected reference, and the harness must return status 0 with the exact repaired output.",
+        "After those conditions hold, create a new local checkpoint. The identity remains repository-local, inherited from setup. This workflow adds no remote and performs no push. Keep any rejected-change stash until review evidence has been retained according to local policy.",
+        "If a protected-path check prints a diff, the reference comparison differs, or a command returns an unexpected status, stop. Preserve the current diff or stash the known rejected paths, return to the lab-baseline checkpoint, and repeat with a smaller authorized scope. Do not resolve an unexpected change by weakening tests or granting unrestricted access."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Independent acceptance and checkpoint commands",
+        "code": "set -eu\ngit status --short\ngit diff -- src/check.mjs\ngit diff --exit-code HEAD -- AGENTS.md test fixtures reference\ngit diff --no-index -- src/check.mjs reference/check.repaired.mjs\nnode test/immutable-contract.test.mjs\ngit add src/check.mjs\ngit diff --cached --check\ngit commit -m 'Include age 18 in eligibility predicate'\ngit status --short"
+      }
+    },
+    {
+      "id": "noninteractive",
+      "title": "Use non-interactive operation only inside a controlled evidence envelope",
+      "paragraphs": [
+        "Codex exec supports non-interactive scripts and CI workflows. Move this task to that surface only after the interactive contract is stable and the installed command's own codex exec --help has been reviewed. This card does not invent flags for selecting profiles, approval behavior, output formats, or schemas that were not established by the supplied official documentation.",
+        "The envelope below is an author-defined control record, not Codex syntax and not evidence that a run occurred. A wrapper should materialize it before execution, bind its fields to options supported by the installed CLI, capture process stdout, stderr, and status separately, and fail closed if the effective permissions or changed paths exceed the record.",
+        "A genuine execution record should add the exact CLI version, resolved commit identifier, effective permission display or managed policy reference, start and finish timestamps, command status, captured streams, final changed paths, test output, and human review decision. UNKNOWN should be used for any value the wrapper did not capture."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Filled non-interactive control envelope pattern",
+        "code": "{\n  \"taskId\": \"include-age-18-boundary\",\n  \"workingDirectory\": \"codex-cli-operating-lab\",\n  \"baselineRef\": \"HEAD at lab-baseline\",\n  \"instructionFile\": \"AGENTS.md\",\n  \"allowedReadPaths\": [\n    \"AGENTS.md\",\n    \"src/check.mjs\",\n    \"test/immutable-contract.test.mjs\",\n    \"fixtures/positive.json\",\n    \"fixtures/negative.json\",\n    \"fixtures/changed.json\",\n    \"fixtures/malformed.json\",\n    \"reference/check.repaired.mjs\",\n    \"reference/expected-after-repair.txt\"\n  ],\n  \"allowedWritePaths\": [\"src/check.mjs\"],\n  \"networkRequired\": false,\n  \"task\": \"Change only the eligibility age predicate so age 18 is included; preserve the acceptedTerms check and all other behavior.\",\n  \"verificationCommand\": [\"node\", \"test/immutable-contract.test.mjs\"],\n  \"requiredVerificationStatus\": 0,\n  \"requiredChangedPaths\": [\"src/check.mjs\"],\n  \"capturedArtifacts\": {\n    \"codexStdout\": \"evidence/codex.stdout\",\n    \"codexStderr\": \"evidence/codex.stderr\",\n    \"codexStatus\": \"evidence/codex.status\",\n    \"gitDiff\": \"evidence/change.diff\",\n    \"testStdout\": \"evidence/test.stdout\",\n    \"testStderr\": \"evidence/test.stderr\",\n    \"testStatus\": \"evidence/test.status\"\n  },\n  \"stopConditions\": [\n    \"effective permissions exceed the task\",\n    \"network access is requested\",\n    \"a path outside allowedWritePaths changes\",\n    \"a secret appears\",\n    \"verification output differs from the contract\"\n  ]\n}"
       }
     },
     {
       "id": "verify",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence is a bounded diff or artifact, the exact verification output, and a record of permissions actually used. Verify the repository status, inspect new and deleted files, run the relevant test or build, and confirm that the observable result matches the request.",
-        "For recovery, stop further mutations, retain the failing output, restore the affected unit from its checkpoint, and repeat with a smaller scope. Do not use unrestricted access as a generic troubleshooting step."
-      ]
+        "A complete evidence set contains the baseline commit identifier, effective permission information actually displayed by the installed product, the applicable AGENTS.md, initial failing output and status, the one-line source diff, protected-path check, reference comparison, repaired output and status, product review observations if used, independent human review, and final local checkpoint identifier.",
+        "Evidence answers different questions. The Git diff establishes what changed. Protected-path comparison establishes what did not change. Reference equality and the positive, negative, changed, and malformed cases establish the documented local behavior. Permission displays establish only what the product reported for that session. None of those facts alone establishes all the others.",
+        "For recovery, stop further mutations and retain failing output. Preserve a rejected diff in a named stash or equivalent local record, return only the affected paths to the verified checkpoint, confirm repository status, and reproduce the known baseline before trying a narrower repair. Never use unrestricted permissions as a generic troubleshooting step."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Final review record",
+        "code": "Baseline commit: [git rev-parse baseline commit]\nCodex version: [exact captured output, or UNKNOWN]\nEffective permissions: [verbatim installed-product display, or UNKNOWN]\nApplicable instructions: AGENTS.md, explicitly requested in the task\nInitial test: status 1; RESULT 2 passed, 2 failed\nAuthorized changed path: src/check.mjs\nProtected-path check: status 0; no output\nAccepted diff: row.age > 18 changed to row.age >= 18\nReference comparison: status 0; no output\nFinal test: status 0; RESULT 4 passed, 0 failed\nProduct review observations: [verbatim summary, NOT RUN, or UNSUPPORTED]\nHuman decision: [accept or reject, with reason]\nFinal checkpoint: [git rev-parse HEAD]\nProvider-session evidence: [captured artifact locations, or NOT RUN]"
+      }
     }
   ],
   "sources": [
@@ -63,19 +188,19 @@
       "title": "Codex CLI",
       "url": "https://learn.chatgpt.com/docs/codex/cli",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Codex permissions",
       "url": "https://learn.chatgpt.com/docs/permissions",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
-      "title": "Codex agent approvals and security",
-      "url": "https://learn.chatgpt.com/docs/agent-approvals-security",
+      "title": "AGENTS.md",
+      "url": "https://learn.chatgpt.com/docs/agent-configuration/agents-md",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     }
   ]
 }

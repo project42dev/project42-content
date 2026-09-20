@@ -2,7 +2,7 @@
   "id": "github-copilot-operating-card",
   "slug": "github-copilot-operating-card",
   "title": "GitHub Copilot Operating Card",
-  "summary": "Use GitHub Copilot chat, coding agent, CLI, and code review with repository instructions, branch protection, and human validation.",
+  "summary": "Use GitHub Copilot chat, coding agent, CLI, and code review with repository instructions, branch protection, reproducible evidence, and human validation.",
   "category": "AI coding tools",
   "format": "reference",
   "audience": [
@@ -17,66 +17,174 @@
   "prerequisites": [
     "An approved GitHub Copilot plan and policy",
     "A version-controlled repository",
-    "Repository review and branch controls"
+    "Repository review and branch controls",
+    "Node.js 22 or a compatible Node.js 22 installation for the local exercise",
+    "Bash for the setup script"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "coding-tools",
     "github-copilot",
     "coding-agent",
-    "code-review"
+    "code-review",
+    "repository-instructions",
+    "branch-protection",
+    "human-review"
   ],
   "sections": [
     {
       "id": "fit",
       "title": "Match the Copilot surface to the task",
       "paragraphs": [
-        "GitHub Copilot includes interactive editor and CLI assistance, cloud coding-agent workflows, and code review. Use interactive surfaces for close collaboration, coding agent for bounded branch work, and code review as supplemental feedback.",
-        "Copilot review can miss problems or make mistakes. Preserve required human review, automated checks, branch protections, and accountable release approval."
-      ]
+        "GitHub Copilot offers interactive editor and CLI assistance, a cloud coding agent for bounded branch and pull-request work, and code review for feedback. Use an interactive surface when you want close, incremental collaboration. Use the cloud coding agent when the issue has a bounded result, clear acceptance criteria, and an identified file scope. Use code review as supplemental feedback after a change exists.",
+        "These surfaces are not interchangeable. An editor or CLI conversation helps you explore and edit locally. A cloud coding-agent task works on a hosted branch or pull request according to the task and repository guidance. Code review comments assess a proposed change and do not replace tests, security checks, or accountable human review.",
+        "Copilot code review can miss issues or make mistakes. A human must inspect the change, the evidence, and the risk before merging or releasing it."
+      ],
+      "code": {
+        "language": "text",
+        "label": "GitHub Copilot operating task card",
+        "code": "Task: Repair the adult eligibility boundary in src/eligibility.mjs by changing the age predicate from >18 to >=18 while keeping record.active === true.\n\nScope: Work in the local Copilot exercise repository on the baseline branch. Read .github/copilot-instructions.md, AGENTS.md, src/eligibility.mjs, tests/immutable-test.mjs, fixtures/cases.mjs, and reference/eligibility.mjs. Edit only src/eligibility.mjs. Do not change tests/immutable-test.mjs, fixtures/cases.mjs, reference/eligibility.mjs, .github/copilot-instructions.md, AGENTS.md, README.md, generated files, package metadata, or unrelated files. The exercise is local evidence and is not a Copilot provider session, pull request, review, approval, or branch-protection result.\n\nPermissions: Use the approved Copilot surface and repository policy only. No network access, dependency installation, secret access, unrelated repository changes, push, merge, or permission expansion is authorized. Instruction files guide the task but do not grant permissions. A human must inspect the diff and evidence before acceptance.\n\nInstructions: Read .github/copilot-instructions.md and AGENTS.md before editing. First run node tests/immutable-test.mjs from the repository root and explain the age-18 failure. Make only the single causal comparison change in src/eligibility.mjs. Do not edit tests, fixtures, reference, or instruction files. After editing, run the immutable test and report the exact command, stdout, stderr, exit status, and changed paths. Treat any local result as exercise evidence only, not as evidence of a real Copilot run or approval.\n\nExpected output: On the unchanged baseline branch, node tests/immutable-test.mjs must report:\nPASS positive adult active\nPASS negative minor active\nPASS negative adult inactive\nFAIL changed boundary adult active: expected true, got false\nSummary: 3 passed, 1 failed\nwith empty stderr and status 1. After only changing > to >= in src/eligibility.mjs, it must report:\nPASS positive adult active\nPASS negative minor active\nPASS negative adult inactive\nPASS changed boundary adult active\nSummary: 4 passed, 0 failed\nwith empty stderr and status 0. While uncommitted, git diff --name-only baseline must list only src/eligibility.mjs.\n\nVerification: Run node --version and node tests/immutable-test.mjs. Run git diff --name-only baseline, git diff --stat baseline, git diff baseline, and git status --short. Confirm the only changed path is src/eligibility.mjs and the diff changes only > to >=. Confirm tests, fixtures, reference, .github/copilot-instructions.md, and AGENTS.md are unchanged. A human reviewer must decide whether to accept, request changes, or reject. Do not treat a local passing test as Copilot review or GitHub approval.\n\nStop conditions: Stop if any file outside src/eligibility.mjs changes; tests, fixtures, reference, .github/copilot-instructions.md, or AGENTS.md are edited; network, dependency installation, secret access, push, merge, or broader permissions are requested; the initial result is not exactly 3 passed, 1 failed with status 1; or the repaired result is not exactly 4 passed, 0 failed with status 0. Do not accept a broad threshold, a test modification, or unrelated cleanup.\n\nRecovery: Before restoring anything, preserve the session log if one exists, the complete git diff baseline, git status --short, command output, stderr, status, and changed-path evidence outside the restoration operation. Do not accept or push the change. Then run git restore --source=baseline --staged --worktree -- . and git status --short. Rerun node tests/immutable-test.mjs and confirm the failed baseline, Summary: 3 passed, 1 failed, status 1, rather than confusing it with successful repaired behavior. Reapply only the intended src/eligibility.mjs predicate repair, rerun verification, and retain the preserved evidence. The restore command does not delete untracked evidence, so inspect or preserve untracked files separately."
+      }
     },
     {
       "id": "operate",
       "title": "Provide shared repository instructions",
       "paragraphs": [
-        "Use AGENTS.md for cross-tool rules and Copilot-specific or path-specific instruction files only where their scope is intentional. Include build, test, architecture, and security expectations that can be verified.",
-        "Review requested CLI commands, agent session activity, pull-request changes, and review suggestions. Treat MCP servers and skills as separately governed dependencies."
+        "Put repository-wide guidance in .github/copilot-instructions.md when the relevant Copilot surface supports that file. Put shared guidance for multiple coding tools in AGENTS.md. Keep instructions concrete: name commands, affected paths, architectural constraints, security rules, and the evidence required before approval.",
+        "Instruction support varies by Copilot surface. VS Code Chat supports .github/copilot-instructions.md, .github/instructions/**/*.instructions.md, and AGENTS.md. Do not assume that every Copilot surface reads every instruction file.",
+        "Instruction files guide behavior. They do not grant permissions, override repository policy, or make an unsafe command safe. Review requested commands, agent activity, pull-request changes, and suggestions before accepting them."
       ],
       "code": {
         "language": "text",
-        "label": "GitHub Copilot task card",
-        "code": "Task: [issue or one bounded result]\nScope: [repository, branch, and paths]\nPermissions: [agent, CLI, MCP, network, and repo access]\nInstructions: [AGENTS.md and Copilot-specific rules]\nExpected output: [diff, PR, review, or report]\nVerification: [checks plus accountable human review]\nRecovery: [stop session, close PR, revert branch, reconcile]"
+        "label": "Repository guidance and task card",
+        "code": "Repository files:\n.github/copilot-instructions.md\nAGENTS.md\n\nTask: Add one bounded behavior or fix one named defect.\nProblem: [observable problem and affected users]\nAcceptance criteria:\n- [testable criterion]\n- [testable criterion]\nAffected files: [explicit paths]\nOut of scope: [explicit paths or behaviors]\nPermissions: [agent, CLI, MCP, network, repository access]\nRequired checks: [exact commands]\nExpected output: [diff, pull request, review, or report]\nHuman decision: [merge, request changes, or reject]\nRecovery: stop, preserve evidence, restore the branch or files, and retry with a narrower task."
+      }
+    },
+    {
+      "id": "filled-task",
+      "title": "Filled task and instruction artifacts",
+      "paragraphs": [
+        "The following is a concrete task suitable for a bounded coding-agent branch. It identifies the problem, acceptance criteria, and affected files. It is an example task artifact, not evidence that Copilot ran it.",
+        "The repository guidance is deliberately narrow. It asks for a small change, requires tests, and prevents unrelated cleanup. It is guidance rather than a permission control."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Issue and repository instruction files",
+        "code": "Issue: Fix adult eligibility at the boundary\n\nProblem:\nThe eligibility function rejects an active person whose age is exactly 18. Adults are eligible at age 18.\n\nAcceptance criteria:\n1. In src/eligibility.mjs, an active record with an integer age of 18 returns true.\n2. An active record below 18 returns false.\n3. An inactive record returns false at any valid age.\n4. Change only the age comparison needed for this defect.\n5. Run node tests/immutable-test.mjs and include its complete output in the pull request.\n6. Do not edit tests, fixtures, reference, or unrelated files.\n\nAffected files:\nsrc/eligibility.mjs\n\nOut of scope:\nAPI changes, dependency changes, formatting-only changes, and edits outside src/eligibility.mjs.\n\n.github/copilot-instructions.md:\n- Read AGENTS.md before editing.\n- For this task, edit only src/eligibility.mjs.\n- Do not modify tests, fixtures, reference, package metadata, or generated files.\n- Run node tests/immutable-test.mjs after editing.\n- Report the exact command, stdout, stderr, exit status, and changed paths.\n- Do not add dependencies or use network access.\n\nAGENTS.md:\n- Preserve the documented input domain and exported function name.\n- Prefer the smallest causal change.\n- Do not claim a review or approval from a local test.\n- A human reviewer must inspect the diff and test evidence before merge."
+      }
+    },
+    {
+      "id": "review-artifact",
+      "title": "Filled code review artifact and disposition",
+      "paragraphs": [
+        "This example shows the kind of review evidence a learner should inspect. The proposed diff has one intended line change and no unrelated files.",
+        "Disposition: request changes. The review comment correctly identifies a boundary defect, but the pull request cannot be accepted until the author supplies the required local test output and a human confirms that the test file and fixtures were not changed. After the one-predicate repair, rerun the checks and inspect the new diff. A passing local exercise is evidence for this exercise only, not proof of GitHub approval or branch-protection compliance.",
+        "By default, Copilot reviews do not count toward required approvals. Optional Copilot approval behavior is a public preview whose availability and effect depend on applicable repository, organization, or enterprise enablement. It is not a universal approval rule. Where that preview is enabled, verify the actual settings and branch-protection rules before relying on a Copilot review. A new commit dismisses that approval. Check the repository's actual settings rather than assuming either behavior."
+      ],
+      "code": {
+        "language": "diff",
+        "label": "Bad diff and review disposition",
+        "code": "diff --git a/src/eligibility.mjs b/src/eligibility.mjs\nindex 2db1a11..f32a9cc 100644\n--- a/src/eligibility.mjs\n+++ b/src/eligibility.mjs\n@@ -1,3 +1,3 @@\n export function eligible(record) {\n-  return record.age > 18 && record.active === true;\n+  return record.age >= 18 && record.active === true;\n }\n\nReview comment:\nThe boundary comparison is now correct for age 18. Before acceptance, please attach the complete output of node tests/immutable-test.mjs and confirm that only src/eligibility.mjs changed.\n\nDecision:\nREQUEST_CHANGES until test evidence and the human diff check are complete.\n\nRecovery if the agent changes the wrong scope:\nStop the session. Do not accept or push the changes. Preserve the session log and current diff, restore the branch from the tracked baseline, then rerun the task with the explicit affected-file and out-of-scope lists."
       }
     },
     {
       "id": "verify",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence includes the issue or prompt, instruction files used, commands or session log, pull-request diff, automated checks, and human disposition of review findings.",
+        "Expected evidence includes the issue or prompt, the instruction files used, the commands or session log, the pull-request diff, automated-check output, and the human disposition of review findings.",
+        "Verify both behavior and scope. Confirm that the positive case still passes, the negative cases still pass, the changed boundary input now passes, and only the intended predicate changed. Because the learner is not assumed to have committed the repair, inspect the working tree against the tracked baseline with git diff baseline, not baseline..HEAD. Also check git status --short so that untracked files are visible.",
         "If Copilot changes the wrong scope or gives unsafe feedback, stop the workflow, preserve the evidence, restore the branch or files, and refine the issue and instruction boundary before retrying."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Review and recovery commands",
+        "code": "node --version\nnode tests/immutable-test.mjs\nprintf '\\nWorking-tree changed paths against baseline:\\n'\ngit diff --name-only baseline\nprintf '\\nWorking-tree diff stat against baseline:\\n'\ngit diff --stat baseline\nprintf '\\nWorking-tree diff against baseline:\\n'\ngit diff baseline\nprintf '\\nRepository status, including untracked files:\\n'\ngit status --short\n\n# Recovery on the exercise branch, after preserving evidence elsewhere:\ngit restore --source=baseline --staged --worktree -- .\ngit status --short\n\n# A committed comparison is different. Use it only after a commit:\n# git diff --name-only baseline..HEAD"
+      }
+    },
+    {
+      "id": "local-exercise",
+      "title": "Offline Node.js 22 exercise: reproduce, repair, and recover",
+      "paragraphs": [
+        "This exercise is a local simulation of the evidence discipline used around a coding-agent task. It is not a GitHub Copilot session, does not create a product review, and cannot prove a Copilot approval or branch-protection result.",
+        "The setup requires Bash and Node.js 22. It must be run from a parent directory with a new target path. The script refuses to use an existing path and performs no rm command, recursive deletion, remote configuration, push, or global Git configuration. It creates a tracked baseline after creating the exact fixtures and starter files, and sets a fictional learner identity in the local repository only.",
+        "Input domain: each record is an object with an integer age from 0 through 120 and an active boolean. The intended predicate is true exactly when age is at least 18 and active is true. The learner must repair only the comparison predicate in starter/src/eligibility.mjs. The test, fixtures, and reference implementation are separate and must remain unchanged.",
+        "The immutable test gathers four cases: one unchanged positive case, two unchanged negative cases, and one changed boundary case. The initial failure count is therefore exactly one. The reference implementation is supplied for causal comparison but is not imported by the test and is not copied into the starter automatically.",
+        "Run the setup from the directory containing setup-exercise.sh with: bash setup-exercise.sh copilot-boundary-exercise. The command prints the installed Node version as an environment diagnostic. The behavioral command has deterministic output, stderr, and status."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "setup-exercise.sh",
+        "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nif [[ $# -ne 1 ]]; then\n  printf 'usage: bash setup-exercise.sh NEW_DIRECTORY\\n' >&2\n  exit 2\nfi\nTARGET=$1\nif [[ -e \"$TARGET\" ]]; then\n  printf 'refusing existing path: %s\\n' \"$TARGET\" >&2\n  exit 3\nfi\ncommand -v node >/dev/null\nprintf 'Node version: '\nnode --version\nmkdir -p \"$TARGET/src\" \"$TARGET/fixtures\" \"$TARGET/tests\" \"$TARGET/reference\"\n\ncat > \"$TARGET/src/eligibility.mjs\" <<'EOF'\nexport function eligible(record) {\n  return record.age > 18 && record.active === true;\n}\nEOF\n\ncat > \"$TARGET/fixtures/cases.mjs\" <<'EOF'\nexport const cases = [\n  { label: 'positive adult active', record: { age: 21, active: true }, expected: true },\n  { label: 'negative minor active', record: { age: 17, active: true }, expected: false },\n  { label: 'negative adult inactive', record: { age: 21, active: false }, expected: false },\n  { label: 'changed boundary adult active', record: { age: 18, active: true }, expected: true }\n];\nEOF\n\ncat > \"$TARGET/reference/eligibility.mjs\" <<'EOF'\nexport function eligible(record) {\n  return record.age >= 18 && record.active === true;\n}\nEOF\n\ncat > \"$TARGET/tests/immutable-test.mjs\" <<'EOF'\nimport { eligible } from '../src/eligibility.mjs';\nimport { cases } from '../fixtures/cases.mjs';\n\nlet passed = 0;\nlet failed = 0;\nfor (const testCase of cases) {\n  const actual = eligible(testCase.record);\n  if (actual === testCase.expected) {\n    console.log(`PASS ${testCase.label}`);\n    passed += 1;\n  } else {\n    console.log(`FAIL ${testCase.label}: expected ${testCase.expected}, got ${actual}`);\n    failed += 1;\n  }\n}\nconsole.log(`Summary: ${passed} passed, ${failed} failed`);\nprocess.exitCode = failed === 0 ? 0 : 1;\nEOF\n\ncat > \"$TARGET/README.md\" <<'EOF'\n# Copilot boundary exercise\n\nRun `node tests/immutable-test.mjs`. Repair only the single comparison predicate in `src/eligibility.mjs`. Do not edit tests, fixtures, or reference.\nEOF\n\nchmod a-w \"$TARGET/tests/immutable-test.mjs\"\nchmod a-w \"$TARGET/fixtures/cases.mjs\"\nchmod a-w \"$TARGET/reference/eligibility.mjs\"\n\ngit -C \"$TARGET\" init -q\ngit -C \"$TARGET\" config user.name 'Project 42 Learner'\ngit -C \"$TARGET\" config user.email 'learner@example.invalid'\ngit -C \"$TARGET\" add .\ngit -C \"$TARGET\" commit -qm 'baseline exact exercise fixtures'\ngit -C \"$TARGET\" branch -M main\ngit -C \"$TARGET\" branch baseline\nprintf 'Created fresh exercise at %s\\n' \"$TARGET\"\nprintf 'Baseline is tracked. No remote or push was configured.\\n'\nprintf 'Run: cd %s && node tests/immutable-test.mjs\\n' \"$TARGET\""
+      }
+    },
+    {
+      "id": "local-results",
+      "title": "Exact local results, repair, and recovery",
+      "paragraphs": [
+        "Immediately after setup, run the immutable test from the exercise directory. The command exits with status 1, writes no stderr, and prints exactly four case lines followed by the summary below. The one failing case is the changed boundary input, so the displayed failure count is true.",
+        "Make the intended one-predicate repair by changing only > to >= in src/eligibility.mjs. Do not alter the test or fixtures. The repaired command exits with status 0, writes no stderr, and prints exactly four passing case lines followed by the summary below.",
+        "After the repair remains uncommitted, git diff --name-only baseline prints src/eligibility.mjs. The command git diff --name-only baseline..HEAD compares committed snapshots and can print no paths because HEAD still contains the unchanged baseline commit. Therefore do not use baseline..HEAD as the working-tree scope check unless the repair has been committed. To teach recovery, first record the bad state with git diff and git status. Then use git restore --source=baseline --staged --worktree -- . to recover the tracked files. Confirm a clean status, rerun the test to reproduce the baseline failure, and apply only the intended predicate repair. The restore command does not delete untracked files, so preserve any evidence outside the exercise path or inspect it before recovery."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Deterministic test evidence",
+        "code": "Initial command:\n$ node tests/immutable-test.mjs\nPASS positive adult active\nPASS negative minor active\nPASS negative adult inactive\nFAIL changed boundary adult active: expected true, got false\nSummary: 3 passed, 1 failed\nstdout: the five lines above\nstderr: empty\nstatus: 1\n\nAfter changing only > to >=:\n$ node tests/immutable-test.mjs\nPASS positive adult active\nPASS negative minor active\nPASS negative adult inactive\nPASS changed boundary adult active\nSummary: 4 passed, 0 failed\nstdout: the five lines above\nstderr: empty\nstatus: 0\n\nScope check while the repair is uncommitted:\n$ git diff --name-only baseline\nsrc/eligibility.mjs\n\n$ git diff --stat baseline\n src/eligibility.mjs | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n\n$ git status --short\n M src/eligibility.mjs\n\nCommitted-snapshot comparison, not the working-tree check:\n$ git diff --name-only baseline..HEAD\n# no output when HEAD is still the baseline commit\n\nRecovery check:\n$ git restore --source=baseline --staged --worktree -- .\n$ git status --short\n# no output means the tracked worktree is clean"
+      }
+    },
+    {
+      "id": "product-boundaries",
+      "title": "Separate local evidence from product operation",
+      "paragraphs": [
+        "The local Node exercise demonstrates a reproducible task, a genuine failure, a minimal repair, and evidence collection. It does not simulate GitHub authentication, Copilot entitlements, a cloud-agent branch, a pull request, Copilot code review, repository settings, required approvals, or a merge.",
+        "For an actual cloud coding-agent task, create or select a bounded issue, state the problem and acceptance criteria, name affected files, include repository instructions, inspect the resulting branch and pull request, iterate through comments when needed, and run the repository's checks. For editor or CLI assistance, keep the interaction visible and verify each proposed change locally.",
+        "For an actual Copilot review, treat comments as suggestions to investigate. A human reviewer must decide whether a finding is valid, whether the change is safe, and whether branch protection and approval requirements are satisfied. By default, Copilot reviews do not count toward required approvals. Optional Copilot approvals are a public preview and depend on applicable repository, organization, or enterprise enablement. Verify the actual settings and current GitHub documentation rather than assuming that a Copilot review universally satisfies a required approval."
       ]
     }
   ],
   "sources": [
     {
-      "title": "Best practices for Copilot coding agent tasks",
-      "url": "https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/best-practices-for-using-copilot-to-work-on-tasks",
+      "title": "Get the best results from GitHub Copilot coding agent",
+      "url": "https://docs.github.com/en/copilot/tutorials/cloud-agent/get-the-best-results",
       "publisher": "GitHub",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Custom instructions support",
+      "url": "https://docs.github.com/en/copilot/reference/custom-instructions-support",
+      "publisher": "GitHub",
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "About GitHub Copilot code review",
       "url": "https://docs.github.com/en/copilot/concepts/agents/code-review",
       "publisher": "GitHub",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
-      "title": "Copilot custom-instruction support",
-      "url": "https://docs.github.com/en/copilot/reference/custom-instructions-support",
-      "publisher": "GitHub",
-      "lastVerified": "2026-09-13"
+      "title": "git-diff Documentation",
+      "url": "https://git-scm.com/docs/git-diff",
+      "publisher": "Git",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "git-status Documentation",
+      "url": "https://git-scm.com/docs/git-status",
+      "publisher": "Git",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "git-restore Documentation",
+      "url": "https://git-scm.com/docs/git-restore",
+      "publisher": "Git",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Node.js Release Schedule",
+      "url": "https://nodejs.org/en/about/releases/",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
