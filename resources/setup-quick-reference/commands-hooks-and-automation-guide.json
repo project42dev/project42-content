@@ -20,7 +20,7 @@
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 45,
-  "lastVerified": "2026-09-11",
+  "lastVerified": "2026-09-20",
   "tags": [
     "commands",
     "hooks",
@@ -33,29 +33,72 @@
       "id": "choose-mechanism",
       "title": "Choose the mechanism from its authority boundary",
       "paragraphs": [
-        "Use an interactive command for an operator-initiated action, a reusable command or prompt for a repeatable input pattern, a hook for a documented lifecycle event, and CI for repository policy that must run independently of one local tool. Product names and trigger semantics differ, so confirm the exact event and blocking behavior in current documentation.",
-        "A hook is executable automation, not extra prose. Review its command, working directory, inherited environment, timeout, input contract, exit behavior, network use, and side effects. Keep durable repository checks in the repository even when a local hook invokes them."
+        "Use an interactive command when an operator should decide when to run a task. Use a reusable prompt or command template to standardize instructions, but do not treat prose as enforcement. Use a local hook only for a documented lifecycle event whose timing, input schema, timeout, working directory, and decision behavior have been verified. Use CI when a repository check must run independently of one developer's local client.",
+        "All four triggers in this exercise lead to the same repository-owned check.mjs program. Their authority differs. The manual command reports to its operator. The prompt tells an operator which command to run. The generic adapter may stop only the local process that invoked it. CI reports according to repository configuration. A passing check establishes only that one supplied artifact meets this validator's contract. It is not authentication, authorization, approval, or proof that another system performed no writes.",
+        "Provider support is broader than the references listed here. For Claude Code, consult the documented event-specific hook input and decision rules before making a blocking integration. PreToolUse can run before a tool, while PostToolUse follows a successful operation and cannot undo a completed write. For Gemini CLI, consult the command reference for the installed version and do not infer a hook protocol from command names. These lookup notes do not make the included generic adapter wire-compatible with either product."
       ]
     },
     {
       "id": "design-safe-automation",
       "title": "Design for bounded input and observable output",
       "paragraphs": [
-        "Accept only the inputs needed for the outcome, validate untrusted text before shell or tool use, use least-privilege credentials, and make writes idempotent or reconcilable. Decide whether a failure blocks, warns, retries, or routes to a human before enabling the automation.",
-        "Test read-only behavior first, then an isolated reversible write if required. Never test a destructive or externally visible path merely because the local command is easy to invoke."
+        "The lab check accepts one explicit relative JSON file path. It rejects absolute paths, traversal, symbolic-link input files, oversized files, malformed JSON, unknown fields, missing fields, unapproved repository paths, and nonterminal expected values. It reads no credentials, makes no network requests, performs no writes, uses no eval, and starts no shell.",
+        "The trusted directory is the local guide directory, training/field-guides/commands-hooks-and-automation-guide, when the operator runs the command from there. The checker also permits only the single logical scope path held in its fixed APPROVED_PATHS set: training/field-guides/commands-hooks-and-automation-guide/README.md. The logical artifact.scope.paths value is metadata being validated. It is not the same thing as the actual input path argument, such as fixtures/positive.json or fixtures/learner-repair.json.",
+        "The checker uses path validation, lstatSync, realpathSync, fstatSync, bounded reads, and fatal UTF-8 decoding as prechecks. On supporting Unix systems, O_NOFOLLOW can provide an additional best-effort open check; Node.js documents it as unavailable on Windows. These checks reduce ordinary path and symlink mistakes, but they do not create a race-proof sandbox against concurrent filesystem mutation. Operators must run in a trusted local directory and must not make a broad security claim based on these prechecks alone.",
+        "The generic adapter accepts a separate, documented teaching-event JSON shape. It validates that event before starting the same check with Node's child_process.spawn, a fixed executable, fixed argument structure, and shell set to false. Event text never becomes a command. The adapter is intentionally not presented as a Claude Code, Gemini CLI, or other vendor protocol.",
+        "Run the independent process-level tests while the surrounding trigger is disabled. Begin with read-only validation and inspect stdout, stderr, exit status, and file hashes. If an unknown write may have happened, do not retry blindly. Disable the trigger, preserve evidence, reconcile state, and restore exact verified files before another attempt. The setup copy operation is different from validation: the learner is permitted to create the new learner file, while check.mjs remains read-only and must not create or modify files."
       ],
       "code": {
         "language": "text",
-        "label": "Command or hook contract",
-        "code": "Task: [ONE REPEATABLE OUTCOME]\nScope: [TOOL, EVENT, REPOSITORY, TARGETS, AND ENVIRONMENT]\nPermissions: [IDENTITY, FILES, COMMANDS, NETWORK, AND EXTERNAL WRITES]\nTrigger: [MANUAL COMMAND | LIFECYCLE EVENT | CI EVENT]\nInputs: [TRUSTED FIELDS, UNTRUSTED FIELDS, AND VALIDATION]\nOutputs and side effects: [ARTIFACTS, LOGS, WRITES, AND IDEMPOTENCY]\nFailure behavior: [BLOCK | WARN | RETRY | HUMAN QUEUE]\nStop conditions: [AUTH FAILURE, UNKNOWN WRITE, INVALID INPUT, TIMEOUT, OR BUDGET]\nVerification: [CONTRACT TEST, ISOLATED RUN, POSTCONDITION, AND CI]\nRecovery: [DISABLE TRIGGER, RECONCILE STATE, REVERT CHANGE, AND PRESERVE EVIDENCE]"
+        "label": "Filled automation contract",
+        "code": "Task: Validate one supplied learning-resource task artifact against exact fields, approved paths, read-only permissions, and terminal expected values.\nScope: Node.js 22; this guide directory; check.mjs; JSON files explicitly named by the operator, generic adapter, or CI executor.\nPermissions: Read regular JSON files inside the guide directory; spawn only the current Node executable from adapter.mjs; no writes, credentials, network, shell, eval, package installation, or external service access.\nTrigger: Manual command, reusable prompt followed by operator action, optional generic local teaching event, or repository CI command. Triggers remain separately configured and do not gain one another's authority.\nInputs: One relative .json path; at most 8192 bytes for task artifacts or 4096 bytes for adapter events; no absolute path, traversal, backslash, symbolic-link input file, unknown field, or unapproved scope path. All JSON content is untrusted until validated.\nOutputs and side effects: One deterministic PASS line on stdout or one deterministic FAIL or ERROR line on stderr; exit 0 for acceptance, 1 for contract rejection, and 2 for invocation, path, encoding, or JSON errors. No intended file, network, or credential side effects.\nFailure behavior: Block only the invoking process, report the first deterministic cause, and leave policy or approval decisions to the surrounding operator or repository system. Do not retry automatically.\nStop conditions: Invalid or oversized input, unsafe path, symbolic link, malformed JSON, unknown field, nonterminal expected value, unexpected runtime, possible unknown write, or unexplained output.\nVerification: Run node tests/run-tests.mjs under Node.js 22 and require PASS: 11 tests; compare exact stdout, stderr, and exit codes; verify fixture hashes remain unchanged and the shell-metacharacter sentinel is absent.\nRecovery: Disable the surrounding trigger first; preserve logs and the input; inspect for unknown writes; restore exact files from the last verified revision; reconcile external state if any; add a regression case; rerun tests before re-enabling."
+      }
+    },
+    {
+      "id": "run-local-lab",
+      "title": "Run and repair the local exercise",
+      "paragraphs": [
+        "Start at the content repository root. The first command changes to the guide directory. Run the changed fixture to observe the exact field-level failure. Keep fixtures/changed-invalid.json unchanged because the test suite uses it as the original negative fixture and asserts that it fails validation. The complete changed fixture is training/field-guides/commands-hooks-and-automation-guide/fixtures/changed-invalid.json. The complete repaired solution is training/field-guides/commands-hooks-and-automation-guide/fixtures/solution.json.",
+        "To repair the exercise, first create a new learner file named fixtures/learner-repair.json by copying the unchanged negative fixture. The copy command uses Node.js 22 fs.copyFileSync() and fs.constants.COPYFILE_EXCL, so it fails instead of overwriting an existing destination. Then edit only fixtures/learner-repair.json, changing expected.decision from review to accept. The learner setup step may write this new file. The checker and test suite remain read-only with respect to the source, schema, checker, tests, and original fixture.",
+        "Validate the new learner file, then run the full unchanged test suite. Do not edit fixtures/changed-invalid.json, fixtures/solution.json, check.mjs, tests/run-tests.mjs, or the schema. Do not change the filename, add an unknown field, weaken check.mjs, or bypass the check. Expected output is described separately from the commands below."
+      ],
+      "code": {
+        "language": "sh",
+        "label": "Commands only",
+        "code": "cd training/field-guides/commands-hooks-and-automation-guide\nnode check.mjs fixtures/positive.json\nnode check.mjs fixtures/changed-invalid.json\nnode --input-type=module -e \"import { copyFileSync, constants } from 'node:fs'; copyFileSync('fixtures/changed-invalid.json', 'fixtures/learner-repair.json', constants.COPYFILE_EXCL)\"\n# Edit fixtures/learner-repair.json only: change expected.decision from review to accept.\nnode check.mjs fixtures/learner-repair.json\nnode tests/run-tests.mjs"
+      }
+    },
+    {
+      "id": "share-one-check",
+      "title": "Share one check without sharing authority",
+      "paragraphs": [
+        "The manual trigger is node check.mjs fixtures/positive.json. The reusable-prompt.txt file asks a human to select an artifact and run that same command. Neither the prompt nor its output receives permission to modify the checker or declare approval.",
+        "The optional local teaching adapter is invoked with events/positive-event.json. It validates a complete generic event, then starts check.mjs with shell disabled. Its positive result is the checker's PASS line and exit code 0. This adapter defines only the local eventVersion, eventType, and artifactPath fields shown in the lab.",
+        "For CI, use a repository-controlled executor that already has the repository checked out and Node.js 22 available, set its working directory to this guide directory, and invoke the same check. No workflow YAML or third-party action SHA is supplied. Do not use pull_request_target with an untrusted checkout, expose privileged credentials, or auto-enable a trigger. Treat proposed changes and path values as untrusted, and let repository configuration decide whether exit 1 blocks merging."
+      ],
+      "code": {
+        "language": "sh",
+        "label": "Commands only",
+        "code": "cd training/field-guides/commands-hooks-and-automation-guide\nnode adapter.mjs events/positive-event.json\nnode check.mjs fixtures/positive.json"
       }
     },
     {
       "id": "verify-automation",
       "title": "Expected result and verification",
       "paragraphs": [
-        "Expected evidence is a reviewed automation contract, pinned trigger and scope, redacted logs, deterministic validation tests, isolated execution result, observed postcondition, failure-path result, and an owner. Verify both the local mechanism and the durable repository check where policy depends on it.",
-        "If the automation targets the wrong path, leaks data, loops, times out after a possible write, or produces an unexplained result, disable the trigger first. Reconcile external state before retrying, revoke exposed credentials, restore the last verified configuration or artifact, and add the failure as a regression test."
+        "For the positive artifact, node check.mjs fixtures/positive.json produces stdout PASS: task artifact satisfies the bounded read-only contract, empty stderr, and exit code 0. The unchanged changed fixture produces empty stdout, stderr FAIL: $.expected.decision must equal \"accept\", and exit code 1. The copied learner file produces the same PASS result after its copy is edited. The repaired solution produces the same PASS result as the positive artifact.",
+        "The adapter positive event produces the same PASS line, empty stderr, and exit code 0. The test runner produces stdout PASS: 11 tests, empty stderr, and exit code 0. Malformed JSON produces ERROR: input is not valid JSON with exit 2. The missing-field, traversal, untrusted-input, entry-traversal, missing-event-field, and untrusted-event cases have their exact expected results in tests/run-tests.mjs and the unchanged fixture files.",
+        "Run node tests/run-tests.mjs under Node.js 22 without dependencies, network access, credentials, or an AI client. The suite checks exact stdout, stderr, and exit status, malformed and adversarial inputs, adapter validation, Node 22, unchanged fixture hashes, and absence of a shell-metacharacter sentinel. Exit 0 means the supplied artifact satisfied this narrow contract. Exit 1 means valid JSON was rejected by the contract. Exit 2 means the checker or adapter could not safely interpret its invocation or input. The original fixtures/changed-invalid.json remains unchanged throughout this sequence.",
+        "If a trigger targets the wrong path, leaks data, loops, times out after a possible write, or produces an unexplained result, disable it first. Do not retry after an unknown write. Preserve evidence, reconcile any external state, restore exact files from the last verified revision, add a regression test, and repeat independent verification before re-enabling the trigger."
+      ]
+    },
+    {
+      "id": "source-boundaries",
+      "title": "Documentation lookup boundaries",
+      "paragraphs": [
+        "Anthropic's hooks guide documents lifecycle events and event-specific behavior, so verify the selected event rather than assuming one universal exit-code rule. Google's Gemini CLI page is a command reference, not evidence that this lab event matches a Gemini hook wire format. GitHub's secure-use guidance treats pull-request-controlled values as untrusted and recommends avoiding injection, unnecessary privilege, and unreviewed dependencies. The Node.js 22 documentation supplies the built-in ESM, file, path, and child-process APIs used here.",
+        "Node.js documents that readSync advances the file position and buffer offset together when a positional read is used. path.isAbsolute detects absolute paths, and path.relative can be used to inspect containment. JSON.parse rejects malformed JSON, and TextDecoder with fatal UTF-8 decoding rejects invalid byte sequences. These are implementation facts, not a claim of race-proof isolation.",
+        "The local exercise runs without an AI client, hosted CI service, dependency download, credential, or network request. No vendor hook configuration, hosted workflow execution, or deployment result is claimed."
       ]
     }
   ],
@@ -67,7 +110,7 @@
       "lastVerified": "2026-09-13"
     },
     {
-      "title": "Gemini CLI commands",
+      "title": "Gemini CLI command reference",
       "url": "https://geminicli.com/docs/reference/commands/",
       "publisher": "Google",
       "lastVerified": "2026-09-13"
@@ -77,6 +120,36 @@
       "url": "https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions",
       "publisher": "GitHub",
       "lastVerified": "2026-09-11"
+    },
+    {
+      "title": "Node.js v22 filesystem API documentation",
+      "url": "https://nodejs.org/docs/latest-v22.x/api/fs.html",
+      "publisher": "OpenJS Foundation",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Node.js v22 child_process API documentation",
+      "url": "https://nodejs.org/docs/latest-v22.x/api/child_process.html",
+      "publisher": "OpenJS Foundation",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Node.js v22 path API documentation",
+      "url": "https://nodejs.org/docs/latest-v22.x/api/path.html",
+      "publisher": "OpenJS Foundation",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "JSON.parse reference",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse",
+      "publisher": "MDN Web Docs",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "TextDecoder reference",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder",
+      "publisher": "MDN Web Docs",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
