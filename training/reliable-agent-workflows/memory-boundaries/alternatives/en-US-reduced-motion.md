@@ -5,42 +5,54 @@ depend on animation timing, autoplay, or pointer gestures.
 
 ## memory-types
 
-Show the complete comparison as a static table.
+Present the complete comparison as a static table.
 
-Text alternative: Conversation, cache, scratch, retrieval, durable memory, and audit evidence differ by purpose, owner, lifetime, authority, sensitivity, and deletion.
+Text alternative: Conversation supports an exchange, cache reuses work, scratch serves one run, retrieval reads an external source, and durable memory persists selected information.
 
 ## record-contract
 
-Present the envelope fields in a numbered static record.
+Show the envelope as a numbered static record.
 
-Text alternative: Every stored value carries identity and lifecycle metadata so retrieval can enforce isolation, purpose, freshness, correction, and deletion.
-
-## classification-demonstration
-
-Show all examples and classifications in a static matrix.
-
-Text alternative: Tool-call ID is scratch, provider key is cache metadata, confirmed preference is governed durable memory, price stays in retrieval, and injected approval bypass is rejected.
+Text alternative: The record includes a stable ID, tenant, subject, purpose, source, timestamps, sensitivity, expiration, supersession, and deletion state.
 
 ## guard-writes
 
-Present the write gate as a static checklist with result variants.
+Present the write checks as a static ordered list.
 
-Text alternative: Identity, tenant, subject, consent, purpose, source, sensitivity, minimization, conflict, and retention checks precede storage.
+Text alternative: A proposed value is stored only after current context, consent, purpose, source, sensitivity, freshness, and content checks.
 
-## guard-reads
+## guard-reads-and-replay
 
-Display the full read pipeline as a static sequence.
+Display the read and replay pipeline as a static sequence.
 
-Text alternative: Only authorized records reach ranking, and every result returns source and verification metadata as evidence rather than authority.
+Text alternative: Authorization precedes receipt reuse; derived copies point to canonical records; changed boundaries or payloads conflict.
 
-## correct-and-delete
+## correct-expire-delete
 
-Present all copies, completion evidence, and remaining retention in a static table.
+Show every lifecycle state and copy flag in one static table.
 
-Text alternative: Supersession excludes old values; deletion covers store, indexes, embeddings, summaries, caches, replicas, exports, and governed backup expiry.
+Text alternative: The old record becomes superseded; active copies become false; backup remains true until purge; completion follows actual backup removal.
 
-## attack-memory
+## lab-setup-and-tests
 
-Show all cases and results in a static test matrix.
+Show commands and expected status in a static terminal transcript.
 
-Text alternative: Injection, false repetition, cross-tenant access, supersession, expiration, conflict, and post-deletion retrieval each have a fail-closed result.
+Text alternative: The learner enters the lab directory, runs nineteen main tests, and runs the deterministic demo.
+
+## demo-trace
+
+Present the full exact output and causal annotations in a static table.
+
+Text alternative: The trace moves from mem_001 to superseding mem_002, removes active copies, blocks lookup, resists a false completion claim, and completes after backup purge.
+
+## solution-and-rubric
+
+Show the complete rubric as a static scoring table.
+
+Text alternative: Points cover trusted setup, isolation and revocation, correction, pending deletion, completion and minimization, and honest limits.
+
+## limits-and-transfer
+
+Present demonstrated and unproven claims in a static comparison.
+
+Text alternative: The lab demonstrates policy logic and observable states but does not guarantee production durability, security, erasure, compliance, or provider equivalence.
