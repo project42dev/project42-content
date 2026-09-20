@@ -16,11 +16,13 @@
   ],
   "prerequisites": [
     "A version-controlled working copy",
-    "An Anthropic-supported authentication path"
+    "An Anthropic-supported authentication path",
+    "Node.js 22 or later for the offline exercise",
+    "Bash for the setup commands"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "coding-tools",
     "claude-code",
@@ -33,15 +35,8 @@
       "title": "Use it for a repository-local agent loop",
       "paragraphs": [
         "Claude Code is a terminal coding agent that can inspect a repository, edit files, run commands, and use configured tools. Choose it when the task benefits from an interactive repository loop and the operator can review requested actions and resulting diffs.",
-        "Capability is not authorization. Read the repository instructions, establish the writable paths, protect secrets, and begin with the narrowest permission posture that can complete the task. Treat MCP servers, hooks, and project instructions as separate trust decisions."
-      ]
-    },
-    {
-      "id": "operating-loop",
-      "title": "Use an evidence-preserving operating loop",
-      "paragraphs": [
-        "Start from a known branch and worktree state. State the requested outcome, in-scope files, checks, and stop conditions before allowing edits. Review each permission request in context; a familiar command can still target the wrong path.",
-        "Keep rollback available with normal version-control checkpoints and backups appropriate to the data. If the agent crosses scope, produces unexplained edits, or cannot run the agreed checks, stop and recover the last verified state before retrying."
+        "Capability is not authorization. Read the repository instructions, establish the writable paths, protect secrets, and begin with the narrowest permission posture that can complete the task. Treat MCP servers, hooks, and project instructions as separate trust decisions.",
+        "This card teaches two related activities: an actual Claude Code workflow in a repository and a fully offline Node.js exercise that simulates the verification loop. The simulation does not prove what Claude Code would do and does not contact Claude or Anthropic."
       ],
       "code": {
         "language": "text",
@@ -50,12 +45,129 @@
       }
     },
     {
+      "id": "operating-loop",
+      "title": "Use an evidence-preserving operating loop",
+      "paragraphs": [
+        "Start from a known branch and worktree state. State the requested outcome, in-scope files, checks, and stop conditions before allowing edits. Review each permission request in context; a familiar command can still target the wrong path.",
+        "In Claude Code, check the installed version with claude --version, launch claude from the project directory, and complete first-use login if requested. Use /help to discover available commands. A one-off query can use claude -p, but it still needs an explicit prompt and a review of any resulting work.",
+        "Permission behavior is configuration-dependent. Manual mode starts read-only and asks before mutations. Auto mode uses a separate classifier with explicit ask and deny rules. The default permission mode depends on the plan, surface, and settings, so do not assume that every edit always prompts. Use /permissions to inspect the policy and /sandbox to configure filesystem and network isolation.",
+        "A practical request is: inspect only the repository, read the project instructions, propose a patch for src/config.mjs, run node test/contract.mjs, and stop if any file outside src/config.mjs changes. Approve only commands whose paths and effects match that request."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Start in a project directory",
+        "code": "node --version\nclaude --version\nclaude\n/help\n/permissions\n/sandbox"
+      }
+    },
+    {
+      "id": "memory-and-scope",
+      "title": "Make repository guidance explicit and scoped",
+      "paragraphs": [
+        "Put project instructions in CLAUDE.md or .claude/CLAUDE.md. Claude Code loads parent-to-current-directory instructions at launch and can load instructions in a subdirectory when work enters that scope. These files guide the agent; they are not hard enforcement, so the operator must still inspect permissions, commands, and diffs.",
+        "A shared AGENTS.md file is not a universal Claude Code contract. When portability is needed, explicitly import the shared file from CLAUDE.md with @AGENTS.md, then verify that the resulting guidance is actually loaded in the current product surface.",
+        "The following example is filled for the exercise in this card. It limits the repair to src/config.mjs, forbids changes to test/contract.mjs and reference/answer.mjs, requires Node 22 checks, and defines a stop condition for unrelated edits."
+      ],
+      "code": {
+        "language": "text",
+        "label": "CLAUDE.md",
+        "code": "# Repository operating instructions\n\nRead @AGENTS.md before changing files.\n\nTask boundary:\n- For the configuration exercise, edit only src/config.mjs.\n- The input domain is a non-null configuration object; within that domain, invalid or missing port values use fallback 8080.\n- Do not edit test/contract.mjs or reference/answer.mjs.\n- Do not add dependencies, use the network, or change package metadata.\n\nVerification:\n- Run `node --version` and require Node 22 or later.\n- Run `node test/contract.mjs` after the edit.\n- Report stdout, stderr, exit status, and `git diff -- src/config.mjs`.\n\nStop conditions:\n- Stop if a command requests network access or a secret.\n- Stop if a file outside src/config.mjs would be changed.\n- Stop if the test contract is missing or has been modified.\n\nRecovery:\n- Preserve the failing output and diff.\n- Revert only the learner change to src/config.mjs, then rerun the contract."
+      }
+    },
+    {
+      "id": "shared-guidance",
+      "title": "Use a portable shared instruction file deliberately",
+      "paragraphs": [
+        "A repository can keep cross-tool guidance in AGENTS.md, but Claude Code behavior should not be inferred from the filename alone. This exercise uses an explicit @AGENTS.md import in CLAUDE.md. Other products or configurations may interpret AGENTS.md differently.",
+        "Keep shared guidance operational and short. It should identify the allowed file, the immutable evidence, the required command, and the stop conditions. It should not grant permission to bypass the product's policy or the operator's review."
+      ],
+      "code": {
+        "language": "text",
+        "label": "AGENTS.md",
+        "code": "# Shared repository guidance\n\nYou are repairing one predicate in `src/config.mjs`.\n\nInput domain:\n- `selectPort` receives a non-null configuration object.\n- Within that domain, invalid or missing `port` values use the fallback 8080.\n\nEvidence:\n- `test/contract.mjs` is the immutable contract.\n- `reference/answer.mjs` is an independent reference and must not be copied.\n\nAllowed mutation:\n- Only `src/config.mjs` may change.\n\nRequired result:\n- Preserve the positive and negative cases.\n- Make the boundary case for port 1024 pass.\n- Run `node test/contract.mjs` and inspect the diff.\n\nNever:\n- Edit tests or the reference.\n- Run `rm`, network commands, or commands involving secrets."
+      }
+    },
+    {
       "id": "verify",
       "title": "Expected evidence and verification",
       "paragraphs": [
         "Expected evidence includes the initial worktree state, the approved scope, a reviewed diff, command output for the relevant checks, and a concise list of unresolved risks. Verify that every changed file supports the requested outcome and that no secret, unrelated edit, or generated dependency cache entered the commit.",
-        "For recovery, stop the session, preserve useful logs, restore only the affected files from a known checkpoint, and rerun the smallest deterministic check. Do not broaden permissions merely to make a failing task disappear."
-      ]
+        "For recovery, stop the session, preserve useful logs, restore only the affected files from a known checkpoint, and rerun the smallest deterministic check. Do not broaden permissions merely to make a failing task disappear.",
+        "For this card's exercise, the evidence is complete only when the learner has captured the first failing run, the one-predicate diff, the unchanged positive and negative results, the changed boundary result, and the final zero-failure status."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Review record",
+        "code": "Initial state: [branch and git status]\nAllowed mutation: src/config.mjs only\nImmutable evidence: test/contract.mjs, reference/answer.mjs\nFailure captured: [stdout, stderr, status]\nDiff reviewed: [yes/no and exact file]\nPositive case unchanged: [pass/fail]\nNegative case unchanged: [pass/fail]\nChanged boundary case: [pass/fail]\nRecovery decision: [continue, stop, or restore]\nResidual risks: [none or list]"
+      }
+    },
+    {
+      "id": "offline-exercise",
+      "title": "Offline Node 22 exercise: repair one predicate",
+      "paragraphs": [
+        "This exercise uses a fresh directory named claude-card-lab. Its input domain is a non-null configuration object. Within that domain, ports from 1024 through 65535 are valid; values below 1024, above 65535, non-integers, and missing port values use the fallback 8080. The intended learner change is one predicate in src/config.mjs: the lower bound must include 1024.",
+        "The setup creates a tracked baseline after creating the fixtures. It sets a repository-local fictional Git identity only, with no global configuration, remote, push, or destructive cleanup. It refuses to use an existing directory. The learner starter contains the bug; the separate reference contains the intended behavior but is not copied into the starter.",
+        "Run the Bash setup from a parent directory. The setup requires Node.js 22 or later and exits before creating anything if claude-card-lab already exists."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "setup.sh, run once from a parent directory",
+        "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nif ! command -v node >/dev/null 2>&1; then\n  printf '%s\\n' 'ERROR: Node.js is required.' >&2\n  exit 1\nfi\nnode -e \"const [major] = process.versions.node.split('.').map(Number); if (major < 22) { console.error('ERROR: Node.js 22 or later is required.'); process.exit(1); }\"\n\nif [ -e claude-card-lab ]; then\n  printf '%s\\n' 'ERROR: claude-card-lab already exists; choose a fresh parent directory.' >&2\n  exit 1\nfi\n\nmkdir -p claude-card-lab/src claude-card-lab/test claude-card-lab/reference\ncd claude-card-lab\n\ncat > CLAUDE.md <<'EOF'\n# Repository operating instructions\n\nRead @AGENTS.md before changing files.\n\nTask boundary:\n- For the configuration exercise, edit only src/config.mjs.\n- The input domain is a non-null configuration object; within that domain, invalid or missing port values use fallback 8080.\n- Do not edit test/contract.mjs or reference/answer.mjs.\n- Do not add dependencies, use the network, or change package metadata.\n\nVerification:\n- Run `node --version` and require Node 22 or later.\n- Run `node test/contract.mjs` after the edit.\n- Report stdout, stderr, exit status, and `git diff -- src/config.mjs`.\n\nStop conditions:\n- Stop if a command requests network access or a secret.\n- Stop if a file outside src/config.mjs would be changed.\n- Stop if the test contract is missing or has been modified.\n\nRecovery:\n- Preserve the failing output and diff.\n- Revert only the learner change to src/config.mjs, then rerun the contract.\nEOF\n\ncat > AGENTS.md <<'EOF'\n# Shared repository guidance\n\nYou are repairing one predicate in `src/config.mjs`.\n\nInput domain:\n- `selectPort` receives a non-null configuration object.\n- Within that domain, invalid or missing `port` values use the fallback 8080.\n\nEvidence:\n- `test/contract.mjs` is the immutable contract.\n- `reference/answer.mjs` is an independent reference and must not be copied.\n\nAllowed mutation:\n- Only `src/config.mjs` may change.\n\nRequired result:\n- Preserve the positive and negative cases.\n- Make the boundary case for port 1024 pass.\n- Run `node test/contract.mjs` and inspect the diff.\n\nNever:\n- Edit tests or the reference.\n- Run `rm`, network commands, or commands involving secrets.\nEOF\n\ncat > src/config.mjs <<'EOF'\nexport function selectPort(config) {\n  if (Number.isInteger(config.port) && config.port > 1024 && config.port <= 65535) {\n    return config.port;\n  }\n  return 8080;\n}\nEOF\n\ncat > test/contract.mjs <<'EOF'\nimport { selectPort } from '../src/config.mjs';\n\nconst cases = [\n  ['positive valid port', { port: 3000 }, 3000],\n  ['negative low port', { port: 80 }, 8080],\n  ['changed boundary port', { port: 1024 }, 1024],\n  ['negative high port', { port: 70000 }, 8080],\n  ['negative non-integer port', { port: 3000.5 }, 8080],\n];\n\nlet passed = 0;\nlet failed = 0;\nfor (const [name, input, expected] of cases) {\n  const actual = selectPort(input);\n  if (actual === expected) {\n    console.log(`PASS ${name}`);\n    passed += 1;\n  } else {\n    console.log(`FAIL ${name}: expected ${expected}, got ${actual}`);\n    failed += 1;\n  }\n}\nconsole.log(`SUMMARY passed=${passed} failed=${failed}`);\nif (failed !== 0) process.exitCode = 1;\nEOF\n\ncat > reference/answer.mjs <<'EOF'\nexport function selectPort(config) {\n  if (Number.isInteger(config.port) && config.port >= 1024 && config.port <= 65535) {\n    return config.port;\n  }\n  return 8080;\n}\nEOF\n\nprintf '%s\\n' '--- package files ---'\nprintf '%s\\n' 'CLAUDE.md AGENTS.md src/config.mjs test/contract.mjs reference/answer.mjs'\n\ngit init -q\ngit config user.name 'Project 42 Exercise'\ngit config user.email 'project42.exercise@example.invalid'\ngit add CLAUDE.md AGENTS.md src test reference\nGIT_AUTHOR_NAME='Project 42 Exercise' GIT_AUTHOR_EMAIL='project42.exercise@example.invalid' GIT_COMMITTER_NAME='Project 42 Exercise' GIT_COMMITTER_EMAIL='project42.exercise@example.invalid' git commit -qm 'fixture baseline'\nprintf '%s\\n' 'SETUP complete: tracked baseline created'"
+      }
+    },
+    {
+      "id": "exercise-run",
+      "title": "Run, diagnose, repair, and recover without hiding evidence",
+      "paragraphs": [
+        "Immediately after setup, run node --version, git status --short, and node test/contract.mjs. The initial contract has five cases: two positive or negative cases that should remain unchanged, one changed boundary case, and two additional negative cases. The genuine failure must report four passes and one failure, with status 1 and empty stderr.",
+        "The exact initial output is shown below. The displayed failure count is true because the contract contains five cases. Do not edit the contract to make the count pass. Do not copy reference/answer.mjs. Inspect the failing predicate, then change only > to >= in src/config.mjs.",
+        "After the repair, the exact output has five passes, zero failures, empty stderr, and status 0. Review git diff -- src/config.mjs and verify that the diff contains only that predicate change. If any other file changed, stop, preserve the output, and recover the learner file from the tracked baseline with git restore --source=HEAD -- src/config.mjs. That recovery command is non-destructive to the protected test and reference."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Required observations",
+        "code": "Initial command: node test/contract.mjs\nInitial stdout:\nPASS positive valid port\nPASS negative low port\nFAIL changed boundary port: expected 1024, got 8080\nPASS negative high port\nPASS negative non-integer port\nSUMMARY passed=4 failed=1\nInitial stderr: [empty]\nInitial status: 1\n\nIntended diff:\n-  if (Number.isInteger(config.port) && config.port > 1024 && config.port <= 65535) {\n+  if (Number.isInteger(config.port) && config.port >= 1024 && config.port <= 65535) {\n\nFinal stdout:\nPASS positive valid port\nPASS negative low port\nPASS changed boundary port\nPASS negative high port\nPASS negative non-integer port\nSUMMARY passed=5 failed=0\nFinal stderr: [empty]\nFinal status: 0"
+      }
+    },
+    {
+      "id": "claude-workflow",
+      "title": "Apply the same discipline with actual Claude Code",
+      "paragraphs": [
+        "The offline exercise is local evidence, not a Claude Code session trace. For actual operation, open the fresh repository directory with Claude Code after setup: run claude --version, cd into the repository, then start claude. Complete first-use login only through the product's normal authentication flow.",
+        "Give Claude Code a bounded request that names the repository, allowed file, immutable files, required command, input domain, and stop conditions. Ask it to inspect before editing. Review its proposed change and every permission request. If the product asks to run node test/contract.mjs, that command is within scope; a request to edit the test, read secrets, use the network, or alter another file is outside scope and requires stopping.",
+        "Use /help when command syntax is unclear, /permissions to inspect the current policy, and /sandbox to configure filesystem or network isolation. If using claude -p for a one-off query, provide the same bounded context and inspect the response and resulting work. Do not claim that a simulated transcript is evidence of a real provider session."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Bounded actual-session prompt",
+        "code": "Work only in the current repository.\n\nRead CLAUDE.md and the explicitly imported AGENTS.md first.\nInspect src/config.mjs, test/contract.mjs, and reference/answer.mjs.\n\nTask: repair the single lower-bound predicate in src/config.mjs so integer ports from 1024 through 65535 are accepted. The input domain is a non-null configuration object; within that domain, invalid or missing port values use the fallback 8080.\n\nAllowed mutation: src/config.mjs only.\nImmutable files: test/contract.mjs and reference/answer.mjs.\nVerification: run node --version, node test/contract.mjs, and git diff -- src/config.mjs.\nStop for network access, secrets, test or reference edits, unrelated changes, or a failing invariant.\nReport stdout, stderr, exit status, and the final diff."
+      }
+    },
+    {
+      "id": "recovery",
+      "title": "Stop, recover, and decide whether to continue",
+      "paragraphs": [
+        "Stop immediately when the agent crosses the declared boundary, requests an unsafe command, changes an immutable artifact, or cannot explain a failing check. Preserve the command, stdout, stderr, status, and current diff before recovery.",
+        "For the exercise, a contaminated learner change can be restored with git restore --source=HEAD -- src/config.mjs. Then rerun node test/contract.mjs and confirm the known baseline failure. Do not use rm, reset the whole repository, alter global Git settings, or delete the fixture directory. If the test or reference was changed, stop and recreate the exercise in a new fresh parent directory rather than silently trusting altered evidence.",
+        "Continue only after the repository is back to the tracked baseline and the allowed mutation is clear. A passing test without a reviewed one-predicate diff is insufficient evidence."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Non-destructive recovery commands",
+        "code": "git status --short\ngit diff -- test/contract.mjs reference/answer.mjs\n# Only if the learner file is the sole contaminated file:\ngit restore --source=HEAD -- src/config.mjs\nnode test/contract.mjs\ngit diff -- src/config.mjs"
+      }
+    },
+    {
+      "id": "sources-and-boundaries",
+      "title": "Source boundaries and operating cautions",
+      "paragraphs": [
+        "The product workflow claims in this card are limited to the supplied Anthropic documentation. The quickstart documents version checking, interactive startup in a project directory, first-use login, /help, and -p. The security documentation describes Manual and Auto permission behavior, /permissions, and /sandbox, while warning that the default permission mode depends on plan, surface, and settings. The memory documentation describes CLAUDE.md and .claude/CLAUDE.md loading, scoped subdirectory loading, guidance rather than hard enforcement, and the need for explicit @AGENTS.md importing when demonstrating portable shared instructions.",
+        "The shell setup, fixtures, expected outputs, Git identity, and Node.js contract are author-created teaching artifacts. They are not claimed to be product-provided examples or provider-session evidence. The CLI reference is retained in the source list for the original card's scope, but this card does not assert undocumented command syntax from it."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Evidence rule",
+        "code": "Product documentation establishes product behavior.\nThe offline fixture establishes only its own deterministic behavior.\nA reviewed diff and test result establish the exercise outcome.\nNo simulated output establishes a real Claude Code session."
+      }
     }
   ],
   "sources": [
@@ -63,19 +175,25 @@
       "title": "Claude Code quickstart",
       "url": "https://code.claude.com/docs/en/quickstart",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Claude Code security",
       "url": "https://code.claude.com/docs/en/security",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Claude Code memory",
+      "url": "https://code.claude.com/docs/en/memory",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Claude Code CLI reference",
       "url": "https://code.claude.com/docs/en/cli-reference",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     }
   ]
 }
