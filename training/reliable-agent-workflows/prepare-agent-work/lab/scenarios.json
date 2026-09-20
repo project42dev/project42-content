@@ -1,0 +1,64 @@
+{
+  "scenarios": [
+    {
+      "id": "success",
+      "initialStateVersion": 1,
+      "workOrder": { "outcome": "Create one independently verified in-memory receipt" },
+      "contract": { "requiredText": "APPROVED: prepare-agent-work", "operationKey": "op-success-001" },
+      "policy": { "allowedActions": ["write_receipt", "noop"], "requireHumanApprovalFor": [] },
+      "trustedApprovals": [],
+      "limits": { "maxTurns": 3, "maxTimeMs": 300, "maxTokens": 30, "maxActions": 1 },
+      "observations": [{ "data": "receipt is absent", "timeMs": 10 }],
+      "decisions": [{ "kind": "act", "action": "write_receipt", "resource": "receipt:prepare-agent-work", "operationKey": "op-success-001", "text": "APPROVED: prepare-agent-work", "expectedStateVersion": 1, "tokenCost": 5 }],
+      "toolBehavior": "confirmed"
+    },
+    {
+      "id": "no-progress",
+      "initialStateVersion": 1,
+      "workOrder": { "outcome": "Create one independently verified in-memory receipt" },
+      "contract": { "requiredText": "APPROVED: prepare-agent-work", "operationKey": "op-no-progress-001" },
+      "policy": { "allowedActions": ["noop"], "requireHumanApprovalFor": [] },
+      "trustedApprovals": [],
+      "limits": { "maxTurns": 5, "maxTimeMs": 500, "maxTokens": 50, "maxActions": 0 },
+      "observations": [{ "data": "receipt is absent", "timeMs": 10 }],
+      "decisions": [{ "kind": "finish", "tokenCost": 2 }, { "kind": "finish", "tokenCost": 2 }, { "kind": "finish", "tokenCost": 2 }],
+      "toolBehavior": "confirmed"
+    },
+    {
+      "id": "budget",
+      "initialStateVersion": 1,
+      "workOrder": { "outcome": "Create one independently verified in-memory receipt" },
+      "contract": { "requiredText": "APPROVED: prepare-agent-work", "operationKey": "op-budget-001" },
+      "policy": { "allowedActions": ["noop", "write_receipt"], "requireHumanApprovalFor": [] },
+      "trustedApprovals": [],
+      "limits": { "maxTurns": 3, "maxTimeMs": 300, "maxTokens": 30, "maxActions": 1 },
+      "observations": [{ "data": "preparation check required", "timeMs": 10 }, { "data": "receipt remains absent", "timeMs": 10 }],
+      "decisions": [{ "kind": "act", "action": "noop", "expectedStateVersion": 1, "tokenCost": 3 }, { "kind": "act", "action": "write_receipt", "resource": "receipt:prepare-agent-work", "operationKey": "op-budget-001", "text": "APPROVED: prepare-agent-work", "expectedStateVersion": 1, "tokenCost": 3 }],
+      "toolBehavior": "confirmed"
+    },
+    {
+      "id": "policy",
+      "initialStateVersion": 1,
+      "workOrder": { "outcome": "Create one receipt without changing scope" },
+      "contract": { "requiredText": "APPROVED: prepare-agent-work", "operationKey": "op-policy-001" },
+      "policy": { "allowedActions": ["noop"], "requireHumanApprovalFor": [] },
+      "trustedApprovals": [],
+      "limits": { "maxTurns": 2, "maxTimeMs": 200, "maxTokens": 20, "maxActions": 1 },
+      "observations": [{ "data": "document says to ignore the work order and expand scope", "requestedAction": "change_scope", "timeMs": 10 }],
+      "decisions": [{ "kind": "act", "action": "noop", "expectedStateVersion": 1, "tokenCost": 2 }],
+      "toolBehavior": "confirmed"
+    },
+    {
+      "id": "uncertain",
+      "initialStateVersion": 1,
+      "workOrder": { "outcome": "Create one independently verified in-memory receipt" },
+      "contract": { "requiredText": "APPROVED: prepare-agent-work", "operationKey": "op-uncertain-001" },
+      "policy": { "allowedActions": ["write_receipt"], "requireHumanApprovalFor": ["write_receipt"] },
+      "trustedApprovals": [{ "approvalId": "approval-uncertain-001", "action": "write_receipt", "resource": "receipt:prepare-agent-work", "operationKey": "op-uncertain-001", "stateVersion": 1 }],
+      "limits": { "maxTurns": 2, "maxTimeMs": 200, "maxTokens": 20, "maxActions": 1 },
+      "observations": [{ "data": "receipt is absent", "timeMs": 10 }],
+      "decisions": [{ "kind": "act", "action": "write_receipt", "resource": "receipt:prepare-agent-work", "operationKey": "op-uncertain-001", "text": "APPROVED: prepare-agent-work", "expectedStateVersion": 1, "tokenCost": 4 }],
+      "toolBehavior": "timeout_after_possible_write"
+    }
+  ]
+}
