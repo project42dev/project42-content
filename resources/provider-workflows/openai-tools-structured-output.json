@@ -16,11 +16,12 @@
   "prerequisites": [
     "A working Responses API request",
     "An OpenAI model that supports the selected feature",
-    "A JSON Schema for the intended data"
+    "A JSON Schema for the intended data",
+    "Node.js 22 and PowerShell 7 for the offline lab"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "openai",
     "structured-output",
@@ -32,28 +33,149 @@
       "id": "choose-control",
       "title": "Choose the correct control",
       "paragraphs": [
-        "Use text.format with type json_schema when the model should return schema-constrained content to the user or application. Use a function tool when the model should request data or an application capability. Set strict: true and close the object schema with additionalProperties: false. Structure is not authorization, factual verification, or permission to execute.",
-        "The application—not the model—maps a function name to code. Authenticate and authorize with trusted runtime context, validate arguments again, obtain approval for consequential actions, use idempotency for mutations, and return a typed function_call_output tied to the original call ID."
-      ]
+        "Use a Responses text.format object with type json_schema when the model should produce a schema-constrained answer. Use a function tool when the model should request an application capability. Structured response controls answer shape. It does not execute a function, authorize a user, or establish that generated content is true. JSON-object mode is weaker because it guarantees JSON but not conformance to a supplied schema.",
+        "For tools, the application must allowlist the function name, parse and validate arguments, make a separate authorization decision from trusted context, and execute only after every check passes. This lesson uses a read-only synthetic stock fixture. It performs no market lookup, purchase, sale, or other external side effect."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "Decision rule",
+        "code": "const control = wantedCapability === \"schema_constrained_answer\"\n  ? \"text.format\"\n  : wantedCapability === \"application_capability\"\n    ? \"function_tool\"\n    : \"clarify\";"
+      }
     },
     {
       "id": "define-contract",
       "title": "Define an explicit Responses contract",
       "paragraphs": [
-        "The following request-body fragments show the current Responses API shapes. Insert one into a reviewed request and replace bracketed values with non-secret domain fields."
+        "These are provider-shaped Responses request bodies. The structured answer places type, name, strict, and schema under text.format. The tool places type, name, description, strict, and parameters in tools. OpenAI supports a subset of JSON Schema, so confirm that a deployment supports every keyword used by its contract.",
+        "The tool schema describes ticker and quantity, but the application repeats the important checks locally. Provider schema matching is not authorization, tool allowlisting, semantic correctness, or execution permission. The model placeholder is deliberate because no current model name was established for this resource."
       ],
       "code": {
         "language": "javascript",
-        "label": "OpenAI structured-output contracts",
-        "code": "const structuredText = {\n  text: {\n    format: {\n      type: \"json_schema\",\n      name: \"review_decision\",\n      strict: true,\n      schema: {\n        type: \"object\",\n        properties: { decision: { type: \"string\", enum: [\"approve\", \"review\", \"reject\"] }, reason: { type: \"string\" } },\n        required: [\"decision\", \"reason\"],\n        additionalProperties: false,\n      },\n    },\n  },\n};\n\nconst strictFunction = {\n  tools: [{\n    type: \"function\",\n    name: \"record_review_decision\",\n    description: \"Record an already authorized review decision for [SYSTEM_OF_RECORD]\",\n    strict: true,\n    parameters: {\n      type: \"object\",\n      properties: { item_id: { type: \"string\" }, decision: { type: \"string\", enum: [\"approve\", \"reject\"] } },\n      required: [\"item_id\", \"decision\"],\n      additionalProperties: false,\n    },\n  }],\n};"
+        "label": "Provider-shaped request bodies",
+        "code": "const structuredRequest = {\n  model: \"[MODEL_SELECTED_BY_YOUR_DEPLOYMENT]\",\n  input: \"Classify this synthetic review.\",\n  text: {\n    format: {\n      type: \"json_schema\",\n      name: \"review_decision\",\n      strict: true,\n      schema: {\n        type: \"object\",\n        properties: {\n          decision: {\n            type: \"string\",\n            enum: [\"approve\", \"review\", \"reject\"]\n          },\n          reason: { type: \"string\" }\n        },\n        required: [\"decision\", \"reason\"],\n        additionalProperties: false\n      }\n    }\n  }\n};\n\nconst toolRequest = {\n  model: \"[MODEL_SELECTED_BY_YOUR_DEPLOYMENT]\",\n  input: \"Look up two shares of synthetic ticker ACME.\",\n  tools: [{\n    type: \"function\",\n    name: \"lookup_stock\",\n    description: \"Read a synthetic stock fixture for one ticker and quantity.\",\n    strict: true,\n    parameters: {\n      type: \"object\",\n      properties: {\n        ticker: { type: \"string\", enum: [\"ACME\", \"BETA\"] },\n        quantity: { type: \"integer\", minimum: 1, maximum: 100 }\n      },\n      required: [\"ticker\", \"quantity\"],\n      additionalProperties: false\n    }\n  }]\n};"
+      }
+    },
+    {
+      "id": "provider-exchange",
+      "title": "Follow the provider call and result correlation",
+      "paragraphs": [
+        "This filled exchange is a synthetic fixture shaped like a Responses function-call lifecycle. It is not a live OpenAI response, a market quote, or a receipt. The function-call output item has an item id, fc_item_fixture_001, and a distinct call_id, call_fixture_001. The application correlates its function_call_output with call_id, never with the item id.",
+        "The application accepts the call only after the response is complete, no provider error or refusal is present, the tool is allowlisted, the arguments parse, local shape and domain checks pass, trusted authorization permits the read, and call_id equals the separately trusted expected identifier. It then serializes the synthetic result into output."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Synthetic provider response and correlated application submission",
+        "code": "{\n  \"provider_response_fixture\": {\n    \"id\": \"resp_fixture_001\",\n    \"status\": \"completed\",\n    \"error\": null,\n    \"output\": [\n      {\n        \"id\": \"fc_item_fixture_001\",\n        \"type\": \"function_call\",\n        \"call_id\": \"call_fixture_001\",\n        \"name\": \"lookup_stock\",\n        \"arguments\": \"{\\\"ticker\\\":\\\"ACME\\\",\\\"quantity\\\":2}\"\n      }\n    ]\n  },\n  \"trusted_request_state\": {\n    \"expectedCallId\": \"call_fixture_001\",\n    \"authorized\": true\n  },\n  \"validation_decisions\": {\n    \"completed\": true,\n    \"providerErrorAbsent\": true,\n    \"refusalAbsent\": true,\n    \"correlationAccepted\": true,\n    \"toolAllowlisted\": true,\n    \"schemaAccepted\": true,\n    \"semanticsAccepted\": true,\n    \"authorizationAccepted\": true\n  },\n  \"application_submission\": {\n    \"type\": \"function_call_output\",\n    \"call_id\": \"call_fixture_001\",\n    \"output\": \"{\\\"ticker\\\":\\\"ACME\\\",\\\"unitPrice\\\":125,\\\"quantity\\\":2,\\\"total\\\":250,\\\"source\\\":\\\"offline-fixture\\\"}\"\n  }\n}"
+      }
+    },
+    {
+      "id": "layers",
+      "title": "Separate six different controls",
+      "paragraphs": [
+        "A structured response is an answer the provider was asked to shape with text.format. Schema validation checks JSON syntax, object shape, required fields, types, and prohibited keys. Semantic validation checks meaning, such as whether a ticker belongs to the synthetic domain and whether quantity is an integer from 1 through 100. Tool allowlisting limits dispatch to explicitly registered application functions.",
+        "Authorization asks whether the authenticated caller and trusted context may perform the operation. Execution is the actual application action after all preceding checks. These controls are not interchangeable. A schema-valid call can name an unregistered tool, violate a business rule, lack permission, or be unsafe to execute."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Trust boundary order",
+        "code": "provider completion, error, refusal\n  -> obtain function_call and actual call_id\n  -> compare with separately trusted expectedCallId\n  -> allowlist tool name\n  -> parse arguments\n  -> schema and shape validation\n  -> semantic validation\n  -> authorization from trusted context\n  -> bounded execution\n  -> serialized function_call_output with the actual call_id"
+      }
+    },
+    {
+      "id": "response-adapter",
+      "title": "Adapt an actual Responses lifecycle without inventing statuses",
+      "paragraphs": [
+        "Raw Responses data should be adapted before the domain validator runs. The adapter below handles response.error, an incomplete response, refusal content, absence of a completed lifecycle, missing calls, and ambiguous multiple calls. It preserves the actual call_id but receives expectedCallId and authorization separately from trusted application state.",
+        "A refusal is represented as typed refusal content, not as an invented normal status named refused. The adapter does not parse arguments or execute the tool. buildFunctionOutput creates the provider-shaped result only after processEnvelope succeeds."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "adapter.mjs",
+        "code": "function containsRefusal(value) {\n  if (!value || typeof value !== \"object\") return false;\n  if (value.type === \"refusal\") return true;\n  return Object.values(value).some(containsRefusal);\n}\n\nexport function adaptResponse(response, trustedState) {\n  if (!response || typeof response !== \"object\" || Array.isArray(response)) {\n    return { event: { lifecycle: \"error\", code: \"BAD_RESPONSE\" }, context: trustedState };\n  }\n  if (response.error) {\n    return { event: { lifecycle: \"error\", code: \"PROVIDER_ERROR\" }, context: trustedState };\n  }\n  if (response.status === \"incomplete\") {\n    return { event: { lifecycle: \"incomplete\" }, context: trustedState };\n  }\n  if (containsRefusal(response.output)) {\n    return { event: { lifecycle: \"refusal\" }, context: trustedState };\n  }\n  if (response.status !== \"completed\") {\n    return { event: { lifecycle: \"error\", code: \"NOT_COMPLETED\" }, context: trustedState };\n  }\n  const calls = Array.isArray(response.output)\n    ? response.output.filter(item => item?.type === \"function_call\")\n    : [];\n  if (calls.length !== 1) {\n    return { event: { lifecycle: \"error\", code: \"CALL_COUNT\" }, context: trustedState };\n  }\n  return {\n    event: {\n      lifecycle: \"complete\",\n      type: calls[0].type,\n      name: calls[0].name,\n      call_id: calls[0].call_id,\n      arguments: calls[0].arguments\n    },\n    context: trustedState\n  };\n}\n\nexport function buildFunctionOutput(success) {\n  if (!success?.ok || typeof success.call_id !== \"string\") {\n    throw new TypeError(\"A successful correlated result is required\");\n  }\n  return {\n    type: \"function_call_output\",\n    call_id: success.call_id,\n    output: JSON.stringify(success.output)\n  };\n}"
+      }
+    },
+    {
+      "id": "offline-lab",
+      "title": "Set up the complete offline Node.js 22 lab",
+      "paragraphs": [
+        "Save this as setup.ps1 and run it with PowerShell 7 from a parent directory. It refuses an existing target directory. It creates a used stocks.json fixture, the adapter, a deliberately flawed learner implementation, an independent immutable test file, a repaired implementation, and a separate reference implementation. No package installation, network connection, cloud credential, or real side effect is required.",
+        "The normalized event passed to processEnvelope is an application boundary object produced after lifecycle inspection. expectedCallId and authorized belong to a separate context object and are never copied from the untrusted call. The tests freeze their case data, gather every result, use deep equality, and convert a crash into a failing CRASH result rather than accepting a thrown exception as a valid rejection."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "setup.ps1",
+        "code": "param([string]$Target = \"openai-tool-lab\")\n$ErrorActionPreference = \"Stop\"\nif (Test-Path -LiteralPath $Target) {\n  throw \"Refusing existing directory: $Target\"\n}\nNew-Item -ItemType Directory -Path $Target | Out-Null\n\n@'\n{\"ACME\":{\"unitPrice\":125},\"BETA\":{\"unitPrice\":40}}\n'@ | Set-Content -LiteralPath (Join-Path $Target \"stocks.json\") -NoNewline\n\n@'\nfunction containsRefusal(value) {\n  if (!value || typeof value !== \"object\") return false;\n  if (value.type === \"refusal\") return true;\n  return Object.values(value).some(containsRefusal);\n}\n\nexport function adaptResponse(response, trustedState) {\n  if (!response || typeof response !== \"object\" || Array.isArray(response)) {\n    return {event:{lifecycle:\"error\",code:\"BAD_RESPONSE\"},context:trustedState};\n  }\n  if (response.error) return {event:{lifecycle:\"error\",code:\"PROVIDER_ERROR\"},context:trustedState};\n  if (response.status === \"incomplete\") return {event:{lifecycle:\"incomplete\"},context:trustedState};\n  if (containsRefusal(response.output)) return {event:{lifecycle:\"refusal\"},context:trustedState};\n  if (response.status !== \"completed\") return {event:{lifecycle:\"error\",code:\"NOT_COMPLETED\"},context:trustedState};\n  const calls = Array.isArray(response.output) ? response.output.filter(x => x?.type === \"function_call\") : [];\n  if (calls.length !== 1) return {event:{lifecycle:\"error\",code:\"CALL_COUNT\"},context:trustedState};\n  const call = calls[0];\n  return {event:{lifecycle:\"complete\",type:call.type,name:call.name,call_id:call.call_id,arguments:call.arguments},context:trustedState};\n}\n\nexport function buildFunctionOutput(success) {\n  if (!success?.ok || typeof success.call_id !== \"string\") throw new TypeError(\"Successful result required\");\n  return {type:\"function_call_output\",call_id:success.call_id,output:JSON.stringify(success.output)};\n}\n'@ | Set-Content -LiteralPath (Join-Path $Target \"adapter.mjs\") -NoNewline\n\n@'\nimport {readFileSync} from \"node:fs\";\nconst stocks = JSON.parse(readFileSync(new URL(\"./stocks.json\", import.meta.url), \"utf8\"));\n\nexport function processEnvelope(event, context) {\n  if (!event || typeof event !== \"object\" || Array.isArray(event)) return {ok:false,code:\"BAD_ENVELOPE\"};\n  if (event.lifecycle === \"refusal\") return {ok:false,code:\"REFUSED\"};\n  if (event.lifecycle === \"incomplete\") return {ok:false,code:\"INCOMPLETE\"};\n  if (event.lifecycle === \"error\") return {ok:false,code:event.code || \"PROVIDER_ERROR\"};\n  if (event.lifecycle !== \"complete\") return {ok:false,code:\"NOT_COMPLETED\"};\n  if (event.type !== \"function_call\") return {ok:false,code:\"BAD_CALL_TYPE\"};\n  if (typeof event.call_id !== \"string\" || event.call_id.length === 0) return {ok:false,code:\"MISSING_CALL_ID\"};\n  if (event.name !== \"lookup_stock\") return {ok:false,code:\"UNKNOWN_TOOL\"};\n  if (event.call_id !== context.expectedCallId) return {ok:false,code:\"WRONG_CORRELATION\"};\n  if (context.authorized !== true) return {ok:false,code:\"UNAUTHORIZED\"};\n  let args;\n  try { args = JSON.parse(event.arguments); } catch { return {ok:false,code:\"BAD_JSON\"}; }\n  if (!args || typeof args !== \"object\") return {ok:false,code:\"BAD_SHAPE\"};\n  if (typeof args.ticker !== \"string\" || typeof args.quantity !== \"number\") return {ok:false,code:\"BAD_TYPE\"};\n  const unitPrice = stocks[args.ticker]?.unitPrice;\n  const total = unitPrice * args.quantity;\n  return {ok:true,output:{ticker:args.ticker,unitPrice,quantity:args.quantity,total,source:\"offline-fixture\"},call_id:event.call_id};\n}\n'@ | Set-Content -LiteralPath (Join-Path $Target \"student.mjs\") -NoNewline\n\n@'\nimport {readFileSync} from \"node:fs\";\nconst stocks = JSON.parse(readFileSync(new URL(\"./stocks.json\", import.meta.url), \"utf8\"));\nconst allowedKeys = new Set([\"ticker\", \"quantity\"]);\n\nexport function processEnvelope(event, context) {\n  if (!event || typeof event !== \"object\" || Array.isArray(event)) return {ok:false,code:\"BAD_ENVELOPE\"};\n  if (event.lifecycle === \"refusal\") return {ok:false,code:\"REFUSED\"};\n  if (event.lifecycle === \"incomplete\") return {ok:false,code:\"INCOMPLETE\"};\n  if (event.lifecycle === \"error\") return {ok:false,code:event.code || \"PROVIDER_ERROR\"};\n  if (event.lifecycle !== \"complete\") return {ok:false,code:\"NOT_COMPLETED\"};\n  if (event.type !== \"function_call\") return {ok:false,code:\"BAD_CALL_TYPE\"};\n  if (typeof event.call_id !== \"string\" || event.call_id.length === 0) return {ok:false,code:\"MISSING_CALL_ID\"};\n  if (event.name !== \"lookup_stock\") return {ok:false,code:\"UNKNOWN_TOOL\"};\n  if (!context || event.call_id !== context.expectedCallId) return {ok:false,code:\"WRONG_CORRELATION\"};\n  if (context.authorized !== true) return {ok:false,code:\"UNAUTHORIZED\"};\n  let args;\n  try { args = JSON.parse(event.arguments); } catch { return {ok:false,code:\"BAD_JSON\"}; }\n  if (!args || Array.isArray(args) || typeof args !== \"object\") return {ok:false,code:\"BAD_SHAPE\"};\n  if (Object.keys(args).some(key => !allowedKeys.has(key))) return {ok:false,code:\"UNKNOWN_KEY\"};\n  if (typeof args.ticker !== \"string\" || !Number.isInteger(args.quantity)) return {ok:false,code:\"BAD_TYPE\"};\n  if (!Object.hasOwn(stocks, args.ticker) || args.quantity < 1 || args.quantity > 100) return {ok:false,code:\"DOMAIN\"};\n  const unitPrice = stocks[args.ticker].unitPrice;\n  return {ok:true,output:{ticker:args.ticker,unitPrice,quantity:args.quantity,total:unitPrice*args.quantity,source:\"offline-fixture\"},call_id:event.call_id};\n}\n'@ | Set-Content -LiteralPath (Join-Path $Target \"repaired.mjs\") -NoNewline\n\n@'\nimport {readFileSync} from \"node:fs\";\nconst fixture = JSON.parse(readFileSync(new URL(\"./stocks.json\", import.meta.url), \"utf8\"));\n\nfunction reject(code) { return {ok:false,code}; }\nexport function processEnvelope(event, trusted) {\n  if (event === null || typeof event !== \"object\" || Array.isArray(event)) return reject(\"BAD_ENVELOPE\");\n  if (event.lifecycle === \"refusal\") return reject(\"REFUSED\");\n  if (event.lifecycle === \"incomplete\") return reject(\"INCOMPLETE\");\n  if (event.lifecycle === \"error\") return reject(event.code || \"PROVIDER_ERROR\");\n  if (event.lifecycle !== \"complete\") return reject(\"NOT_COMPLETED\");\n  if (event.type !== \"function_call\") return reject(\"BAD_CALL_TYPE\");\n  if (typeof event.call_id !== \"string\" || event.call_id === \"\") return reject(\"MISSING_CALL_ID\");\n  const tools = new Set([\"lookup_stock\"]);\n  if (!tools.has(event.name)) return reject(\"UNKNOWN_TOOL\");\n  if (!trusted || event.call_id !== trusted.expectedCallId) return reject(\"WRONG_CORRELATION\");\n  if (trusted.authorized !== true) return reject(\"UNAUTHORIZED\");\n  let value;\n  try { value = JSON.parse(event.arguments); } catch { return reject(\"BAD_JSON\"); }\n  if (value === null || Array.isArray(value) || typeof value !== \"object\") return reject(\"BAD_SHAPE\");\n  const keys = Object.keys(value);\n  if (keys.some(key => key !== \"ticker\" && key !== \"quantity\")) return reject(\"UNKNOWN_KEY\");\n  if (typeof value.ticker !== \"string\" || !Number.isInteger(value.quantity)) return reject(\"BAD_TYPE\");\n  if (!Object.hasOwn(fixture, value.ticker) || value.quantity < 1 || value.quantity > 100) return reject(\"DOMAIN\");\n  const unitPrice = fixture[value.ticker].unitPrice;\n  return {ok:true,output:{ticker:value.ticker,unitPrice,quantity:value.quantity,total:unitPrice*value.quantity,source:\"offline-fixture\"},call_id:event.call_id};\n}\n'@ | Set-Content -LiteralPath (Join-Path $Target \"reference.mjs\") -NoNewline\n\n@'\nimport {isDeepStrictEqual} from \"node:util\";\n\nfunction complete(call_id, name, argumentsText) {\n  return {lifecycle:\"complete\",type:\"function_call\",call_id,name,arguments:argumentsText};\n}\nfunction context(expectedCallId) {\n  return {expectedCallId,authorized:true};\n}\nfunction deepFreeze(value) {\n  if (value && typeof value === \"object\" && !Object.isFrozen(value)) {\n    Object.freeze(value);\n    for (const child of Object.values(value)) deepFreeze(child);\n  }\n  return value;\n}\n\nconst cases = deepFreeze([\n  {name:\"valid\",event:complete(\"c1\",\"lookup_stock\",'{\"ticker\":\"ACME\",\"quantity\":2}'),context:context(\"c1\"),expected:{ok:true,output:{ticker:\"ACME\",unitPrice:125,quantity:2,total:250,source:\"offline-fixture\"},call_id:\"c1\"}},\n  {name:\"wrongType\",event:complete(\"c2\",\"lookup_stock\",'{\"ticker\":\"ACME\",\"quantity\":\"2\"}'),context:context(\"c2\"),expected:{ok:false,code:\"BAD_TYPE\"}},\n  {name:\"unknownKey\",event:complete(\"c3\",\"lookup_stock\",'{\"ticker\":\"ACME\",\"quantity\":2,\"currency\":\"USD\"}'),context:context(\"c3\"),expected:{ok:false,code:\"UNKNOWN_KEY\"}},\n  {name:\"nullValue\",event:complete(\"c4\",\"lookup_stock\",'null'),context:context(\"c4\"),expected:{ok:false,code:\"BAD_SHAPE\"}},\n  {name:\"arrayValue\",event:complete(\"c5\",\"lookup_stock\",'[]'),context:context(\"c5\"),expected:{ok:false,code:\"BAD_SHAPE\"}},\n  {name:\"malformed\",event:complete(\"c6\",\"lookup_stock\",'{\"ticker\":\"ACME\"'),context:context(\"c6\"),expected:{ok:false,code:\"BAD_JSON\"}},\n  {name:\"range\",event:complete(\"c7\",\"lookup_stock\",'{\"ticker\":\"ACME\",\"quantity\":0}'),context:context(\"c7\"),expected:{ok:false,code:\"DOMAIN\"}},\n  {name:\"unknownTool\",event:complete(\"c8\",\"delete_stock\",'{\"ticker\":\"ACME\",\"quantity\":2}'),context:context(\"c8\"),expected:{ok:false,code:\"UNKNOWN_TOOL\"}},\n  {name:\"wrongCorrelation\",event:complete(\"c9\",\"lookup_stock\",'{\"ticker\":\"ACME\",\"quantity\":2}'),context:context(\"other\"),expected:{ok:false,code:\"WRONG_CORRELATION\"}},\n  {name:\"refused\",event:{lifecycle:\"refusal\"},context:context(\"c10\"),expected:{ok:false,code:\"REFUSED\"}},\n  {name:\"incomplete\",event:{lifecycle:\"incomplete\"},context:context(\"c11\"),expected:{ok:false,code:\"INCOMPLETE\"}},\n  {name:\"changedInput\",event:complete(\"c12\",\"lookup_stock\",'{\"ticker\":\"BETA\",\"quantity\":3}'),context:context(\"c12\"),expected:{ok:true,output:{ticker:\"BETA\",unitPrice:40,quantity:3,total:120,source:\"offline-fixture\"},call_id:\"c12\"}}\n]);\n\nconst modulePath = process.argv[2] || \"./student.mjs\";\nconst implementation = await import(modulePath);\nlet failures = 0;\nfor (const test of cases) {\n  let got;\n  try {\n    got = implementation.processEnvelope(test.event, test.context);\n  } catch (error) {\n    got = {ok:false,code:\"CRASH\",name:error?.name || \"Error\"};\n  }\n  const pass = isDeepStrictEqual(got, test.expected);\n  console.log(`${pass ? \"PASS\" : \"FAIL\"} ${test.name} ${JSON.stringify(got)}`);\n  if (!pass) failures++;\n}\nconsole.log(`TOTAL ${cases.length} FAILURES ${failures}`);\nprocess.exitCode = failures === 0 ? 0 : 1;\n'@ | Set-Content -LiteralPath (Join-Path $Target \"tests.mjs\") -NoNewline\n\nWrite-Host \"Created $Target\"\nWrite-Host \"Baseline:  node tests.mjs ./student.mjs\"\nWrite-Host \"Repair:    node tests.mjs ./repaired.mjs\"\nWrite-Host \"Reference: node tests.mjs ./reference.mjs\""
+      }
+    },
+    {
+      "id": "run-baseline",
+      "title": "Run the baseline and inspect the exact evidence",
+      "paragraphs": [
+        "Run the baseline from the created directory. In the recorded Node.js 22 execution dated 2026-09-20, 9 of 12 cases passed and exactly three failed: unknownKey, arrayValue, and range. nullValue, wrongCorrelation, refusal, and incomplete passed. The command exited with code 1.",
+        "The test suite is evidence about this implementation, not an ultimate specification or proof of production safety. Its cases remain separate from student.mjs and should not be edited during the repair. A learner must also reason about lifecycle handling, authorization, missing call identifiers, and other boundaries represented in the implementation."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Baseline command and exact recorded output",
+        "code": "PS> Set-Location .\\openai-tool-lab\nPS> node .\\tests.mjs .\\student.mjs\nPASS valid {\"ok\":true,\"output\":{\"ticker\":\"ACME\",\"unitPrice\":125,\"quantity\":2,\"total\":250,\"source\":\"offline-fixture\"},\"call_id\":\"c1\"}\nPASS wrongType {\"ok\":false,\"code\":\"BAD_TYPE\"}\nFAIL unknownKey {\"ok\":true,\"output\":{\"ticker\":\"ACME\",\"unitPrice\":125,\"quantity\":2,\"total\":250,\"source\":\"offline-fixture\"},\"call_id\":\"c3\"}\nPASS nullValue {\"ok\":false,\"code\":\"BAD_SHAPE\"}\nFAIL arrayValue {\"ok\":false,\"code\":\"BAD_TYPE\"}\nPASS malformed {\"ok\":false,\"code\":\"BAD_JSON\"}\nFAIL range {\"ok\":true,\"output\":{\"ticker\":\"ACME\",\"unitPrice\":125,\"quantity\":0,\"total\":0,\"source\":\"offline-fixture\"},\"call_id\":\"c7\"}\nPASS unknownTool {\"ok\":false,\"code\":\"UNKNOWN_TOOL\"}\nPASS wrongCorrelation {\"ok\":false,\"code\":\"WRONG_CORRELATION\"}\nPASS refused {\"ok\":false,\"code\":\"REFUSED\"}\nPASS incomplete {\"ok\":false,\"code\":\"INCOMPLETE\"}\nPASS changedInput {\"ok\":true,\"output\":{\"ticker\":\"BETA\",\"unitPrice\":40,\"quantity\":3,\"total\":120,\"source\":\"offline-fixture\"},\"call_id\":\"c12\"}\nTOTAL 12 FAILURES 3\nPS> $LASTEXITCODE\n1"
+      }
+    },
+    {
+      "id": "repair-boundary",
+      "title": "Make one coherent boundary repair",
+      "paragraphs": [
+        "Repair student.mjs at the argument-validation boundary rather than copying the complete reference. First, change the object check to reject arrays explicitly. Second, reject every key except ticker and quantity. Third, require an integer quantity and enforce that ticker exists in the loaded fixture and quantity is from 1 through 100. These changes address the three observed failures as one lesson: provider promises do not replace local boundary validation.",
+        "repaired.mjs contains that completed repair while retaining the existing lifecycle, correlation, allowlist, authorization, and fixture execution path. reference.mjs is independently written and produces the same decisions. Both read stocks.json, so the declared fixture is the actual source of unit prices."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "The focused replacement after JSON.parse",
+        "code": "if (!args || Array.isArray(args) || typeof args !== \"object\") {\n  return {ok:false,code:\"BAD_SHAPE\"};\n}\nif (Object.keys(args).some(key => ![\"ticker\", \"quantity\"].includes(key))) {\n  return {ok:false,code:\"UNKNOWN_KEY\"};\n}\nif (typeof args.ticker !== \"string\" || !Number.isInteger(args.quantity)) {\n  return {ok:false,code:\"BAD_TYPE\"};\n}\nif (!Object.hasOwn(stocks, args.ticker) || args.quantity < 1 || args.quantity > 100) {\n  return {ok:false,code:\"DOMAIN\"};\n}"
+      }
+    },
+    {
+      "id": "expected-results",
+      "title": "Verify the repaired and reference results",
+      "paragraphs": [
+        "Run both commands without changing tests.mjs. The repaired command has 12 passes, no failures, and exit code 0. The separate reference also has 12 passes, no failures, and exit code 0. The complete repaired output is shown below. The reference prints the same twelve lines and TOTAL line because its returned values are deeply equal.",
+        "Passing this suite establishes only the behavior of these offline cases. It does not establish a live provider response, current market value, complete security review, or authorization for a real deployment."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Exact repaired output and reference command result",
+        "code": "PS> node .\\tests.mjs .\\repaired.mjs\nPASS valid {\"ok\":true,\"output\":{\"ticker\":\"ACME\",\"unitPrice\":125,\"quantity\":2,\"total\":250,\"source\":\"offline-fixture\"},\"call_id\":\"c1\"}\nPASS wrongType {\"ok\":false,\"code\":\"BAD_TYPE\"}\nPASS unknownKey {\"ok\":false,\"code\":\"UNKNOWN_KEY\"}\nPASS nullValue {\"ok\":false,\"code\":\"BAD_SHAPE\"}\nPASS arrayValue {\"ok\":false,\"code\":\"BAD_SHAPE\"}\nPASS malformed {\"ok\":false,\"code\":\"BAD_JSON\"}\nPASS range {\"ok\":false,\"code\":\"DOMAIN\"}\nPASS unknownTool {\"ok\":false,\"code\":\"UNKNOWN_TOOL\"}\nPASS wrongCorrelation {\"ok\":false,\"code\":\"WRONG_CORRELATION\"}\nPASS refused {\"ok\":false,\"code\":\"REFUSED\"}\nPASS incomplete {\"ok\":false,\"code\":\"INCOMPLETE\"}\nPASS changedInput {\"ok\":true,\"output\":{\"ticker\":\"BETA\",\"unitPrice\":40,\"quantity\":3,\"total\":120,\"source\":\"offline-fixture\"},\"call_id\":\"c12\"}\nTOTAL 12 FAILURES 0\nPS> $LASTEXITCODE\n0\n\nPS> node .\\tests.mjs .\\reference.mjs\n# Same 12 PASS lines and: TOTAL 12 FAILURES 0\nPS> $LASTEXITCODE\n0"
       }
     },
     {
       "id": "verify-and-recover",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "For structured text, expect output_text content that conforms to the named schema. For function calling, expect a function_call output item with a known name, call_id, and JSON arguments. Verify response status, refusal or incomplete outcomes, schema, enum values, length limits, authorization, and domain rules. Test valid, missing, extra, malformed, unauthorized, duplicate, refusal, and truncation cases.",
-        "Do not execute when parsing, validation, approval, or authorization fails. Record a redacted failure and request correction or human review within a retry budget. Rollback means discarding untrusted output; for an executed function, use its idempotency key and tested compensation or reconciliation path. Schema compliance never guarantees truth or safety."
+        "valid accepts ACME quantity 2. wrongType rejects a string quantity. unknownKey rejects currency. nullValue and arrayValue reject non-object argument shapes. malformed rejects invalid JSON. range rejects zero. unknownTool rejects a name outside the registry. wrongCorrelation compares the actual call_id with separately trusted request state. refusal and incomplete stop before argument parsing. changedInput accepts BETA quantity 3 through the same path.",
+        "On any rejection, do not execute and do not construct a successful function_call_output. Record a redacted reason, then request a bounded correction or route the case for review. A real mutating tool would additionally need idempotency and tested reconciliation or compensation. This lab is read-only, and its synthetic outputs must never be presented as provider receipts or live prices."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Verification and recovery checklist",
+        "code": "[ ] response is completed\n[ ] response.error is absent\n[ ] typed refusal content is absent\n[ ] exactly one expected function_call is selected\n[ ] actual call_id is present and matches trusted expectedCallId\n[ ] tool name is locally allowlisted\n[ ] arguments parse without throwing\n[ ] object shape, fields, types, and extra-key policy pass\n[ ] ticker membership and quantity range pass locally\n[ ] trusted authorization permits the operation\n[ ] read-only fixture execution succeeds\n[ ] function_call_output uses the actual correlated call_id\n\nFailure at any line -> no execution, no success receipt, bounded recovery"
+      }
+    },
+    {
+      "id": "transfer",
+      "title": "Transfer the boundary beyond the exercise",
+      "paragraphs": [
+        "The changed-input case switches ACME quantity 2 to BETA quantity 3. It returns 120 because stocks.json contains a synthetic BETA unitPrice of 40. The same validator, allowlist, correlation, authorization, and execution path handles both inputs. This demonstrates transfer rather than memorization of the ACME result. GAMMA, quantity 0, and quantity 101 must produce DOMAIN rather than an invented value.",
+        "For another read-only capability, define a new tool name and schema, add the name to the local registry only after review, and add independent cases for malformed JSON, extra keys, semantic violations, unauthorized context, missing or mismatched call_id, refusal, incomplete responses, provider errors, and changed valid input. Keep raw provider adaptation separate from domain validation.",
+        "An optional real workflow would send the provider-shaped request using an authenticated OpenAI API client, inspect the returned lifecycle, adapt a real function_call, run local checks, and submit function_call_output with the matching call_id. Verify the deployment's documentation before doing so. This resource specifies no latest model, SDK version, price, or live result."
+      ]
+    },
+    {
+      "id": "sources",
+      "title": "Sources",
+      "paragraphs": [
+        "OpenAI, Structured Outputs, verified 2026-09-20. The Responses structured-answer shape uses text.format with type json_schema, name, strict, and schema. The guide distinguishes schema-constrained output from JSON-object mode and documents that only a supported subset of JSON Schema is available. https://developers.openai.com/api/docs/guides/structured-outputs",
+        "OpenAI, Function calling, verified 2026-09-20. The guide documents function_call items, serialized arguments, call_id correlation, and returning function_call_output with the matching call_id. It also supports handling refusal and incomplete outcomes before parsing or execution. https://developers.openai.com/api/docs/guides/function-calling",
+        "OpenAI, API quickstart, verified 2026-09-20. This is first-party context for an optional authenticated API workflow. The offline lab does not depend on the API, credentials, an SDK version, or a selected model. https://developers.openai.com/api/docs/quickstart",
+        "Node.js, ECMAScript modules documentation, verified 2026-09-20. This is first-party documentation for the .mjs module format and import behavior used by the Node.js 22 offline files. https://nodejs.org/api/esm.html"
       ]
     }
   ],
@@ -62,19 +184,19 @@
       "title": "Function calling",
       "url": "https://developers.openai.com/api/docs/guides/function-calling",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Structured model outputs",
       "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "OpenAI API developer quickstart",
       "url": "https://developers.openai.com/api/docs/quickstart",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     }
   ]
 }

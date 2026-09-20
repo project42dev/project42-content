@@ -16,11 +16,12 @@
   "prerequisites": [
     "A working Messages API request",
     "A Claude model that supports the selected structured-output feature",
-    "A JSON Schema for the intended data"
+    "A JSON Schema for the intended data",
+    "Node.js 22 and PowerShell 7 for the offline lab"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "anthropic",
     "structured-output",
@@ -32,29 +33,132 @@
       "id": "choose-control",
       "title": "Choose the correct control",
       "paragraphs": [
-        "Use output_config.format when the model should return schema-constrained JSON to the application. Use a tool definition with strict: true when the model should request an application capability with schema-constrained inputs. The schema controls syntax and required structure; it does not grant authority or prove that values are safe, current, permitted, or true.",
-        "Keep tool execution outside the model. Authenticate and authorize with trusted runtime identity, validate inputs again, obtain approval for consequential actions, use idempotency for mutations, and return a typed result for the next model turn."
+        "Use output_config.format when the desired result is schema-constrained JSON in an assistant text content block. Use a tool definition with strict: true when the model should propose an application capability call whose input matches input_schema. A structured response is an answer. A tool_use block is a request that the application may reject.",
+        "Keep six decisions separate. Structured response formatting controls model output representation. Schema validation checks declared structure. Semantic validation checks domain meaning. Tool allowlisting checks the requested capability name. Authorization checks whether this caller and context may use it. Execution is the application's final action. Passing an earlier layer never implies passing a later layer.",
+        "The lab uses a read-only synthetic stock catalog. It has no network access, credentials, trading capability, account state, or real market data. Its messages and receipts are fixtures, not evidence from a live model or provider service."
       ]
     },
     {
       "id": "define-contract",
       "title": "Define an explicit schema contract",
       "paragraphs": [
-        "The following request-body fragments show the current Anthropic shapes. Insert exactly one fragment into a reviewed Messages API request and replace bracketed values with non-secret domain fields."
+        "This provider-shaped example shows both controls. The structured request constrains JSON text. The tool request defines strict input for lookup_stock. additionalProperties: false rejects undeclared input keys, while required makes symbol mandatory. Anthropic supports a JSON Schema subset, so an application should still validate received data locally against its original contract.",
+        "The model identifier is deliberately a deployment placeholder. This resource does not claim a latest model, SDK, Node.js patch version, price, or availability date."
       ],
       "code": {
         "language": "javascript",
-        "label": "Anthropic structured-output contracts",
-        "code": "const jsonOutput = {\n  output_config: {\n    format: {\n      type: \"json_schema\",\n      schema: {\n        type: \"object\",\n        properties: { decision: { type: \"string\", enum: [\"approve\", \"review\", \"reject\"] }, reason: { type: \"string\" } },\n        required: [\"decision\", \"reason\"],\n        additionalProperties: false,\n      },\n    },\n  },\n};\n\nconst strictTool = {\n  tools: [{\n    name: \"record_review_decision\",\n    description: \"Record an already authorized review decision for [SYSTEM_OF_RECORD]\",\n    strict: true,\n    input_schema: {\n      type: \"object\",\n      properties: { item_id: { type: \"string\" }, decision: { type: \"string\", enum: [\"approve\", \"reject\"] } },\n      required: [\"item_id\", \"decision\"],\n      additionalProperties: false,\n    },\n  }],\n};"
+        "label": "Provider-shaped structured-output and strict-tool requests",
+        "code": "const structuredRequest = {\n  model: \"MODEL_ID_FROM_YOUR_DEPLOYMENT\",\n  max_tokens: 256,\n  messages: [{ role: \"user\", content: \"Classify this synthetic lookup request.\" }],\n  output_config: {\n    format: {\n      type: \"json_schema\",\n      schema: {\n        type: \"object\",\n        properties: {\n          decision: { type: \"string\", enum: [\"allow\", \"review\", \"reject\"] },\n          reason: { type: \"string\" }\n        },\n        required: [\"decision\", \"reason\"],\n        additionalProperties: false\n      }\n    }\n  }\n};\n\nconst toolRequest = {\n  model: \"MODEL_ID_FROM_YOUR_DEPLOYMENT\",\n  max_tokens: 256,\n  messages: [{ role: \"user\", content: \"Look up the synthetic quote for ACME.\" }],\n  tools: [{\n    name: \"lookup_stock\",\n    description: \"Read a quote from a local synthetic catalog. No network or side effects.\",\n    strict: true,\n    input_schema: {\n      type: \"object\",\n      properties: {\n        symbol: { type: \"string\" }\n      },\n      required: [\"symbol\"],\n      additionalProperties: false\n    }\n  }]\n};"
       }
+    },
+    {
+      "id": "provider-evidence",
+      "title": "Follow provider-shaped call and result correlation",
+      "paragraphs": [
+        "A tool request is represented by an assistant tool_use content block containing id, name, and input. stop_reason: \"tool_use\" signals the request. After separately validating, authorizing, and executing it, the application sends a user message containing a tool_result block whose tool_use_id equals the recorded tool_use.id.",
+        "The expected call ID below is application state recorded from the accepted call. It is not taken from a model-created resultToolUseId field. The synthetic execution receipt and continuation use that trusted ID. The entire example is fabricated instructional data and must not be presented as a live receipt."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Synthetic response, application decision, receipt, and continuation",
+        "code": "{\n  \"assistant_response\": {\n    \"id\": \"msg_fixture_001\",\n    \"role\": \"assistant\",\n    \"stop_reason\": \"tool_use\",\n    \"content\": [\n      {\n        \"type\": \"tool_use\",\n        \"id\": \"toolu_fixture_001\",\n        \"name\": \"lookup_stock\",\n        \"input\": { \"symbol\": \"ACME\" }\n      }\n    ]\n  },\n  \"trusted_application_state\": {\n    \"expectedCallId\": \"toolu_fixture_001\",\n    \"allowlisted\": true,\n    \"schemaValid\": true,\n    \"semanticValid\": true,\n    \"authorized\": true\n  },\n  \"synthetic_execution_receipt\": {\n    \"tool_use_id\": \"toolu_fixture_001\",\n    \"result\": {\n      \"symbol\": \"ACME\",\n      \"price\": 101.25,\n      \"currency\": \"USD\",\n      \"source\": \"offline-fixture\",\n      \"sideEffects\": false\n    }\n  },\n  \"tool_result_message\": {\n    \"role\": \"user\",\n    \"content\": [\n      {\n        \"type\": \"tool_result\",\n        \"tool_use_id\": \"toolu_fixture_001\",\n        \"content\": \"{\\\"symbol\\\":\\\"ACME\\\",\\\"price\\\":101.25,\\\"currency\\\":\\\"USD\\\",\\\"source\\\":\\\"offline-fixture\\\",\\\"sideEffects\\\":false}\"\n      }\n    ]\n  }\n}"
+      }
+    },
+    {
+      "id": "validation-layers",
+      "title": "Apply independent validation layers",
+      "paragraphs": [
+        "First parse JSON where text is expected. Then validate protocol state and schema: object types, required fields, exact keys, content block type, tool name type, input type, and symbol type. Local validation remains necessary even when the provider promises constrained generation because stored fixtures, adapters, retries, older data, and non-model callers can all cross the same application boundary.",
+        "Next apply semantics and policy. This lab requires an uppercase symbol of one to five letters, allowlists only lookup_stock, authorizes only symbols present in the local catalog, requires exact correlation with trusted pending-call state, and checks that the locally retrieved price is finite and within the lab's range. Only then may the read-only dispatcher return a result.",
+        "A typed refusal content block is a non-executable refusal. An ordinary end_turn text answer is not a refusal and is classified here as not-tool-use. A max_tokens response is separately classified as incomplete. None of these states is a malformed tool call to coerce into execution. Unknown tools, wrong IDs, extra fields, invalid domains, and unauthorized symbols must also be rejected rather than repaired silently."
+      ]
+    },
+    {
+      "id": "offline-lab",
+      "title": "Create the complete offline Node.js 22 lab",
+      "paragraphs": [
+        "Save this code as setup.ps1 and run it in PowerShell 7. It refuses an existing destination and writes all required files: the flawed learner boundary, independent gather-all tests, a separate reference, and examples. The tests contain their own fixtures and expected full results, so they do not import answers from either implementation.",
+        "The direct-execution guard normalizes process.argv[1] with resolve and pathToFileURL. On Windows, import.meta.url uses a file URL such as file:///D:/path while process.argv[1] uses a filesystem path such as D:\\path. Direct string construction with file://${process.argv[1]} is not portable."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "setup.ps1, complete lab setup",
+        "code": "param([string]$Root = \"anthropic-tools-lab\")\n$ErrorActionPreference = \"Stop\"\nif (Test-Path -LiteralPath $Root) {\n  throw \"Refusing existing directory: $Root\"\n}\nNew-Item -ItemType Directory -Path $Root | Out-Null\n\n@'\nimport fs from \"node:fs\";\nimport { resolve } from \"node:path\";\nimport { pathToFileURL } from \"node:url\";\n\nconst catalog = Object.freeze({ ACME: 101.25, BETA: 88.5 });\n\nexport function assess(raw, expectedCallId) {\n  let envelope;\n  try { envelope = typeof raw === \"string\" ? JSON.parse(raw) : raw; }\n  catch { return { ok: false, reason: \"malformed-json\" }; }\n  const response = envelope?.assistant_response;\n  if (response?.stop_reason === \"max_tokens\") return { ok: false, reason: \"incomplete\" };\n  const call = response?.content?.[0];\n  if (call?.type !== \"tool_use\") return { ok: false, reason: \"not-tool-use\" };\n  if (!call.input || typeof call.input !== \"object\") return { ok: false, reason: \"bad-input\" };\n  if (typeof call.input.symbol !== \"string\") return { ok: false, reason: \"bad-symbol-type\" };\n  return { ok: true, symbol: call.input.symbol, price: catalog[call.input.symbol] ?? null };\n}\n\nfunction cliFailure(reason, detail) {\n  console.log(JSON.stringify({ ok: false, reason, ...(detail ? { detail } : {}) }));\n  process.exitCode = 2;\n}\n\nfunction runCli() {\n  const [file, caseName, expectedCallId] = process.argv.slice(2);\n  if (!file || !caseName || !expectedCallId) return cliFailure(\"cli-usage\");\n  let cases;\n  try { cases = JSON.parse(fs.readFileSync(file, \"utf8\")); }\n  catch { return cliFailure(\"input-file-or-json\"); }\n  if (!cases || typeof cases !== \"object\" || Array.isArray(cases) || !Object.hasOwn(cases, caseName)) {\n    return cliFailure(\"unknown-case\", caseName);\n  }\n  const result = assess(cases[caseName], expectedCallId);\n  console.log(JSON.stringify(result));\n  process.exitCode = result.ok ? 0 : 1;\n}\n\nif (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) runCli();\n'@ | Set-Content -LiteralPath (Join-Path $Root \"learner.mjs\") -Encoding utf8\n\n@'\nimport fs from \"node:fs\";\nimport os from \"node:os\";\nimport { resolve } from \"node:path\";\nimport { spawnSync } from \"node:child_process\";\nimport { isDeepStrictEqual } from \"node:util\";\n\nconst target = resolve(process.argv[2] ?? \"learner.mjs\");\nconst call = (id, name, input) => ({\n  assistant_response: {\n    role: \"assistant\",\n    stop_reason: \"tool_use\",\n    content: [{ type: \"tool_use\", id, name, input }]\n  },\n  result_receipt: { type: \"tool_result\", tool_use_id: id }\n});\nconst cases = Object.freeze([\n  [\"valid\", call(\"toolu-1\", \"lookup_stock\", { symbol: \"ACME\" }), \"toolu-1\", 0,\n    { ok:true, callId:\"toolu-1\", symbol:\"ACME\", price:101.25, currency:\"USD\", source:\"offline-fixture\", sideEffects:false, correlated:true }],\n  [\"wrong-type\", call(\"toolu-2\", \"lookup_stock\", { symbol: 42 }), \"toolu-2\", 1,\n    { ok:false, reason:\"bad-symbol-type\" }],\n  [\"additional-key\", call(\"toolu-3\", \"lookup_stock\", { symbol:\"ACME\", limit:1 }), \"toolu-3\", 1,\n    { ok:false, reason:\"additional-key\" }],\n  [\"null-input\", call(\"toolu-4\", \"lookup_stock\", null), \"toolu-4\", 1,\n    { ok:false, reason:\"bad-input\" }],\n  [\"array-input\", call(\"toolu-5\", \"lookup_stock\", []), \"toolu-5\", 1,\n    { ok:false, reason:\"bad-input\" }],\n  [\"malformed-json\", \"{\\\"assistant_response\\\":\", \"toolu-6\", 1,\n    { ok:false, reason:\"malformed-json\" }],\n  [\"domain-violation\", call(\"toolu-7\", \"lookup_stock\", { symbol:\"TOOLONG\" }), \"toolu-7\", 1,\n    { ok:false, reason:\"symbol-domain\" }],\n  [\"unknown-tool\", call(\"toolu-8\", \"delete_account\", { symbol:\"ACME\" }), \"toolu-8\", 1,\n    { ok:false, reason:\"unknown-tool\" }],\n  [\"wrong-correlation\", {\n    assistant_response:{ role:\"assistant\", stop_reason:\"tool_use\", content:[{ type:\"tool_use\", id:\"toolu-9\", name:\"lookup_stock\", input:{ symbol:\"ACME\" } }] },\n    result_receipt:{ type:\"tool_result\", tool_use_id:\"toolu-other\" }\n  }, \"toolu-9\", 1, { ok:false, reason:\"wrong-correlation\" }],\n  [\"refusal\", {\n    assistant_response:{ role:\"assistant\", stop_reason:\"end_turn\", content:[{ type:\"refusal\", refusal:\"I cannot complete that request.\" }] },\n    result_receipt:null\n  }, \"toolu-10\", 1, { ok:false, reason:\"refusal\" }],\n  [\"completed-text\", {\n    assistant_response:{ role:\"assistant\", stop_reason:\"end_turn\", content:[{ type:\"text\", text:\"The request is complete without a tool call.\" }] },\n    result_receipt:null\n  }, \"toolu-11\", 1, { ok:false, reason:\"not-tool-use\" }],\n  [\"incomplete\", {\n    assistant_response:{ role:\"assistant\", stop_reason:\"max_tokens\", content:[{ type:\"text\", text:\"Partial\" }] },\n    result_receipt:null\n  }, \"toolu-12\", 1, { ok:false, reason:\"incomplete\" }],\n  [\"changed-input\", call(\"toolu-13\", \"lookup_stock\", { symbol:\"BETA\" }), \"toolu-13\", 0,\n    { ok:true, callId:\"toolu-13\", symbol:\"BETA\", price:88.5, currency:\"USD\", source:\"offline-fixture\", sideEffects:false, correlated:true }]\n]);\n\nconst temp = fs.mkdtempSync(`${os.tmpdir()}${process.platform === \"win32\" ? \"\\\\\" : \"/\"}p42-tools-`);\nconst book = Object.fromEntries(cases.map(([name, value]) => [name, value]));\nconst bookPath = `${temp}${process.platform === \"win32\" ? \"\\\\\" : \"/\"}cases.json`;\nfs.writeFileSync(bookPath, JSON.stringify(book), \"utf8\");\nlet failures = 0;\ntry {\n  for (const [name, , expectedId, expectedExit, expectedResult] of cases) {\n    const p = spawnSync(process.execPath, [target, bookPath, name, expectedId], { encoding:\"utf8\" });\n    let actual;\n    try { actual = JSON.parse(p.stdout.trim()); }\n    catch { actual = { unparsable:true, stdout:p.stdout, stderr:p.stderr }; }\n    const pass = p.status === expectedExit && isDeepStrictEqual(actual, expectedResult);\n    console.log(`${pass ? \"PASS\" : \"FAIL\"} ${name}`);\n    if (!pass) failures++;\n  }\n} finally {\n  fs.rmSync(temp, { recursive:true, force:true });\n}\nconsole.log(`TOTAL ${cases.length} FAILED ${failures}`);\nprocess.exitCode = failures ? 1 : 0;\n'@ | Set-Content -LiteralPath (Join-Path $Root \"tests.mjs\") -Encoding utf8\n\n@'\nimport fs from \"node:fs\";\nimport { resolve } from \"node:path\";\nimport { pathToFileURL } from \"node:url\";\n\nconst prices = Object.freeze({ ACME:101.25, BETA:88.5 });\nconst permitted = new Set([\"lookup_stock\"]);\n\nexport function assess(raw, expectedCallId) {\n  let e;\n  try { e = typeof raw === \"string\" ? JSON.parse(raw) : raw; }\n  catch { return { ok:false, reason:\"malformed-json\" }; }\n  if (!e || typeof e !== \"object\" || Array.isArray(e)) return { ok:false, reason:\"not-object\" };\n  const a = e.assistant_response;\n  if (!a || typeof a !== \"object\" || Array.isArray(a)) return { ok:false, reason:\"incomplete\" };\n  if (a.stop_reason === \"max_tokens\") return { ok:false, reason:\"incomplete\" };\n  if (Array.isArray(a.content) && a.content.some(x => x?.type === \"refusal\")) {\n    return { ok:false, reason:\"refusal\" };\n  }\n  if (a.stop_reason === \"end_turn\" && Array.isArray(a.content) && a.content.some(x => x?.type === \"text\")) {\n    return { ok:false, reason:\"not-tool-use\" };\n  }\n  if (a.stop_reason !== \"tool_use\" || !Array.isArray(a.content) || a.content.length !== 1) {\n    return { ok:false, reason:\"incomplete\" };\n  }\n  const c = a.content[0];\n  if (!c || c.type !== \"tool_use\" || typeof c.id !== \"string\" || !c.id) return { ok:false, reason:\"incomplete\" };\n  if (c.id !== expectedCallId) return { ok:false, reason:\"wrong-correlation\" };\n  if (!permitted.has(c.name)) return { ok:false, reason:\"unknown-tool\" };\n  if (!c.input || typeof c.input !== \"object\" || Array.isArray(c.input)) return { ok:false, reason:\"bad-input\" };\n  const keys = Object.keys(c.input);\n  if (keys.length !== 1 || keys[0] !== \"symbol\") return { ok:false, reason:\"additional-key\" };\n  if (typeof c.input.symbol !== \"string\") return { ok:false, reason:\"bad-symbol-type\" };\n  if (!/^[A-Z]{1,5}$/.test(c.input.symbol)) return { ok:false, reason:\"symbol-domain\" };\n  if (!Object.hasOwn(prices, c.input.symbol)) return { ok:false, reason:\"unauthorized-symbol\" };\n  const receipt = e.result_receipt;\n  if (!receipt || receipt.type !== \"tool_result\" || receipt.tool_use_id !== expectedCallId || receipt.tool_use_id !== c.id) {\n    return { ok:false, reason:\"wrong-correlation\" };\n  }\n  const price = prices[c.input.symbol];\n  if (!Number.isFinite(price) || price < 0 || price > 1000000) return { ok:false, reason:\"price-out-of-range\" };\n  return { ok:true, callId:c.id, symbol:c.input.symbol, price, currency:\"USD\", source:\"offline-fixture\", sideEffects:false, correlated:true };\n}\n\nfunction emitFailure(reason, detail) {\n  console.log(JSON.stringify({ ok:false, reason, ...(detail ? { detail } : {}) }));\n  process.exitCode = 2;\n}\nfunction runCli() {\n  const [file, caseName, expectedCallId] = process.argv.slice(2);\n  if (!file || !caseName || !expectedCallId) return emitFailure(\"cli-usage\");\n  let cases;\n  try { cases = JSON.parse(fs.readFileSync(file, \"utf8\")); }\n  catch { return emitFailure(\"input-file-or-json\"); }\n  if (!cases || typeof cases !== \"object\" || Array.isArray(cases) || !Object.hasOwn(cases, caseName)) {\n    return emitFailure(\"unknown-case\", caseName);\n  }\n  const result = assess(cases[caseName], expectedCallId);\n  console.log(JSON.stringify(result));\n  process.exitCode = result.ok ? 0 : 1;\n}\nif (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) runCli();\n'@ | Set-Content -LiteralPath (Join-Path $Root \"reference.mjs\") -Encoding utf8\n\n@'\n{\n  \"valid\": {\n    \"assistant_response\": {\n      \"role\": \"assistant\",\n      \"stop_reason\": \"tool_use\",\n      \"content\": [{\"type\":\"tool_use\",\"id\":\"toolu-demo\",\"name\":\"lookup_stock\",\"input\":{\"symbol\":\"ACME\"}}]\n    },\n    \"result_receipt\": {\"type\":\"tool_result\",\"tool_use_id\":\"toolu-demo\"}\n  }\n}\n'@ | Set-Content -LiteralPath (Join-Path $Root \"examples.json\") -Encoding utf8\n\nSet-ItemProperty -LiteralPath (Join-Path $Root \"tests.mjs\") -Name IsReadOnly -Value $true\nWrite-Output \"Created $Root\"\nWrite-Output \"Wrote learner.mjs, tests.mjs, reference.mjs, and examples.json\"\nWrite-Output \"tests.mjs is read-only; do not modify it\"\n"
+      }
+    },
+    {
+      "id": "learner-repair",
+      "title": "Repair one boundary instead of copying an output",
+      "paragraphs": [
+        "The baseline already parses input and performs a shallow type check. Repair its assess function as one coherent trust-boundary change. Require a provider-shaped tool_use state, one content block, exact input keys, the lookup_stock allowlist, the symbol domain, catalog authorization, trusted expectedCallId correlation, a correlated tool_result receipt, and a bounded finite local price. Return the complete success object expected by the tests.",
+        "Do not hard-code case names or expected test outputs. Do not change tests.mjs, add network access, or copy a fixed ACME result. The changed-input case must derive BETA and 88.5 from the received valid input and local catalog. reference.mjs is a separate inspectable answer for comparison after attempting the repair, not a module that learner.mjs or tests.mjs imports.",
+        "The local gate is also an adapter: it reads Anthropic-shaped content blocks and converts an accepted request into the application's own result object. In production, the trusted expectedCallId should come from pending-call state controlled by the application, not from an extra field invented by a model or copied blindly from an untrusted result."
+      ]
+    },
+    {
+      "id": "immutable-tests",
+      "title": "Run gather-all tests and inspect exact evidence",
+      "paragraphs": [
+        "Run the baseline before editing learner.mjs. The harness executes all 13 cases in separate child processes and reports every decision rather than stopping at the first failure. It compares the complete result object and exit code. The baseline passes five shallow negative or non-tool checks but fails eight boundary or full-result checks.",
+        "After repairing learner.mjs, rerun the same read-only test file. Then run the independent reference. The outputs below are the exact deterministic expectations for the revised files, derived from their control flow and test order. The earlier V2 execution evidence did not execute this revised 13-case suite. Node.js patch output is not asserted because the supplied evidence does not establish a particular Node.js 22 patch release."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Exact setup, baseline, repaired, and reference commands and results",
+        "code": "# From the directory containing setup.ps1, in PowerShell 7:\npwsh -NoProfile -File .\\setup.ps1\n# stdout:\nCreated anthropic-tools-lab\nWrote learner.mjs, tests.mjs, reference.mjs, and examples.json\ntests.mjs is read-only; do not modify it\n# Exit code: 0\n\nSet-Location .\\anthropic-tools-lab\nnode tests.mjs learner.mjs\n# Exact expected stdout before repair:\nFAIL valid\nPASS wrong-type\nFAIL additional-key\nPASS null-input\nFAIL array-input\nPASS malformed-json\nFAIL domain-violation\nFAIL unknown-tool\nFAIL wrong-correlation\nFAIL refusal\nPASS completed-text\nPASS incomplete\nFAIL changed-input\nTOTAL 13 FAILED 8\n# Exit code: 1\n\n# Edit only learner.mjs to implement the boundary policy, then run:\nnode tests.mjs learner.mjs\n# Exact expected stdout after a correct repair:\nPASS valid\nPASS wrong-type\nPASS additional-key\nPASS null-input\nPASS array-input\nPASS malformed-json\nPASS domain-violation\nPASS unknown-tool\nPASS wrong-correlation\nPASS refusal\nPASS completed-text\nPASS incomplete\nPASS changed-input\nTOTAL 13 FAILED 0\n# Exit code: 0\n\nnode tests.mjs reference.mjs\n# Exact expected stdout:\nPASS valid\nPASS wrong-type\nPASS additional-key\nPASS null-input\nPASS array-input\nPASS malformed-json\nPASS domain-violation\nPASS unknown-tool\nPASS wrong-correlation\nPASS refusal\nPASS completed-text\nPASS incomplete\nPASS changed-input\nTOTAL 13 FAILED 0\n# Exit code: 0\n\nnode reference.mjs examples.json valid toolu-demo\n# Exact stdout:\n{\"ok\":true,\"callId\":\"toolu-demo\",\"symbol\":\"ACME\",\"price\":101.25,\"currency\":\"USD\",\"source\":\"offline-fixture\",\"sideEffects\":false,\"correlated\":true}\n# Exit code: 0\n\nnode reference.mjs\n# Exact stdout:\n{\"ok\":false,\"reason\":\"cli-usage\"}\n# Exit code: 2"
+      }
+    },
+    {
+      "id": "worked-decisions",
+      "title": "Explain the worked validation decisions",
+      "paragraphs": [
+        "valid passes protocol state, local schema checks, allowlisting, symbol semantics, catalog authorization, trusted-ID correlation, receipt correlation, and bounded local execution. Its full result includes the call ID, quote, currency, fixture source, side-effect declaration, and correlation decision. wrong-type fails the symbol type. additional-key enforces the local equivalent of additionalProperties: false.",
+        "null-input and array-input fail the required object shape. malformed-json fails parsing without crashing. domain-violation uses TOOLONG, which fails the one-to-five uppercase-letter semantic rule. A different uppercase value absent from the catalog would pass that semantic rule but fail authorization as unauthorized-symbol.",
+        "unknown-tool fails allowlisting even if its input looks valid. wrong-correlation has a model call ID and trusted expected ID of toolu-9, but its synthetic result receipt says toolu-other, so the result is rejected. refusal contains a typed refusal content block and is non-executable. completed-text is an ordinary end_turn text answer, so it is not mislabeled as refusal and instead returns not-tool-use. incomplete has max_tokens and remains a distinct non-executable boundary. changed-input proves transfer because BETA produces its own full quote instead of an ACME value copied from the example."
+      ]
     },
     {
       "id": "verify-and-recover",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "For JSON output, expect a text content block containing valid JSON that matches the schema. For strict tools, expect a tool_use block whose name and input match the declared tool. Verify response type, stop reason, schema, enum values, length limits, authorization, and domain rules. Test valid, missing, extra, malformed, unauthorized, duplicate, refusal, and truncation cases.",
-        "Do not execute when validation or authorization fails. Record a redacted failure and request a corrected response or human review within a retry budget. Rollback means discarding untrusted structured output; for a tool side effect, use the tool contract's idempotency key and tested compensation or reconciliation path. Never describe a schema-constrained output as factually guaranteed."
+        "For structured output, verify the expected text block, parse JSON, validate the original local schema, reject unknown keys, and apply domain and authorization rules. For tool use, verify stop_reason, content cardinality, type: \"tool_use\", id, name, input, exact keys, allowlist membership, semantics, authorization, pending-call identity, and tool_result correlation before accepting the workflow.",
+        "On any failure, do not execute. Record redacted diagnostic evidence, return a controlled error, and either request a corrected response within a bounded retry policy or route to review. Missing command arguments, an unreadable file, invalid container JSON, and an unknown case name produce controlled exit code 2 in this lab rather than an uncaught exception.",
+        "A structured-output schema or strict tool schema can improve model output shape, but neither authenticates a user, authorizes a symbol, proves a price, establishes correlation, or grants execution. For a real side effect, add approval, idempotency, replay protection, reconciliation, and recovery procedures. None of the synthetic receipts here establishes a real provider call or real execution."
       ]
+    },
+    {
+      "id": "optional-real-workflow",
+      "title": "Connect an optional real workflow without fake receipts",
+      "paragraphs": [
+        "An optional real integration can send a Messages API request using output_config.format for schema-constrained text or a tool definition using strict: true and input_schema. When a response has stop_reason: \"tool_use\", inspect its tool_use block, pass it through the local gate, and record the accepted id in trusted pending-call state. Only an authorized dispatcher should execute the allowlisted capability.",
+        "After execution, construct a user tool_result content block whose tool_use_id is the recorded tool_use.id. Send that continuation only if correlation and result validation pass. Preserve provider responses and application decisions according to your security and privacy policies, but label synthetic fixtures and mocked receipts as synthetic.",
+        "This optional path requires credentials and network access, unlike the lab. Consult the dated provider documentation and your own deployment configuration before selecting a model or SDK. No live command, generated response, current model claim, price, or service receipt is supplied here."
+      ]
+    },
+    {
+      "id": "transfer",
+      "title": "Transfer the boundary to a changed task",
+      "paragraphs": [
+        "For a read-only weather fixture, replace symbol with a location identifier, replace the stock catalog with a local weather table, and define location syntax, units, acceptable measurement ranges, authorized regions, and a weather tool allowlist. Keep parsing, exact-key checks, trusted pending-call identity, result correlation, refusal handling, and incomplete-response handling.",
+        "For a consequential operation, schema validation still does not replace authorization. Add authenticated identity, resource permissions, approval thresholds, rate limits, idempotency keys, replay protection, audit records, and tested rollback or reconciliation. Include at least one changed valid input and compare the complete result, not only an ok flag.",
+        "When adapters normalize provider messages into an internal form, test both layers. Provider-shape tests should catch wrong content types, stop reasons, IDs, and correlation. Domain tests should catch valid-looking but unauthorized or nonsensical values. Dispatcher tests should prove that rejected inputs never reach execution."
+      ]
+    },
+    {
+      "id": "sources",
+      "title": "Sources",
+      "paragraphs": [
+        "Anthropic, Structured outputs, verified 2026-09-20. Documents output_config.format with type json_schema and a schema object for constraining assistant text. It also describes a supported JSON Schema subset and SDK handling, which is why this lesson requires validation against the application's original schema.",
+        "Anthropic, Strict tool use, verified 2026-09-20. Documents strict: true on a tool definition beside name, description, and input_schema. Input conformance does not establish business correctness or application authorization.",
+        "Anthropic, Create a Message, verified 2026-09-20. Documents assistant tool_use blocks with id, name, and input, stop_reason: \"tool_use\", and later tool_result blocks correlated through tool_use_id.",
+        "Node.js, ECMAScript modules and URL handling, verified 2026-09-20. Documents import.meta.url as a file URL. Node.js pathToFileURL documentation provides the platform-correct conversion used by the lab's direct-execution guard.",
+        "JSON Schema, Object properties, verified 2026-09-20. Documents required property presence and additionalProperties: false behavior. The lab implements equivalent local checks without claiming to be a complete JSON Schema validator."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Authoritative documentation",
+        "code": "https://platform.claude.com/docs/en/build-with-claude/structured-outputs\nhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use\nhttps://platform.claude.com/docs/en/api/messages/create\nhttps://nodejs.org/api/esm.html\nhttps://nodejs.org/api/url.html#urlpathtofileurlpath-options\nhttps://json-schema.org/understanding-json-schema/reference/object#additionalproperties\nhttps://json-schema.org/understanding-json-schema/reference/generic.html#required"
+      }
     }
   ],
   "sources": [
@@ -62,19 +166,37 @@
       "title": "Structured outputs",
       "url": "https://platform.claude.com/docs/en/build-with-claude/structured-outputs",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Strict tool use",
       "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Create a Message",
       "url": "https://platform.claude.com/docs/en/api/messages/create",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "ECMAScript modules",
+      "url": "https://nodejs.org/api/esm.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "pathToFileURL",
+      "url": "https://nodejs.org/api/url.html#urlpathtofileurlpath-options",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "JSON Schema object properties",
+      "url": "https://json-schema.org/understanding-json-schema/reference/object#additionalproperties",
+      "publisher": "JSON Schema",
+      "lastVerified": "2026-09-20"
     }
   ]
 }

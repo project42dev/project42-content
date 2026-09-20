@@ -2,7 +2,7 @@
   "id": "openai-responses-api-request",
   "slug": "openai-responses-api-request",
   "title": "OpenAI Responses API Request Workflow",
-  "summary": "Send a bounded OpenAI Responses API request with environment-based credentials, explicit configuration, output inspection, and recoverable failure handling.",
+  "summary": "Send a bounded OpenAI Responses API request with environment-based credentials, explicit configuration, typed output inspection, and recoverable failure handling.",
   "category": "Provider workflows",
   "format": "playbook",
   "audience": [
@@ -14,67 +14,240 @@
     "openai"
   ],
   "prerequisites": [
-    "Node.js 20 or later",
+    "Node.js 22 or later",
+    "PowerShell 7 for the setup script",
     "An OpenAI API key stored outside source control",
     "An approved OpenAI model ID"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "openai",
     "responses-api",
     "api",
-    "javascript"
+    "javascript",
+    "offline-testing"
   ],
   "sections": [
+    {
+      "id": "orientation",
+      "title": "What you will learn",
+      "paragraphs": [
+        "You will prepare an OpenAI Responses API request, inspect raw REST data by type, and classify failures without exposing credentials. The required lab is offline and deterministic. It needs Node.js 22 and PowerShell 7, but it needs no network, API key, model access, or provider account.",
+        "The lab deliberately starts at 6 of 9 passing cases. You will repair only learner.mjs, rerun the same fixtures and tests, and apply the rule to a changed input. The separate reference.mjs illustrates the intended classifier but is never imported by tests.mjs. Synthetic fixture results demonstrate local program behavior, not live API behavior or model quality."
+      ],
+      "code": {
+        "language": "text",
+        "label": "learning contract",
+        "code": "Required path: offline fixtures -> failing baseline -> learner repair -> unchanged tests -> changed input\nOptional path: environment credentials -> bounded REST request -> typed classification\nNever use fixture output as a live API receipt."
+      }
+    },
     {
       "id": "prepare-request",
       "title": "Prepare the request boundary",
       "paragraphs": [
-        "Set OPENAI_API_KEY in the process environment or an approved secret manager and set PROJECT42_OPENAI_MODEL to a reviewed model ID. Do not print, commit, paste into source, or send the key as model input. Define the purpose, approved input, token budget, timeout, storage policy, and expected response before sending.",
-        "Keep application state and authorization outside the model. When continuing a conversation, decide explicitly what prior content may be sent and retained. Treat generated output and tool arguments as untrusted until application validation and policy checks pass."
-      ]
+        "The verified REST endpoint is POST https://api.openai.com/v1/responses. The JSON body requires model and input, while max_output_tokens can bound generated output. When an application supplies behavioral guidance and user data, keep the guidance in instructions and the user data in input. Authentication uses an Authorization header containing Bearer followed by OPENAI_API_KEY.",
+        "For the optional request, choose an available model through PROJECT42_OPENAI_MODEL. This lesson does not identify an available model or make pricing claims. Use only approved, non-secret input. Decide the timeout, output budget, accepted lifecycle states, logging policy, and application validation before transmitting data. The API key must remain in the environment or an approved secret manager and must never enter source code, prompts, or console output."
+      ],
+      "code": {
+        "language": "json",
+        "label": "request boundary template",
+        "code": "{\n  \"task\": \"Summarize an approved note in one sentence\",\n  \"configuration\": {\n    \"model\": \"value supplied through PROJECT42_OPENAI_MODEL\",\n    \"timeoutMilliseconds\": 30000,\n    \"maxOutputTokens\": 80\n  },\n  \"dataPolicy\": {\n    \"inputContainsSecrets\": false,\n    \"printAuthorizationHeader\": false,\n    \"acceptUnreviewedOutput\": false\n  }\n}"
+      }
+    },
+    {
+      "id": "worked-example",
+      "title": "Follow a filled task, request, and response example",
+      "paragraphs": [
+        "The task below asks for one sentence about approved text. The request separates the stable instruction from the user-supplied note and includes an output budget. The response is an independently authored synthetic object. It is shaped like the fields this lesson consumes, but it is not a captured provider response.",
+        "The first output item is reasoning rather than a message. Positional code such as output[0].content[0].text would therefore fail. Typed traversal skips that item, selects the message, then selects its output_text block. The extracted candidate is still untrusted and requires application review. Token figures are intentionally absent because no live measurement established them."
+      ],
+      "code": {
+        "language": "json",
+        "label": "synthetic worked example",
+        "code": "{\n  \"task\": {\n    \"goal\": \"Summarize the approved maintenance note in one sentence\",\n    \"approvedInput\": \"The service window begins at 02:00 UTC and requires operator approval.\"\n  },\n  \"request\": {\n    \"model\": \"MODEL_FROM_PROJECT42_OPENAI_MODEL\",\n    \"instructions\": \"Return one concise sentence. Do not add facts.\",\n    \"input\": \"The service window begins at 02:00 UTC and requires operator approval.\",\n    \"max_output_tokens\": 80\n  },\n  \"response\": {\n    \"id\": \"resp_synthetic_example\",\n    \"status\": \"completed\",\n    \"output\": [\n      { \"type\": \"reasoning\" },\n      {\n        \"type\": \"message\",\n        \"content\": [\n          {\n            \"type\": \"output_text\",\n            \"text\": \"The 02:00 UTC service window requires operator approval.\"\n          }\n        ]\n      }\n    ]\n  },\n  \"classification\": {\n    \"kind\": \"text\",\n    \"text\": \"The 02:00 UTC service window requires operator approval.\"\n  }\n}"
+      }
+    },
+    {
+      "id": "request-anatomy",
+      "title": "Read raw REST data by type",
+      "paragraphs": [
+        "A raw Responses API result includes fields such as id, status, and output. The output array can contain typed reasoning, message, and tool-call items. A message contains a content array whose blocks can include output_text or refusal. Select by these type fields rather than assuming that the first output item and first content block contain text.",
+        "The output_text convenience property used by some SDKs is not part of the raw REST shape taught here. The optional program therefore walks body.output itself. This lesson uses completed, incomplete, failed, in_progress, queued, and cancelled as its accepted lifecycle domain. It does not claim that the cited text guide provides a complete formal response schema. A refusal is represented by a typed content block, not by invented refused or error lifecycle values."
+      ],
+      "code": {
+        "language": "text",
+        "label": "classification precedence",
+        "code": "1. Reject malformed HTTP metadata or an unknown lifecycle value.\n2. Treat a non-2xx HTTP result or failed lifecycle as failed.\n3. Classify in_progress or queued as pending, and cancelled as cancelled.\n4. Classify incomplete as incomplete, even if partial output_text exists.\n5. For completed output, let any refusal block override text.\n6. Otherwise join every string-valued output_text block in traversal order.\n7. A valid completion without text or refusal is empty."
+      }
     },
     {
       "id": "send-request",
       "title": "Send a minimal Responses request",
       "paragraphs": [
-        "This dependency-free Node.js example reads only environment configuration. Replace the bracketed input at runtime with approved, non-secret content."
+        "This optional Node.js 22 program uses built-in fetch, environment credentials, an environment-selected model, max_output_tokens, and AbortSignal.timeout. It reads JSON before interpreting provider fields, distinguishes the HTTP result from the response lifecycle, and scans typed content. A timeout bounds how long this client waits, but it does not prove that the provider did not receive or process the request.",
+        "The program never prints the key, request body, generated text, refusal text, or provider error.message. It emits only a whitelisted diagnostic summary. It reads x-request-id if present without claiming that the header is guaranteed. Running it requires network access, a permitted account, and a model valid for that account. None is required for the offline lab."
       ],
       "code": {
         "language": "javascript",
-        "label": "responses-request.mjs",
-        "code": "const apiKey = process.env.OPENAI_API_KEY;\nconst model = process.env.PROJECT42_OPENAI_MODEL;\nif (!apiKey || !model) throw new Error(\"Missing OPENAI_API_KEY or PROJECT42_OPENAI_MODEL\");\n\nconst response = await fetch(\"https://api.openai.com/v1/responses\", {\n  method: \"POST\",\n  headers: {\n    \"content-type\": \"application/json\",\n    authorization: `Bearer ${apiKey}`,\n  },\n  body: JSON.stringify({ model, input: \"[INPUT_TEXT]\", max_output_tokens: 300 }),\n  signal: AbortSignal.timeout(30_000),\n});\nconst requestId = response.headers.get(\"x-request-id\");\nconst body = await response.json();\nif (!response.ok) throw new Error(`OpenAI request failed (${response.status}, request ${requestId ?? \"unknown\"})`);\nconst text = body.output\n  ?.flatMap((item) => item.type === \"message\" ? item.content ?? [] : [])\n  .find((part) => part.type === \"output_text\")?.text;\nif (body.status !== \"completed\" || typeof text !== \"string\") throw new Error(\"Unexpected completion shape\");\nconsole.log({ requestId, responseId: body.id, text });"
+        "label": "optional-live-request.mjs",
+        "code": "const apiKey = process.env.OPENAI_API_KEY;\nconst model = process.env.PROJECT42_OPENAI_MODEL;\nif (!apiKey || !model) {\n  throw new Error('Missing OPENAI_API_KEY or PROJECT42_OPENAI_MODEL');\n}\n\nconst allowed = new Set([\n  'completed', 'incomplete', 'failed',\n  'in_progress', 'queued', 'cancelled'\n]);\n\nconst httpResponse = await fetch('https://api.openai.com/v1/responses', {\n  method: 'POST',\n  headers: {\n    'Authorization': `Bearer ${apiKey}`,\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\n    model,\n    instructions: 'Return one concise sentence. Do not add facts.',\n    input: 'Summarize this approved, non-secret note in one sentence.',\n    max_output_tokens: 80\n  }),\n  signal: AbortSignal.timeout(30000)\n});\n\nconst requestId = httpResponse.headers.get('x-request-id');\nlet body;\ntry {\n  body = await httpResponse.json();\n} catch {\n  console.log(JSON.stringify({\n    outcome: 'invalid-json',\n    httpStatus: httpResponse.status,\n    requestIdPresent: requestId !== null\n  }));\n  process.exitCode = 1;\n  process.exit();\n}\n\nconst diagnostic = {\n  httpStatus: httpResponse.status,\n  requestIdPresent: requestId !== null,\n  responseIdPresent: typeof body?.id === 'string',\n  responseStatus: allowed.has(body?.status) ? body.status : 'unknown'\n};\n\nif (!httpResponse.ok) {\n  console.log(JSON.stringify({ ...diagnostic, outcome: 'http-failure' }));\n  process.exitCode = 1;\n} else if (!allowed.has(body?.status)) {\n  console.log(JSON.stringify({ ...diagnostic, outcome: 'invalid-status' }));\n  process.exitCode = 1;\n} else if (body.status === 'failed') {\n  console.log(JSON.stringify({ ...diagnostic, outcome: 'failed' }));\n  process.exitCode = 1;\n} else if (body.status === 'in_progress' || body.status === 'queued') {\n  console.log(JSON.stringify({ ...diagnostic, outcome: 'pending' }));\n} else if (body.status === 'cancelled') {\n  console.log(JSON.stringify({ ...diagnostic, outcome: 'cancelled' }));\n  process.exitCode = 1;\n} else if (body.status === 'incomplete') {\n  console.log(JSON.stringify({ ...diagnostic, outcome: 'incomplete' }));\n  process.exitCode = 1;\n} else if (!Array.isArray(body.output)) {\n  console.log(JSON.stringify({ ...diagnostic, outcome: 'invalid-output' }));\n  process.exitCode = 1;\n} else {\n  const blocks = body.output.flatMap((item) =>\n    item?.type === 'message' && Array.isArray(item.content)\n      ? item.content\n      : []\n  );\n  const refused = blocks.some((part) => part?.type === 'refusal');\n  const texts = blocks.filter((part) =>\n    part?.type === 'output_text' && typeof part.text === 'string'\n  );\n  const outcome = refused ? 'refused' : texts.length ? 'candidate-text' : 'empty';\n  console.log(JSON.stringify({\n    ...diagnostic,\n    outcome,\n    outputTextBlockCount: texts.length\n  }));\n  if (outcome !== 'candidate-text') process.exitCode = 1;\n}"
       }
     },
     {
       "id": "verify-and-recover",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected output is an HTTP success with a response ID, completed status, typed output items, usage, and an x-request-id header. Verify status, output item and content types, incomplete details, length, safety policy, and domain rules before display or storage. Record request and response IDs, model, latency, usage, and a redacted outcome—not credentials or sensitive input.",
+        "Keep three layers separate. HTTP status reports request transport success or failure. The response status reports lifecycle state. Typed content can report refusal inside an otherwise completed response. Accept candidate text only after all three layers pass and after domain checks confirm that the text is safe, relevant, and permitted for its intended use.",
+        "Authentication and invalid-input failures require correction rather than blind retry. For a transient failure, retry only when provider guidance and the operation's side-effect policy permit it, using bounded attempts and backoff. Never expose an authorization header or provider error text in diagnostics. Preserve only approved metadata. After timeout, incomplete, refusal, failure, malformed data, or failed validation, discard the candidate and retain the last verified application state.",
         "Correct authentication and invalid-request failures instead of retrying. Retry only classified transient failures with bounded exponential backoff and jitter, and preserve operation identity. This read-only example has no external side effect, so rollback means discard the unaccepted response and restore the last verified application state. Add idempotency and tested compensation before connecting output to mutations."
-      ]
+      ],
+      "code": {
+        "language": "text",
+        "label": "safe verification record",
+        "code": "Allowed diagnostic fields:\nhttpStatus: validated integer\nrequestIdPresent: boolean\nresponseIdPresent: boolean\nresponseStatus: validated lifecycle value or unknown\noutcome: whitelisted local classification\noutputTextBlockCount: nonnegative integer\n\nDo not print:\nAPI keys or authorization headers\nprovider error.message\nsensitive request input\nrefusal text\nunreviewed generated text"
+      }
+    },
+    {
+      "id": "offline-setup",
+      "title": "Create the complete offline lab",
+      "paragraphs": [
+        "Save the following executable PowerShell 7 content as setup.ps1 in a new working location. Run it from that location. It refuses to overwrite project42-responses-lab, then creates learner.mjs, fixtures.mjs, tests.mjs, reference.mjs, and changed-input.mjs. The core exercise performs no network operation and reads no credentials.",
+        "Treat fixtures.mjs and tests.mjs as immutable assessment files. The tests independently check each fixture's lifecycle domain and integer HTTP status, invoke the learner function for every case, compare tagged results with deep equality, and gather all failures. Exceptions become explicit threw results instead of being converted to empty strings. Tests import learner.mjs only, never reference.mjs."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "setup.ps1",
+        "code": "$ErrorActionPreference = 'Stop'\n$dir = Join-Path (Get-Location) 'project42-responses-lab'\nif (Test-Path -LiteralPath $dir) {\n  throw \"Refusing to overwrite existing directory: $dir\"\n}\nNew-Item -ItemType Directory -Path $dir | Out-Null\n\n@'\nconst allowed = new Set([\n  'completed', 'incomplete', 'failed',\n  'in_progress', 'queued', 'cancelled'\n]);\n\nexport function classifyResponse(response) {\n  if (!response || typeof response !== 'object') return { kind: 'invalid' };\n  if (!Number.isInteger(response.httpStatus) ||\n      response.httpStatus < 100 || response.httpStatus > 599) {\n    return { kind: 'invalid' };\n  }\n  if (!allowed.has(response.status)) return { kind: 'invalid' };\n  if (response.httpStatus < 200 || response.httpStatus > 299 ||\n      response.status === 'failed') return { kind: 'failed' };\n  if (response.status === 'in_progress' || response.status === 'queued') {\n    return { kind: 'pending' };\n  }\n  if (response.status === 'cancelled') return { kind: 'cancelled' };\n  if (!Array.isArray(response.output)) return { kind: 'invalid' };\n\n  const texts = [];\n  for (const item of response.output) {\n    if (!item || item.type !== 'message') continue;\n    if (!Array.isArray(item.content)) return { kind: 'invalid' };\n    for (const part of item.content) {\n      if (part?.type === 'output_text' && typeof part.text === 'string') {\n        texts.push(part.text);\n      }\n    }\n  }\n  if (response.status === 'incomplete') {\n    return texts.length\n      ? { kind: 'text', text: texts.join(' ') }\n      : { kind: 'incomplete' };\n  }\n  return texts.length\n    ? { kind: 'text', text: texts.join(' ') }\n    : { kind: 'empty' };\n}\n'@ | Set-Content -NoNewline -Encoding utf8 (Join-Path $dir 'learner.mjs')\n\n@'\nexport const cases = [\n  {\n    name: 'completed-single',\n    response: {\n      id: 'resp_synthetic_single', status: 'completed', httpStatus: 200,\n      output: [{ type: 'message', content: [\n        { type: 'output_text', text: 'Hello' }\n      ] }]\n    },\n    expected: { kind: 'text', text: 'Hello' }\n  },\n  {\n    name: 'completed-mixed-refusal',\n    response: {\n      id: 'resp_synthetic_mixed', status: 'completed', httpStatus: 200,\n      output: [\n        { type: 'reasoning' },\n        { type: 'message', content: [\n          { type: 'output_text', text: 'A' },\n          { type: 'refusal', refusal: 'synthetic refusal' },\n          { type: 'output_text', text: 'B' }\n        ] }\n      ]\n    },\n    expected: { kind: 'refused' }\n  },\n  {\n    name: 'empty-output',\n    response: {\n      id: 'resp_synthetic_empty', status: 'completed', httpStatus: 200,\n      output: []\n    },\n    expected: { kind: 'empty' }\n  },\n  {\n    name: 'nontext-only',\n    response: {\n      id: 'resp_synthetic_nontext', status: 'completed', httpStatus: 200,\n      output: [{ type: 'reasoning' }, { type: 'tool_call', name: 'example' }]\n    },\n    expected: { kind: 'empty' }\n  },\n  {\n    name: 'malformed-content',\n    response: {\n      id: 'resp_synthetic_malformed', status: 'completed', httpStatus: 200,\n      output: [{ type: 'message' }]\n    },\n    expected: { kind: 'invalid' }\n  },\n  {\n    name: 'null-output',\n    response: {\n      id: 'resp_synthetic_null', status: 'completed', httpStatus: 200,\n      output: null\n    },\n    expected: { kind: 'invalid' }\n  },\n  {\n    name: 'incomplete-partial',\n    response: {\n      id: 'resp_synthetic_incomplete', status: 'incomplete', httpStatus: 200,\n      output: [{ type: 'message', content: [\n        { type: 'output_text', text: 'partial' }\n      ] }]\n    },\n    expected: { kind: 'incomplete' }\n  },\n  {\n    name: 'completed-refusal',\n    response: {\n      id: 'resp_synthetic_refusal', status: 'completed', httpStatus: 200,\n      output: [{ type: 'message', content: [\n        { type: 'refusal', refusal: 'synthetic refusal' }\n      ] }]\n    },\n    expected: { kind: 'refused' }\n  },\n  {\n    name: 'failed-http',\n    response: {\n      id: 'resp_synthetic_failed', status: 'failed', httpStatus: 500,\n      output: []\n    },\n    expected: { kind: 'failed' }\n  }\n];\n'@ | Set-Content -NoNewline -Encoding utf8 (Join-Path $dir 'fixtures.mjs')\n\n@'\nimport assert from 'node:assert/strict';\nimport { classifyResponse } from './learner.mjs';\nimport { cases } from './fixtures.mjs';\n\nconst allowed = new Set([\n  'completed', 'incomplete', 'failed',\n  'in_progress', 'queued', 'cancelled'\n]);\nconst failures = [];\n\nfor (const item of cases) {\n  const metadataErrors = [];\n  if (!allowed.has(item.response?.status)) metadataErrors.push('status');\n  if (!Number.isInteger(item.response?.httpStatus)) metadataErrors.push('httpStatus');\n  if (Number.isInteger(item.response?.httpStatus) &&\n      (item.response.httpStatus < 100 || item.response.httpStatus > 599)) {\n    metadataErrors.push('httpStatusRange');\n  }\n\n  let actual;\n  try {\n    actual = classifyResponse(item.response);\n  } catch (error) {\n    actual = {\n      kind: 'threw',\n      name: typeof error?.name === 'string' ? error.name : 'Error'\n    };\n  }\n\n  let resultError = null;\n  try {\n    assert.deepStrictEqual(actual, item.expected);\n  } catch (error) {\n    resultError = error;\n  }\n\n  if (metadataErrors.length === 0 && resultError === null) {\n    console.log(`PASS ${item.name}: ${JSON.stringify(actual)}`);\n  } else {\n    failures.push(item.name);\n    const metadata = metadataErrors.length\n      ? `, fixture metadata errors ${JSON.stringify(metadataErrors)}`\n      : '';\n    console.log(\n      `FAIL ${item.name}: expected ${JSON.stringify(item.expected)}, ` +\n      `got ${JSON.stringify(actual)}${metadata}`\n    );\n  }\n}\n\nconsole.log(`${cases.length - failures.length}/${cases.length} cases passed`);\nprocess.exitCode = failures.length ? 1 : 0;\n'@ | Set-Content -NoNewline -Encoding utf8 (Join-Path $dir 'tests.mjs')\n\n@'\nconst allowed = new Set([\n  'completed', 'incomplete', 'failed',\n  'in_progress', 'queued', 'cancelled'\n]);\n\nexport function referenceClassifyResponse(response) {\n  if (!response || typeof response !== 'object') return { kind: 'invalid' };\n  if (!Number.isInteger(response.httpStatus) ||\n      response.httpStatus < 100 || response.httpStatus > 599) {\n    return { kind: 'invalid' };\n  }\n  if (!allowed.has(response.status)) return { kind: 'invalid' };\n  if (response.httpStatus < 200 || response.httpStatus > 299 ||\n      response.status === 'failed') return { kind: 'failed' };\n  if (response.status === 'in_progress' || response.status === 'queued') {\n    return { kind: 'pending' };\n  }\n  if (response.status === 'cancelled') return { kind: 'cancelled' };\n  if (!Array.isArray(response.output)) return { kind: 'invalid' };\n  if (response.status === 'incomplete') return { kind: 'incomplete' };\n\n  const texts = [];\n  let refused = false;\n  for (const item of response.output) {\n    if (!item || item.type !== 'message') continue;\n    if (!Array.isArray(item.content)) return { kind: 'invalid' };\n    for (const part of item.content) {\n      if (part?.type === 'refusal') refused = true;\n      if (part?.type === 'output_text' && typeof part.text === 'string') {\n        texts.push(part.text);\n      }\n    }\n  }\n  if (refused) return { kind: 'refused' };\n  return texts.length\n    ? { kind: 'text', text: texts.join(' ') }\n    : { kind: 'empty' };\n}\n'@ | Set-Content -NoNewline -Encoding utf8 (Join-Path $dir 'reference.mjs')\n\n@'\nimport assert from 'node:assert/strict';\nimport { classifyResponse } from './learner.mjs';\n\nconst changed = {\n  id: 'resp_synthetic_changed',\n  status: 'completed',\n  httpStatus: 200,\n  output: [\n    { type: 'reasoning' },\n    { type: 'message', content: [\n      { type: 'output_text', text: 'First' },\n      { type: 'output_text', text: 'Second' }\n    ] },\n    { type: 'message', content: [\n      { type: 'output_text', text: 'Third' }\n    ] }\n  ]\n};\nconst expected = { kind: 'text', text: 'First Second Third' };\nconst actual = classifyResponse(changed);\nassert.deepStrictEqual(actual, expected);\nconsole.log(`PASS changed-input: ${JSON.stringify(actual)}`);\n'@ | Set-Content -NoNewline -Encoding utf8 (Join-Path $dir 'changed-input.mjs')\n\nWrite-Output 'Created project42-responses-lab'\nWrite-Output 'Next: Set-Location ./project42-responses-lab; node tests.mjs'"
+      }
+    },
+    {
+      "id": "baseline-verification",
+      "title": "Observe the deliberate 6 of 9 baseline",
+      "paragraphs": [
+        "Run setup.ps1 from its parent directory, enter the generated directory, and run tests.mjs. The exact expected transcript below follows from the supplied synthetic files. The process exits with code 1 because three cases fail. A different transcript means the files, runtime, or command differs from this lab.",
+        "The starter already validates the HTTP status integer and lifecycle domain. Its meaningful defect is content-state handling: it treats mixed refusal and text as text, exposes partial incomplete text as completed text, and treats a refusal-only completion as empty. Six successful cases show why a partial pass is not proof that the parser is safe."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "baseline commands",
+        "code": "pwsh -NoProfile -File ./setup.ps1\nSet-Location ./project42-responses-lab\nnode tests.mjs\nWrite-Output $LASTEXITCODE"
+      }
+    },
+    {
+      "id": "baseline-transcript",
+      "title": "Interpret the baseline result",
+      "paragraphs": [
+        "This transcript is deterministic fixture evidence, not a live execution receipt. The three failures identify one bounded repair: apply lifecycle and refusal precedence before returning text. Do not edit fixtures.mjs, tests.mjs, reference.mjs, or expected values. Do not substitute the reference function for the learner implementation."
+      ],
+      "code": {
+        "language": "text",
+        "label": "exact expected baseline output",
+        "code": "Created project42-responses-lab\nNext: Set-Location ./project42-responses-lab; node tests.mjs\nPASS completed-single: {\"kind\":\"text\",\"text\":\"Hello\"}\nFAIL completed-mixed-refusal: expected {\"kind\":\"refused\"}, got {\"kind\":\"text\",\"text\":\"A B\"}\nPASS empty-output: {\"kind\":\"empty\"}\nPASS nontext-only: {\"kind\":\"empty\"}\nPASS malformed-content: {\"kind\":\"invalid\"}\nPASS null-output: {\"kind\":\"invalid\"}\nFAIL incomplete-partial: expected {\"kind\":\"incomplete\"}, got {\"kind\":\"text\",\"text\":\"partial\"}\nFAIL completed-refusal: expected {\"kind\":\"refused\"}, got {\"kind\":\"empty\"}\nPASS failed-http: {\"kind\":\"failed\"}\n6/9 cases passed\n1"
+      }
+    },
+    {
+      "id": "repair-extraction",
+      "title": "Repair lifecycle and typed-content precedence",
+      "paragraphs": [
+        "Replace only learner.mjs with the code below. The repaired classifier retains HTTP and lifecycle validation, rejects malformed arrays, and keeps pending, cancelled, failed, and incomplete states distinct. For completed responses, it walks all messages and content blocks. If any refusal block appears, refusal overrides every text block. Otherwise, all string-valued output_text blocks are joined in traversal order.",
+        "This repair classifies wire data. It does not prove that extracted text is true, safe, complete, or suitable for a decision. Keep those checks in a later application-validation boundary. The separate reference implementation remains a study aid and is not called by the tests."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "replacement learner.mjs",
+        "code": "const allowed = new Set([\n  'completed', 'incomplete', 'failed',\n  'in_progress', 'queued', 'cancelled'\n]);\n\nexport function classifyResponse(response) {\n  if (!response || typeof response !== 'object') return { kind: 'invalid' };\n  if (!Number.isInteger(response.httpStatus) ||\n      response.httpStatus < 100 || response.httpStatus > 599) {\n    return { kind: 'invalid' };\n  }\n  if (!allowed.has(response.status)) return { kind: 'invalid' };\n  if (response.httpStatus < 200 || response.httpStatus > 299 ||\n      response.status === 'failed') return { kind: 'failed' };\n  if (response.status === 'in_progress' || response.status === 'queued') {\n    return { kind: 'pending' };\n  }\n  if (response.status === 'cancelled') return { kind: 'cancelled' };\n  if (!Array.isArray(response.output)) return { kind: 'invalid' };\n  if (response.status === 'incomplete') return { kind: 'incomplete' };\n\n  const texts = [];\n  let refused = false;\n  for (const item of response.output) {\n    if (!item || item.type !== 'message') continue;\n    if (!Array.isArray(item.content)) return { kind: 'invalid' };\n    for (const part of item.content) {\n      if (part?.type === 'refusal') refused = true;\n      if (part?.type === 'output_text' && typeof part.text === 'string') {\n        texts.push(part.text);\n      }\n    }\n  }\n  if (refused) return { kind: 'refused' };\n  return texts.length\n    ? { kind: 'text', text: texts.join(' ') }\n    : { kind: 'empty' };\n}"
+      }
+    },
+    {
+      "id": "immutable-verification",
+      "title": "Rerun the immutable tests",
+      "paragraphs": [
+        "After replacing only learner.mjs, rerun the unchanged tests. All nine synthetic cases should pass and Node should exit with code 0. This proves only that the learner classifier satisfies the fixture contract. It does not establish provider availability, the complete provider schema, live request success, or generated-output quality."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "repaired commands",
+        "code": "node tests.mjs\nWrite-Output $LASTEXITCODE"
+      }
+    },
+    {
+      "id": "repaired-transcript",
+      "title": "Confirm the repaired result",
+      "paragraphs": [
+        "The exact expected transcript records every case instead of stopping at the first failure. A mismatch is a failed assessment even if the final count was changed manually. Restore tests.mjs and fixtures.mjs from a newly generated lab if either assessment file was edited."
+      ],
+      "code": {
+        "language": "text",
+        "label": "exact expected repaired output",
+        "code": "PASS completed-single: {\"kind\":\"text\",\"text\":\"Hello\"}\nPASS completed-mixed-refusal: {\"kind\":\"refused\"}\nPASS empty-output: {\"kind\":\"empty\"}\nPASS nontext-only: {\"kind\":\"empty\"}\nPASS malformed-content: {\"kind\":\"invalid\"}\nPASS null-output: {\"kind\":\"invalid\"}\nPASS incomplete-partial: {\"kind\":\"incomplete\"}\nPASS completed-refusal: {\"kind\":\"refused\"}\nPASS failed-http: {\"kind\":\"failed\"}\n9/9 cases passed\n0"
+      }
+    },
+    {
+      "id": "changed-input-assessment",
+      "title": "Apply the rule to changed input",
+      "paragraphs": [
+        "Before running changed-input.mjs, predict its tagged result. The changed object contains a reasoning item and two message items with three output_text blocks. It contains no refusal and has completed status with HTTP 200. The answer is {\"kind\":\"text\",\"text\":\"First Second Third\"} because typed traversal ignores reasoning, visits both messages, preserves block order, and joins all three strings with one space.",
+        "Run the command below after the repaired tests pass. This assessment imports the learner implementation directly and does not modify an immutable fixture. A first-block parser would return only First. A first-message parser would return First Second. The repaired traversal returns all three values."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "changed-input command",
+        "code": "node changed-input.mjs\nWrite-Output $LASTEXITCODE"
+      }
+    },
+    {
+      "id": "recovery-and-transfer",
+      "title": "Recover safely and transfer to an optional real request",
+      "paragraphs": [
+        "The exact changed-input output is PASS changed-input: {\"kind\":\"text\",\"text\":\"First Second Third\"}, followed by exit code 0. This demonstrates transfer to a new local shape. It remains synthetic evidence. To transfer to the optional real request, keep the same sequence: validate HTTP metadata, validate lifecycle, validate arrays, inspect discriminating type fields, give refusal precedence, and send candidate text to application review.",
+        "On timeout, stop waiting and record only approved metadata. On authentication or invalid-input failure, correct credentials or payload instead of retrying unchanged. On incomplete, failed, cancelled, refusal, malformed, or unknown data, do not present partial or refusal content as an answer. For queued or in_progress, follow a separately approved retrieval policy. The complete official enum and full output schema were not established by the supplied cited guide, so reverify those details before production deployment."
+      ],
+      "code": {
+        "language": "text",
+        "label": "evidence boundary and recovery table",
+        "code": "Offline 9/9 = learner classifier matches authored fixtures\nChanged-input pass = classifier transfers to one new authored object\nNeither result = live provider execution or model-quality evidence\n\ncandidate-text: continue to application validation\nrefused: stop and report refusal classification\nincomplete: stop and report incomplete classification\nfailed or HTTP failure: retain redacted metadata and diagnose\npending: use an approved follow-up policy\ncancelled, invalid, or unknown: reject as non-final"
+      }
+    },
+    {
+      "id": "source-notes",
+      "title": "Sources and known limits",
+      "paragraphs": [
+        "OpenAI's text-generation guide supports the endpoint, model and input fields, optional output budgeting, instruction separation, and typed traversal of raw output. The quickstart supports environment-based bearer authentication. The error guide supports distinguishing correctable request problems from failures that may warrant controlled retry. Node.js documentation supports AbortSignal.timeout for bounded waiting.",
+        "The supplied research did not establish a complete formal schema for every output item, every content subtype, or every lifecycle value. It also did not establish a first-party guarantee for the x-request-id header. The code therefore reads that header only if present and identifies its lifecycle set as this lab's accepted domain. No SDK syntax, model availability, price, live receipt, or quality measurement is claimed."
+      ],
+      "code": {
+        "language": "text",
+        "label": "verification scope",
+        "code": "Verified source claims: endpoint, request fields, bearer environment credential pattern,\ntyped raw output traversal, error-handling distinction, bounded AbortSignal timeout.\n\nNot established here: complete response schema, guaranteed x-request-id header,\nmodel availability, pricing, latency, live output, or model quality."
+      }
     }
   ],
   "sources": [
     {
-      "title": "OpenAI API developer quickstart",
-      "url": "https://developers.openai.com/api/docs/quickstart",
-      "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
-    },
-    {
       "title": "Text generation",
       "url": "https://developers.openai.com/api/docs/guides/text",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "OpenAI API developer quickstart",
+      "url": "https://developers.openai.com/api/docs/quickstart",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "OpenAI API error codes",
       "url": "https://developers.openai.com/api/docs/guides/error-codes",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Global objects: AbortSignal.timeout()",
+      "url": "https://nodejs.org/api/globals.html#abortsignaltimeoutmilliseconds",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
     }
   ]
 }

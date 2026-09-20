@@ -20,7 +20,7 @@
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "google",
     "gemini",
@@ -32,28 +32,140 @@
       "id": "choose-control",
       "title": "Choose the correct control",
       "paragraphs": [
-        "Use response_format with JSON MIME type and a schema when the interaction should return constrained JSON. Use a function tool when the model should request an application capability. Gemini returns a function_call step; the application decides whether it is known, valid, authorized, and approved before execution, then returns a function_result linked by call_id.",
-        "Do not invent parity with another provider's strict mode. Close schemas where supported, but validate both structure and domain meaning in application code. Authenticate and authorize with trusted runtime context, require human approval for consequential actions, use idempotency for mutations, and treat tool descriptions as routing hints rather than enforcement."
-      ]
+        "A structured response and a function call solve different problems. Use response_format when the desired model response is JSON data. In a Gemini Interactions request, response_format has type text, mime_type application/json, and a schema. Use a function tool when the model may ask the application to perform a capability. The application retains control over whether that request proceeds.",
+        "Neither mechanism establishes business correctness or permission. Provider schema enforcement addresses a supported subset of JSON shape constraints. Local code must separately parse data, validate its shape, validate domain meaning, allowlist the tool, authenticate and authorize the caller, correlate the call, and execute only an approved implementation."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "Provider-shaped structured-response request body",
+        "code": "const request = {\n  model: \"[REVIEWED_MODEL_ID]\",\n  input: \"Classify this synthetic stock lookup request.\",\n  response_format: {\n    type: \"text\",\n    mime_type: \"application/json\",\n    schema: {\n      type: \"object\",\n      properties: {\n        decision: {\n          type: \"string\",\n          enum: [\"approve\", \"review\", \"reject\"]\n        },\n        reason: { type: \"string\" }\n      },\n      required: [\"decision\", \"reason\"],\n      additionalProperties: false\n    }\n  }\n};"
+      }
     },
     {
       "id": "define-contract",
       "title": "Define explicit Interactions contracts",
       "paragraphs": [
-        "The following current request fragments show Gemini Interactions API shapes. Insert one into a reviewed request and replace bracketed values with non-secret domain fields."
+        "The bounded task is lookup_stock, a read-only lookup over two synthetic fixture records. Accepted arguments are symbol, an uppercase string of one through five letters, and max_results, an integer from one through five. The symbol must also equal targetSymbol from trusted application input. No network, account, market feed, file write, or cloud credential is involved.",
+        "In the documented Interactions shape, a model function_call step contains type, name, arguments, and id. The application reply is a function_result whose call_id matches that id and whose name matches the requested function. Its result is an array containing a text item whose text contains serialized result JSON. The field is arguments, not args.",
+        "These are Interactions shapes. Do not replace them with the distinct generateContent functionCall and functionResponse shapes, and do not add an invented universal strict:true option."
       ],
       "code": {
         "language": "javascript",
-        "label": "Gemini structured-output contracts",
-        "code": "const structuredOutput = {\n  response_format: {\n    type: \"text\",\n    mime_type: \"application/json\",\n    schema: {\n      type: \"object\",\n      properties: { decision: { type: \"string\", enum: [\"approve\", \"review\", \"reject\"] }, reason: { type: \"string\" } },\n      required: [\"decision\", \"reason\"],\n      additionalProperties: false,\n    },\n  },\n};\n\nconst functionTool = {\n  tools: [{\n    type: \"function\",\n    name: \"record_review_decision\",\n    description: \"Record an already authorized review decision for [SYSTEM_OF_RECORD]\",\n    parameters: {\n      type: \"object\",\n      properties: { item_id: { type: \"string\" }, decision: { type: \"string\", enum: [\"approve\", \"reject\"] } },\n      required: [\"item_id\", \"decision\"],\n      additionalProperties: false,\n    },\n  }],\n};"
+        "label": "Provider-shaped tool request and model call fixture",
+        "code": "const request = {\n  model: \"[REVIEWED_MODEL_ID]\",\n  input: \"Look up the synthetic fixture for MSFT.\",\n  tools: [{\n    type: \"function\",\n    name: \"lookup_stock\",\n    description: \"Read one synthetic stock fixture\",\n    parameters: {\n      type: \"object\",\n      properties: {\n        symbol: { type: \"string\" },\n        max_results: { type: \"integer\" }\n      },\n      required: [\"symbol\", \"max_results\"],\n      additionalProperties: false\n    }\n  }]\n};\n\nconst modelResponseFixture = {\n  status: \"requires_action\",\n  steps: [{\n    type: \"function_call\",\n    name: \"lookup_stock\",\n    arguments: { symbol: \"MSFT\", max_results: 1 },\n    id: \"call-1\"\n  }]\n};"
+      }
+    },
+    {
+      "id": "worked-journey",
+      "title": "Follow one accepted call through execution",
+      "paragraphs": [
+        "The application first checks the provider-shaped function_call against trusted context { targetSymbol: \"MSFT\", expectedCallId: \"call-1\", authorized: true }. Shape, semantics, allowlisting, authorization, and correlation all pass. Only then does the local read-only fixture lookup run.",
+        "The fixture record is deliberately labeled offline-fixture. It is not a market quotation or live Gemini evidence. The serialized JSON is placed in a typed text result, and call_id preserves the model step id exactly.",
+        "Rejected evidence follows the same stop-before-execution rule. Examples include decision: 7, an extra admin key, lowercase msft, max_results: 0, delete_stock, a mismatched call id, an unauthorized context, an explicit synthetic local refusal in applicationPolicy, and a call for MSFT when trusted input requires AAPL. The synthetic refusal is application state, not a Gemini wire status."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "Accepted local result and correlated function_result",
+        "code": "const localRecord = {\n  symbol: \"MSFT\",\n  fixture_price_usd: \"123.45\",\n  source: \"offline-fixture\"\n};\n\nconst applicationReply = {\n  type: \"function_result\",\n  call_id: \"call-1\",\n  name: \"lookup_stock\",\n  result: [{\n    type: \"text\",\n    text: JSON.stringify(localRecord)\n  }]\n};\n\n// Rejected example: correlation fails, so no lookup or reply is produced.\nconst rejectedCall = {\n  type: \"function_call\",\n  name: \"lookup_stock\",\n  arguments: { symbol: \"MSFT\", max_results: 1 },\n  id: \"untrusted-other-id\"\n};"
+      }
+    },
+    {
+      "id": "separate-boundaries",
+      "title": "Separate six application boundaries",
+      "paragraphs": [
+        "Structured response means the request asks the model to produce JSON constrained by a schema. Schema validation checks declared syntax and shape, such as object type, required properties, primitive types, enums, and additional-property policy where supported.",
+        "Semantic validation checks application meaning. In this lab it checks the symbol pattern, integer range, and agreement with trusted targetSymbol. Tool allowlisting independently requires the exact name lookup_stock. Authorization independently requires trusted context to permit this caller to use the tool.",
+        "Execution is the final application-controlled operation. A schema-valid object neither authorizes nor executes anything. The dispatcher must reach execution only after parsing, schema checks, semantic checks, allowlisting, authorization, and correlation succeed. This lab represents a policy refusal only through context.applicationPolicy.syntheticLocalRefusal, an explicit synthetic local signal separate from the provider response. It does not invent a refused provider status. Authentication and production authorization mechanisms are outside this offline lab."
+      ]
+    },
+    {
+      "id": "offline-lab",
+      "title": "Create the complete offline Node 22 lab",
+      "paragraphs": [
+        "Save the following as setup.ps1 and run it with PowerShell 7. It refuses an existing destination, creates a deliberately flawed learner implementation, writes an independent gather-all test suite, writes the separate reference answer, and marks tests.mjs and reference.mjs read-only.",
+        "The learner implementation safely catches malformed JSON and avoids real side effects, but it deliberately trusts types, additional keys, tool names, correlation, ranges, and trusted-input agreement. The immutable tests compare complete tagged results, not only a Boolean. An unexpected exception is a failed test, and remaining tests still run."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "setup.ps1",
+        "code": "param([string]$Directory = \"gemini-boundary-lab\")\n$ErrorActionPreference = \"Stop\"\nif (Test-Path -LiteralPath $Directory) {\n  throw \"Refusing existing directory: $Directory\"\n}\nNew-Item -ItemType Directory -Path $Directory | Out-Null\n\n@'\nconst FIXTURES = {\n  MSFT: { symbol: \"MSFT\", fixture_price_usd: \"123.45\", source: \"offline-fixture\" },\n  AAPL: { symbol: \"AAPL\", fixture_price_usd: \"67.89\", source: \"offline-fixture\" }\n};\n\nconst accepted = value => ({ tag: \"accepted\", value });\nconst rejected = reason => ({ tag: \"rejected\", reason });\n\nexport function validateStructuredResponse(text) {\n  let value;\n  try {\n    value = JSON.parse(text);\n  } catch {\n    return rejected(\"malformed-json\");\n  }\n  if (!value || typeof value !== \"object\" || Array.isArray(value)) {\n    return rejected(\"output-not-object\");\n  }\n  return accepted(value);\n}\n\nexport function processModelResponse(context, response) {\n  if (!response || typeof response !== \"object\" || Array.isArray(response)) {\n    return rejected(\"bad-response\");\n  }\n  if (context?.applicationPolicy?.syntheticLocalRefusal === true) {\n    return rejected(\"refused\");\n  }\n  if (response.status !== \"requires_action\") return rejected(\"incomplete\");\n  if (!Array.isArray(response.steps) || response.steps.length !== 1) {\n    return rejected(\"incomplete\");\n  }\n  const step = response.steps[0];\n  if (!step || step.type !== \"function_call\") return rejected(\"not-a-call\");\n  let args;\n  try {\n    args = typeof step.arguments === \"string\"\n      ? JSON.parse(step.arguments)\n      : step.arguments;\n  } catch {\n    return rejected(\"malformed-arguments\");\n  }\n  if (!args || typeof args !== \"object\" || Array.isArray(args)) {\n    return rejected(\"arguments-not-object\");\n  }\n  if (context?.authorized !== true) return rejected(\"unauthorized\");\n  const record = FIXTURES[args.symbol] ?? {\n    symbol: args.symbol,\n    fixture_price_usd: \"UNKNOWN\",\n    source: \"offline-fixture\"\n  };\n  return accepted({\n    decision: \"executed\",\n    functionResult: {\n      type: \"function_result\",\n      call_id: step.id,\n      name: step.name,\n      result: [{ type: \"text\", text: JSON.stringify(record) }]\n    }\n  });\n}\n'@ | Set-Content -Encoding utf8 (Join-Path $Directory \"learner.mjs\")\n\n@'\nconst FIXTURES = {\n  MSFT: { symbol: \"MSFT\", fixture_price_usd: \"123.45\", source: \"offline-fixture\" },\n  AAPL: { symbol: \"AAPL\", fixture_price_usd: \"67.89\", source: \"offline-fixture\" }\n};\n\nconst accepted = value => ({ tag: \"accepted\", value });\nconst rejected = reason => ({ tag: \"rejected\", reason });\n\nexport function validateStructuredResponse(text) {\n  if (typeof text !== \"string\") return rejected(\"output-not-text\");\n  let value;\n  try {\n    value = JSON.parse(text);\n  } catch {\n    return rejected(\"malformed-json\");\n  }\n  if (!value || typeof value !== \"object\" || Array.isArray(value)) {\n    return rejected(\"output-not-object\");\n  }\n  const keys = Object.keys(value).sort();\n  if (keys.length !== 2 || keys[0] !== \"decision\" || keys[1] !== \"reason\") {\n    return rejected(\"additional-or-missing-output-key\");\n  }\n  if (![\"approve\", \"review\", \"reject\"].includes(value.decision)) {\n    return rejected(\"invalid-decision\");\n  }\n  if (typeof value.reason !== \"string\") return rejected(\"invalid-reason\");\n  return accepted(value);\n}\n\nexport function processModelResponse(context, response) {\n  if (!context || typeof context !== \"object\" || Array.isArray(context)) {\n    return rejected(\"bad-context\");\n  }\n  if (!response || typeof response !== \"object\" || Array.isArray(response)) {\n    return rejected(\"bad-response\");\n  }\n  if (context.applicationPolicy?.syntheticLocalRefusal === true) {\n    return rejected(\"refused\");\n  }\n  if (response.status !== \"requires_action\") return rejected(\"incomplete\");\n  if (!Array.isArray(response.steps) || response.steps.length !== 1) {\n    return rejected(\"incomplete\");\n  }\n  const step = response.steps[0];\n  if (!step || typeof step !== \"object\" || Array.isArray(step) || step.type !== \"function_call\") {\n    return rejected(\"not-a-call\");\n  }\n  if (step.name !== \"lookup_stock\") return rejected(\"tool-not-allowlisted\");\n  if (typeof step.id !== \"string\" || step.id.length === 0) {\n    return rejected(\"missing-call-id\");\n  }\n  if (step.id !== context.expectedCallId) return rejected(\"correlation-mismatch\");\n  let args;\n  try {\n    args = typeof step.arguments === \"string\"\n      ? JSON.parse(step.arguments)\n      : step.arguments;\n  } catch {\n    return rejected(\"malformed-arguments\");\n  }\n  if (!args || typeof args !== \"object\" || Array.isArray(args)) {\n    return rejected(\"arguments-not-object\");\n  }\n  const keys = Object.keys(args).sort();\n  if (keys.length !== 2 || keys[0] !== \"max_results\" || keys[1] !== \"symbol\") {\n    return rejected(\"additional-or-missing-argument-key\");\n  }\n  if (typeof args.symbol !== \"string\" || !/^[A-Z]{1,5}$/.test(args.symbol)) {\n    return rejected(\"invalid-symbol\");\n  }\n  if (!Number.isInteger(args.max_results) || args.max_results < 1 || args.max_results > 5) {\n    return rejected(\"invalid-range\");\n  }\n  if (args.symbol !== context.targetSymbol) return rejected(\"input-mismatch\");\n  if (context.authorized !== true) return rejected(\"unauthorized\");\n  const record = FIXTURES[args.symbol];\n  if (!record) return rejected(\"fixture-not-found\");\n  return accepted({\n    decision: \"executed\",\n    functionResult: {\n      type: \"function_result\",\n      call_id: step.id,\n      name: step.name,\n      result: [{ type: \"text\", text: JSON.stringify(record) }]\n    }\n  });\n}\n'@ | Set-Content -Encoding utf8 (Join-Path $Directory \"reference.mjs\")\n\n@'\nimport assert from \"node:assert/strict\";\nimport {\n  validateStructuredResponse,\n  processModelResponse\n} from \"./learner.mjs\";\n\nconst accepted = value => ({ tag: \"accepted\", value });\nconst rejected = reason => ({ tag: \"rejected\", reason });\nconst records = {\n  MSFT: { symbol: \"MSFT\", fixture_price_usd: \"123.45\", source: \"offline-fixture\" },\n  AAPL: { symbol: \"AAPL\", fixture_price_usd: \"67.89\", source: \"offline-fixture\" }\n};\nconst context = {\n  targetSymbol: \"MSFT\",\n  expectedCallId: \"call-1\",\n  authorized: true\n};\nconst call = (overrides = {}) => ({\n  status: \"requires_action\",\n  steps: [{\n    type: \"function_call\",\n    name: \"lookup_stock\",\n    arguments: { symbol: \"MSFT\", max_results: 1 },\n    id: \"call-1\",\n    ...overrides\n  }]\n});\nconst success = (symbol, id) => accepted({\n  decision: \"executed\",\n  functionResult: {\n    type: \"function_result\",\n    call_id: id,\n    name: \"lookup_stock\",\n    result: [{ type: \"text\", text: JSON.stringify(records[symbol]) }]\n  }\n});\n\nconst cases = [\n  [\"valid\", () => [\n    validateStructuredResponse('{\"decision\":\"approve\",\"reason\":\"fixture only\"}'),\n    processModelResponse(context, call())\n  ], [\n    accepted({ decision: \"approve\", reason: \"fixture only\" }),\n    success(\"MSFT\", \"call-1\")\n  ]],\n  [\"wrong type\", () => [\n    validateStructuredResponse('{\"decision\":7,\"reason\":\"bad type\"}'),\n    processModelResponse(context, call({ arguments: { symbol: 7, max_results: 1 } }))\n  ], [rejected(\"invalid-decision\"), rejected(\"invalid-symbol\")]],\n  [\"unknown/additional keys\", () => [\n    validateStructuredResponse('{\"decision\":\"approve\",\"reason\":\"x\",\"admin\":true}'),\n    processModelResponse(context, call({ arguments: { symbol: \"MSFT\", max_results: 1, admin: true } }))\n  ], [\n    rejected(\"additional-or-missing-output-key\"),\n    rejected(\"additional-or-missing-argument-key\")\n  ]],\n  [\"null\", () => [\n    validateStructuredResponse(\"null\"),\n    processModelResponse(context, null)\n  ], [rejected(\"output-not-object\"), rejected(\"bad-response\")]],\n  [\"array\", () => [\n    validateStructuredResponse(\"[]\"),\n    processModelResponse(context, [])\n  ], [rejected(\"output-not-object\"), rejected(\"bad-response\")]],\n  [\"malformed JSON\", () => [\n    validateStructuredResponse(\"{\"),\n    processModelResponse(context, call({ arguments: \"{\" }))\n  ], [rejected(\"malformed-json\"), rejected(\"malformed-arguments\")]],\n  [\"range/domain violation\", () =>\n    processModelResponse(context, call({ arguments: { symbol: \"msft\", max_results: 0 } })),\n    rejected(\"invalid-symbol\")],\n  [\"unknown tool and unauthorized\", () => [\n    processModelResponse(context, call({ name: \"delete_stock\" })),\n    processModelResponse({ ...context, authorized: false }, call())\n  ], [rejected(\"tool-not-allowlisted\"), rejected(\"unauthorized\")]],\n  [\"wrong correlation\", () =>\n    processModelResponse(context, call({ id: \"other-call\" })),\n    rejected(\"correlation-mismatch\")],\n  [\"refusal and incomplete\", () => [\n    // Explicit synthetic local policy signal, not a provider wire status.\n    processModelResponse(\n      { ...context, applicationPolicy: { syntheticLocalRefusal: true } },\n      { status: \"completed\", steps: [] }\n    ),\n    processModelResponse(context, { status: \"requires_action\", steps: [] })\n  ], [rejected(\"refused\"), rejected(\"incomplete\")]],\n  [\"changed input positive and negative\", () => {\n    const aaplCall = call({\n      arguments: { symbol: \"AAPL\", max_results: 1 },\n      id: \"call-a\"\n    });\n    return [\n      processModelResponse({ targetSymbol: \"AAPL\", expectedCallId: \"call-a\", authorized: true }, aaplCall),\n      processModelResponse({ targetSymbol: \"MSFT\", expectedCallId: \"call-a\", authorized: true }, aaplCall)\n    ];\n  }, [success(\"AAPL\", \"call-a\"), rejected(\"input-mismatch\")]]\n];\n\nlet failed = 0;\nfor (const [name, run, expected] of cases) {\n  try {\n    const actual = run();\n    assert.deepStrictEqual(actual, expected);\n    console.log(`PASS ${name}`);\n  } catch {\n    failed += 1;\n    console.log(`FAIL ${name}`);\n  }\n}\nconsole.log(`SUMMARY passed=${cases.length - failed} failed=${failed}`);\nprocess.exitCode = failed === 0 ? 0 : 1;\n'@ | Set-Content -Encoding utf8 (Join-Path $Directory \"tests.mjs\")\n\nSet-ItemProperty -LiteralPath (Join-Path $Directory \"tests.mjs\") -Name IsReadOnly -Value $true\nSet-ItemProperty -LiteralPath (Join-Path $Directory \"reference.mjs\") -Name IsReadOnly -Value $true\nWrite-Host \"Created $Directory\"\nWrite-Host \"Run: Set-Location $Directory; node .\\tests.mjs\"\n"
+      }
+    },
+    {
+      "id": "run-baseline",
+      "title": "Run and interpret the flawed baseline",
+      "paragraphs": [
+        "Run the commands below from the parent directory. For the revised files, the exact deterministic baseline expectation is 5 passed and 6 failed, with exit code 1. This result follows from the test order and learner control flow. The supplied earlier V2 Node 22 execution evidence did not execute the revised applicationPolicy fixture. Malformed JSON passes because the learner catches it and returns the expected rejection. The test harness itself treats any unexpected exception as a failed test while continuing to gather all results.",
+        "The six failures expose the intended boundary defect. The learner accepts wrong types, additional keys, an invalid domain, an unknown tool, mismatched correlation, and a changed-input mismatch. Passing null, array, malformed, synthetic local policy-refusal, and incomplete cases does not compensate for those failures.",
+        "This is the exact expected output for the revised offline fixture code, not a claim that the earlier V2 execution evidence ran the revision. It is not a live Gemini response, provider receipt, or statement about a production model."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Baseline command and exact output",
+        "code": "pwsh .\\setup.ps1\nSet-Location .\\gemini-boundary-lab\nnode .\\tests.mjs\n$code = $LASTEXITCODE\nWrite-Host \"exit=$code\"\n\n# Exact expected baseline output for the revised files:\n# PASS valid\n# FAIL wrong type\n# FAIL unknown/additional keys\n# PASS null\n# PASS array\n# PASS malformed JSON\n# FAIL range/domain violation\n# FAIL unknown tool and unauthorized\n# FAIL wrong correlation\n# PASS refusal and incomplete\n# FAIL changed input positive and negative\n# SUMMARY passed=5 failed=6\n# exit=1"
+      }
+    },
+    {
+      "id": "learner-repair",
+      "title": "Repair the local trust boundary",
+      "paragraphs": [
+        "Edit only learner.mjs. Keep malformed-input handling and the synthetic lookup, but add one coherent pre-execution gate. For structured output, require exactly decision and reason, validate their types, and restrict decision to approve, review, or reject.",
+        "For a function call, first honor context.applicationPolicy.syntheticLocalRefusal as an explicit synthetic local policy signal, never as a provider status. Otherwise require status requires_action, the exact tool name lookup_stock, correlation of id with trusted expectedCallId, safely parsed arguments, no missing or additional argument keys, valid symbol and max_results domains, agreement between symbol and trusted targetSymbol, and authorization. Construct function_result only after those checks pass.",
+        "Do not edit tests.mjs. A repair that merely returns the expected rejection strings without validating inputs misses the learning objective. A repair that delegates permission to the model schema also misses it, because provider schema promises do not implement application authorization."
+      ]
+    },
+    {
+      "id": "reference-answer",
+      "title": "Compare with the separate reference",
+      "paragraphs": [
+        "The setup wrote a complete reference.mjs separately from learner.mjs. After attempting the repair, compare your implementation with the reference. The reference uses early rejection, exact allowlisting, trusted correlation, semantic checks, authorization, and a local fixture dispatcher.",
+        "For deterministic answer verification, the command below copies the read-only reference over learner.mjs. It does not modify the immutable test file. This is an answer-checking step, not the learner repair itself."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Install the reference answer",
+        "code": "Copy-Item .\\reference.mjs .\\learner.mjs -Force"
       }
     },
     {
       "id": "verify-and-recover",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "For structured output, expect completed status and model_output text containing JSON that passes the same application schema. For function calling, expect requires_action with a function_call step containing a known name, ID, and arguments; after authorized execution, return a function_result with the original call_id and verify the final interaction. Test valid, missing, extra, malformed, unauthorized, duplicate, blocked, and truncated cases.",
+        "Run the repaired suite exactly as shown. For the revised files, the exact deterministic reference expectation is 11 passed, 0 failed, and exit code 0. The earlier V2 Node 22 execution evidence did not execute the revised applicationPolicy fixture. Deep comparisons check the complete tagged decision and correlated function_result, including serialized fixture data.",
+        "On rejection, do not execute anyway. Record a redacted rejection reason, stop the dispatch path, and either request corrected output or route to review under a bounded retry policy. A correlation mismatch, unknown tool, or unauthorized context must not be repaired by substituting a new id, tool name, or permission.",
+        "The accepted fixture proves only that the local gate and synthetic dispatcher behaved as tested. Production evidence would additionally require a captured, redacted provider request and response, an identified supported model, authenticated caller context, an authorization decision, and the correlated function_result.",
         "Do not execute when parsing, validation, approval, or authorization fails. Record a redacted failure and request correction or human review within a retry budget. Rollback means discarding untrusted output; for an executed function, use its idempotency key and tested compensation or reconciliation path. Schema compliance does not guarantee factual correctness or safety."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Repaired command and exact output",
+        "code": "node .\\tests.mjs\n$code = $LASTEXITCODE\nWrite-Host \"exit=$code\"\nif ($code -ne 0) { throw \"Repaired tests failed\" }\n\n# Exact expected repaired output for the revised files:\n# PASS valid\n# PASS wrong type\n# PASS unknown/additional keys\n# PASS null\n# PASS array\n# PASS malformed JSON\n# PASS range/domain violation\n# PASS unknown tool and unauthorized\n# PASS wrong correlation\n# PASS refusal and incomplete\n# PASS changed input positive and negative\n# SUMMARY passed=11 failed=0\n# exit=0"
+      }
+    },
+    {
+      "id": "changed-input-transfer",
+      "title": "Transfer the boundary to changed input",
+      "paragraphs": [
+        "The last immutable test contains both sides of transfer. When trusted targetSymbol and the call both change to AAPL, with matching call-a correlation, the repaired dispatcher accepts the call and returns the AAPL fixture. When trusted input remains MSFT but the call asks for AAPL, it rejects with input-mismatch.",
+        "This demonstrates why syntactic schema validation is insufficient. A schema can establish that symbol is a string, but it cannot infer which symbol this caller requested or may access. That rule belongs to local semantic validation and authorization using trusted context.",
+        "Apply the same pattern to weather retrieval, document lookup, or a calculator: constrain output shape, validate domain meaning, use an exact tool allowlist, bind arguments to trusted input, authorize separately, correlate every result, and keep execution behind the completed gate."
+      ]
+    },
+    {
+      "id": "optional-real-workflow",
+      "title": "Optional real workflow without fabricated receipts",
+      "paragraphs": [
+        "A real Gemini experiment is optional and outside the offline lab. Before attempting it, verify from dated provider documentation that the selected model and endpoint support the required Interactions features. Keep credentials in an approved secret store and capture a redacted trace of the exact request, response step, function_call id, local decisions, execution result, and function_result correlation.",
+        "The available evidence does not establish a complete Node 22 REST wrapper, a current model support matrix, an SDK version, a price, or exhaustive function_result edge-case serialization rules. This resource therefore supplies none of those as facts. The model placeholder must be replaced only after reviewing the provider capability documentation used for the real experiment."
+      ]
+    },
+    {
+      "id": "sources",
+      "title": "Verification sources",
+      "paragraphs": [
+        "Structured outputs with the Gemini API, Google, verified 2026-09-20. This documents response_format with type text, mime_type application/json, and schema for Interactions requests. It describes a supported JSON Schema subset. The lesson uses that mechanism for syntactic output shape and does not treat it as business validation or authorization. Source: https://ai.google.dev/gemini-api/docs/structured-output",
+        "Function calling with the Gemini API, Google, verified 2026-09-20. This documents Interactions function_call steps with name, arguments, and id, plus function_result replies with matching call_id and a result array containing typed text. It documents the lifecycle statuses in_progress, requires_action, completed, failed, cancelled, and incomplete, but does not document refused as a provider status. The lab therefore keeps its synthetic local refusal in applicationPolicy. The source also distinguishes these shapes from generateContent functionCall and functionResponse. Source: https://ai.google.dev/gemini-api/docs/function-calling",
+        "Getting started with the Gemini API, Google, verified 2026-09-20. Use this official entry point when adding authenticated provider access outside the offline exercise. It is not used here to infer an unspecified model identifier, capability, SDK version, price, or live execution result. Source: https://ai.google.dev/gemini-api/docs/get-started"
       ]
     }
   ],
@@ -62,19 +174,19 @@
       "title": "Structured outputs with the Gemini API",
       "url": "https://ai.google.dev/gemini-api/docs/structured-output",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Function calling with the Gemini API",
       "url": "https://ai.google.dev/gemini-api/docs/function-calling",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Getting started with the Gemini API",
       "url": "https://ai.google.dev/gemini-api/docs/get-started",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     }
   ]
 }
