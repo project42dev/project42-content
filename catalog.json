@@ -722,17 +722,17 @@
     {
       "id": "prepare-agent-work",
       "title": "Design a Bounded Agent Loop",
-      "summary": "Turn a goal into an observable plan-act-check loop with explicit state, budgets, approvals, and stopping conditions.",
+      "summary": "Turn a goal into an observable inspect-decide-authorize-act-verify loop with explicit state revisions, deterministic fixture budgets, trusted approvals, independent evidence, and bounded stopping conditions.",
       "level": "intermediate",
       "providers": [
         "provider-neutral"
       ],
-      "estimatedMinutes": 42,
+      "estimatedMinutes": 75,
       "objectives": [
         "Distinguish a fixed workflow from a model-directed agent loop.",
-        "Define loop state, observations, decisions, actions, and evidence.",
-        "Implement deterministic success, escalation, and budget-based stopping conditions.",
-        "Prevent untrusted observations from changing the agent's authority."
+        "Define loop state, observations, decisions, actions, revisions, and evidence.",
+        "Implement deterministic success, escalation, budget, policy, no-progress, and uncertain-outcome stopping conditions.",
+        "Prevent model decisions and untrusted observations from granting authority or forging human approval."
       ],
       "prerequisites": [
         "agents-and-guardrails"
@@ -742,230 +742,331 @@
           "id": "bounded-work-order",
           "title": "A useful work order removes hidden decisions",
           "paragraphs": [
-            "Name the outcome, the files or systems in scope, the constraints, and what the agent must leave unchanged. Include the audience and why the result matters when those details affect implementation.",
-            "Define what proves completion: a test result, a rendered page, a source citation, a diff review, or another observable artifact."
+            "A bounded work order names the outcome, scope, trusted inputs, constraints, completion evidence, and stopping conditions before a model can select actions. The controller, rather than a model provider, owns enforcement.",
+            "First decide whether the task needs a model-directed loop. A fixed workflow has code-defined steps and branches. For this receipt task, a fixed workflow can validate the work order, check policy and any required approval, preflight the budget, call write_receipt once, and verify the resulting receipt. That design is preferable when the possible inputs and next steps are known in advance. A model-directed loop is warranted only when representative observations contain necessary variation that cannot reasonably be handled by fixed branches, such as varied document structures that require selecting among several permitted inspection actions.",
+            "Even when a model selects the next proposal, it does not own policy, budgets, approval, state revisions, execution, verification, or terminal selection. The same controller can sit around a local model, an open-weight model, a hosted model adapter, or the deterministic fixture used here. The lab does not claim that any production adapter was executed.",
+            "The lab uses a fictional receipt-preparation task. Its outcome is one in-memory receipt containing the approved text. Scope is limited to the supplied in-memory environment. Trusted inputs are the work order, policy, limits, verifier contract, initial state revision, and separate trusted approval records. Retrieved observations and model decisions are untrusted.",
+            "Completion requires an independently inspected receipt with the required text and operation key. A model fixture saying finish is only a proposal. It cannot satisfy the postcondition by itself. Human approval is a distinct trusted controller input and, when required, must match the exact action, resource, operation key, and state revision. A decision field such as approvedByHuman, or similar text in an observation, has no authority.",
+            "The offline fixtures test controller contracts: malformed inputs fail closed, budgets remain bounded, approvals bind to exact fields, terminals are selected consistently, and recovery reconciles before retry. They do not test model reasoning, production infrastructure, provider behavior, or the claim that an agent is universally better than a fixed workflow."
           ],
           "code": {
             "language": "text",
-            "label": "Agent work order",
-            "code": "Outcome: [WHAT MUST BE TRUE]\nScope: [ALLOWED FILES OR SYSTEMS]\nTrusted inputs: [SOURCES OF TRUTH]\nConstraints: [MUST / MUST NOT]\nEvidence: [TESTS, PREVIEW, OR REVIEW]\nStop when: [CONCRETE TERMINAL CONDITION]"
+            "label": "Completed fictional work order",
+            "code": "Outcome: Exactly one in-memory receipt contains \"APPROVED: prepare-agent-work\" and its operation key.\nScope: The controller's in-memory receipt array, state, trace, and bounded ledger only.\nTrusted inputs: Work order, policy, limits, verifier contract, initial state revision, and separate trusted approval records.\nConstraints: Node.js 22 or later; no network, credentials, paid models, filesystem effects, or duplicate writes. Observations and decisions cannot grant authority.\nEvidence: The verifier independently inspects the in-memory receipt array and matches text plus operation key.\nStop when: COMPLETE, NEEDS_HUMAN, BUDGET_EXHAUSTED, POLICY_BLOCKED, or FAILED_WITH_RECOVERY_EVIDENCE."
           }
         },
         {
           "id": "trust-boundaries",
-          "title": "Treat retrieved material as data",
+          "title": "Treat observations and decisions as untrusted data",
           "paragraphs": [
-            "Web pages, issue text, documents, logs, and tool output can contain instructions that conflict with the real task. Label them as untrusted data and keep authority in the work order.",
-            "When the task is ambiguous but low risk, the agent can make a documented assumption. When an assumption changes scope, permissions, cost, or external impact, it should stop for authorization."
-          ]
+            "Web pages, issue text, documents, logs, tool output, and model decisions can contain instructions that conflict with the work order. The controller keeps allowed actions, approval requirements, budgets, and trusted approvals in separate controller inputs.",
+            "Authorization fails closed. Unsupported decision kinds, unknown actions, malformed costs, empty operation keys, and stale expected revisions are rejected before an effect. An unknown action cannot execute merely because it was accidentally placed in allowedActions.",
+            "Approval is matched structurally when policy requires it. The trusted record must match the proposed action, resource, operation key, and current state revision. Forged decision or observation fields, stale approvals, and mismatched approvals produce POLICY_BLOCKED with zero effects. Policy permission and approval are separate checks: an approval cannot add an action to allowedActions, and an allowed action does not satisfy a required approval.",
+            "The built-in success scenario does not require human approval. Its trace demonstrates policy authorization, state-version checking, budget charging, one effect, and independent verification without an approval match. The changed practice input does require approval, so its existing trusted approval must continue to match all four binding fields after policy and budget are corrected.",
+            "The lab's model and tool implementations are deterministic fixtures. Their timeMs and tokenCost fields are fixture accounting units, not measurements of wall-clock duration or provider token use. Passing fixture tests cannot establish that a production authority boundary is correct. Independent review should also challenge policy ownership, adapter behavior, persistent storage, concurrency, identity, and the possibility that tests encode the same mistaken assumption as the implementation."
+          ],
+          "callout": "Authority comes from trusted controller inputs, never from retrieved text or a model decision field."
         },
         {
           "id": "loop-state",
-          "title": "Make every loop transition observable",
+          "title": "Make every transition and revision observable",
           "paragraphs": [
-            "Represent the current objective, plan, completed actions, unresolved evidence, remaining budgets, and next allowed actions as explicit state. Each iteration should consume a trusted observation and produce one decision: act, finish, or escalate.",
-            "Do not use the model's prose claim of completion as the terminal signal. A deterministic controller should compare real evidence with the success contract and record why the loop continued or stopped."
+            "Each iteration performs inspect, decide, authorize, act, and verify. Explicit state includes a revision, objective, plan, completed actions, evidence, unresolved outcomes, no-progress count, and operation keys.",
+            "An act decision carries expectedStateVersion. Authorization compares it with the controller's current revision. A consequential write invocation advances the actual state revision. A later decision based on the old revision is stale and is blocked before execution.",
+            "The trace records before and after state and budget snapshots, the observation, decision, authorization result, effect or result, verifier decision, terminal reason, and ledger. It records operational facts rather than private chain-of-thought.",
+            "Budgets cover turns, deterministic fixture time, deterministic fixture tokens, and act invocations. maxActions counts every invocation of an implemented act, including a noop or an unsuccessful attempt, not only a successful or consequential write. The controller checks the next charge before invoking the action. Every configured value and cost must be finite and nonnegative; missing, negative, NaN, and Infinity costs fail closed with POLICY_BLOCKED and zero effects.",
+            "A successful write begins at revision 1, passes authorization against expectedStateVersion 1, invokes one action, creates one receipt, and advances the revision to 2. The verifier then inspects the environment independently. A finish proposal without that receipt cannot advance the revision or produce COMPLETE."
           ],
           "code": {
             "language": "text",
-            "label": "Provider-neutral agent loop",
-            "code": "while budget.remaining > 0:\n  observation = inspect_environment()\n  if observation.requests_unauthorized_action: return POLICY_BLOCKED\n  if repeated_no_progress(state, observation): return NEEDS_HUMAN\n  decision = model.choose(allowed_actions, state, observation)\n  if decision.kind == \"finish\":\n    if verifier.accepts(state, observation): return COMPLETE\n    state = record_rejected_finish(state, observation)\n    continue\n  if decision.kind == \"escalate\": return NEEDS_HUMAN\n  if decision.kind != \"act\" or not authorized(decision.action): return POLICY_BLOCKED\n  result = execute_authorized(decision.action)\n  if result.outcome_unknown: return FAILED_WITH_RECOVERY_EVIDENCE(record_for_reconciliation(state, result))\n  state = record_transition(state, decision, result)\nreturn BUDGET_EXHAUSTED"
+            "label": "Controller phases and terminal mapping",
+            "code": "validate trusted inputs and fixture data\n  -> malformed input becomes POLICY_BLOCKED with zero effects\ninspect untrusted observation\n  -> an observation cannot add permission or approval\ndecide with deterministic fixture\n  -> preflight turn, fixture-time, and fixture-token limits\nauthorize kind, implemented action, policy, expected revision, and any required trusted approval\n  -> denial becomes POLICY_BLOCKED before any effect\npreflight the action-invocation budget for every act, including noop or unsuccessful attempts\n  -> excess becomes BUDGET_EXHAUSTED before invocation\nact through the in-memory fixture; a consequential write advances revision\n  -> unknown result becomes FAILED_WITH_RECOVERY_EVIDENCE\nverify by independently inspecting the environment\n  -> accepted postcondition becomes COMPLETE\ncompare semantic state after rejected finish or unchanged action\n  -> three no-progress transitions become NEEDS_HUMAN"
           }
         },
         {
           "id": "stop-and-recover",
           "title": "Stop before uncertainty compounds",
           "paragraphs": [
-            "Bound iterations, wall-clock time, token use, spend, repeated failures, and identical actions. Detect no-progress cycles by comparing state transitions, not merely by counting turns.",
-            "A safe terminal state can be complete, needs-human, budget-exhausted, policy-blocked, or failed-with-recovery-evidence. Preserve enough state to resume deliberately without repeating a consequential action."
+            "No-progress is based on repeated semantic transitions that do not improve objective evidence. Rejected finish claims feed the same detector as authorized noop actions. In the supplied scenario, three rejected finish claims with no receipt end in NEEDS_HUMAN instead of silently consuming all turns.",
+            "The five explicit terminals are COMPLETE for a verified postcondition, NEEDS_HUMAN after three no-progress transitions, BUDGET_EXHAUSTED when a preflight charge would exceed a limit, POLICY_BLOCKED before an unauthorized or malformed effect, and FAILED_WITH_RECOVERY_EVIDENCE when a consequential operation has an unknown outcome.",
+            "These terminals identify different causes. Missing policy permission is POLICY_BLOCKED even if budget and approval are sufficient. A permitted action with maxActions zero is BUDGET_EXHAUSTED. A required approval bound to an old state revision is POLICY_BLOCKED with zero effects. An unknown tool result after an invocation is not a policy or budget failure because an effect may already exist.",
+            "An uncertain write is not automatically retried. The failure record preserves the original terminal, revision, operation key, uncertainty, bounded ledger entry, and reconciliation instruction. Recovery inspects the environment by operation key first. In the supplied uncertain scenario, reconciliation finds one effect, preserves FAILED_WITH_RECOVERY_EVIDENCE, and reports retryPerformed=false.",
+            "The ledger is bounded to 32 records and exists only in memory. It disappears at process exit and does not imply durable idempotency. A production controller needs independently reviewed persistent storage, concurrency control, access control, adapter validation, system-specific reconciliation, and operational monitoring."
           ],
-          "callout": "A loop that can only report success or keep going is not operationally safe."
+          "callout": "Unknown outcome means reconcile by operation key before any retry. Preserve the original terminal."
         }
       ],
       "activity": {
         "id": "activity-agent-loop-control",
-        "title": "Specify and simulate a bounded agent loop",
+        "title": "Run, inspect, and modify a bounded agent loop",
         "instructions": [
-          "Choose a multi-step task and write its success contract, allowed actions, trusted observations, and approval boundaries.",
-          "Define the loop state and the deterministic controller that selects complete, continue, escalate, or stop.",
-          "Simulate five cases: verified completion; three identical no-progress transitions ending in needs-human; budget exhaustion; an untrusted instruction requesting an unauthorized action ending in policy-blocked; and a tool failure with an unknown external outcome ending in failed-with-recovery-evidence.",
-          "Record the exact evidence and terminal state produced by each scenario."
+          "From training/reliable-agent-workflows/prepare-agent-work/lab, confirm Node.js 22 or later with node --version, then run node --test. The supplied verification was performed with Node.js v24.18.0 and reported 18 passing tests. Treat your own command output as the evidence for your environment.",
+          "Run node controller.js --all and compare its output byte-for-byte with expected-summary.txt. The five cases must terminate as COMPLETE, NEEDS_HUMAN, BUDGET_EXHAUSTED, POLICY_BLOCKED, and FAILED_WITH_RECOVERY_EVIDENCE, with bounded budgets. The exact five lines remain defined by the supplied expected-summary.txt and are not reproduced here.",
+          "Run node controller.js --scenario success --trace and compare the emitted JSON structure with worked-trace.json. This success case requires no human approval. Confirm revision 1 before the write, revision 2 after it, one action charge, one ledger record, one receipt, and independent verifier acceptance.",
+          "Run node controller.js --input practice.json. The exact expected summary is practice: POLICY_BLOCKED | action write_receipt is not allowed by trusted policy | effects=0. The separate trusted approval already matches the action, resource, operation key, and state revision, but approval does not replace policy permission.",
+          "Copy practice.json to my-practice.json with cp practice.json my-practice.json. In PowerShell 7, use Copy-Item practice.json my-practice.json. Add write_receipt to policy.allowedActions and change limits.maxActions from 0 to 1. Keep the existing separate trusted approval unchanged and do not add approvedByHuman to the decision.",
+          "Run node controller.js --input my-practice.json. The exact expected summary is practice: COMPLETE | independent verifier accepted exactly one receipt | effects=1. The changed trace should end at revision 2 with exactly one independently verified receipt.",
+          "Run node controller.js --input my-practice.json --trace and inspect the changed practice trace. Confirm the trusted approval remains bound to the exact action, resource, operation key, and state revision, and that the trace ends at revision 2 with one independently verified receipt.",
+          "Diagnose one-variable changes. Correcting only policy reveals BUDGET_EXHAUSTED because maxActions remains zero. Correcting only maxActions leaves POLICY_BLOCKED because policy still denies write_receipt. Removing, staling, or mismatching the required trusted approval also produces POLICY_BLOCKED with zero effects.",
+          "Compare your input with answer/practice-solution.json and read answer/verification.md. Then run node controller.js --scenario uncertain --recover. Confirm that reconciliation occurs by operation key before any retry, finds one effect, preserves FAILED_WITH_RECOVERY_EVIDENCE, and reports retryPerformed=false."
         ],
         "evidence": [
-          "A state-transition table with budgets, approvals, success evidence, and five terminal states.",
-          "A five-case simulation log showing the evidence and terminal state for complete, needs-human, budget-exhausted, policy-blocked, and failed-with-recovery-evidence, including reconciliation data for the uncertain tool outcome."
+          "The exact five-line output from node controller.js --all matching expected-summary.txt, plus the recovery output produced by node controller.js --scenario uncertain --recover.",
+          "The built-in success trace from node controller.js --scenario success --trace, showing that no approval is required, revision 1 changes to revision 2, the action invocation is charged, one ledger record exists, and the independent verifier accepts one receipt.",
+          "A learner-owned my-practice.json and its output, showing that the changed practice case requires both trusted policy permission and action-budget capacity while preserving the matching separate trusted approval.",
+          "A causal diagnosis explaining why policy-only, budget-only, and stale-approval variants stop at different pre-effect checks."
         ],
-        "reflectionPrompt": "Which condition must be enforced by code because a prompt alone cannot guarantee it?"
+        "reflectionPrompt": "Which controls must the deterministic controller enforce because a prompt, observation, model approval claim, or model finish claim cannot guarantee authorization, revision freshness, budget safety, completion evidence, or safe recovery?"
       },
       "instructorScript": {
         "schemaVersion": "1.1",
-        "estimatedSeconds": 1260,
+        "estimatedSeconds": 1785,
         "cues": [
           {
             "id": "cue-loop-work-order",
             "kind": "narration",
             "sectionId": "bounded-work-order",
-            "text": "Begin with a success contract that removes hidden decisions and names the evidence required to finish."
+            "text": "Begin with the completed receipt work order. The requested world state is exactly one in-memory receipt containing the approved text and its operation key. Scope is limited to the teaching environment, and the independent verifier, not the decision fixture, determines completion. Ask whether a model-directed loop is necessary. A fixed alternative can validate inputs, check policy and any required approval, preflight one action, invoke write_receipt once, and verify the receipt. Use that fixed workflow when the path is known. Consider a model-directed loop only when observed variation makes the next permitted inspection or action genuinely difficult to enumerate. The fixture tests controller contracts, not model reasoning or agent superiority."
           },
           {
             "id": "cue-loop-trust",
             "kind": "narration",
             "sectionId": "trust-boundaries",
-            "text": "Keep authority in trusted policy while treating retrieved instructions as untrusted observations."
+            "text": "Separate proposals from authority. Observations and decisions are untrusted data. Policy lists permitted actions, while trustedApprovals contains any required human authorization. When approval is required, its action, resource, operationKey, and stateVersion must all match. A forged approvedByHuman field grants nothing. Missing policy permission, a stale approval, and insufficient action budget are different failures. The built-in success scenario needs no approval. The changed practice scenario does require its existing matching trusted approval. This distinction matters when you read the two traces."
           },
           {
             "id": "cue-loop-state",
             "kind": "narration",
             "sectionId": "loop-state",
-            "text": "Model each iteration as an observable state transition from inspect to decide to act to verify."
+            "text": "Follow the successful transition in worked-trace.json. beforeState begins at revision one with no receipt. The decision proposes write_receipt with expectedStateVersion one. Authorization checks the implemented action, trusted policy, current revision, and any applicable approval rule. Preflight confirms the next turn, fixture-time, fixture-token, and action charges fit. The action invocation is charged and the write advances revision to two. The verifier then inspects the environment for exactly one receipt with the required text and operation key. Only that inspection permits COMPLETE. maxActions counts every act invocation, including noop and unsuccessful attempts, rather than only successful writes."
           },
           {
-            "id": "cue-loop-visual",
-            "kind": "visual",
+            "id": "cue-loop-demo",
+            "kind": "narration",
             "sectionId": "loop-state",
-            "text": "Animate inspect, decide, authorize, act, verify, and stop around a state ledger.",
-            "accessibilityAlternative": "A text sequence lists inspect, decide, authorize, act, verify, and stop, with every step writing to a state ledger. Reduced-motion mode shows the complete sequence at once."
+            "text": "Run node --test and inspect your local report. The supplied independent run used Node.js version twenty-four point eighteen point zero and reported eighteen passing tests, but your own output is the evidence for your environment. Next run node controller.js --all and compare the five output lines byte-for-byte with expected-summary.txt. Then run node controller.js --scenario success --trace and compare the JSON with worked-trace.json. Confirm revision one before the write, revision two after it, one action charge, one ledger entry, one receipt, no approval requirement, and independent verifier acceptance."
           },
           {
             "id": "cue-loop-stop",
             "kind": "narration",
             "sectionId": "stop-and-recover",
-            "text": "Use deterministic success, escalation, no-progress, policy, and budget terminals before uncertainty compounds."
+            "text": "Map each cause to one of the five lesson terminals. COMPLETE requires the verified postcondition. Three semantic no-progress transitions produce NEEDS_HUMAN. A preflight charge that would exceed a limit produces BUDGET_EXHAUSTED before invocation. Unauthorized, stale, unsupported, or malformed input produces POLICY_BLOCKED before an effect. An invoked consequential operation whose outcome is unknown produces FAILED_WITH_RECOVERY_EVIDENCE because an effect may already exist. Do not collapse these results into success or a generic error. Their evidence determines whether the next safe step is finished work, human diagnosis, a revised budget, corrected authority, or reconciliation."
+          },
+          {
+            "id": "cue-loop-practice",
+            "kind": "narration",
+            "sectionId": "trust-boundaries",
+            "text": "Run node controller.js --input practice.json. Expect practice colon POLICY_BLOCKED vertical bar action write_receipt is not allowed by trusted policy vertical bar effects equals zero. Copy the file to my-practice.json. Add write_receipt to policy.allowedActions and change limits.maxActions from zero to one. Keep the existing trusted approval unchanged and do not add approvedByHuman. Run node controller.js --input my-practice.json. Expect practice colon COMPLETE vertical bar independent verifier accepted exactly one receipt vertical bar effects equals one. Inspect the final revision and confirm it is two."
+          },
+          {
+            "id": "cue-loop-diagnosis",
+            "kind": "narration",
+            "sectionId": "stop-and-recover",
+            "text": "Diagnose the checks causally rather than editing until the case passes. If you correct only policy, authorization reaches the action preflight and maxActions zero produces BUDGET_EXHAUSTED. If you correct only maxActions, policy still denies write_receipt and the result remains POLICY_BLOCKED. If policy and budget are correct but the required approval is missing, forged, mismatched, or bound to the wrong revision, authorization returns POLICY_BLOCKED with zero effects. Tests can still miss an authority flaw if both the test and implementation share the same mistaken trust assumption. That is why independent checks mutate every approval binding and test renamed scenarios rather than relying only on happy-path fixture names."
+          },
+          {
+            "id": "cue-loop-recovery",
+            "kind": "narration",
+            "sectionId": "stop-and-recover",
+            "text": "Run node controller.js --scenario uncertain --recover. The fixture creates a receipt but reports an unknown result. Preserve the original FAILED_WITH_RECOVERY_EVIDENCE terminal. Recovery must inspect by operation key before considering a retry. In this case reconciliation finds one effect and reports retryPerformed equals false. A blind retry could duplicate the receipt. The bounded ledger helps this in-process demonstration, but it contains at most thirty-two in-memory records and disappears at process exit. It does not prove durable idempotency, distributed safety, production security, or compliance."
           },
           {
             "id": "cue-loop-prompt",
             "kind": "learner-prompt",
             "sectionId": "stop-and-recover",
-            "text": "Ask learners to identify which terminal state handles repeated tool failure without claiming success."
+            "text": "Ask learners why an approval for revision one cannot authorize a decision after the controller has advanced to revision two."
           },
           {
             "id": "cue-loop-pause",
             "kind": "pause",
             "sectionId": "stop-and-recover",
-            "text": "Allow two minutes to add a no-progress detector and recovery state to the learner's loop."
+            "text": "Named lab pause: allow twenty minutes for learners to run the tests and scenarios, inspect worked-trace.json, create my-practice.json, diagnose one-variable variants, and run uncertain recovery."
           },
           {
             "id": "cue-loop-checkpoint",
             "kind": "checkpoint",
             "sectionId": "stop-and-recover",
-            "text": "Check that completion depends on independently observed evidence rather than model narration."
+            "text": "Check that completion depends on the verifier, forged approval has no authority, stale revisions remain effect-free, budget charges never exceed limits, and recovery does not duplicate the receipt."
           },
           {
-            "id": "cue-loop-activity",
-            "kind": "learner-prompt",
-            "text": "Guide the five-scenario loop simulation and require the transition log as evidence."
+            "id": "cue-loop-debrief",
+            "kind": "narration",
+            "sectionId": "stop-and-recover",
+            "text": "During the lab, retain the exact summary output, the successful worked trace, your changed input, the changed result, and the uncertain recovery result. Explain the state before and after each attempted action. Name which trusted control made the decision: policy permission, action budget, expected state version, required approval, independent verification, no-progress detection, or reconciliation. If your answer says the model approved the action or declared success, revise it. The controller alone enforces authority and selects a terminal from observable evidence."
           },
           {
             "id": "cue-loop-assessment",
             "kind": "assessment-handoff",
-            "text": "Begin the check after the learner can explain each state, budget, approval, and terminal condition."
+            "text": "Begin the check after the learner can explain each state field, approval binding, fixture budget charge, terminal reason, and recovery record."
+          },
+          {
+            "id": "cue-loop-close",
+            "kind": "narration",
+            "sectionId": "stop-and-recover",
+            "text": "The design rule is simple. Prefer a fixed workflow when code can own the path. When necessary observed variation justifies a model-directed loop, bound that flexibility with a completed work order, separate trusted authority, explicit revisions, preflight budgets, independent postconditions, five truthful terminals, and reconciliation before retry. Fixture tests provide evidence about these controller contracts only. Production acceptance requires separate review of adapters, persistence, concurrency, identity, policy ownership, monitoring, and recovery behavior."
+          },
+          {
+            "id": "cue-loop-visual",
+            "kind": "visual",
+            "sectionId": "loop-state",
+            "text": "Display a static sequence of inspect, decide, authorize, preflight, act, verify, and terminal selection around versioned state, trusted policy, trusted approvals, trace, environment, and the bounded in-memory ledger.",
+            "accessibilityAlternative": "A static text sequence lists inspect, decide, authorize, preflight, act, verify, and terminal selection. Labels distinguish untrusted observations and decisions from trusted policy, limits, state, approvals, and verifier evidence."
           }
         ],
-        "transcript": "Begin with a success contract that removes hidden decisions and names the evidence required to finish. Keep authority in trusted policy while treating retrieved instructions as untrusted observations. Model each iteration as an observable state transition from inspect to decide to act to verify. Use deterministic success, escalation, no-progress, policy, and budget terminals before uncertainty compounds.",
+        "transcript": "Begin with the completed receipt work order. The requested world state is exactly one in-memory receipt containing the approved text and its operation key. Scope is limited to the teaching environment, and the independent verifier, not the decision fixture, determines completion. Ask whether a model-directed loop is necessary. A fixed alternative can validate inputs, check policy and any required approval, preflight one action, invoke write_receipt once, and verify the receipt. Use that fixed workflow when the path is known. Consider a model-directed loop only when observed variation makes the next permitted inspection or action genuinely difficult to enumerate. The fixture tests controller contracts, not model reasoning or agent superiority. Separate proposals from authority. Observations and decisions are untrusted data. Policy lists permitted actions, while trustedApprovals contains any required human authorization. When approval is required, its action, resource, operationKey, and stateVersion must all match. A forged approvedByHuman field grants nothing. Missing policy permission, a stale approval, and insufficient action budget are different failures. The built-in success scenario needs no approval. The changed practice scenario does require its existing matching trusted approval. This distinction matters when you read the two traces. Follow the successful transition in worked-trace.json. beforeState begins at revision one with no receipt. The decision proposes write_receipt with expectedStateVersion one. Authorization checks the implemented action, trusted policy, current revision, and any applicable approval rule. Preflight confirms the next turn, fixture-time, fixture-token, and action charges fit. The action invocation is charged and the write advances revision to two. The verifier then inspects the environment for exactly one receipt with the required text and operation key. Only that inspection permits COMPLETE. maxActions counts every act invocation, including noop and unsuccessful attempts, rather than only successful writes. Run node --test and inspect your local report. The supplied independent run used Node.js version twenty-four point eighteen point zero and reported eighteen passing tests, but your own output is the evidence for your environment. Next run node controller.js --all and compare the five output lines byte-for-byte with expected-summary.txt. Then run node controller.js --scenario success --trace and compare the JSON with worked-trace.json. Confirm revision one before the write, revision two after it, one action charge, one ledger entry, one receipt, no approval requirement, and independent verifier acceptance. Map each cause to one of the five lesson terminals. COMPLETE requires the verified postcondition. Three semantic no-progress transitions produce NEEDS_HUMAN. A preflight charge that would exceed a limit produces BUDGET_EXHAUSTED before invocation. Unauthorized, stale, unsupported, or malformed input produces POLICY_BLOCKED before an effect. An invoked consequential operation whose outcome is unknown produces FAILED_WITH_RECOVERY_EVIDENCE because an effect may already exist. Do not collapse these results into success or a generic error. Their evidence determines whether the next safe step is finished work, human diagnosis, a revised budget, corrected authority, or reconciliation. Run node controller.js --input practice.json. Expect practice colon POLICY_BLOCKED vertical bar action write_receipt is not allowed by trusted policy vertical bar effects equals zero. Copy the file to my-practice.json. Add write_receipt to policy.allowedActions and change limits.maxActions from zero to one. Keep the existing trusted approval unchanged and do not add approvedByHuman. Run node controller.js --input my-practice.json. Expect practice colon COMPLETE vertical bar independent verifier accepted exactly one receipt vertical bar effects equals one. Inspect the final revision and confirm it is two. Diagnose the checks causally rather than editing until the case passes. If you correct only policy, authorization reaches the action preflight and maxActions zero produces BUDGET_EXHAUSTED. If you correct only maxActions, policy still denies write_receipt and the result remains POLICY_BLOCKED. If policy and budget are correct but the required approval is missing, forged, mismatched, or bound to the wrong revision, authorization returns POLICY_BLOCKED with zero effects. Tests can still miss an authority flaw if both the test and implementation share the same mistaken trust assumption. That is why independent checks mutate every approval binding and test renamed scenarios rather than relying only on happy-path fixture names. Run node controller.js --scenario uncertain --recover. The fixture creates a receipt but reports an unknown result. Preserve the original FAILED_WITH_RECOVERY_EVIDENCE terminal. Recovery must inspect by operation key before considering a retry. In this case reconciliation finds one effect and reports retryPerformed equals false. A blind retry could duplicate the receipt. The bounded ledger helps this in-process demonstration, but it contains at most thirty-two in-memory records and disappears at process exit. It does not prove durable idempotency, distributed safety, production security, or compliance. During the lab, retain the exact summary output, the successful worked trace, your changed input, the changed result, and the uncertain recovery result. Explain the state before and after each attempted action. Name which trusted control made the decision: policy permission, action budget, expected state version, required approval, independent verification, no-progress detection, or reconciliation. If your answer says the model approved the action or declared success, revise it. The controller alone enforces authority and selects a terminal from observable evidence. The design rule is simple. Prefer a fixed workflow when code can own the path. When necessary observed variation justifies a model-directed loop, bound that flexibility with a completed work order, separate trusted authority, explicit revisions, preflight budgets, independent postconditions, five truthful terminals, and reconciliation before retry. Fixture tests provide evidence about these controller contracts only. Production acceptance requires separate review of adapters, persistence, concurrency, identity, policy ownership, monitoring, and recovery behavior.",
         "captions": [
           {
             "cueId": "cue-loop-work-order",
             "startSeconds": 0,
-            "endSeconds": 210,
-            "text": "Begin with a success contract that removes hidden decisions and names the evidence required to finish."
+            "endSeconds": 62,
+            "text": "Begin with the completed receipt work order. The requested world state is exactly one in-memory receipt containing the approved text and its operation key. Scope is limited to the teaching environment, and the independent verifier, not the decision fixture, determines completion. Ask whether a model-directed loop is necessary. A fixed alternative can validate inputs, check policy and any required approval, preflight one action, invoke write_receipt once, and verify the receipt. Use that fixed workflow when the path is known. Consider a model-directed loop only when observed variation makes the next permitted inspection or action genuinely difficult to enumerate. The fixture tests controller contracts, not model reasoning or agent superiority."
           },
           {
             "cueId": "cue-loop-trust",
-            "startSeconds": 240,
-            "endSeconds": 450,
-            "text": "Keep authority in trusted policy while treating retrieved instructions as untrusted observations."
+            "startSeconds": 62,
+            "endSeconds": 113,
+            "text": "Separate proposals from authority. Observations and decisions are untrusted data. Policy lists permitted actions, while trustedApprovals contains any required human authorization. When approval is required, its action, resource, operationKey, and stateVersion must all match. A forged approvedByHuman field grants nothing. Missing policy permission, a stale approval, and insufficient action budget are different failures. The built-in success scenario needs no approval. The changed practice scenario does require its existing matching trusted approval. This distinction matters when you read the two traces."
           },
           {
             "cueId": "cue-loop-state",
-            "startSeconds": 480,
-            "endSeconds": 780,
-            "text": "Model each iteration as an observable state transition from inspect to decide to act to verify."
+            "startSeconds": 113,
+            "endSeconds": 176,
+            "text": "Follow the successful transition in worked-trace.json. beforeState begins at revision one with no receipt. The decision proposes write_receipt with expectedStateVersion one. Authorization checks the implemented action, trusted policy, current revision, and any applicable approval rule. Preflight confirms the next turn, fixture-time, fixture-token, and action charges fit. The action invocation is charged and the write advances revision to two. The verifier then inspects the environment for exactly one receipt with the required text and operation key. Only that inspection permits COMPLETE. maxActions counts every act invocation, including noop and unsuccessful attempts, rather than only successful writes."
+          },
+          {
+            "cueId": "cue-loop-demo",
+            "startSeconds": 176,
+            "endSeconds": 235,
+            "text": "Run node --test and inspect your local report. The supplied independent run used Node.js version twenty-four point eighteen point zero and reported eighteen passing tests, but your own output is the evidence for your environment. Next run node controller.js --all and compare the five output lines byte-for-byte with expected-summary.txt. Then run node controller.js --scenario success --trace and compare the JSON with worked-trace.json. Confirm revision one before the write, revision two after it, one action charge, one ledger entry, one receipt, no approval requirement, and independent verifier acceptance."
           },
           {
             "cueId": "cue-loop-stop",
-            "startSeconds": 810,
-            "endSeconds": 1110,
-            "text": "Use deterministic success, escalation, no-progress, policy, and budget terminals before uncertainty compounds."
+            "startSeconds": 235,
+            "endSeconds": 295,
+            "text": "Map each cause to one of the five lesson terminals. COMPLETE requires the verified postcondition. Three semantic no-progress transitions produce NEEDS_HUMAN. A preflight charge that would exceed a limit produces BUDGET_EXHAUSTED before invocation. Unauthorized, stale, unsupported, or malformed input produces POLICY_BLOCKED before an effect. An invoked consequential operation whose outcome is unknown produces FAILED_WITH_RECOVERY_EVIDENCE because an effect may already exist. Do not collapse these results into success or a generic error. Their evidence determines whether the next safe step is finished work, human diagnosis, a revised budget, corrected authority, or reconciliation."
+          },
+          {
+            "cueId": "cue-loop-practice",
+            "startSeconds": 295,
+            "endSeconds": 354,
+            "text": "Run node controller.js --input practice.json. Expect practice colon POLICY_BLOCKED vertical bar action write_receipt is not allowed by trusted policy vertical bar effects equals zero. Copy the file to my-practice.json. Add write_receipt to policy.allowedActions and change limits.maxActions from zero to one. Keep the existing trusted approval unchanged and do not add approvedByHuman. Run node controller.js --input my-practice.json. Expect practice colon COMPLETE vertical bar independent verifier accepted exactly one receipt vertical bar effects equals one. Inspect the final revision and confirm it is two."
+          },
+          {
+            "cueId": "cue-loop-diagnosis",
+            "startSeconds": 354,
+            "endSeconds": 421,
+            "text": "Diagnose the checks causally rather than editing until the case passes. If you correct only policy, authorization reaches the action preflight and maxActions zero produces BUDGET_EXHAUSTED. If you correct only maxActions, policy still denies write_receipt and the result remains POLICY_BLOCKED. If policy and budget are correct but the required approval is missing, forged, mismatched, or bound to the wrong revision, authorization returns POLICY_BLOCKED with zero effects. Tests can still miss an authority flaw if both the test and implementation share the same mistaken trust assumption. That is why independent checks mutate every approval binding and test renamed scenarios rather than relying only on happy-path fixture names."
+          },
+          {
+            "cueId": "cue-loop-recovery",
+            "startSeconds": 421,
+            "endSeconds": 478,
+            "text": "Run node controller.js --scenario uncertain --recover. The fixture creates a receipt but reports an unknown result. Preserve the original FAILED_WITH_RECOVERY_EVIDENCE terminal. Recovery must inspect by operation key before considering a retry. In this case reconciliation finds one effect and reports retryPerformed equals false. A blind retry could duplicate the receipt. The bounded ledger helps this in-process demonstration, but it contains at most thirty-two in-memory records and disappears at process exit. It does not prove durable idempotency, distributed safety, production security, or compliance."
+          },
+          {
+            "cueId": "cue-loop-debrief",
+            "startSeconds": 1678,
+            "endSeconds": 1733,
+            "text": "During the lab, retain the exact summary output, the successful worked trace, your changed input, the changed result, and the uncertain recovery result. Explain the state before and after each attempted action. Name which trusted control made the decision: policy permission, action budget, expected state version, required approval, independent verification, no-progress detection, or reconciliation. If your answer says the model approved the action or declared success, revise it. The controller alone enforces authority and selects a terminal from observable evidence."
+          },
+          {
+            "cueId": "cue-loop-close",
+            "startSeconds": 1733,
+            "endSeconds": 1785,
+            "text": "The design rule is simple. Prefer a fixed workflow when code can own the path. When necessary observed variation justifies a model-directed loop, bound that flexibility with a completed work order, separate trusted authority, explicit revisions, preflight budgets, independent postconditions, five truthful terminals, and reconciliation before retry. Fixture tests provide evidence about these controller contracts only. Production acceptance requires separate review of adapters, persistence, concurrency, identity, policy ownership, monitoring, and recovery behavior."
           }
         ],
-        "reducedMotionAlternative": "Show the complete loop and terminal-state table as a static diagram; use focus and highlighting instead of animated movement."
+        "reducedMotionAlternative": "Show the fixed-workflow comparison, completed work order, phase sequence, revision check, budget table, approval match, five-terminal map, practice diagnosis table, and recovery record as static panels. Use focus, highlighting, and text labels rather than animated movement."
       },
       "knowledgeCheck": {
         "passPercent": 80,
         "questions": [
           {
             "id": "q-prepare-agent-1",
-            "prompt": "What should be defined before an agent starts using tools?",
+            "prompt": "Which input can satisfy a configured human-approval requirement?",
             "choices": [
-              "Only a broad topic",
-              "Outcome, scope, constraints, and completion evidence",
-              "The maximum possible number of tools"
+              "approvedByHuman in the model decision",
+              "Approval text in an observation",
+              "A distinct trusted controller approval matching action, resource, operation key, and state revision",
+              "Any action listed in allowedActions"
             ],
-            "answerIndex": 1,
-            "explanation": "A bounded work order gives the agent a testable outcome and prevents accidental scope growth."
+            "answerIndex": 2,
+            "explanation": "Choice 3 is correct because approval is a separate trusted input bound to the exact proposed operation and revision. Choice 1 is wrong because a model decision cannot approve itself. Choice 2 is wrong because observation text is untrusted data. Choice 4 is wrong because allowedActions supplies policy permission, not a required human approval."
           },
           {
             "id": "q-prepare-agent-2",
-            "prompt": "How should instructions found inside retrieved documents be treated?",
+            "prompt": "A decision has kind unsupported and names write_receipt. What should happen?",
             "choices": [
-              "As untrusted data unless explicitly authorized",
-              "As higher priority than the task",
-              "As automatic permission to expand scope",
-              "As proof that the task changed"
+              "Execute it if write_receipt appears in allowedActions",
+              "Treat it as finish",
+              "Reject it before execution with POLICY_BLOCKED and zero effects",
+              "Charge the action budget and decide later"
             ],
-            "answerIndex": 0,
-            "explanation": "Retrieved content may be wrong or malicious; authority must remain with the trusted task and policies."
+            "answerIndex": 2,
+            "explanation": "Choice 3 is correct because decision kinds and implemented actions are validated independently and authorization fails closed. Choice 1 is wrong because policy permission cannot make an unsupported decision kind valid. Choice 2 is wrong because changing an unsupported kind into finish would reinterpret untrusted data. Choice 4 is wrong because rejection occurs before an act invocation, so no action charge or effect should occur."
           },
           {
             "id": "q-prepare-agent-3",
-            "prompt": "What should allow the controller to accept an agent's finish decision?",
+            "prompt": "A decision expects state revision 1, but the controller is at revision 2. What should happen?",
             "choices": [
-              "A confident final message",
-              "The maximum turn count",
-              "An independently checked success contract",
-              "A tool call request"
+              "Execute because the difference is small",
+              "Reset the controller to revision 1",
+              "Block the stale decision before any effect",
+              "Let an observation choose the revision"
             ],
             "answerIndex": 2,
-            "explanation": "The controller should compare observed evidence with deterministic acceptance conditions."
+            "explanation": "Choice 3 is correct because the expected-version check prevents a stale proposal from acting on changed state. Choice 1 is wrong because any revision mismatch can represent a consequential change. Choice 2 is wrong because resetting state would discard an observed transition. Choice 4 is wrong because an untrusted observation cannot choose or rewrite controller state."
           },
           {
             "id": "q-prepare-agent-4",
-            "prompt": "The same failed action is selected three times without changing state. What is the safest response?",
+            "prompt": "Three finish proposals are independently rejected because no receipt exists. What terminal is required?",
             "choices": [
-              "Increase temperature",
-              "Hide the failures",
-              "Stop with a no-progress terminal and recovery evidence",
-              "Continue without a limit"
+              "COMPLETE",
+              "NEEDS_HUMAN after the third no-progress transition",
+              "Ignore the transitions until the turn budget is gone",
+              "FAILED_WITH_RECOVERY_EVIDENCE"
             ],
-            "answerIndex": 2,
-            "explanation": "Repeated transitions without progress indicate a cycle that should stop or escalate."
+            "answerIndex": 1,
+            "explanation": "Choice 2 is correct because rejected finish claims count as semantic no-progress and the configured threshold is three. Choice 1 is wrong because no receipt satisfies the independent postcondition. Choice 3 is wrong because a budget is a ceiling, not permission to repeat a non-progress cycle. Choice 4 is wrong because there was no consequential invocation with an unknown outcome."
           },
           {
             "id": "q-prepare-agent-5",
-            "prompt": "Which set is a useful loop budget?",
+            "prompt": "The next authorized write would raise used actions from zero to one, but maxActions is zero. What should the controller do?",
             "choices": [
-              "Only a model name",
-              "The number of paragraphs",
-              "An unlimited retry policy",
-              "Turns, time, tokens or cost, retries, and consequential actions"
+              "Write and report overspend afterward",
+              "Return BUDGET_EXHAUSTED before executing",
+              "Use negative tokenCost to offset the action",
+              "Treat fixture time as wall-clock time"
             ],
-            "answerIndex": 3,
-            "explanation": "Multiple bounded resources prevent runaway cost, delay, and repeated side effects."
+            "answerIndex": 1,
+            "explanation": "Choice 2 is correct because the action-invocation charge is checked before execution and cannot exceed maxActions. Choice 1 is wrong because post-hoc reporting would allow an effect beyond the hard limit. Choice 3 is wrong because negative costs are malformed and must fail closed. Choice 4 is wrong because fixture time is deterministic scenario accounting, not measured wall-clock duration."
           }
         ]
       },
       "sources": [
         {
-          "title": "Building effective agents",
-          "url": "https://www.anthropic.com/engineering/building-effective-agents",
-          "publisher": "Anthropic",
-          "lastVerified": "2026-07-25"
+          "title": "Node.js packages documentation",
+          "url": "https://nodejs.org/api/packages.html",
+          "publisher": "Node.js",
+          "lastVerified": "2026-09-20"
+        },
+        {
+          "title": "ECMAScript modules",
+          "url": "https://nodejs.org/api/esm.html",
+          "publisher": "Node.js",
+          "lastVerified": "2026-09-20"
+        },
+        {
+          "title": "Node.js test runner",
+          "url": "https://nodejs.org/api/test.html",
+          "publisher": "Node.js",
+          "lastVerified": "2026-09-20"
         },
         {
           "title": "Artificial Intelligence Risk Management Framework",
           "url": "https://www.nist.gov/itl/ai-risk-management-framework",
           "publisher": "NIST",
-          "lastVerified": "2026-07-23"
+          "lastVerified": "2026-09-20"
         }
       ]
     },
