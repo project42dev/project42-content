@@ -57,6 +57,160 @@
         "Expected evidence includes installed version, effective global and agent rules, approvals used, commands, final diff, and test output. Verify that rule precedence produced the intended decision for representative allowed and denied actions.",
         "If the schema or permission result is wrong, stop the task, restore the reviewed configuration and files, correct the version-specific rules, and repeat the permission checks before implementation."
       ]
+    },
+    {
+      "id": "v1-scope-provider",
+      "title": "Confirm OpenCode V1 and provider prerequisites",
+      "paragraphs": [
+        "This exercise is explicitly for OpenCode V1 configuration syntax. From the parent directory, capture the installed client version before generating configuration. Use the matching documentation for that observed version. The installed version is UNKNOWN until the command is run. OpenCode starts in the current working directory, so the task workspace below is the directory supplied to the client. Source: https://opencode.ai/docs/cli, observed 2026-09-20.",
+        "Run `opencode --version` and `opencode --help`. Do not start model work until the client version and matching configuration documentation have been confirmed. There is no dated source here that establishes whether V1 or V2 is newest.",
+        "The primary provider path is Z.AI through OpenCode's interactive `/connect` flow. If the learner has a Z.AI Coding Plan subscription, use the Coding Plan route, not the ordinary Z.AI route. Then use `/models` and select an actually available model. GLM4.7 is a documentation example, not a guarantee of availability. The actual provider, model, approvals, and live result remain UNKNOWN until observed. Credentials are stored outside the project at `~/.local/share/opencode/auth.json`; never copy or publish that file. Source: https://opencode.ai/docs/providers, observed 2026-09-20."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "version and help capture from the empty parent directory",
+        "code": "opencode --version\nopencode --help"
+      }
+    },
+    {
+      "id": "v1-config-generation",
+      "title": "Generate the OpenCode V1 project configuration",
+      "paragraphs": [
+        "Create the project configuration using OpenCode V1 syntax. V1 uses the singular `permission` object, the documented tool names `bash` and `task`, and singular `agent`. Project configuration merges with configuration from other locations, so inspect the active configuration and do not assume that `opencode.json` clears global settings. The `$schema` URL declares configuration intent but does not prove the installed runtime generation. Sources: https://opencode.ai/docs/config, https://opencode.ai/docs/permissions, and https://opencode.ai/docs/agents, observed 2026-09-20.",
+        "V1 applies the last matching pattern. Its `*` wildcard matches zero or more characters, including slashes. `**` has no special recursive-glob meaning, so patterns such as `**/.env*`, `**/*`, and `**/src/**` miss relevant root or source paths. The corrected rules use `*` as the broad whole-value catchall, exact root-oriented patterns, explicit slash-containing nested patterns, and `*token*` for any path value containing `token`, including root and nested basenames. Broad rules come first, source exceptions come next, and protected-file denials come last. Sources: https://opencode.ai/docs/permissions and https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/util/wildcard.ts, observed 2026-09-20.",
+        "Globally, Python files under `src/` may be edited, test edits are denied, and other edits require approval. The `merge-review` agent is narrower: it may edit only the exact path `src/merge_config.py`, while all other edits are denied. Agent permissions override global permissions. Both scopes deny reads and edits for the explicitly listed root and nested `.env*`, `private.pem`, `secrets.txt`, and `credential*` path families, and for any path value containing `token`, including any root or nested basename containing that substring. These names are examples protected by this lab configuration, not a claim that every possible secret filename has been discovered.",
+        "The configuration also denies `bash`, `task`, `webfetch`, `websearch`, and `external_directory`. The V1 CLI `agent create --permissions` list includes `bash`, `task`, `webfetch`, and `websearch`; this documents those tool identifiers but does not prove runtime enforcement. Source: https://opencode.ai/docs/cli, observed 2026-09-20. Retaining those explicit identifiers does not turn this configuration into an operating-system sandbox. Natural-language instructions are not enforcement, and filesystem, process, repository, provider, and credential controls remain necessary."
+      ],
+      "code": {
+        "language": "json",
+        "label": "project opencode.json, OpenCode V1 only",
+        "code": "{\n  \"$schema\": \"https://opencode.ai/config.json\",\n  \"permission\": {\n    \"edit\": {\n      \"*\": \"ask\",\n      \"src/*.py\": \"allow\",\n      \"tests/*\": \"deny\",\n      \".env*\": \"deny\",\n      \"*/.env*\": \"deny\",\n      \"private.pem\": \"deny\",\n      \"*/private.pem\": \"deny\",\n      \"secrets.txt\": \"deny\",\n      \"*/secrets.txt\": \"deny\",\n      \"credential*\": \"deny\",\n      \"*/credential*\": \"deny\",\n      \"*token*\": \"deny\"\n    },\n    \"read\": {\n      \"*\": \"allow\",\n      \".env*\": \"deny\",\n      \"*/.env*\": \"deny\",\n      \"private.pem\": \"deny\",\n      \"*/private.pem\": \"deny\",\n      \"secrets.txt\": \"deny\",\n      \"*/secrets.txt\": \"deny\",\n      \"credential*\": \"deny\",\n      \"*/credential*\": \"deny\",\n      \"*token*\": \"deny\"\n    },\n    \"bash\": \"deny\",\n    \"task\": \"deny\",\n    \"webfetch\": \"deny\",\n    \"websearch\": \"deny\",\n    \"external_directory\": \"deny\"\n  },\n  \"agent\": {\n    \"merge-review\": {\n      \"description\": \"Edit only src/merge_config.py. Do not edit or read protected files, edit tests, run shell, use subagents, use web tools, or access external directories.\",\n      \"mode\": \"primary\",\n      \"permission\": {\n        \"edit\": {\n          \"*\": \"deny\",\n          \"src/merge_config.py\": \"allow\",\n          \"tests/*\": \"deny\",\n          \".env*\": \"deny\",\n          \"*/.env*\": \"deny\",\n          \"private.pem\": \"deny\",\n          \"*/private.pem\": \"deny\",\n          \"secrets.txt\": \"deny\",\n          \"*/secrets.txt\": \"deny\",\n          \"credential*\": \"deny\",\n          \"*/credential*\": \"deny\",\n          \"*token*\": \"deny\"\n        },\n        \"read\": {\n          \"*\": \"allow\",\n          \".env*\": \"deny\",\n          \"*/.env*\": \"deny\",\n          \"private.pem\": \"deny\",\n          \"*/private.pem\": \"deny\",\n          \"secrets.txt\": \"deny\",\n          \"*/secrets.txt\": \"deny\",\n          \"credential*\": \"deny\",\n          \"*/credential*\": \"deny\",\n          \"*token*\": \"deny\"\n        },\n        \"bash\": \"deny\",\n        \"task\": \"deny\",\n        \"webfetch\": \"deny\",\n        \"websearch\": \"deny\",\n        \"external_directory\": \"deny\"\n      }\n    }\n  }\n}"
+      }
+    },
+    {
+      "id": "v1-permission-cases",
+      "title": "Evaluate corrected V1 permission cases statically",
+      "paragraphs": [
+        "These are static last-match results for the authored rules, not live OpenCode enforcement results. V1 uses the last matching pattern, and agent-level permissions override global permissions. Because `*` matches any sequence of characters, including slashes, it is the broad whole-value catchall. Root patterns such as `.env*` are paired with nested patterns such as `*/.env*`. Sources: https://opencode.ai/docs/permissions, https://opencode.ai/docs/agents, and https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/util/wildcard.ts, observed 2026-09-20.",
+        "For the global configuration, editing `src/merge_config.py` is allowed by `src/*.py`; editing `tests/test_merge_config.py` is denied by `tests/*`; editing `notes.txt` asks through `*`; and editing `src/.env`, `.env.local`, nested `private.pem`, `secrets.txt`, or a basename beginning with `credential` or containing `token` is denied by a later protected-file rule. Reads normally allow through `*`, but the same explicit protected path families are denied.",
+        "For `merge-review`, the broad edit denial is first and the exact `src/merge_config.py` allowance follows it. Protected-file denials follow the allowance, so a protected path cannot gain access through a broader source rule. Editing `src/other.py`, tests, notes, or protected paths is denied. Reads normally allow, except for the explicitly protected root and nested path families. `bash`, `task`, `webfetch`, `websearch`, and `external_directory` are configured as deny in both scopes.",
+        "The static cases establish only what the authored wildcard and ordering logic predicts. They do not prove which merged configuration an installed client loaded, whether every configured tool identifier is recognized, or whether host processes and filesystems prevent access. Verify the installed generation and effective configuration before model work."
+      ],
+      "code": {
+        "language": "text",
+        "label": "corrected static predictions, not live enforcement",
+        "code": "GLOBAL\nedit src/merge_config.py             -> allow  (src/*.py)\nedit tests/test_merge_config.py       -> deny   (tests/*)\nedit notes.txt                        -> ask    (*)\nedit .env.local                       -> deny   (.env*)\nedit src/.env                         -> deny   (*/.env*)\nread .env                             -> deny   (.env*)\nread config/.env.local                -> deny   (*/.env*)\nread private.pem                      -> deny   (private.pem)\nread keys/private.pem                 -> deny   (*/private.pem)\nread secrets.txt                      -> deny   (secrets.txt)\nread archive/secrets.txt              -> deny   (*/secrets.txt)\nread credential.json                  -> deny   (credential*)\nread config/credential.json           -> deny   (*/credential*)\nread token.txt                         -> deny   (*token*)\nread cache/token.txt                   -> deny   (*token*)\nread public.txt                        -> allow  (*)\nbash, task, webfetch, websearch        -> deny\nexternal_directory                    -> deny\n\nMERGE-REVIEW AGENT\nedit src/merge_config.py              -> allow  (exact path)\nedit src/other.py                     -> deny   (*)\nedit tests/test_merge_config.py       -> deny   (tests/*)\nedit notes.txt                        -> deny   (*)\nedit src/.env                         -> deny   (*/.env*)\nread .env                             -> deny   (.env*)\nread nested/secrets.txt               -> deny   (*/secrets.txt)\nread public.txt                       -> allow  (*)\nbash, task, webfetch, websearch        -> deny\nexternal_directory                    -> deny"
+      }
+    },
+    {
+      "id": "safe-offline-setup",
+      "title": "Create the exercise with safe cross-platform Python 3 setup",
+      "paragraphs": [
+        "Save this program as `setup_exercise.py` in an empty parent directory and run it there with Python 3. No package installation is needed. The program computes every destination, refuses an existing exercise root, rejects existing destinations and destinations outside the root, and writes only its listed files. It does not invoke OpenCode, call a model, touch Git metadata, read credentials, or remove anything.",
+        "If writing fails, the program deliberately leaves only the newly created lab files and reports the exception. It does not perform broad exception cleanup, because a concurrent collision could make cleanup unsafe. Track the printed path and inspect any partial lab before deciding whether to continue. Never use this setup program against a directory containing unrelated work.",
+        "The embedded `opencode.json` is byte-for-byte equivalent in configuration content to the standalone V1 configuration above. The deliberately faulty initial source and the protected original test text are retained unchanged. On Windows, run the script with `py -3 setup_exercise.py`; on systems where Python 3 is exposed as `python3`, use `python3 setup_exercise.py`."
+      ],
+      "code": {
+        "language": "python",
+        "label": "setup_exercise.py",
+        "code": "from pathlib import Path\nimport json\nimport os\n\nroot = Path.cwd() / \"opencode-v1-merge-task\"\nconfig = {\n    \"$schema\": \"https://opencode.ai/config.json\",\n    \"permission\": {\n        \"edit\": {\n            \"*\": \"ask\",\n            \"src/*.py\": \"allow\",\n            \"tests/*\": \"deny\",\n            \".env*\": \"deny\",\n            \"*/.env*\": \"deny\",\n            \"private.pem\": \"deny\",\n            \"*/private.pem\": \"deny\",\n            \"secrets.txt\": \"deny\",\n            \"*/secrets.txt\": \"deny\",\n            \"credential*\": \"deny\",\n            \"*/credential*\": \"deny\",\n            \"*token*\": \"deny\"\n        },\n        \"read\": {\n            \"*\": \"allow\",\n            \".env*\": \"deny\",\n            \"*/.env*\": \"deny\",\n            \"private.pem\": \"deny\",\n            \"*/private.pem\": \"deny\",\n            \"secrets.txt\": \"deny\",\n            \"*/secrets.txt\": \"deny\",\n            \"credential*\": \"deny\",\n            \"*/credential*\": \"deny\",\n            \"*token*\": \"deny\"\n        },\n        \"bash\": \"deny\",\n        \"task\": \"deny\",\n        \"webfetch\": \"deny\",\n        \"websearch\": \"deny\",\n        \"external_directory\": \"deny\"\n    },\n    \"agent\": {\n        \"merge-review\": {\n            \"description\": \"Edit only src/merge_config.py. Do not edit or read protected files, edit tests, run shell, use subagents, use web tools, or access external directories.\",\n            \"mode\": \"primary\",\n            \"permission\": {\n                \"edit\": {\n                    \"*\": \"deny\",\n                    \"src/merge_config.py\": \"allow\",\n                    \"tests/*\": \"deny\",\n                    \".env*\": \"deny\",\n                    \"*/.env*\": \"deny\",\n                    \"private.pem\": \"deny\",\n                    \"*/private.pem\": \"deny\",\n                    \"secrets.txt\": \"deny\",\n                    \"*/secrets.txt\": \"deny\",\n                    \"credential*\": \"deny\",\n                    \"*/credential*\": \"deny\",\n                    \"*token*\": \"deny\"\n                },\n                \"read\": {\n                    \"*\": \"allow\",\n                    \".env*\": \"deny\",\n                    \"*/.env*\": \"deny\",\n                    \"private.pem\": \"deny\",\n                    \"*/private.pem\": \"deny\",\n                    \"secrets.txt\": \"deny\",\n                    \"*/secrets.txt\": \"deny\",\n                    \"credential*\": \"deny\",\n                    \"*/credential*\": \"deny\",\n                    \"*token*\": \"deny\"\n                },\n                \"bash\": \"deny\",\n                \"task\": \"deny\",\n                \"webfetch\": \"deny\",\n                \"websearch\": \"deny\",\n                \"external_directory\": \"deny\"\n            }\n        }\n    }\n}\nsource = \"\"\"def overlay(base, patch):\n    result = base\n    result.update(patch)\n    return result\n\"\"\"\ntests = \"\"\"import copy\nimport unittest\n\nfrom src.merge_config import overlay\n\n\nclass OverlayTests(unittest.TestCase):\n    def test_nested_dicts_are_merged_and_lists_are_replaced(self):\n        base = {\"service\": {\"host\": \"old\", \"port\": 80}, \"items\": [1, 2]}\n        patch = {\"service\": {\"port\": 443}, \"items\": [3]}\n        expected = {\"service\": {\"host\": \"old\", \"port\": 443}, \"items\": [3]}\n        self.assertEqual(overlay(base, patch), expected)\n\n    def test_inputs_are_not_mutated(self):\n        base = {\"service\": {\"host\": \"old\"}, \"items\": [1, 2]}\n        patch = {\"service\": {\"port\": 443}, \"items\": [3]}\n        base_before = copy.deepcopy(base)\n        patch_before = copy.deepcopy(patch)\n        overlay(base, patch)\n        self.assertEqual(base, base_before)\n        self.assertEqual(patch, patch_before)\n\n    def test_patch_only_adds_or_replaces_keys(self):\n        self.assertEqual(overlay({\"a\": 1}, {\"b\": 2}), {\"a\": 1, \"b\": 2})\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n\"\"\"\nfiles = {\n    \"opencode.json\": json.dumps(config, indent=2) + \"\\n\",\n    \"src/merge_config.py\": source,\n    \"src/__init__.py\": \"\",\n    \"tests/__init__.py\": \"\",\n    \"tests/test_merge_config.py\": tests,\n}\n\nroot_resolved = root.resolve()\nif root.exists():\n    raise SystemExit(f\"Refusing existing exercise root: {root}\")\ndestinations = [root / relative for relative in files]\nfor destination in destinations:\n    parent = destination.parent.resolve()\n    if os.path.commonpath((str(root_resolved), str(parent))) != str(root_resolved):\n        raise SystemExit(f\"Refusing destination outside root: {destination}\")\n    if destination.exists():\n        raise SystemExit(f\"Refusing existing destination: {destination}\")\n\nroot.mkdir()\nfor relative, text in files.items():\n    destination = root / relative\n    destination.parent.mkdir(parents=True, exist_ok=True)\n    destination.write_text(text, encoding=\"utf-8\", newline=\"\\n\")\nprint(root)\nprint(\"Created only preflighted destinations; no cleanup will be attempted on failure.\")"
+      }
+    },
+    {
+      "id": "first-task-run",
+      "title": "Run the configured first task in OpenCode",
+      "paragraphs": [
+        "From the empty parent directory, run the setup, enter the generated workspace, and execute the original three tests before starting OpenCode. The deliberately faulty source is expected to produce a nonzero baseline because it shallowly replaces the nested dictionary and mutates `base`. Exact traceback text and test order depend on Python, so no live output is asserted. Python test discovery is documented at https://docs.python.org/3/library/unittest.html#unittest-test-discovery.",
+        "Launch OpenCode from `opencode-v1-merge-task` with `opencode --agent merge-review`. OpenCode starts in the current working directory, and `--version`, `--help`, and `--agent <name>` are documented CLI forms. Source: https://opencode.ai/docs/cli, observed 2026-09-20. In the TUI, enter `/connect`, select an approved provider path, and then enter `/models` to select a model actually shown by the installed client. Z.AI is one documented path, while GLM4.7 is only an example and is not an availability guarantee. OpenCode stores connected credentials at `~/.local/share/opencode/auth.json`; do not display, copy, or publish that file. Provider and model choice remain broad, and the actual selection is UNKNOWN until observed. Source: https://opencode.ai/docs/providers, observed 2026-09-20.",
+        "Submit this task prompt as text in the OpenCode interface: `Implement the overlay function in src/merge_config.py. Recursively merge nested dictionaries, replace lists rather than merging list elements, preserve keys absent from the patch, add patch-only keys, and return a new result without mutating either input. Work only in src/merge_config.py. Do not edit tests, opencode.json, protected files, Git metadata, or unrelated files. Do not run shell, use subagents, use web tools, or access external directories. Show the proposed diff for human approval.`",
+        "Approve only a proposed edit to the exact path `src/merge_config.py` after reviewing its diff. Decline edits to tests, configuration, protected files, unrelated files, or Git metadata, and decline shell, subagent, web, and external-directory requests. The expected patch replaces aliasing and shallow `dict.update` with recursive dictionary merging and cloning of dictionaries and lists. The complete reference patch remains in the following `first-task-contract` section. After leaving OpenCode, the human runs the tests because agent `bash` is denied.",
+        "The expected post-patch result is three passing original tests. The independent nested probe then checks a new nested input, list replacement, preservation of absent keys, and non-mutation. It is expected to exit successfully without output. These are expected results, not fabricated live outcomes. After the separate changed-input task elsewhere in the module, the retained original three tests plus the five changed tests are expected to total eight passing tests, and this same independent probe is expected to continue passing. Causal feedback must connect any failure to the implementation: lost nested keys indicate shallow replacement, changed inputs indicate aliasing or incomplete cloning, and an incorrect list value indicates element-wise list merging instead of replacement.",
+        "If the baseline, proposed scope, diff, or tests differ from the contract, stop the agent and reject the edit. Recover by changing only `src/merge_config.py`; preserve both test files, `opencode.json`, protected files, unrelated work, and Git metadata. Do not use reset, clean, broad restore, or destructive deletion commands. Record actual versions, approvals, diffs, exit statuses, and changed files separately rather than claiming them here.",
+        "The command block contains only shell commands. It intentionally excludes `/connect`, `/models`, and the task prompt because those are TUI input, not shell commands. On Windows, use `py -3` in place of each `python3`; in PowerShell use `Set-Location opencode-v1-merge-task` in place of `cd opencode-v1-merge-task`."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "safe POSIX shell commands from setup through independent verification",
+        "code": "# cwd: the empty parent directory\nopencode --version\nopencode --help\npython3 setup_exercise.py\ncd opencode-v1-merge-task\n\n# Expected nonzero baseline from the deliberately faulty source.\npython3 -m unittest discover -s tests -v\n\n# Launch the TUI in this cwd; enter TUI commands and the prompt described above.\nopencode --agent merge-review\n\n# After reviewing the diff and leaving OpenCode, run the original suite.\npython3 -m unittest discover -s tests -v\n\n# Independent changed-input probe. Success produces no output and exits zero.\npython3 -c 'import copy; from src.merge_config import overlay; base={\"outer\":{\"keep\":{\"x\":1},\"items\":[1,2]},\"untouched\":7}; patch={\"outer\":{\"keep\":{\"y\":2},\"items\":[3]}}; before=copy.deepcopy((base,patch)); assert overlay(base,patch)=={\"outer\":{\"keep\":{\"x\":1,\"y\":2},\"items\":[3]},\"untouched\":7}; assert (base,patch)==before'\n\n# After the later five-test changed-input task and its reviewed patch:\npython3 -m unittest tests/test_merge_config_changed.py -v\npython3 -m unittest discover -s tests -v\npython3 -c 'import copy; from src.merge_config import overlay; base={\"outer\":{\"keep\":{\"x\":1},\"items\":[1,2]},\"untouched\":7}; patch={\"outer\":{\"keep\":{\"y\":2},\"items\":[3]}}; before=copy.deepcopy((base,patch)); assert overlay(base,patch)=={\"outer\":{\"keep\":{\"x\":1,\"y\":2},\"items\":[3]},\"untouched\":7}; assert (base,patch)==before'"
+      }
+    },
+    {
+      "id": "first-task-contract",
+      "title": "Observe the deliberate failure and diagnose it",
+      "paragraphs": [
+        "The first task contract is deterministic Python 3 standard-library behavior: recursively merge dictionaries, replace a base list with the patch list, preserve absent base keys, add patch-only keys, return a new result, and mutate neither input. Deletion with `None` is deliberately not part of this first contract.",
+        "The generated source is deliberately faulty. It aliases `base` and performs a shallow `dict.update`. The protected first test file must remain unchanged. The baseline command is expected to exit nonzero. It should report failure of nested preservation and input non-mutation. Exact traceback wording and test ordering may vary by Python version, so no exact fabricated terminal transcript is asserted.",
+        "The narrow recovery is to stop OpenCode tools, inspect the diff, and change only `src/merge_config.py`. Do not run reset, clean, broad restore, or deletion commands. Preserve the original tests, configuration, unrelated work, secrets, and Git metadata. The causal diagnosis is shallow replacement loses nested keys, while aliasing mutates `base`. The corrected source below should produce three passing tests in the original file."
+      ],
+      "code": {
+        "language": "python",
+        "label": "complete corrected reference for the original contract",
+        "code": "def overlay(base, patch):\n    \"\"\"Recursively merge dictionaries, replace lists, and copy inputs.\"\"\"\n    if not isinstance(base, dict) or not isinstance(patch, dict):\n        raise TypeError(\"overlay expects two dictionaries\")\n\n    def clone(value):\n        if isinstance(value, dict):\n            return {key: clone(item) for key, item in value.items()}\n        if isinstance(value, list):\n            return [clone(item) for item in value]\n        return value\n\n    result = clone(base)\n    for key, patch_value in patch.items():\n        if key in result and isinstance(result[key], dict) and isinstance(patch_value, dict):\n            result[key] = overlay(result[key], patch_value)\n        else:\n            result[key] = clone(patch_value)\n    return result"
+      }
+    },
+    {
+      "id": "changed-input-tests",
+      "title": "Independent changed-input task with tests first",
+      "paragraphs": [
+        "After the original task passes, begin a separate task. Do not rewrite or weaken `tests/test_merge_config.py`. Add the following file as `tests/test_merge_config_changed.py`, preserving the first file. The changed contract introduces a deletion policy: a patch value of `None` deletes an existing key, nested deletion is recursive, `None` for a missing key is a no-op, lists remain complete replacements including lists containing `None`, and inputs remain unmodified.",
+        "The tests explicitly cover the previously failing nested patch-only case and a patch dictionary replacing a scalar. In both cases, the patch dictionary must be processed against an empty dictionary, so a deletion marker is omitted rather than copied into the result. Do not view or use the answer key until attempting this changed task."
+      ],
+      "code": {
+        "language": "python",
+        "label": "tests/test_merge_config_changed.py, complete test file before the answer",
+        "code": "import copy\nimport unittest\n\nfrom src.merge_config import overlay\n\n\nclass ChangedOverlayTests(unittest.TestCase):\n    def test_none_deletes_existing_nested_key(self):\n        base = {\"service\": {\"host\": \"old\", \"port\": 80}, \"debug\": True}\n        patch = {\"service\": {\"port\": None}}\n        self.assertEqual(\n            overlay(base, patch),\n            {\"service\": {\"host\": \"old\"}, \"debug\": True},\n        )\n\n    def test_nested_missing_none_is_noop_and_other_key_is_added(self):\n        self.assertEqual(\n            overlay({}, {\"new\": {\"missing\": None, \"value\": 2}}),\n            {\"new\": {\"value\": 2}},\n        )\n\n    def test_patch_dict_replacing_scalar_processes_deletions(self):\n        self.assertEqual(\n            overlay({\"new\": 9}, {\"new\": {\"missing\": None, \"value\": 2}}),\n            {\"new\": {\"value\": 2}},\n        )\n\n    def test_lists_are_replaced_and_none_elements_are_preserved(self):\n        self.assertEqual(\n            overlay({\"items\": [1, 2]}, {\"items\": [None, 3]}),\n            {\"items\": [None, 3]},\n        )\n\n    def test_changed_contract_does_not_mutate_inputs(self):\n        base = {\"service\": {\"host\": \"old\", \"port\": 80}, \"items\": [1]}\n        patch = {\"service\": {\"port\": None}, \"items\": [2]}\n        base_before = copy.deepcopy(base)\n        patch_before = copy.deepcopy(patch)\n        result = overlay(base, patch)\n        self.assertEqual(result, {\"service\": {\"host\": \"old\"}, \"items\": [2]})\n        self.assertEqual(base, base_before)\n        self.assertEqual(patch, patch_before)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "changed-input-answer",
+      "title": "Separate answer key for the changed deletion policy",
+      "paragraphs": [
+        "Only after attempting the changed task, replace only `src/merge_config.py` with this answer. It recursively processes every patch dictionary, including one replacing a scalar or adding a new key, by merging it against an empty dictionary. Therefore `None` deletes an existing key and is omitted for a missing key. Lists are cloned and replaced as complete values, so `None` list elements remain. The original three tests and the five changed tests are not modified.",
+        "Run the changed file first, then the combined suite. Expected outcomes are eight passing tests in the combined suite: three original tests plus five changed tests. This is an expected result, not a claimed live result."
+      ],
+      "code": {
+        "language": "python",
+        "label": "complete runnable answer key for the changed task",
+        "code": "def overlay(base, patch):\n    \"\"\"Merge dictionaries, delete with None, replace lists, and copy inputs.\"\"\"\n    if not isinstance(base, dict) or not isinstance(patch, dict):\n        raise TypeError(\"overlay expects two dictionaries\")\n\n    def clone(value):\n        if isinstance(value, dict):\n            return {key: clone(item) for key, item in value.items()}\n        if isinstance(value, list):\n            return [clone(item) for item in value]\n        return value\n\n    result = clone(base)\n    for key, patch_value in patch.items():\n        if patch_value is None:\n            result.pop(key, None)\n        elif isinstance(patch_value, dict):\n            existing = result.get(key)\n            if not isinstance(existing, dict):\n                existing = {}\n            result[key] = overlay(existing, patch_value)\n        else:\n            result[key] = clone(patch_value)\n    return result"
+      }
+    },
+    {
+      "id": "changed-feedback-verification",
+      "title": "Run independent verification and give causal feedback",
+      "paragraphs": [
+        "From `opencode-v1-merge-task`, add the changed test file, attempt the requirement, and then use the separate answer key only if needed. The exact commands are below. The first command should run five changed tests. The final discovery command should run all eight tests while retaining the original file. Do not replace the original test file with the changed file and do not mix the old replacement-only contract into the new deletion contract."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "changed-task and combined verification",
+        "code": "# cwd: opencode-v1-merge-task\npython3 -m unittest tests/test_merge_config_changed.py -v\npython3 -m unittest discover -s tests -v\n# After applying the separate answer key, rerun:\npython3 -m unittest tests/test_merge_config_changed.py -v\npython3 -m unittest discover -s tests -v"
+      }
+    },
+    {
+      "id": "v2-migration-boundary",
+      "title": "Compare the V2 shape without mixing it into the V1 exercise",
+      "paragraphs": [
+        "Do not paste V1 configuration into a V2 installation. V2 uses a `permissions` array with `action`, `resource`, and `effect`; it uses `shell` and `subagent` instead of V1 `bash` and `task`; and it uses plural `agents`. V2 documents last-match behavior with global rules followed by agent rules. Source: https://opencode.ai/v2/docs/permissions, observed 2026-09-20.",
+        "The example below is a shape comparison only. It is not the installed schema, not a complete replacement configuration, and not evidence that the installed client is V2. Confirm the installed version and matching documentation before generating a V2 file. V2 may also supply base permissions, so an unmatched resource must not be treated as proof of denial.",
+        "The comparison uses whole-value `*` catchalls rather than treating `**` as a recursive globstar. Specific source and protected-resource entries follow their broad rules. The protected patterns cover the explicit root and nested `.env*`, `private.pem`, `secrets.txt`, and `credential*` families used by this lab, plus any path value containing `token`, including root and nested basenames. They do not claim to identify every secret filename."
+      ],
+      "code": {
+        "language": "json",
+        "label": "V2 permission shape only, not an installed schema or V1 replacement",
+        "code": "{\n  \"permissions\": [\n    {\"action\": \"edit\", \"resource\": \"*\", \"effect\": \"ask\"},\n    {\"action\": \"edit\", \"resource\": \"src/*.py\", \"effect\": \"allow\"},\n    {\"action\": \"edit\", \"resource\": \"tests/*\", \"effect\": \"deny\"},\n    {\"action\": \"edit\", \"resource\": \".env*\", \"effect\": \"deny\"},\n    {\"action\": \"edit\", \"resource\": \"*/.env*\", \"effect\": \"deny\"},\n    {\"action\": \"edit\", \"resource\": \"private.pem\", \"effect\": \"deny\"},\n    {\"action\": \"edit\", \"resource\": \"*/private.pem\", \"effect\": \"deny\"},\n    {\"action\": \"edit\", \"resource\": \"secrets.txt\", \"effect\": \"deny\"},\n    {\"action\": \"edit\", \"resource\": \"*/secrets.txt\", \"effect\": \"deny\"},\n    {\"action\": \"edit\", \"resource\": \"credential*\", \"effect\": \"deny\"},\n    {\"action\": \"edit\", \"resource\": \"*/credential*\", \"effect\": \"deny\"},\n    {\"action\": \"edit\", \"resource\": \"*token*\", \"effect\": \"deny\"},\n    {\"action\": \"shell\", \"resource\": \"*\", \"effect\": \"deny\"},\n    {\"action\": \"subagent\", \"resource\": \"*\", \"effect\": \"deny\"}\n  ],\n  \"agents\": {\n    \"merge-review\": {\n      \"permissions\": [\n        {\"action\": \"edit\", \"resource\": \"*\", \"effect\": \"deny\"},\n        {\"action\": \"edit\", \"resource\": \"src/merge_config.py\", \"effect\": \"allow\"},\n        {\"action\": \"edit\", \"resource\": \".env*\", \"effect\": \"deny\"},\n        {\"action\": \"edit\", \"resource\": \"*/.env*\", \"effect\": \"deny\"},\n        {\"action\": \"edit\", \"resource\": \"private.pem\", \"effect\": \"deny\"},\n        {\"action\": \"edit\", \"resource\": \"*/private.pem\", \"effect\": \"deny\"},\n        {\"action\": \"edit\", \"resource\": \"secrets.txt\", \"effect\": \"deny\"},\n        {\"action\": \"edit\", \"resource\": \"*/secrets.txt\", \"effect\": \"deny\"},\n        {\"action\": \"edit\", \"resource\": \"credential*\", \"effect\": \"deny\"},\n        {\"action\": \"edit\", \"resource\": \"*/credential*\", \"effect\": \"deny\"},\n        {\"action\": \"edit\", \"resource\": \"*token*\", \"effect\": \"deny\"},\n        {\"action\": \"shell\", \"resource\": \"*\", \"effect\": \"deny\"},\n        {\"action\": \"subagent\", \"resource\": \"*\", \"effect\": \"deny\"}\n      ]\n    }\n  }\n}"
+      }
+    },
+    {
+      "id": "evidence-boundaries",
+      "title": "Record observed evidence without inventing a live outcome",
+      "paragraphs": [
+        "Record the actual client version, active configuration inspection, provider, selected model, approvals, displayed diff, test commands, exit statuses, and files changed. The offline tests establish Python behavior only. They do not establish that a model call occurred or that OpenCode enforced a permission. Never claim shell denial is an OS sandbox. Protect secrets, tests, `.env*` files, Git metadata, unrelated work, and files outside the workspace. Recovery must stop tools and change only the source file; it must not use reset, clean, broad restore, or destructive deletion."
+      ],
+      "code": {
+        "language": "text",
+        "label": "concrete fictional evidence record, explicitly not live evidence",
+        "code": "FICTIONAL EXAMPLE, NOT OBSERVED\ncwd: /work/opencode-v1-merge-task\nclient_version: UNKNOWN until opencode --version is run\nprovider: UNKNOWN until /connect is completed\nmodel: UNKNOWN until /models selection is observed\napprovals: UNKNOWN\nactive_config_inspection: UNKNOWN\nbaseline: expected nonzero from deliberately faulty source\noriginal recovery: expected 3 passing tests\nchanged tests before answer: expected failure if deletion policy is absent\ncombined result after answer: expected 8 passing tests\nfiles changed by recovery: src/merge_config.py only\nlive model call: UNKNOWN\npermission enforcement: UNKNOWN"
+      }
     }
   ],
   "sources": [
@@ -77,6 +231,36 @@
       "url": "https://opencode.ai/docs/agents/",
       "publisher": "OpenCode",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "OpenCode providers",
+      "url": "https://opencode.ai/docs/providers",
+      "publisher": "OpenCode",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "OpenCode agents",
+      "url": "https://opencode.ai/docs/agents",
+      "publisher": "OpenCode",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "OpenCode permissions",
+      "url": "https://opencode.ai/v2/docs/permissions",
+      "publisher": "OpenCode",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "OpenCode config",
+      "url": "https://opencode.ai/docs/config",
+      "publisher": "OpenCode",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "OpenCode cli",
+      "url": "https://opencode.ai/docs/cli",
+      "publisher": "OpenCode",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
