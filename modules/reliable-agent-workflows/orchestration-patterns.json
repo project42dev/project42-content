@@ -23,46 +23,51 @@
       "id": "simplest-sufficient-pattern",
       "title": "Use the simplest control structure that fits the uncertainty",
       "paragraphs": [
-        "A direct model call or fixed sequence is easier to test than an open-ended agent. Add model-directed routing only when the next step depends on semantic judgment that deterministic code cannot express economically.",
-        "Write down why each agent boundary exists. Specialization should reduce prompt conflict, permission breadth, or evaluation ambiguity enough to justify extra latency, cost, state transfer, and failure modes."
+        "A direct pattern performs one bounded operation and validates its result. It has the fewest boundaries, so begin there when one operation can complete the task. Use a sequential pattern when later work depends on earlier evidence. The local lab demonstrates both without calling a hosted model: trusted deterministic fixtures stand in for bounded workers.",
+        "Add conditional routing only when the input determines which specialist is needed. In the lab, the classifier returns exactly one value from a trusted map. A high-risk input selects specialistWorker, a low-risk input selects directWorker, and the unselected branch is marked skipped rather than executed. Missing or unknown routes fail closed before either worker or approval.",
+        "Write down why every boundary exists. Specialization should reduce prompt conflict, permission breadth, or evaluation ambiguity enough to justify added latency, state transfer, budget use, and failure modes. More agents create more boundaries; they do not automatically create better work."
       ],
-      "callout": "More agents create more boundaries; they do not automatically create better work."
+      "callout": "Choose among seven executable shapes: direct, sequential, conditional router, manager, handoff and return, parallel join, and bounded evaluator-reviser loop."
     },
     {
       "id": "deterministic-workflows",
       "title": "Keep known control flow in code",
       "paragraphs": [
-        "Sequential workflows fit ordered dependencies. Parallel workflows fit independent branches. Bounded loops fit iterative improvement with a measurable exit. Conditional routes fit decisions based on validated state.",
-        "Google ADK describes sequential, loop, and parallel workflow agents as deterministic execution patterns. The same portable idea applies outside ADK: application code owns the graph while models perform bounded nodes."
+        "Sequential workflows encode ordered dependencies. The lab runs draft, then validate, then parent approval. A conditional router validates one classifier value against a closed route map, dispatches only the selected worker, records the other worker as skipped, and requires current selected evidence at the join.",
+        "The evaluator-reviser pattern is also deterministic at the graph level. An evaluator reports approval, exact unmet criteria, feedback, and artifact revision. If criteria remain unmet, a reviser changes the artifact and the evaluator runs again. The loop stops on explicit approval with no unmet criteria, a revision cap, budget exhaustion, or deadline. A revision cannot approve itself, and cap exhaustion escalates.",
+        "Google ADK documents sequential, loop, and parallel workflow agents. Anthropic describes routing and evaluator-optimizer workflows. These framework examples support a portable rule: application code owns allowed edges, contracts, limits, and terminal states while uncertain work remains inside bounded nodes."
       ],
       "code": {
         "language": "text",
-        "label": "Deterministic graph",
-        "code": "intake -> classify\nclassify -> {direct | specialist | human}\nspecialist -> verify\nverify -> {accept | revise once | escalate}\nEvery edge records input version, output version, decision, and budget."
+        "label": "Seven governed graph shapes",
+        "code": "direct:       parent action -> validate terminal result\nsequential:   draft -> validate -> parent approval\nrouter:       classify -> exactly one trusted worker -> join\nmanager:      parent -> specialist tool -> parent synthesis\nhandoff:      parent transfer -> specialist -> explicit return\nparallel:     {research || review || validate} -> required join\nevaluator:    evaluate -> revise -> evaluate, bounded by criteria and cap"
       }
     },
     {
       "id": "manager-and-handoff",
       "title": "Decide who retains control",
       "paragraphs": [
-        "In a manager pattern, one agent owns the user-facing result and invokes specialists as tools. This centralizes synthesis, guardrails, and budget control. It also makes the manager a bottleneck and requires it to evaluate specialist output.",
-        "In a handoff pattern, a router transfers control to a specialist. This narrows active instructions and lets the specialist interact directly, but the handoff contract must preserve user intent, trusted facts, permissions, unresolved questions, and return conditions."
+        "In a manager pattern, the parent remains the control owner. It invokes a specialist as a tool, receives typed evidence, applies shared guardrails, and owns synthesis and approval. The lab's research worker cannot approve; only the parent has approval authority. This centralizes control but can make the manager a bottleneck.",
+        "In a handoff pattern, active ownership changes under an explicit trusted contract. The lab permits a transfer only from parent to security-specialist with the declared acceptance contract. The specialist must then return ownership to parent under a separate return contract before approval. A result that merely claims to be a handoff is not an identity credential.",
+        "Use a manager when central synthesis and continuing parent control are required. Use a handoff when a specialist must become active under narrower instructions. In either case preserve user intent, trusted facts, tenant, permissions, unresolved questions, completed effects, budget, trace continuity, and return conditions."
       ]
     },
     {
       "id": "parallelism-and-joins",
       "title": "Parallelize independence, then make the join explicit",
       "paragraphs": [
-        "Run branches concurrently only when they do not mutate the same state, depend on each other's results, or consume a shared scarce limit in an unsafe way. Give each branch its own scope, budget, idempotency keys, and evidence contract.",
-        "The join must define required versus optional branches, timeout behavior, conflicting evidence, retry ownership, cancellation, and partial-result policy. Do not let whichever branch finishes last silently become the answer."
+        "Parallel execution is appropriate only for independent work. In the lab, research, review, and validation use the same input snapshot but do not depend on one another or mutate shared state. Their promises start before earlier branches settle, so tests observe actual overlap and out-of-order completion rather than a parallel-looking label.",
+        "The parent still requires successful current-revision evidence from research, review, and validation. If a required branch fails, sibling completion cannot authorize approval. Late completion after a terminal decision is ignored. Optional work cannot replace a missing required dependency, and evidence is joined by dependency ID rather than completion order.",
+        "The learner exercise contains one causal edit: remove the false review-to-research dependency while keeping the parent's three required dependencies. This permits review to overlap research without weakening the join, authority, contracts, tenant checks, revision checks, timeouts, or failure behavior."
       ]
     },
     {
       "id": "observe-and-limit",
       "title": "Trace the graph and bound every edge",
       "paragraphs": [
-        "Record a run ID, parent and child span, active agent, route reason, input and output contract versions, tool calls, approvals, token or cost budget, retries, and terminal state. Keep sensitive content out of telemetry while retaining useful hashes and references.",
-        "Provider frameworks expose different primitives: Anthropic discusses workflow and agent patterns, OpenAI documents managers and handoffs, and Google ADK provides workflow and collaborative structures. Treat those as implementation options and test the same product-level invariants across them."
+        "Record a run ID, parent and child span, active owner, route reason, input and output contract versions, fixture or tool calls, accepted effects, budget reservations, retries, artifact revision, and terminal state. Keep secrets and unnecessary personal data out of telemetry while retaining governed references or safe hashes.",
+        "Every node in the lab declares its tenant, role, principal, allowed actions, contracts, reservation, timeout, and attempt cap. Tests reject unknown dependencies, cycles, multiple finals, stale evidence, contract mismatches, forged approval, spoofed handoffs, conflicting writes, unsafe routes, budget exhaustion, timeouts, and final nodes that do not depend on all required work.",
+        "Run the lab locally from its directory with Node.js 22 or later. It uses deterministic fixtures, fictional budget units, and no provider or model execution. Use npm run demo for seven demonstrations, npm run trace for event evidence, npm run learner:test for the edited learner graph, and npm test for the complete suite."
       ]
     }
   ],
@@ -70,121 +75,993 @@
     "id": "activity-orchestration-design",
     "title": "Design and simulate an orchestration graph",
     "instructions": [
-      "Choose a real task and compare direct, deterministic workflow, manager, and handoff designs using quality, risk, latency, cost, and debuggability.",
-      "Create the smallest justified graph with typed node inputs, outputs, budgets, permissions, retry limits, and terminal states.",
-      "Add one parallel branch only if independence is proven, then define its join, timeout, cancellation, conflict, and partial-failure policies.",
-      "Simulate normal completion, a bad route, conflicting branch evidence, specialist timeout, repeated revision, and human escalation."
+      "Open a terminal and change to training/reliable-agent-workflows/orchestration-patterns/lab.",
+      "Confirm that node --version reports Node.js 22 or later.",
+      "Run npm run regression. This executes only test/executor.test.mjs and should pass 23 tests before you edit the learner file. This establishes the unchanged regression baseline.",
+      "Run npm run learner:test. It should intentionally fail because the starting learner graph has the false dependency review -> research. This failure demonstrates that the dedicated test evaluates the editable graph.",
+      "Open src/learner.mjs. In the review node, remove only 'research' from its dependsOn array, changing it to []. Do not change the parent node or any test, fixture, delay, label, assertion, or security rule.",
+      "Save src/learner.mjs and run npm run learner:test. It should pass. The assessment should report pass=true, independent=true, and requiredJoin=true.",
+      "Run npm test. It combines the executor regression suite and the repaired learner test, and should pass 24 tests.",
+      "Run npm run learner and read the feedback. Explain that removing the false edge permits overlap among research, review, and validation while the parent still requires all three results.",
+      "Run npm run demo and npm run trace. Compare the local output with the README. These commands use deterministic local fixtures, make no remote or model run, and do not establish production performance or external-effect rollback.",
+      "If you want to inspect the reference, run npm run solution only after attempting the edit. The reference is a solution aid, not evidence that your editable learner graph was repaired."
     ],
     "evidence": [
       "A pattern decision record and versioned orchestration graph with explicit contracts on every edge.",
-      "Six trace records showing routes, budgets, failures, joins, and deterministic terminal states."
+      "Six trace records showing routes, budgets, failures, joins, and deterministic terminal states.",
+      "Terminal output showing the learner assessment passes, all three independent branches start before the join, the required join remains true, and the complete test suite passes."
     ],
     "reflectionPrompt": "Which proposed agent became unnecessary after the control-flow decision was made explicit?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 1500,
+    "estimatedSeconds": 400,
     "cues": [
       {
-        "id": "cue-orchestration-simple",
+        "id": "cue-orchestration-simple-1",
         "kind": "narration",
         "sectionId": "simplest-sufficient-pattern",
-        "text": "Choose the simplest orchestration that handles the task's real uncertainty and control requirements."
+        "text": "Begin with direct execution. In the direct\nlab graph, one parent fixture performs a"
       },
       {
-        "id": "cue-orchestration-deterministic",
+        "id": "cue-orchestration-simple-2",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "bounded publish action and its validated\nresult determines the terminal state. This"
+      },
+      {
+        "id": "cue-orchestration-simple-3",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "shape minimizes latency, state transfer,\npermissions, and recovery paths. Move to a"
+      },
+      {
+        "id": "cue-orchestration-simple-4",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "sequential workflow only when there is a\nreal dependency. The sequential demo"
+      },
+      {
+        "id": "cue-orchestration-simple-5",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "creates a draft, validates that draft, and\nthen lets the parent aggregate current"
+      },
+      {
+        "id": "cue-orchestration-simple-6",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "validation evidence. Validation cannot\ncorrectly start before the draft exists,"
+      },
+      {
+        "id": "cue-orchestration-simple-7",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "so the edge is justified. For every\nadditional boundary, ask what it buys. A"
+      },
+      {
+        "id": "cue-orchestration-simple-8",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "specialist might narrow permissions,\nreduce conflicting instructions, or make"
+      },
+      {
+        "id": "cue-orchestration-simple-9",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "evaluation easier. It also creates another\ncontract, another budget reservation, and"
+      },
+      {
+        "id": "cue-orchestration-simple-10",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "another failure surface. If a step is\nfully known and deterministic, keep it in"
+      },
+      {
+        "id": "cue-orchestration-simple-11",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "application code. If one bounded operation\nsolves the task, do not build a manager,"
+      },
+      {
+        "id": "cue-orchestration-simple-12",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "handoff network, or review loop around it.\nSimplicity is not the absence of"
+      },
+      {
+        "id": "cue-orchestration-simple-13",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "governance. Direct execution still needs\nauthority checks, contracts, timeouts,"
+      },
+      {
+        "id": "cue-orchestration-simple-14",
+        "kind": "narration",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "budgets, result validation, and an\nexplicit terminal state."
+      },
+      {
+        "id": "cue-orchestration-deterministic-1",
         "kind": "narration",
         "sectionId": "deterministic-workflows",
-        "text": "Keep known sequencing, branching, looping, and joins in deterministic code with models inside bounded nodes."
+        "text": "The first three patterns establish a\nprogression. Direct has one bounded"
       },
       {
-        "id": "cue-orchestration-control",
+        "id": "cue-orchestration-deterministic-2",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "operation. Sequential encodes true ordered\ndependencies. Router dispatches exactly"
+      },
+      {
+        "id": "cue-orchestration-deterministic-3",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "one branch selected from trusted state.\nThe graph, rather than a worker, owns the"
+      },
+      {
+        "id": "cue-orchestration-deterministic-4",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "allowed edges. This principle also governs\nloops. A loop is not permission to"
+      },
+      {
+        "id": "cue-orchestration-deterministic-5",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "continue until a worker feels satisfied.\nIt needs measurable criteria, a revision"
+      },
+      {
+        "id": "cue-orchestration-deterministic-6",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "counter, budget and deadline checks, and\ndeclared terminal behavior. Google ADK"
+      },
+      {
+        "id": "cue-orchestration-deterministic-7",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "documents sequential, loop, and parallel\nworkflow agents as deterministic workflow"
+      },
+      {
+        "id": "cue-orchestration-deterministic-8",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "structures. The portable lesson is not\nthat every framework uses the same class"
+      },
+      {
+        "id": "cue-orchestration-deterministic-9",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "names. It is that known control flow\nbelongs in code. A model or other"
+      },
+      {
+        "id": "cue-orchestration-deterministic-10",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "uncertain worker may produce a\nclassification, draft, evaluation, or"
+      },
+      {
+        "id": "cue-orchestration-deterministic-11",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "revision, but it should not invent hidden\nedges, silently add retries, or create a"
+      },
+      {
+        "id": "cue-orchestration-deterministic-12",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "new success state. Record the input and\noutput contract on each edge so a"
+      },
+      {
+        "id": "cue-orchestration-deterministic-13",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "trace can show which interface governed\nthe transition. Record the route reason,"
+      },
+      {
+        "id": "cue-orchestration-deterministic-14",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "budget reservation, accepted result\nrevision, and terminal decision for the"
+      },
+      {
+        "id": "cue-orchestration-deterministic-15",
+        "kind": "narration",
+        "sectionId": "deterministic-workflows",
+        "text": "same reason."
+      },
+      {
+        "id": "cue-orchestration-control-1",
         "kind": "narration",
         "sectionId": "manager-and-handoff",
-        "text": "Use a manager when one agent must retain synthesis control and a handoff when a specialist should take over."
+        "text": "Manager and handoff patterns differ\nprimarily in who remains active. In the"
       },
       {
-        "id": "cue-orchestration-visual",
-        "kind": "visual",
+        "id": "cue-orchestration-control-2",
+        "kind": "narration",
         "sectionId": "manager-and-handoff",
-        "text": "Compare direct, sequential, manager, handoff, parallel, and evaluator graphs on one task.",
-        "accessibilityAlternative": "A static comparison table lists control owner, state transfer, best fit, added risk, and terminal behavior for six orchestration patterns. Reduced-motion mode shows the entire table."
+        "text": "manager demo, the parent calls a research\nspecialist as a tool. The specialist may"
       },
       {
-        "id": "cue-orchestration-parallel",
+        "id": "cue-orchestration-control-3",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "read and return evidence, but it cannot\napprove. The parent retains control,"
+      },
+      {
+        "id": "cue-orchestration-control-4",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "validates the artifact, synthesizes the\nresult, and owns approval. This"
+      },
+      {
+        "id": "cue-orchestration-control-5",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "arrangement is useful when a central agent\nmust preserve one user-facing plan and"
+      },
+      {
+        "id": "cue-orchestration-control-6",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "combine several specialist artifacts. Its\nrisks include a manager bottleneck and"
+      },
+      {
+        "id": "cue-orchestration-control-7",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "overconfidence in evidence it cannot\njudge. In the handoff demo, ownership"
+      },
+      {
+        "id": "cue-orchestration-control-8",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "actually changes. The parent transfers to\nsecurity-specialist under a declared"
+      },
+      {
+        "id": "cue-orchestration-control-9",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "transfer contract. The specialist becomes\nactive, performs its bounded"
+      },
+      {
+        "id": "cue-orchestration-control-10",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "responsibility, and returns ownership\nunder a separate return contract. Approval"
+      },
+      {
+        "id": "cue-orchestration-control-11",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "is possible only after ownership returns\nto parent. A fixture result that claims"
+      },
+      {
+        "id": "cue-orchestration-control-12",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "transfer is not sufficient. The executor\nchecks the trusted source, destination,"
+      },
+      {
+        "id": "cue-orchestration-control-13",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "transition, principal, and acceptance\ncontract. Use manager delegation when the"
+      },
+      {
+        "id": "cue-orchestration-control-14",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "parent must retain synthesis and\nconversational control. Use handoff when"
+      },
+      {
+        "id": "cue-orchestration-control-15",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "the specialist needs to own the next phase\nunder narrower instructions. Do not use"
+      },
+      {
+        "id": "cue-orchestration-control-16",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "these names interchangeably because their\nstate, permission, and recovery"
+      },
+      {
+        "id": "cue-orchestration-control-17",
+        "kind": "narration",
+        "sectionId": "manager-and-handoff",
+        "text": "requirements differ."
+      },
+      {
+        "id": "cue-orchestration-parallel-1",
         "kind": "narration",
         "sectionId": "parallelism-and-joins",
-        "text": "Parallelize only independent branches and define timeout, conflict, cancellation, and partial-failure behavior at the join."
+        "text": "Parallelism is useful only when branches\nare independent. Independence means more"
       },
       {
-        "id": "cue-orchestration-observe",
+        "id": "cue-orchestration-parallel-2",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "than different names or different models.\nOne branch must not require another"
+      },
+      {
+        "id": "cue-orchestration-parallel-3",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "branch's result, both must not mutate the\nsame state without coordination, and they"
+      },
+      {
+        "id": "cue-orchestration-parallel-4",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "must not consume an unsafe shared scarce\nlimit. In the lab, research, review, and"
+      },
+      {
+        "id": "cue-orchestration-parallel-5",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "validation receive the same input revision\nand have empty dependency lists. The"
+      },
+      {
+        "id": "cue-orchestration-parallel-6",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "scheduler starts their promises without\nawaiting one before starting the next."
+      },
+      {
+        "id": "cue-orchestration-parallel-7",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "Tests record active fixture counts and\nstart events, proving that the three"
+      },
+      {
+        "id": "cue-orchestration-parallel-8",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "operations overlap and may finish out of\norder. The parent does not accept"
+      },
+      {
+        "id": "cue-orchestration-parallel-9",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "whichever result finishes last. It joins\nevidence by dependency ID and requires"
+      },
+      {
+        "id": "cue-orchestration-parallel-10",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "research, review, and validation to\nsucceed at the current revision. If one"
+      },
+      {
+        "id": "cue-orchestration-parallel-11",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "required branch fails, approval is\nprevented. A sibling completing after the"
+      },
+      {
+        "id": "cue-orchestration-parallel-12",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "terminal failure is marked as an ignored\nlate completion. This distinction is"
+      },
+      {
+        "id": "cue-orchestration-parallel-13",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "central: concurrency is how work executes,\nwhile the join defines the product"
+      },
+      {
+        "id": "cue-orchestration-parallel-14",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "outcome. Decide required and optional\nbranches, timeout, cancellation, retry"
+      },
+      {
+        "id": "cue-orchestration-parallel-15",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "ownership, disagreement handling, and\npartial-result labeling before launching"
+      },
+      {
+        "id": "cue-orchestration-parallel-16",
+        "kind": "narration",
+        "sectionId": "parallelism-and-joins",
+        "text": "work."
+      },
+      {
+        "id": "cue-orchestration-observe-1",
         "kind": "narration",
         "sectionId": "observe-and-limit",
-        "text": "Trace every route and bound every agent, edge, retry, approval, and terminal state."
+        "text": "Across all seven patterns, observability\nand limits make the control structure"
       },
       {
-        "id": "cue-orchestration-prompt",
+        "id": "cue-orchestration-observe-2",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "enforceable. Record the run identifier,\nactive owner, node and parent span, route"
+      },
+      {
+        "id": "cue-orchestration-observe-3",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "decision, contract versions, input\nrevision, accepted evidence, effects,"
+      },
+      {
+        "id": "cue-orchestration-observe-4",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "reservations, retries, and terminal state.\nKeep secrets and unnecessary personal data"
+      },
+      {
+        "id": "cue-orchestration-observe-5",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "out of telemetry. A trace should still let\nan authorized reviewer reconstruct why"
+      },
+      {
+        "id": "cue-orchestration-observe-6",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "execution moved and why it ended. Every\nlab node declares a tenant, role,"
+      },
+      {
+        "id": "cue-orchestration-observe-7",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "principal, allowed actions, reservation,\ntimeout, attempt cap, input contract, and"
+      },
+      {
+        "id": "cue-orchestration-observe-8",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "output contract. Validation rejects\nunknown dependencies, duplicate IDs,"
+      },
+      {
+        "id": "cue-orchestration-observe-9",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "cycles, multiple final nodes, stale\ncompletions, dependency contract"
+      },
+      {
+        "id": "cue-orchestration-observe-10",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "mismatches, forged approval, spoofed\nhandoffs, and a final node that does not"
+      },
+      {
+        "id": "cue-orchestration-observe-11",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "transitively depend on all required work.\nThese checks are not decorative. They"
+      },
+      {
+        "id": "cue-orchestration-observe-12",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "prevent a fast or hostile result from\nbypassing the graph. Frameworks expose"
+      },
+      {
+        "id": "cue-orchestration-observe-13",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "different manager, handoff, workflow, and\ntool abstractions. Treat those as"
+      },
+      {
+        "id": "cue-orchestration-observe-14",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "adapters. Preserve the same product-level\ninvariants and tests when changing"
+      },
+      {
+        "id": "cue-orchestration-observe-15",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "implementations rather than assuming\nsimilarly named SDK objects provide"
+      },
+      {
+        "id": "cue-orchestration-observe-16",
+        "kind": "narration",
+        "sectionId": "observe-and-limit",
+        "text": "identical guarantees."
+      },
+      {
+        "id": "cue-orchestration-patterns-learner-prompt",
         "kind": "learner-prompt",
-        "sectionId": "simplest-sufficient-pattern",
-        "text": "Ask learners which semantic decision truly requires model-directed routing."
-      },
-      {
-        "id": "cue-orchestration-pause",
-        "kind": "pause",
         "sectionId": "parallelism-and-joins",
-        "text": "Allow three minutes to define what the join does when one required branch times out."
+        "text": "Consider two branches that both edit the same policy document. Different models perform the edits, and each branch is individually fast. Should they run in parallel by default? Write down your answer and the state property that supports it. Then identify one safe redesign: serialize the writes, partition the document into nonoverlapping owned regions, or have both branches return read-only proposals for a deterministic reconciliation step."
       },
       {
-        "id": "cue-orchestration-checkpoint",
+        "id": "cue-orchestration-patterns-checkpoint",
         "kind": "checkpoint",
-        "sectionId": "observe-and-limit",
-        "text": "Check that every path ends in accept, bounded revise, escalate, cancel, or fail with evidence."
+        "sectionId": "manager-and-handoff",
+        "text": "Checkpoint. A support coordinator asks a security specialist for an analysis, receives the typed report, and remains responsible for the final customer response. Is this a manager or a handoff? Choose manager because active control never left the coordinator. Now change one fact: the specialist becomes the active owner and communicates through a narrower security workflow until an explicit return condition. That is a handoff. Your answer should depend on control ownership, not on whether two workers exist."
       },
       {
-        "id": "cue-orchestration-activity",
-        "kind": "learner-prompt",
-        "text": "Guide the pattern comparison, graph design, parallel join, and six execution traces."
-      },
-      {
-        "id": "cue-orchestration-assessment",
+        "id": "cue-orchestration-patterns-assessment-handoff",
         "kind": "assessment-handoff",
-        "text": "Begin the check after each agent boundary has a reason, contract, budget, and owner."
+        "text": "When ready, begin the five-question knowledge check. Question one asks you to choose deterministic sequencing for fixed ordered work. Question two checks whether you understand that a manager retains synthesis control. Questions three and four test independence and explicit join policy. Question five asks why route reasons and contract versions belong in traces. Use the executable patterns as your mental model: one bounded operation, ordered dependencies, one selected route, retained manager control, trusted transfer and return, overlapping independent branches with a required join, and measurable revision under a hard bound."
+      },
+      {
+        "id": "cue-orchestration-patterns-visual",
+        "kind": "visual",
+        "sectionId": "simplest-sufficient-pattern",
+        "text": "A decision funnel begins with direct execution and adds structures only when dependencies or uncertainty require them.",
+        "accessibilityAlternative": "Questions ask whether one bounded operation works, whether ordered dependencies exist, whether input selects a branch, whether control transfers, whether branches are independent, and whether measurable revision is needed."
       }
     ],
-    "transcript": "Choose the simplest orchestration that handles the task's real uncertainty and control requirements. Keep known sequencing, branching, looping, and joins in deterministic code with models inside bounded nodes. Use a manager when one agent must retain synthesis control and a handoff when a specialist should take over. Parallelize only independent branches and define timeout, conflict, cancellation, and partial-failure behavior at the join. Trace every route and bound every agent, edge, retry, approval, and terminal state.",
+    "transcript": "Begin with direct execution. In the direct\nlab graph, one parent fixture performs a bounded publish action and its validated\nresult determines the terminal state. This shape minimizes latency, state transfer,\npermissions, and recovery paths. Move to a sequential workflow only when there is a\nreal dependency. The sequential demo creates a draft, validates that draft, and\nthen lets the parent aggregate current validation evidence. Validation cannot\ncorrectly start before the draft exists, so the edge is justified. For every\nadditional boundary, ask what it buys. A specialist might narrow permissions,\nreduce conflicting instructions, or make evaluation easier. It also creates another\ncontract, another budget reservation, and another failure surface. If a step is\nfully known and deterministic, keep it in application code. If one bounded operation\nsolves the task, do not build a manager, handoff network, or review loop around it.\nSimplicity is not the absence of governance. Direct execution still needs\nauthority checks, contracts, timeouts, budgets, result validation, and an\nexplicit terminal state. The first three patterns establish a\nprogression. Direct has one bounded operation. Sequential encodes true ordered\ndependencies. Router dispatches exactly one branch selected from trusted state.\nThe graph, rather than a worker, owns the allowed edges. This principle also governs\nloops. A loop is not permission to continue until a worker feels satisfied.\nIt needs measurable criteria, a revision counter, budget and deadline checks, and\ndeclared terminal behavior. Google ADK documents sequential, loop, and parallel\nworkflow agents as deterministic workflow structures. The portable lesson is not\nthat every framework uses the same class names. It is that known control flow\nbelongs in code. A model or other uncertain worker may produce a\nclassification, draft, evaluation, or revision, but it should not invent hidden\nedges, silently add retries, or create a new success state. Record the input and\noutput contract on each edge so a trace can show which interface governed\nthe transition. Record the route reason, budget reservation, accepted result\nrevision, and terminal decision for the same reason. Manager and handoff patterns differ\nprimarily in who remains active. In the manager demo, the parent calls a research\nspecialist as a tool. The specialist may read and return evidence, but it cannot\napprove. The parent retains control, validates the artifact, synthesizes the\nresult, and owns approval. This arrangement is useful when a central agent\nmust preserve one user-facing plan and combine several specialist artifacts. Its\nrisks include a manager bottleneck and overconfidence in evidence it cannot\njudge. In the handoff demo, ownership actually changes. The parent transfers to\nsecurity-specialist under a declared transfer contract. The specialist becomes\nactive, performs its bounded responsibility, and returns ownership\nunder a separate return contract. Approval is possible only after ownership returns\nto parent. A fixture result that claims transfer is not sufficient. The executor\nchecks the trusted source, destination, transition, principal, and acceptance\ncontract. Use manager delegation when the parent must retain synthesis and\nconversational control. Use handoff when the specialist needs to own the next phase\nunder narrower instructions. Do not use these names interchangeably because their\nstate, permission, and recovery requirements differ. Parallelism is useful only when branches\nare independent. Independence means more than different names or different models.\nOne branch must not require another branch's result, both must not mutate the\nsame state without coordination, and they must not consume an unsafe shared scarce\nlimit. In the lab, research, review, and validation receive the same input revision\nand have empty dependency lists. The scheduler starts their promises without\nawaiting one before starting the next. Tests record active fixture counts and\nstart events, proving that the three operations overlap and may finish out of\norder. The parent does not accept whichever result finishes last. It joins\nevidence by dependency ID and requires research, review, and validation to\nsucceed at the current revision. If one required branch fails, approval is\nprevented. A sibling completing after the terminal failure is marked as an ignored\nlate completion. This distinction is central: concurrency is how work executes,\nwhile the join defines the product outcome. Decide required and optional\nbranches, timeout, cancellation, retry ownership, disagreement handling, and\npartial-result labeling before launching work. Across all seven patterns, observability\nand limits make the control structure enforceable. Record the run identifier,\nactive owner, node and parent span, route decision, contract versions, input\nrevision, accepted evidence, effects, reservations, retries, and terminal state.\nKeep secrets and unnecessary personal data out of telemetry. A trace should still let\nan authorized reviewer reconstruct why execution moved and why it ended. Every\nlab node declares a tenant, role, principal, allowed actions, reservation,\ntimeout, attempt cap, input contract, and output contract. Validation rejects\nunknown dependencies, duplicate IDs, cycles, multiple final nodes, stale\ncompletions, dependency contract mismatches, forged approval, spoofed\nhandoffs, and a final node that does not transitively depend on all required work.\nThese checks are not decorative. They prevent a fast or hostile result from\nbypassing the graph. Frameworks expose different manager, handoff, workflow, and\ntool abstractions. Treat those as adapters. Preserve the same product-level\ninvariants and tests when changing implementations rather than assuming\nsimilarly named SDK objects provide identical guarantees.",
     "captions": [
       {
-        "cueId": "cue-orchestration-simple",
+        "cueId": "cue-orchestration-simple-1",
         "startSeconds": 0,
-        "endSeconds": 270,
-        "text": "Choose the simplest orchestration that handles the task's real uncertainty and control requirements."
+        "endSeconds": 6,
+        "text": "Begin with direct execution. In the direct\nlab graph, one parent fixture performs a"
       },
       {
-        "cueId": "cue-orchestration-deterministic",
-        "startSeconds": 300,
-        "endSeconds": 570,
-        "text": "Keep known sequencing, branching, looping, and joins in deterministic code with models inside bounded nodes."
+        "cueId": "cue-orchestration-simple-2",
+        "startSeconds": 6,
+        "endSeconds": 12,
+        "text": "bounded publish action and its validated\nresult determines the terminal state. This"
       },
       {
-        "cueId": "cue-orchestration-control",
-        "startSeconds": 600,
-        "endSeconds": 870,
-        "text": "Use a manager when one agent must retain synthesis control and a handoff when a specialist should take over."
+        "cueId": "cue-orchestration-simple-3",
+        "startSeconds": 12,
+        "endSeconds": 18,
+        "text": "shape minimizes latency, state transfer,\npermissions, and recovery paths. Move to a"
       },
       {
-        "cueId": "cue-orchestration-parallel",
-        "startSeconds": 900,
-        "endSeconds": 1170,
-        "text": "Parallelize only independent branches and define timeout, conflict, cancellation, and partial-failure behavior at the join."
+        "cueId": "cue-orchestration-simple-4",
+        "startSeconds": 18,
+        "endSeconds": 24,
+        "text": "sequential workflow only when there is a\nreal dependency. The sequential demo"
       },
       {
-        "cueId": "cue-orchestration-observe",
-        "startSeconds": 1200,
-        "endSeconds": 1440,
-        "text": "Trace every route and bound every agent, edge, retry, approval, and terminal state."
+        "cueId": "cue-orchestration-simple-5",
+        "startSeconds": 24,
+        "endSeconds": 30,
+        "text": "creates a draft, validates that draft, and\nthen lets the parent aggregate current"
+      },
+      {
+        "cueId": "cue-orchestration-simple-6",
+        "startSeconds": 30,
+        "endSeconds": 35,
+        "text": "validation evidence. Validation cannot\ncorrectly start before the draft exists,"
+      },
+      {
+        "cueId": "cue-orchestration-simple-7",
+        "startSeconds": 35,
+        "endSeconds": 41,
+        "text": "so the edge is justified. For every\nadditional boundary, ask what it buys. A"
+      },
+      {
+        "cueId": "cue-orchestration-simple-8",
+        "startSeconds": 41,
+        "endSeconds": 45,
+        "text": "specialist might narrow permissions,\nreduce conflicting instructions, or make"
+      },
+      {
+        "cueId": "cue-orchestration-simple-9",
+        "startSeconds": 45,
+        "endSeconds": 50,
+        "text": "evaluation easier. It also creates another\ncontract, another budget reservation, and"
+      },
+      {
+        "cueId": "cue-orchestration-simple-10",
+        "startSeconds": 50,
+        "endSeconds": 56,
+        "text": "another failure surface. If a step is\nfully known and deterministic, keep it in"
+      },
+      {
+        "cueId": "cue-orchestration-simple-11",
+        "startSeconds": 56,
+        "endSeconds": 62,
+        "text": "application code. If one bounded operation\nsolves the task, do not build a manager,"
+      },
+      {
+        "cueId": "cue-orchestration-simple-12",
+        "startSeconds": 62,
+        "endSeconds": 68,
+        "text": "handoff network, or review loop around it.\nSimplicity is not the absence of"
+      },
+      {
+        "cueId": "cue-orchestration-simple-13",
+        "startSeconds": 68,
+        "endSeconds": 72,
+        "text": "governance. Direct execution still needs\nauthority checks, contracts, timeouts,"
+      },
+      {
+        "cueId": "cue-orchestration-simple-14",
+        "startSeconds": 72,
+        "endSeconds": 76,
+        "text": "budgets, result validation, and an\nexplicit terminal state."
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-1",
+        "startSeconds": 76,
+        "endSeconds": 81,
+        "text": "The first three patterns establish a\nprogression. Direct has one bounded"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-2",
+        "startSeconds": 81,
+        "endSeconds": 85,
+        "text": "operation. Sequential encodes true ordered\ndependencies. Router dispatches exactly"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-3",
+        "startSeconds": 85,
+        "endSeconds": 91,
+        "text": "one branch selected from trusted state.\nThe graph, rather than a worker, owns the"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-4",
+        "startSeconds": 91,
+        "endSeconds": 97,
+        "text": "allowed edges. This principle also governs\nloops. A loop is not permission to"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-5",
+        "startSeconds": 97,
+        "endSeconds": 103,
+        "text": "continue until a worker feels satisfied.\nIt needs measurable criteria, a revision"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-6",
+        "startSeconds": 103,
+        "endSeconds": 108,
+        "text": "counter, budget and deadline checks, and\ndeclared terminal behavior. Google ADK"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-7",
+        "startSeconds": 108,
+        "endSeconds": 113,
+        "text": "documents sequential, loop, and parallel\nworkflow agents as deterministic workflow"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-8",
+        "startSeconds": 113,
+        "endSeconds": 119,
+        "text": "structures. The portable lesson is not\nthat every framework uses the same class"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-9",
+        "startSeconds": 119,
+        "endSeconds": 125,
+        "text": "names. It is that known control flow\nbelongs in code. A model or other"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-10",
+        "startSeconds": 125,
+        "endSeconds": 129,
+        "text": "uncertain worker may produce a\nclassification, draft, evaluation, or"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-11",
+        "startSeconds": 129,
+        "endSeconds": 135,
+        "text": "revision, but it should not invent hidden\nedges, silently add retries, or create a"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-12",
+        "startSeconds": 135,
+        "endSeconds": 141,
+        "text": "new success state. Record the input and\noutput contract on each edge so a"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-13",
+        "startSeconds": 141,
+        "endSeconds": 147,
+        "text": "trace can show which interface governed\nthe transition. Record the route reason,"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-14",
+        "startSeconds": 147,
+        "endSeconds": 152,
+        "text": "budget reservation, accepted result\nrevision, and terminal decision for the"
+      },
+      {
+        "cueId": "cue-orchestration-deterministic-15",
+        "startSeconds": 152,
+        "endSeconds": 153,
+        "text": "same reason."
+      },
+      {
+        "cueId": "cue-orchestration-control-1",
+        "startSeconds": 153,
+        "endSeconds": 159,
+        "text": "Manager and handoff patterns differ\nprimarily in who remains active. In the"
+      },
+      {
+        "cueId": "cue-orchestration-control-2",
+        "startSeconds": 159,
+        "endSeconds": 165,
+        "text": "manager demo, the parent calls a research\nspecialist as a tool. The specialist may"
+      },
+      {
+        "cueId": "cue-orchestration-control-3",
+        "startSeconds": 165,
+        "endSeconds": 171,
+        "text": "read and return evidence, but it cannot\napprove. The parent retains control,"
+      },
+      {
+        "cueId": "cue-orchestration-control-4",
+        "startSeconds": 171,
+        "endSeconds": 176,
+        "text": "validates the artifact, synthesizes the\nresult, and owns approval. This"
+      },
+      {
+        "cueId": "cue-orchestration-control-5",
+        "startSeconds": 176,
+        "endSeconds": 182,
+        "text": "arrangement is useful when a central agent\nmust preserve one user-facing plan and"
+      },
+      {
+        "cueId": "cue-orchestration-control-6",
+        "startSeconds": 182,
+        "endSeconds": 187,
+        "text": "combine several specialist artifacts. Its\nrisks include a manager bottleneck and"
+      },
+      {
+        "cueId": "cue-orchestration-control-7",
+        "startSeconds": 187,
+        "endSeconds": 192,
+        "text": "overconfidence in evidence it cannot\njudge. In the handoff demo, ownership"
+      },
+      {
+        "cueId": "cue-orchestration-control-8",
+        "startSeconds": 192,
+        "endSeconds": 197,
+        "text": "actually changes. The parent transfers to\nsecurity-specialist under a declared"
+      },
+      {
+        "cueId": "cue-orchestration-control-9",
+        "startSeconds": 197,
+        "endSeconds": 201,
+        "text": "transfer contract. The specialist becomes\nactive, performs its bounded"
+      },
+      {
+        "cueId": "cue-orchestration-control-10",
+        "startSeconds": 201,
+        "endSeconds": 206,
+        "text": "responsibility, and returns ownership\nunder a separate return contract. Approval"
+      },
+      {
+        "cueId": "cue-orchestration-control-11",
+        "startSeconds": 206,
+        "endSeconds": 212,
+        "text": "is possible only after ownership returns\nto parent. A fixture result that claims"
+      },
+      {
+        "cueId": "cue-orchestration-control-12",
+        "startSeconds": 212,
+        "endSeconds": 217,
+        "text": "transfer is not sufficient. The executor\nchecks the trusted source, destination,"
+      },
+      {
+        "cueId": "cue-orchestration-control-13",
+        "startSeconds": 217,
+        "endSeconds": 222,
+        "text": "transition, principal, and acceptance\ncontract. Use manager delegation when the"
+      },
+      {
+        "cueId": "cue-orchestration-control-14",
+        "startSeconds": 222,
+        "endSeconds": 227,
+        "text": "parent must retain synthesis and\nconversational control. Use handoff when"
+      },
+      {
+        "cueId": "cue-orchestration-control-15",
+        "startSeconds": 227,
+        "endSeconds": 233,
+        "text": "the specialist needs to own the next phase\nunder narrower instructions. Do not use"
+      },
+      {
+        "cueId": "cue-orchestration-control-16",
+        "startSeconds": 233,
+        "endSeconds": 237,
+        "text": "these names interchangeably because their\nstate, permission, and recovery"
+      },
+      {
+        "cueId": "cue-orchestration-control-17",
+        "startSeconds": 237,
+        "endSeconds": 238,
+        "text": "requirements differ."
+      },
+      {
+        "cueId": "cue-orchestration-parallel-1",
+        "startSeconds": 238,
+        "endSeconds": 243,
+        "text": "Parallelism is useful only when branches\nare independent. Independence means more"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-2",
+        "startSeconds": 243,
+        "endSeconds": 249,
+        "text": "than different names or different models.\nOne branch must not require another"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-3",
+        "startSeconds": 249,
+        "endSeconds": 255,
+        "text": "branch's result, both must not mutate the\nsame state without coordination, and they"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-4",
+        "startSeconds": 255,
+        "endSeconds": 261,
+        "text": "must not consume an unsafe shared scarce\nlimit. In the lab, research, review, and"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-5",
+        "startSeconds": 261,
+        "endSeconds": 267,
+        "text": "validation receive the same input revision\nand have empty dependency lists. The"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-6",
+        "startSeconds": 267,
+        "endSeconds": 272,
+        "text": "scheduler starts their promises without\nawaiting one before starting the next."
+      },
+      {
+        "cueId": "cue-orchestration-parallel-7",
+        "startSeconds": 272,
+        "endSeconds": 278,
+        "text": "Tests record active fixture counts and\nstart events, proving that the three"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-8",
+        "startSeconds": 278,
+        "endSeconds": 284,
+        "text": "operations overlap and may finish out of\norder. The parent does not accept"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-9",
+        "startSeconds": 284,
+        "endSeconds": 290,
+        "text": "whichever result finishes last. It joins\nevidence by dependency ID and requires"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-10",
+        "startSeconds": 290,
+        "endSeconds": 296,
+        "text": "research, review, and validation to\nsucceed at the current revision. If one"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-11",
+        "startSeconds": 296,
+        "endSeconds": 301,
+        "text": "required branch fails, approval is\nprevented. A sibling completing after the"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-12",
+        "startSeconds": 301,
+        "endSeconds": 307,
+        "text": "terminal failure is marked as an ignored\nlate completion. This distinction is"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-13",
+        "startSeconds": 307,
+        "endSeconds": 313,
+        "text": "central: concurrency is how work executes,\nwhile the join defines the product"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-14",
+        "startSeconds": 313,
+        "endSeconds": 317,
+        "text": "outcome. Decide required and optional\nbranches, timeout, cancellation, retry"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-15",
+        "startSeconds": 317,
+        "endSeconds": 321,
+        "text": "ownership, disagreement handling, and\npartial-result labeling before launching"
+      },
+      {
+        "cueId": "cue-orchestration-parallel-16",
+        "startSeconds": 321,
+        "endSeconds": 322,
+        "text": "work."
+      },
+      {
+        "cueId": "cue-orchestration-observe-1",
+        "startSeconds": 322,
+        "endSeconds": 327,
+        "text": "Across all seven patterns, observability\nand limits make the control structure"
+      },
+      {
+        "cueId": "cue-orchestration-observe-2",
+        "startSeconds": 327,
+        "endSeconds": 333,
+        "text": "enforceable. Record the run identifier,\nactive owner, node and parent span, route"
+      },
+      {
+        "cueId": "cue-orchestration-observe-3",
+        "startSeconds": 333,
+        "endSeconds": 337,
+        "text": "decision, contract versions, input\nrevision, accepted evidence, effects,"
+      },
+      {
+        "cueId": "cue-orchestration-observe-4",
+        "startSeconds": 337,
+        "endSeconds": 342,
+        "text": "reservations, retries, and terminal state.\nKeep secrets and unnecessary personal data"
+      },
+      {
+        "cueId": "cue-orchestration-observe-5",
+        "startSeconds": 342,
+        "endSeconds": 348,
+        "text": "out of telemetry. A trace should still let\nan authorized reviewer reconstruct why"
+      },
+      {
+        "cueId": "cue-orchestration-observe-6",
+        "startSeconds": 348,
+        "endSeconds": 354,
+        "text": "execution moved and why it ended. Every\nlab node declares a tenant, role,"
+      },
+      {
+        "cueId": "cue-orchestration-observe-7",
+        "startSeconds": 354,
+        "endSeconds": 359,
+        "text": "principal, allowed actions, reservation,\ntimeout, attempt cap, input contract, and"
+      },
+      {
+        "cueId": "cue-orchestration-observe-8",
+        "startSeconds": 359,
+        "endSeconds": 363,
+        "text": "output contract. Validation rejects\nunknown dependencies, duplicate IDs,"
+      },
+      {
+        "cueId": "cue-orchestration-observe-9",
+        "startSeconds": 363,
+        "endSeconds": 367,
+        "text": "cycles, multiple final nodes, stale\ncompletions, dependency contract"
+      },
+      {
+        "cueId": "cue-orchestration-observe-10",
+        "startSeconds": 367,
+        "endSeconds": 373,
+        "text": "mismatches, forged approval, spoofed\nhandoffs, and a final node that does not"
+      },
+      {
+        "cueId": "cue-orchestration-observe-11",
+        "startSeconds": 373,
+        "endSeconds": 379,
+        "text": "transitively depend on all required work.\nThese checks are not decorative. They"
+      },
+      {
+        "cueId": "cue-orchestration-observe-12",
+        "startSeconds": 379,
+        "endSeconds": 385,
+        "text": "prevent a fast or hostile result from\nbypassing the graph. Frameworks expose"
+      },
+      {
+        "cueId": "cue-orchestration-observe-13",
+        "startSeconds": 385,
+        "endSeconds": 390,
+        "text": "different manager, handoff, workflow, and\ntool abstractions. Treat those as"
+      },
+      {
+        "cueId": "cue-orchestration-observe-14",
+        "startSeconds": 390,
+        "endSeconds": 395,
+        "text": "adapters. Preserve the same product-level\ninvariants and tests when changing"
+      },
+      {
+        "cueId": "cue-orchestration-observe-15",
+        "startSeconds": 395,
+        "endSeconds": 399,
+        "text": "implementations rather than assuming\nsimilarly named SDK objects provide"
+      },
+      {
+        "cueId": "cue-orchestration-observe-16",
+        "startSeconds": 399,
+        "endSeconds": 400,
+        "text": "identical guarantees."
       }
     ],
-    "reducedMotionAlternative": "Present the orchestration patterns and join behavior as static tables with focus-based highlighting."
+    "reducedMotionAlternative": "Present all seven graph shapes, route outcomes, ownership transitions, overlap evidence, join rules, and loop bounds as static tables with focus-based highlighting."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -269,6 +1146,24 @@
       "url": "https://adk.dev/agents/workflow-agents/",
       "publisher": "Google",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Node.js test runner",
+      "url": "https://nodejs.org/api/test.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Node.js timers",
+      "url": "https://nodejs.org/api/timers.html#timeoutref",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "AbortController and AbortSignal",
+      "url": "https://nodejs.org/api/globals.html#class-abortcontroller",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
