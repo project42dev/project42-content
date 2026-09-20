@@ -1,0 +1,653 @@
+{
+  "schemaVersion": 2,
+  "id": "cost-and-capacity-management",
+  "title": "Cost and capacity management for an AI endpoint",
+  "category": "AI operations literacy",
+  "summary": "Trace a fictional AI workload from estimation through capacity planning, monitoring, spend braking, human review, and audit.",
+  "description": "This lesson uses fictional workload counts, rates, quotas, thresholds, reservations, and policies. The calculator and spend-brake simulation run locally in the browser. They make no network calls and do not provision, stop, or modify a real service.",
+  "safetyNotice": "Azure budget notifications do not themselves stop resource consumption, and cost data and budget evaluation have latency. A billing alert is not an admission hard cap. This browser simulation is not durable, concurrent, authenticated, or suitable for production enforcement.",
+  "diagramLabel": "Interactive cost and capacity management flow",
+  "walkthroughLabel": "Selected flow stage walkthrough",
+  "textAlternativeLabel": "Read the complete flow as text",
+  "textAlternative": "Workload estimate leads to Cost estimation. Cost estimation leads to Budget allocation by tokens multiplied by rate. Budget allocation leads to Capacity planning. Capacity planning provisions Endpoints deployed. Endpoints deployed leads to Monitoring dashboard. From Monitoring dashboard, over threshold leads to Spend brake, while under budget leads to Regular operations. Spend brake sends halt new admission to Endpoints deployed and sends notify to Human operator. Regular operations sends periodic to Audit and adjust. Audit and adjust returns to Cost estimation.",
+  "caption": "Operational takeaways",
+  "takeaways": [
+    "Count original requests and retry attempts as billed attempts when the fictional policy says retries are billed.",
+    "Keep input and output tokens separate when their rates differ.",
+    "Check peak RPM and peak TPM independently. Passing an average quota check does not guarantee burst admission, tail latency, or service performance.",
+    "A halt blocks new admission prospectively. It does not erase settled charges or make admitted in-flight work free.",
+    "A reservation inequality can bound admitted in-flight cost only when enforcement is durable and concurrency-safe. This browser fixture is neither.",
+    "A reset starts a new educational training run. It is not recovery and does not erase a real or historical ledger.",
+    "The examples using 20%, 80%, and 95% are scenario-specific illustrations, not universal governing policies."
+  ],
+  "attemptsLabel": "Assessment attempts",
+  "completionLabel": "Lesson completion",
+  "pendingCompletion": "Not earned. Answer all three independent cases correctly.",
+  "earnedCompletion": "Earned. All three independent cases are correct.",
+  "practiceHeading": "Independent changed-input assessed cases",
+  "solutionsHeading": "Attempt-gated solutions",
+  "practiceLegend": "Choose one answer",
+  "feedbackLabel": "Causal feedback",
+  "retryLabel": "Retry this case",
+  "resetLabel": "Start a new training run",
+  "resetAnnouncement": "A new educational training run began. This reset does not erase settled spend and is not an operational recovery action.",
+  "sourcesHeading": "Sources and provenance",
+  "sourcesIntroduction": "Provider claims are limited to the cited official documentation. All numerical fixtures in this lesson are explicitly fictional and are not provider prices or live quotas.",
+  "calculator": {
+    "title": "Editable local token-cost calculator",
+    "intro": "Enter finite, nonnegative values. Request, retry, and token-count fields must be whole numbers. Rates are fictional dollars per million tokens and input and output are billed separately.",
+    "fields": [
+      {
+        "id": "requests",
+        "label": "Original requests",
+        "unit": "requests",
+        "kind": "count"
+      },
+      {
+        "id": "retries",
+        "label": "Retry attempts",
+        "unit": "attempts",
+        "kind": "count"
+      },
+      {
+        "id": "inputTokensPerAttempt",
+        "label": "Input tokens per attempt",
+        "unit": "tokens/attempt",
+        "kind": "count"
+      },
+      {
+        "id": "outputTokensPerAttempt",
+        "label": "Output tokens per attempt",
+        "unit": "tokens/attempt",
+        "kind": "count"
+      },
+      {
+        "id": "inputRate",
+        "label": "Input rate",
+        "unit": "fictional dollars per million input tokens",
+        "kind": "decimal"
+      },
+      {
+        "id": "outputRate",
+        "label": "Output rate",
+        "unit": "fictional dollars per million output tokens",
+        "kind": "decimal"
+      }
+    ],
+    "errors": {
+      "empty": "Enter a value.",
+      "nonnumeric": "Enter a numeric value.",
+      "negative": "Value must be nonnegative.",
+      "nonfinite": "Value must be finite and within the safe calculation range.",
+      "fractionalCount": "Count fields must be whole numbers.",
+      "overflow": "The arithmetic exceeds the safe finite range. Use smaller inputs."
+    },
+    "loadWorkedLabel": "Load worked record",
+    "loadChangedLabel": "Load an unassessed changed-input example",
+    "workedPreset": {
+      "requests": "10000",
+      "retries": "1000",
+      "inputTokensPerAttempt": "800",
+      "outputTokensPerAttempt": "200",
+      "inputRate": "2",
+      "outputRate": "8"
+    },
+    "changedPreset": {
+      "requests": "7000",
+      "retries": "350",
+      "inputTokensPerAttempt": "600",
+      "outputTokensPerAttempt": "250",
+      "inputRate": "3",
+      "outputRate": "7"
+    },
+    "outputLabels": {
+      "attempts": "Total billed attempts",
+      "inputTokens": "Billed input tokens",
+      "outputTokens": "Billed output tokens",
+      "inputCost": "Input cost",
+      "outputCost": "Output cost",
+      "totalCost": "Expected total",
+      "check": "Record status"
+    },
+    "workedExpected": {
+      "attempts": 11000,
+      "inputTokens": 8800000,
+      "outputTokens": 2200000,
+      "inputCost": 17.6,
+      "outputCost": 17.6,
+      "totalCost": 35.2
+    },
+    "changedExpected": {
+      "attempts": 7350,
+      "inputTokens": 4410000,
+      "outputTokens": 1837500,
+      "inputCost": 13.23,
+      "outputCost": 12.8625,
+      "totalCost": 26.0925
+    },
+    "workedMatch": "These values match the worked fictional record.",
+    "changedMatch": "These values match the separate unassessed calculator example.",
+    "customResult": "Valid custom calculation. It is not a supplied record.",
+    "roundingPolicy": "Arithmetic is performed with validated finite JavaScript numbers. The component retains the raw finite results rather than performing commercial decimal billing arithmetic. Fixture matching compares counts and token totals exactly, and compares monetary values with Math.round((n + Number.EPSILON) * 100) / 100. Display formatting is a separate presentation step: the current display expression multiplies a raw monetary result by 100, applies that rounding helper, converts the value back from cents, and then uses toFixed(2). These educational JavaScript calculations do not claim to reproduce provider billing or rounding rules."
+  },
+  "spendBrake": {
+    "title": "Browser-only reservation and spend-brake simulation",
+    "intro": "Fictional policy: declared cap $10.00, settled spend $7.50, maximum reservation $0.80 for each newly admitted request, and actual settlement $0.60. Admit only when settled plus all existing reservations plus the new maximum is at most the declared cap.",
+    "capCents": 1000,
+    "initialSettledCents": 750,
+    "reservationCents": 80,
+    "settlementCents": 60,
+    "raisedCapCents": 1200,
+    "capLabel": "Declared cap",
+    "settledLabel": "Settled spend",
+    "reservedLabel": "Reserved maximum for admitted in-flight work",
+    "headroomLabel": "Uncommitted headroom",
+    "inFlightLabel": "In-flight reservations",
+    "admitLabel": "Try to admit one request",
+    "settleLabel": "Settle oldest request at $0.60",
+    "releaseLabel": "Release oldest reservation without a charge",
+    "keepCapLabel": "Human decision: keep the current declared cap",
+    "raiseCapLabel": "Human decision: approve a new declared $12.00 cap",
+    "resetFixtureLabel": "Start a new training fixture",
+    "admittedMessage": "Admission accepted because settled plus existing reservations plus the new $0.80 maximum does not exceed the declared cap.",
+    "blockedMessage": "Admission blocked because settled plus existing reservations plus the new $0.80 maximum would exceed the declared cap. Existing admitted work is not cancelled.",
+    "settledMessage": "The oldest $0.80 reservation was removed and $0.60 actual cost was added to settled spend. The unused $0.20 reservation amount was released.",
+    "releasedMessage": "The oldest reservation was released without adding settled cost. This represents cancellation before billable execution in this fictional fixture.",
+    "nothingMessage": "There is no in-flight reservation to settle or release.",
+    "keepMessage": "The human kept the declared cap. New admission remains subject to the same arithmetic; settled spend and reservations were retained.",
+    "raiseMessage": "The human approved a new declared cap of $12.00. Settled spend and reservations were retained; no historical cost was reset.",
+    "resetMessage": "A new educational fixture was loaded. This is not production recovery and does not erase a real ledger.",
+    "recoveryNotice": "Recovery is an explicit human decision. Keeping or raising the cap does not erase settled charges. Resetting the fixture is only a new training run.",
+    "limitations": "This state exists in one browser component. It has no durable ledger, atomic cross-tab reservation service, concurrency control, authentication, storage, network calls, provider integration, or production authority."
+  },
+  "nodes": [
+    {
+      "id": "workload",
+      "kind": "stage",
+      "label": "1",
+      "heading": "Workload estimate",
+      "description": "Record original requests, retries, tokens per attempt, and peak arrival rates. Daily averages alone hide bursts.",
+      "artifactIds": [
+        "record"
+      ],
+      "column": "main",
+      "row": 1
+    },
+    {
+      "id": "cost",
+      "kind": "stage",
+      "label": "2",
+      "heading": "Cost estimation",
+      "description": "Convert attempts into separate input and output token totals, then apply each per-million-token rate.",
+      "artifactIds": [
+        "worked",
+        "assumptions"
+      ],
+      "practiceGroupIds": [
+        "unit"
+      ],
+      "column": "main",
+      "row": 2
+    },
+    {
+      "id": "budget",
+      "kind": "stage",
+      "label": "3",
+      "heading": "Budget allocation",
+      "description": "Compare expected cost with a declared planning amount. Scenario percentages are local examples, not universal policy.",
+      "artifactIds": [
+        "percentages",
+        "budgetFact"
+      ],
+      "column": "main",
+      "row": 3
+    },
+    {
+      "id": "capacity",
+      "kind": "stage",
+      "label": "4",
+      "heading": "Capacity planning",
+      "description": "Check peak requests per minute and peak tokens per minute independently for the selected model and deployment.",
+      "artifactIds": [
+        "capacity"
+      ],
+      "practiceGroupIds": [
+        "capacity"
+      ],
+      "column": "main",
+      "row": 4
+    },
+    {
+      "id": "endpoints",
+      "kind": "terminal",
+      "label": "5",
+      "heading": "Endpoints deployed",
+      "description": "This node is conceptual only. No endpoint is provisioned. Halt means stop new admission, not delete prior usage or reverse charges.",
+      "artifactIds": [
+        "endpoint"
+      ],
+      "column": "main",
+      "row": 5
+    },
+    {
+      "id": "monitor",
+      "kind": "decision",
+      "label": "6",
+      "heading": "Monitoring dashboard",
+      "description": "Observe peak demand, token peaks, settled spend, reservations, and request outcomes. Monitoring can trigger either branch.",
+      "artifactIds": [
+        "monitoring"
+      ],
+      "column": "main",
+      "row": 6
+    },
+    {
+      "id": "regular",
+      "kind": "stage",
+      "label": "7A",
+      "heading": "Regular operations",
+      "description": "The under-budget branch continues ordinary operation while monitoring remains active.",
+      "artifactIds": [
+        "regular"
+      ],
+      "column": "left",
+      "row": 7
+    },
+    {
+      "id": "spendbrake",
+      "kind": "decision",
+      "label": "7B",
+      "heading": "Spend brake",
+      "description": "The over-threshold branch blocks new admission when the declared reservation inequality would be violated.",
+      "artifactIds": [
+        "brake"
+      ],
+      "practiceGroupIds": [
+        "brake"
+      ],
+      "column": "right",
+      "row": 7
+    },
+    {
+      "id": "audit",
+      "kind": "stage",
+      "label": "8A",
+      "heading": "Audit and adjust",
+      "description": "Periodically compare estimates with observed records, then return to cost estimation with revised assumptions.",
+      "artifactIds": [
+        "audit"
+      ],
+      "column": "left",
+      "row": 8
+    },
+    {
+      "id": "human",
+      "kind": "terminal",
+      "label": "8B",
+      "heading": "Human operator",
+      "description": "Review the notification and explicitly retain or change policy. Recovery must not pretend settled spend disappeared.",
+      "artifactIds": [
+        "human"
+      ],
+      "column": "right",
+      "row": 9
+    }
+  ],
+  "edges": [
+    {
+      "id": "w-cost",
+      "from": "workload",
+      "to": "cost",
+      "label": "estimate",
+      "route": "forward"
+    },
+    {
+      "id": "cost-budget",
+      "from": "cost",
+      "to": "budget",
+      "label": "tokens × rate",
+      "route": "forward"
+    },
+    {
+      "id": "budget-capacity",
+      "from": "budget",
+      "to": "capacity",
+      "label": "allocate",
+      "route": "forward"
+    },
+    {
+      "id": "capacity-endpoints",
+      "from": "capacity",
+      "to": "endpoints",
+      "label": "provision",
+      "route": "forward"
+    },
+    {
+      "id": "endpoints-monitor",
+      "from": "endpoints",
+      "to": "monitor",
+      "label": "observe",
+      "route": "forward"
+    },
+    {
+      "id": "monitor-brake",
+      "from": "monitor",
+      "to": "spendbrake",
+      "label": "over threshold",
+      "route": "forward"
+    },
+    {
+      "id": "monitor-regular",
+      "from": "monitor",
+      "to": "regular",
+      "label": "under budget",
+      "route": "forward"
+    },
+    {
+      "id": "brake-endpoints",
+      "from": "spendbrake",
+      "to": "endpoints",
+      "label": "halt new admission",
+      "route": "return"
+    },
+    {
+      "id": "brake-human",
+      "from": "spendbrake",
+      "to": "human",
+      "label": "notify",
+      "route": "forward"
+    },
+    {
+      "id": "regular-audit",
+      "from": "regular",
+      "to": "audit",
+      "label": "periodic",
+      "route": "forward"
+    },
+    {
+      "id": "audit-cost",
+      "from": "audit",
+      "to": "cost",
+      "label": "re-estimate",
+      "route": "return"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "record",
+      "label": "Fictional training record",
+      "title": "Supplied workload",
+      "body": "10,000 original requests plus 1,000 retry attempts. Each billed attempt uses 800 input tokens and 200 output tokens. Fictional rates are $2.00 per million input tokens and $8.00 per million output tokens. Exclusions: taxes, currency conversion, caching, discounts, fine-tuning, storage, networking, tools, embeddings, image units, audio units, and provider-specific rounding.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "worked",
+      "label": "Complete worked evidence",
+      "title": "Separate input and output arithmetic",
+      "body": "Attempts = 10,000 + 1,000 = 11,000 attempts. Input = 11,000 × 800 = 8,800,000 tokens = 8.8 million. Output = 11,000 × 200 = 2,200,000 tokens = 2.2 million. Input cost = 8.8 × $2.00 = $17.60. Output cost = 2.2 × $8.00 = $17.60. Expected total = $17.60 + $17.60 = $35.20.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "assumptions",
+      "label": "Assumptions and exclusions",
+      "title": "What the result means",
+      "body": "All retries are separately billed attempts with the same token counts. Rates are fictional and fixed for this exercise. The result is an estimate, not a quote, invoice, live result, or provider price.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "percentages",
+      "label": "Scenario-specific examples",
+      "title": "20%, 80%, and 95% are not universal rules",
+      "body": "A fictional team might use 20% as a planning contingency, 80% as a review notice, and 95% as an admission-review threshold. These values have no universal governing status and are not the hard cap in the reservation simulation.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "budgetFact",
+      "label": "Provider fact",
+      "title": "Budget alerts are not hard caps",
+      "body": "Microsoft Learn states that Azure budget notifications do not stop resource consumption and describes latency in cost data and budget evaluation. Alerting must be distinguished from an independently enforced admission brake.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "capacity",
+      "label": "Fictional capacity check",
+      "title": "Check both peak RPM and peak TPM",
+      "body": "Peak demand is 120 requests/minute. Each peak request uses 900 input + 300 output = 1,200 tokens. Peak demand is 120 × 1,200 = 144,000 tokens/minute. Fictional quota is 150 RPM and 120,000 TPM. RPM passes because 120 ≤ 150. TPM fails because 144,000 > 120,000, so TPM is the bottleneck. Passing average quotas does not guarantee tail latency or burst admission.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "endpoint",
+      "label": "Control meaning",
+      "title": "A halt is prospective",
+      "body": "Stopping new admission does not erase settled charges. Already admitted in-flight work may finish and settle against its reservation.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "monitoring",
+      "label": "Branch evidence",
+      "title": "Two visible outcomes",
+      "body": "Over threshold follows Spend brake. Under budget follows Regular operations. These are synchronized fictional records, not claims about a live provider dashboard.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "regular",
+      "label": "Operating branch",
+      "title": "Continue with monitoring",
+      "body": "Under-budget operation is not permission to stop measuring. Continue observing peaks, retries, reservations, and settled cost.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "brake",
+      "label": "Fictional admission policy",
+      "title": "Reserve before admitting",
+      "body": "Admit only when settled + reserved + new maximum ≤ declared cap. If the sum is greater than the cap, block the new request. In production, this requires durable atomic enforcement, which this fixture does not provide.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "audit",
+      "label": "Return loop",
+      "title": "Adjust the estimate",
+      "body": "The periodic audit returns to Cost estimation. It can revise workload counts, token assumptions, retry records, or fictional rates without changing historical settled spend.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "human",
+      "label": "Explicit recovery",
+      "title": "Keep or approve a cap",
+      "body": "A human can keep the cap and leave admission blocked, or approve a new declared cap after review. Neither action resets settled spend.",
+      "visibility": {
+        "kind": "always"
+      }
+    },
+    {
+      "id": "unitSolution",
+      "label": "Attempt-gated solution",
+      "title": "Corrected unit and rate path",
+      "body": "Attempts = 12,400 + 300 = 12,700. Input = 12,700 × 700 = 8,890,000 tokens = 8.89 million. Output = 12,700 × 150 = 1,905,000 tokens = 1.905 million. Input cost = 8.89 × $3.00 = $26.67. Output cost = 1.905 × $6.00 = $11.43. Total = $38.10.",
+      "visibility": {
+        "kind": "afterAttempt",
+        "groupId": "unit"
+      }
+    },
+    {
+      "id": "capacitySolution",
+      "label": "Attempt-gated solution",
+      "title": "Corrected RPM and TPM path",
+      "body": "Peak demand is 90 RPM and 1,500 tokens/request, so peak demand is 90 × 1,500 = 135,000 TPM. Against fictional limits of 100 RPM and 120,000 TPM, RPM passes and TPM fails. TPM is the bottleneck. A daily average cannot establish burst admission or tail latency.",
+      "visibility": {
+        "kind": "afterAttempt",
+        "groupId": "capacity"
+      }
+    },
+    {
+      "id": "brakeSolution",
+      "label": "Attempt-gated solution",
+      "title": "Corrected reservation and recovery path",
+      "body": "Settled $8.20 + reservations of 2 × $0.70 = $1.40 + new maximum $0.70 = $10.30. This exceeds the declared $10.00 cap, so block the new admission. Existing work remains in flight. Settlement or release changes the ledger according to the fixture, and a human must explicitly retain or approve a cap without resetting settled spend.",
+      "visibility": {
+        "kind": "afterAttempt",
+        "groupId": "brake"
+      }
+    }
+  ],
+  "practiceGroups": [
+    {
+      "id": "unit",
+      "title": "Case 1: independent unit and rate calculation",
+      "prompt": "Separate assessed record: 12,400 original requests, 300 retries, 700 input tokens/attempt, 150 output tokens/attempt, fictional input rate $3.00/million, and fictional output rate $6.00/million. What is the expected total?",
+      "nodeId": "cost",
+      "choiceIds": [
+        "u1",
+        "u2",
+        "u3"
+      ],
+      "retryAnnouncement": "Retry the independent unit and rate case."
+    },
+    {
+      "id": "capacity",
+      "title": "Case 2: independent RPM versus TPM bottleneck",
+      "prompt": "Separate assessed record: peak demand is 90 requests/minute and 1,500 total tokens/request. Fictional limits are 100 RPM and 120,000 TPM. Which result is correct?",
+      "nodeId": "capacity",
+      "choiceIds": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "retryAnnouncement": "Retry the independent peak capacity case."
+    },
+    {
+      "id": "brake",
+      "title": "Case 3: independent exhausted headroom and recovery",
+      "prompt": "Separate assessed record: declared cap is $10.00, settled spend is $8.20, two in-flight requests each reserve $0.70, and a new request needs a $0.70 maximum reservation. What should happen?",
+      "nodeId": "spendbrake",
+      "choiceIds": [
+        "b1",
+        "b2",
+        "b3"
+      ],
+      "retryAnnouncement": "Retry the independent reservation and recovery case."
+    }
+  ],
+  "choices": [
+    {
+      "id": "u1",
+      "group": "unit",
+      "label": "$38.10",
+      "correct": true,
+      "feedback": "Correct. Retries produce 12,700 attempts. Input cost is 8.89 × $3.00 = $26.67, output cost is 1.905 × $6.00 = $11.43, and $26.67 + $11.43 = $38.10.",
+      "announcement": "Unit and rate case correct."
+    },
+    {
+      "id": "u2",
+      "group": "unit",
+      "label": "$36.20",
+      "correct": false,
+      "feedback": "Not correct. This applies an incorrect $5.00 output rate: 1.905 million × $5.00 = $9.525, which with the $26.67 input cost gives $36.195, displayed as $36.20. The supplied output rate is $6.00 per million, which gives $11.43.",
+      "announcement": "Unit and rate case needs correction."
+    },
+    {
+      "id": "u3",
+      "group": "unit",
+      "label": "$37.20",
+      "correct": false,
+      "feedback": "Not correct. Omitting the 300 retries leaves 12,400 billed attempts. Input tokens would be 12,400 × 700 = 8,680,000 tokens = 8.68 million, so input cost would be 8.68 × $3.00 = $26.04. Output tokens would be 12,400 × 150 = 1,860,000 tokens = 1.86 million, so output cost would be 1.86 × $6.00 = $11.16. The omitted-retries total would be $26.04 + $11.16 = $37.20, instead of the correct $38.10 that includes all 12,700 attempts.",
+      "announcement": "Unit and rate case needs correction."
+    },
+    {
+      "id": "c1",
+      "group": "capacity",
+      "label": "Both pass because 90 RPM is below 100 RPM",
+      "correct": false,
+      "feedback": "Not correct. RPM passes, but 90 × 1,500 = 135,000 TPM, which exceeds the fictional 120,000 TPM limit.",
+      "announcement": "Capacity case needs correction."
+    },
+    {
+      "id": "c2",
+      "group": "capacity",
+      "label": "RPM passes; TPM fails and is the bottleneck",
+      "correct": true,
+      "feedback": "Correct. 90 ≤ 100 RPM, but 135,000 > 120,000 TPM. The dimensions must be checked independently.",
+      "announcement": "Capacity case correct."
+    },
+    {
+      "id": "c3",
+      "group": "capacity",
+      "label": "A daily average guarantees this burst and tail latency",
+      "correct": false,
+      "feedback": "Not correct. The supplied peak is 135,000 TPM, above the fictional peak TPM limit. An average cannot guarantee burst admission or tail latency.",
+      "announcement": "Capacity case needs correction."
+    },
+    {
+      "id": "b1",
+      "group": "brake",
+      "label": "Admit because settled spend alone is below $10.00",
+      "correct": false,
+      "feedback": "Not correct. Include reservations and the new maximum: $8.20 + $1.40 + $0.70 = $10.30. Settled spend alone understates committed exposure.",
+      "announcement": "Reservation case needs correction."
+    },
+    {
+      "id": "b2",
+      "group": "brake",
+      "label": "Block the new request, retain the ledger, and require an explicit human recovery decision",
+      "correct": true,
+      "feedback": "Correct. $10.30 exceeds the $10.00 cap. Blocking is prospective. Existing reservations remain until settlement or release, and settled spend must not be reset.",
+      "announcement": "Reservation and recovery case correct."
+    },
+    {
+      "id": "b3",
+      "group": "brake",
+      "label": "Reset settled spend to zero and resume",
+      "correct": false,
+      "feedback": "Not correct. Settled spend is historical cost. A fixture reset starts a new training run; it is not recovery and cannot erase ledger history.",
+      "announcement": "Reservation case needs correction."
+    }
+  ],
+  "sources": [
+    {
+      "id": "azure-budgets",
+      "title": "Create and manage Azure budgets",
+      "publisher": "Microsoft Learn",
+      "url": "https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/tutorial-acm-create-budgets",
+      "checkedAt": "2026-09-20",
+      "use": "Supports the narrow claim that budget notifications do not stop consumption and that cost and budget evaluation have latency."
+    },
+    {
+      "id": "azure-quotas",
+      "title": "Azure OpenAI quotas and limits",
+      "publisher": "Microsoft Learn",
+      "url": "https://learn.microsoft.com/en-us/azure/foundry/openai/quotas-limits",
+      "checkedAt": "2026-09-20",
+      "use": "Supports distinguishing RPM and TPM and treating quotas as model or deployment specific. This lesson uses fictional quota values."
+    },
+    {
+      "id": "original-flow",
+      "title": "Original cost, capacity, and spend-control flow",
+      "publisher": "Project 42",
+      "url": "https://github.com/project42dev/project42-content/blob/569083f40d3522f4cc31272180e2b7dd41eeac29/diagrams/cost-and-capacity-management.mmd",
+      "checkedAt": "2026-09-20",
+      "use": "Defines the required nodes, branches, directions, labels, and return loop."
+    }
+  ]
+}
