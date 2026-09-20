@@ -1,6 +1,6 @@
 # Examples and Output Contracts
 
-Package: `examples-and-output-contracts-class` 1.0.0
+Package: `examples-and-output-contracts-class` 1.1.0
 
 > This is the canonical text equivalent of an AI-assisted virtual-instructor
 > class. It remains usable without synthesized audio, video, animation, or a
@@ -102,6 +102,52 @@ Sources:
 
 - <https://developers.openai.com/api/docs/guides/structured-outputs>
 - <https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency>
+
+## Narration: Repaired Contract Policy Narration
+
+This lesson uses the synthetic Northstar Library support desk. The contract is a teaching fixture, not a live incident workflow and not a claim about any model or provider. The output must contain exactly status, category, priority, summary, evidence, next_action, and reasons. Evidence must cite an input source and an exact contiguous quote from that source. Duplicate keys, extra fields, unknown source identifiers, and altered quotes are rejected. The classification policy is deliberately bounded. Automatic completion is permitted only for the authored normal fixture with case_id N-001, the exact supplied message, category billing, priority normal, and the stated evidence. The boundary, missing-information, conflict, refusal, and all other cases require information or human review. This fixture-bound policy does not claim that words prove the truth of a natural-language classification. Priority is not inferred from urgency words. In this lesson, normal is supported only by the exact normal fixture. low and high are never automatically assigned. An unsupported or invented priority is rejected. This transparent limit prevents a plausible-looking priority from becoming authorization. The verifier checks parsing, shape, source binding, business policy, and authorization as distinct layers. Only a complete result that matches the bounded policy and requests draft_reply may proceed. A parseable object is not automatically a truthful or authorized object.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/structured-outputs>
+
+## Narration: Repaired Examples And Expected Results Narration
+
+The normal fixture is the sole automatic-completion example. Its exact input, evidence, category, and priority are all checked against the bounded policy. The boundary fixture contains both access and billing evidence. It must not be forced into the first category mentioned. The expected result preserves unknown category and priority and blocks authorization. The missing fixture contains no category-supporting issue evidence. It must request information without inventing a category, priority, customer, or severity. These examples illustrate the policy, but they do not replace it.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/structured-outputs>
+
+## Narration: Repaired Offline Verifier Narration
+
+A complete result must match the exact fixture input, status, category, priority, summary, evidence, next_action, and reasons. An invented refund summary, an empty reasons array, and an unsupported defamatory reason are therefore rejected rather than authorized. The reasons check now requires at least one nonempty string for every status. The refusal and needs_information branches still enforce their cross-field rules, and incomplete or refused results remain blocked at authorization. The original malformed, duplicate-key, type, extra-field, source, category, priority, and action cases remain present. The semantic checks are intentionally fixture-bound. They demonstrate validation of this fictional contract and do not validate arbitrary natural-language claims, determine whether a customer statement is true, or establish model or provider behavior. New or paraphrased inputs, including the independent exercise, require human verification rather than automated acceptance. The self-test compares complete result objects for the patched cases, including the new summary and reasons negatives. Save the code as verifier.py and run it with Python to perform the self-test.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/structured-outputs>
+
+## Narration: Independent Task Narration
+
+Before viewing feedback, produce one contract-compliant output for the changed synthetic input below and a short decision trace. Keep the task and answer separate. Copy evidence exactly if you use it, represent unsupported values explicitly, and decide whether a downstream action is authorized. Submit your answer before opening the feedback section. This changed input is not one of the authored automatic fixtures, so it requires human verification and must not be treated as an automated acceptance case.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/structured-outputs>
+
+## Learner Prompt: Independent Contract Prompt
+
+Before viewing feedback, produce one contract-compliant output for the changed synthetic input below and a short decision trace. Keep the task and answer separate. Copy evidence exactly if you use it, represent unsupported values explicitly, and decide whether a downstream action is authorized.
+
+Expected learner action: Work independently. Return one contract-compliant output and a short decision trace. Do not reveal or infer an answer key from this task.
+
+## Narration: Independent Feedback Narration
+
+A suitable answer preserves uncertainty because the changed message contains two distinct issue signals. The result is not eligible for downstream drafting under the bounded policy. This answer is a review reference for the exercise, not an automated acceptance rule for arbitrary new text. The decision trace is parsing pass, shape pass, source pass, business pass for the needs_information branch, and authorization blocked. The quoted evidence is copied exactly from the supplied input. Human review is still required for this new or paraphrased case.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/structured-outputs>
 
 ## Transition: Activity Transition
 
