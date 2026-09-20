@@ -58,6 +58,236 @@
         "Expected evidence includes version and installation path, effective config, enabled capabilities, identity and channel map, health results, and a tested user-boundary outcome without secret values.",
         "If behavior or access is unexpected, disable the affected channel or tool, preserve logs safely, rotate exposed credentials, restore the last reviewed configuration, and rerun health and end-to-end checks."
       ]
+    },
+    {
+      "id": "orientation",
+      "title": "Your first OpenClaw task: a local-only chat",
+      "paragraphs": [
+        "In this lab you will configure OpenClaw as a local gateway, select Mistral explicitly, verify the gateway boundary, and send one harmless chat prompt. You will then complete a separate offline Python configuration-review exercise. The Python checker is an educational subset. It is not OpenClaw's schema validator or security enforcement.",
+        "This artifact does not claim that an agent, provider, gateway, approval, or live completion has been observed. A real provider completion may use the network and provider credits. Offline tests make no model calls. No external messaging channel or personal messaging account is needed."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Scope card",
+        "code": "In scope: isolated local gateway, Mistral onboarding, version capture, validation, status, security audit, harmless first chat, offline reviewer exercise\nOut of scope: external channels, service installation, personal messaging, autonomous file changes, commit, deployment, and secret capture"
+      }
+    },
+    {
+      "id": "requirements",
+      "title": "Confirm the host and preserve the boundary",
+      "paragraphs": [
+        "The OpenClaw getting-started documentation observed on 2026-09-20 lists Node.js 24.16 or later, or 26.1 or later, and recommends Node.js 26. Source: https://docs.openclaw.ai/start/getting-started",
+        "Use one personal, mutually trusted local boundary for this lab. OpenClaw's security documentation describes one trusted boundary per gateway rather than hostile multi-tenant isolation, and documents loopback as the host default. Source: https://docs.openclaw.ai/gateway/security",
+        "Keep mutable OpenClaw state and configuration outside the exercise repository. Never put a real API key or gateway token in a command argument, prompt, repository, screenshot, or captured output. A passing test does not authorize a commit or deployment."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Bash, version capture",
+        "code": "node --version\nopenclaw --version\npython3 --version\n# Record non-secret output in private lab notes only."
+      }
+    },
+    {
+      "id": "isolation",
+      "title": "Create isolated paths without overwriting files",
+      "paragraphs": [
+        "OPENCLAW_STATE_DIR isolates OpenClaw state and OPENCLAW_CONFIG_PATH selects the configuration path. Source: https://docs.openclaw.ai/start/getting-started",
+        "Run this from the directory where you want the lab state. It preflights the root and every target path before creating anything. If any path exists, it stops without changing that path. The printed paths are examples from your machine, not a claim about a live run."
+      ],
+      "code": {
+        "language": "python",
+        "label": "setup_paths.py",
+        "code": "from pathlib import Path\n\nroot = Path.cwd() / \"openclaw-first-task-state\"\nstate = root / \"state\"\nconfig = root / \"openclaw.json\"\n\n# Preflight every path before creating any directory or file.\nexisting = [path for path in (root, state, config) if path.exists()]\nif existing:\n    joined = \", \".join(str(path) for path in existing)\n    raise SystemExit(\"Refusing to use existing lab paths: \" + joined)\n\nroot.mkdir()\nstate.mkdir()\nprint(\"OPENCLAW_STATE_DIR=\" + str(state.resolve()))\nprint(\"OPENCLAW_CONFIG_PATH=\" + str(config.resolve()))\nprint(\"Set both values in the same shell used for OpenClaw.\")"
+      }
+    },
+    {
+      "id": "environment",
+      "title": "Set the isolated paths in your shell",
+      "paragraphs": [
+        "Set the variables in the shell that will run onboarding, validation, the gateway, and the first chat. The values below are examples. Replace them with the paths printed by setup_paths.py."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "POSIX shell",
+        "code": "export OPENCLAW_STATE_DIR=\"/absolute/path/openclaw-first-task-state/state\"\nexport OPENCLAW_CONFIG_PATH=\"/absolute/path/openclaw-first-task-state/openclaw.json\"\nprintf '%s\\n' \"$OPENCLAW_STATE_DIR\" \"$OPENCLAW_CONFIG_PATH\""
+      }
+    },
+    {
+      "id": "powershell",
+      "title": "PowerShell path setup",
+      "paragraphs": [
+        "PowerShell uses the same two environment variables. Set them in the current session before running OpenClaw."
+      ],
+      "code": {
+        "language": "text",
+        "label": "PowerShell",
+        "code": "$env:OPENCLAW_STATE_DIR = \"C:\\absolute\\path\\openclaw-first-task-state\\state\"\n$env:OPENCLAW_CONFIG_PATH = \"C:\\absolute\\path\\openclaw-first-task-state\\openclaw.json\"\n$env:OPENCLAW_STATE_DIR\n$env:OPENCLAW_CONFIG_PATH"
+      }
+    },
+    {
+      "id": "mistral",
+      "title": "Install and select the Mistral provider",
+      "paragraphs": [
+        "Install the documented Mistral provider plugin, then use the classic onboarding wizard with the Mistral API-key choice. The wizard prompts for the key, so the key is not placed in a command argument. Source: https://docs.openclaw.ai/providers/mistral",
+        "List the models returned by your installation. The documentation gives mistral/mistral-large-latest as an example, not an availability guarantee. Treat the command's output and any provider error as the result for your installation."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Provider installation and onboarding",
+        "code": "openclaw plugins install @openclaw/mistral-provider\nopenclaw onboard --classic --auth-choice mistral-api-key\nopenclaw models list --provider mistral"
+      }
+    },
+    {
+      "id": "hardened-config",
+      "title": "Apply the documented local-only baseline",
+      "paragraphs": [
+        "The hardened baseline documented on 2026-09-20 uses gateway.mode local, gateway.bind loopback, gateway.auth.mode token, and gateway.port 18789. It also uses the messaging profile, denies the listed automation, runtime, filesystem, and session tools, restricts filesystem access to the workspace, sets execution security to deny and execution prompting to always, disables elevated tools and agent-to-agent access, limits session visibility to the agent, and scopes direct messages per channel and peer. Source: https://docs.openclaw.ai/gateway/security/hardened-baseline",
+        "The exact paths are tools.sessions.visibility, tools.agentToAgent.enabled, and session.dmScope. Do not use sessions.visibility, sessions.agentToAgent.enabled, or sessions.dmScope. Let onboarding handle the gateway token through its secure flow. Do not display, copy, or store a token in this lab.",
+        "config set uses path and value arguments. With --strict-json --dry-run, each command validates the proposed post-change configuration without applying it. Only after every dry run succeeds should you run the corresponding command without --dry-run. The apply commands below preserve unrelated settings because they target individual paths. Source: https://docs.openclaw.ai/cli/config",
+        "The expected applied result is the documented set of values shown by these commands. It is not a claim that they succeeded on your machine. Record the actual exit status and non-secret output from every dry run, apply, and final validation."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Dry-run every value, then apply the same values",
+        "code": "openclaw config file\n\n# Phase 1: validate every proposed change without writing it.\nopenclaw config set gateway.mode '\"local\"' --strict-json --dry-run\nopenclaw config set gateway.bind '\"loopback\"' --strict-json --dry-run\nopenclaw config set gateway.port 18789 --strict-json --dry-run\nopenclaw config set gateway.auth.mode '\"token\"' --strict-json --dry-run\nopenclaw config set tools.profile '\"messaging\"' --strict-json --dry-run\nopenclaw config set tools.deny '[\"group:automation\",\"group:runtime\",\"group:fs\",\"sessions_spawn\",\"sessions_send\"]' --strict-json --dry-run\nopenclaw config set tools.fs.workspaceOnly true --strict-json --dry-run\nopenclaw config set tools.exec.security '\"deny\"' --strict-json --dry-run\nopenclaw config set tools.exec.ask '\"always\"' --strict-json --dry-run\nopenclaw config set tools.elevated.enabled false --strict-json --dry-run\nopenclaw config set tools.sessions.visibility '\"agent\"' --strict-json --dry-run\nopenclaw config set tools.agentToAgent.enabled false --strict-json --dry-run\nopenclaw config set session.dmScope '\"per-channel-peer\"' --strict-json --dry-run\n\n# Stop here if any dry run fails. Otherwise apply the identical values.\nopenclaw config set gateway.mode '\"local\"' --strict-json\nopenclaw config set gateway.bind '\"loopback\"' --strict-json\nopenclaw config set gateway.port 18789 --strict-json\nopenclaw config set gateway.auth.mode '\"token\"' --strict-json\nopenclaw config set tools.profile '\"messaging\"' --strict-json\nopenclaw config set tools.deny '[\"group:automation\",\"group:runtime\",\"group:fs\",\"sessions_spawn\",\"sessions_send\"]' --strict-json\nopenclaw config set tools.fs.workspaceOnly true --strict-json\nopenclaw config set tools.exec.security '\"deny\"' --strict-json\nopenclaw config set tools.exec.ask '\"always\"' --strict-json\nopenclaw config set tools.elevated.enabled false --strict-json\nopenclaw config set tools.sessions.visibility '\"agent\"' --strict-json\nopenclaw config set tools.agentToAgent.enabled false --strict-json\nopenclaw config set session.dmScope '\"per-channel-peer\"' --strict-json\n\nopenclaw config validate --json"
+      }
+    },
+    {
+      "id": "validation",
+      "title": "Validate the configuration and diagnose malformed input safely",
+      "paragraphs": [
+        "config file prints the active configuration path. config validate --json checks the installed schema without starting the gateway, but it cannot establish whether provider parameters or credentials work. config patch --file expects a config-shaped object, not a JSON Patch array. Source observed on 2026-09-20: https://docs.openclaw.ai/cli/config",
+        "The first command below proposes a list where tools.exec.security requires the scalar string deny. Because it includes --dry-run, it must not apply the proposed change. The expected result is rejection by the installed schema and no configuration mutation. This is an expected result, not a claimed live outcome. If it is unexpectedly accepted, stop and preserve the command output and installed OpenClaw version for investigation. Do not apply the malformed value.",
+        "The recovery is deliberately narrow. Dry-run the documented deny value, apply it only if that dry run succeeds, and validate the complete installed schema. A successful schema validation still does not prove that a provider credential works, that a model is available, or that the gateway is safe for hostile multi-tenant use."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Malformed dry run, narrow recovery, and validation",
+        "code": "openclaw config file\n\n# Expected: rejected, nonzero status, and no write because this is a dry run.\nopenclaw config set tools.exec.security '[]' --strict-json --dry-run\nprintf 'malformed dry-run exit status: %s\\n' \"$?\"\n\n# Recovery: validate the correct scalar before applying it.\nopenclaw config set tools.exec.security '\"deny\"' --strict-json --dry-run\n# Run the next command only if the preceding dry run succeeded.\nopenclaw config set tools.exec.security '\"deny\"' --strict-json\nopenclaw config validate --json\n\n# Record actual outputs. Do not report the expected rejection as an observed result."
+      }
+    },
+    {
+      "id": "gateway-checks",
+      "title": "Run gateway health checks without installing a service",
+      "paragraphs": [
+        "Use two terminals for this workflow. Set the isolated OPENCLAW_STATE_DIR and OPENCLAW_CONFIG_PATH values in Terminal A before running these commands. Use the same already-existing values in Terminal B. Do not rerun path setup or onboarding in Terminal B.",
+        "Terminal A: validate the active configuration and security boundaries first. Then start the gateway in the foreground. The documented equivalent forms are openclaw gateway and openclaw gateway run. The running guide states that gateway.mode must be local, that the foreground process stops on SIGINT or SIGTERM, and that no service installation is required: https://docs.openclaw.ai/cli/gateway/running",
+        "The gateway command blocks the Terminal A shell. Do not place the Terminal B commands after it in the same shell and expect them to run. Leave Terminal A running. Open Terminal B, set the same isolated environment values, verify the active configuration path, and run status or dashboard only after Terminal A shows that the foreground gateway is running. Keep Terminal A open until you press Ctrl+C to shut the gateway down.",
+        "A successful validation, security audit, status display, or dashboard display does not prove that a provider credential works or that a model completion will succeed. This lab does not claim a live health success, observed model route, or successful provider call. Do not expose the gateway beyond loopback, install a service, auto-approve doctor fixes, or print a token."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Terminal A, then Terminal B",
+        "code": "# Terminal A: use the isolated values established in the earlier environment section.\nexport OPENCLAW_STATE_DIR=\"/absolute/path/openclaw-first-task-state/state\"\nexport OPENCLAW_CONFIG_PATH=\"/absolute/path/openclaw-first-task-state/openclaw.json\"\nprintf '%s\\n' \"$OPENCLAW_STATE_DIR\" \"$OPENCLAW_CONFIG_PATH\"\n\nopenclaw config file\nopenclaw config validate --json\nopenclaw security audit\n\n# This is a foreground, blocking process. Keep Terminal A open.\n# The documented equivalent is: openclaw gateway\nopenclaw gateway run\n\n# Terminal B: open a separate terminal after Terminal A is running.\n# Set the same existing isolated values. Do not rerun setup_paths.py or onboarding.\nexport OPENCLAW_STATE_DIR=\"/absolute/path/openclaw-first-task-state/state\"\nexport OPENCLAW_CONFIG_PATH=\"/absolute/path/openclaw-first-task-state/openclaw.json\"\nprintf '%s\\n' \"$OPENCLAW_STATE_DIR\" \"$OPENCLAW_CONFIG_PATH\"\n\n# Verify the active isolated configuration path, then inspect the running gateway.\nopenclaw config file\nopenclaw status\n# Optional alternative inspection in Terminal B:\n# openclaw dashboard\n\n# Return to Terminal A and press Ctrl+C for SIGINT shutdown."
+      }
+    },
+    {
+      "id": "first-chat",
+      "title": "Run the concrete first task and capture actual evidence",
+      "paragraphs": [
+        "Start openclaw gateway in the foreground. In a second terminal with the same isolated environment, use the local chat entry point exposed by the installed OpenClaw dashboard or local-chat documentation. The supplied research does not establish a stable command or URL for that entry point, so do not invent one and do not substitute a simulator. The documented dashboard command is openclaw dashboard. If your installation does not expose a usable local chat entry point, record CANNOT VERIFY.",
+        "Send this harmless prompt exactly: Reply with exactly three lines. Line 1: LOCAL TASK READY. Line 2: Name one reason to keep external channels disabled during this first test. Line 3: Say whether you changed any files, using only YES or NO.",
+        "A successful learner result requires an actual local gateway response, version evidence, validation evidence, status evidence, a reviewed security-audit result, and confirmation that no external channel was configured. This artifact makes no live claim. A gateway model call may use network access and provider credits."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Learner capture procedure",
+        "code": "Date and timezone: [fill in]\nNode version: [non-secret output]\nOpenClaw version: [non-secret output]\nActive config path: [path only]\nProvider model-list result: [names or CANNOT VERIFY]\nconfig validate --json: [non-secret output]\nstatus: [non-secret output]\nsecurity audit: [non-secret output]\nPrompt sent: Reply with exactly three lines. Line 1: LOCAL TASK READY. Line 2: Name one reason to keep external channels disabled during this first test. Line 3: Say whether you changed any files, using only YES or NO.\nActual response: [paste non-secret response, or CANNOT VERIFY]\nExternal channels configured: NO / [explain]\nFiles changed: [list or NONE]\nLive provider completion observed: YES / NO / CANNOT VERIFY"
+      }
+    },
+    {
+      "id": "fictional-evidence",
+      "title": "Fictional filled evidence example",
+      "paragraphs": [
+        "The following is a fictional example of a completed capture. It is not an observation of OpenClaw, Mistral, a gateway, an approval, or a live completion. Replace every result with evidence from your own run."
+      ],
+      "code": {
+        "language": "text",
+        "label": "FICTIONAL EXAMPLE ONLY",
+        "code": "Date and timezone: 2026-09-20 UTC\nNode version: v26.1.0\nOpenClaw version: [fictional example, not asserted]\nActive config path: /home/learner/openclaw-first-task-state/openclaw.json\nProvider model-list result: [fictional example, not asserted]\nconfig validate --json: [fictional example: valid]\nstatus: [fictional example: local gateway responding]\nsecurity audit: [fictional example: findings reviewed]\nPrompt sent: Reply with exactly three lines. Line 1: LOCAL TASK READY. Line 2: Name one reason to keep external channels disabled during this first test. Line 3: Say whether you changed any files, using only YES or NO.\nActual response: [fictional example, not an actual provider response]\nExternal channels configured: NO\nFiles changed: NONE\nLive provider completion observed: NO, example only"
+      }
+    },
+    {
+      "id": "offline-setup",
+      "title": "Create the offline configuration-review exercise",
+      "paragraphs": [
+        "This separate Python exercise reviews a fictional OpenClaw-shaped dictionary. It follows the documented nesting for gateway.auth and tools.elevated, but it does not load OpenClaw, call a provider, validate the installed schema, or enforce permissions. Its finite contract requires local mode, loopback binding, token authentication, workspace-only filesystem access, execution security deny, execution prompting always, disabled elevation, and no configured external channels.",
+        "The setup contains an intentionally faulty reviewer and eight protected tests. Do not edit the tests to make the reviewer pass. The script preflights the lab root and every target path before creating anything. If any target exists, it exits before creation. Run it from the parent directory in which you want the new openclaw-config-review directory."
+      ],
+      "code": {
+        "language": "python",
+        "label": "create_lab.py",
+        "code": "from pathlib import Path\n\nroot = Path.cwd() / \"openclaw-config-review\"\nreviewer_path = root / \"reviewer.py\"\ntest_path = root / \"test_reviewer.py\"\nfixture_path = root / \"fixtures.json\"\ntargets = (root, reviewer_path, test_path, fixture_path)\n\nexisting = [path for path in targets if path.exists()]\nif existing:\n    joined = \", \".join(str(path) for path in existing)\n    raise SystemExit(\"Refusing to overwrite existing lab paths: \" + joined)\n\nreviewer = '''def is_safe(config):\n    # Intentionally faulty: mutates input, assumes nested shapes,\n    # accepts security=\"ask\", and ignores tools.exec.ask.\n    gateway = config.setdefault(\"gateway\", {})\n    gateway[\"bind\"] = gateway.get(\"bind\", \"loopback\")\n    tools = config[\"tools\"]\n    return (\n        gateway[\"mode\"] == \"local\"\n        and gateway[\"bind\"] == \"loopback\"\n        and gateway[\"auth\"][\"mode\"] == \"token\"\n        and tools[\"fs\"][\"workspaceOnly\"] is True\n        and tools[\"exec\"][\"security\"] in (\"deny\", \"ask\")\n        and tools[\"elevated\"][\"enabled\"] is False\n        and config.get(\"channels\", {}) == {}\n    )\n'''\n\ntests = '''import copy\nimport unittest\nfrom reviewer import is_safe\n\nSAFE = {\n    \"gateway\": {\n        \"mode\": \"local\",\n        \"bind\": \"loopback\",\n        \"auth\": {\"mode\": \"token\"},\n    },\n    \"tools\": {\n        \"fs\": {\"workspaceOnly\": True},\n        \"exec\": {\"security\": \"deny\", \"ask\": \"always\"},\n        \"elevated\": {\"enabled\": False},\n    },\n}\n\nclass ReviewerTests(unittest.TestCase):\n    def test_safe_fixture(self):\n        self.assertTrue(is_safe(copy.deepcopy(SAFE)))\n\n    def test_public_bind_is_rejected(self):\n        value = copy.deepcopy(SAFE)\n        value[\"gateway\"][\"bind\"] = \"0.0.0.0\"\n        self.assertFalse(is_safe(value))\n\n    def test_malformed_gateway_auth_is_rejected_without_exception(self):\n        value = copy.deepcopy(SAFE)\n        value[\"gateway\"][\"auth\"] = []\n        self.assertFalse(is_safe(value))\n\n    def test_security_ask_is_rejected(self):\n        value = copy.deepcopy(SAFE)\n        value[\"tools\"][\"exec\"][\"security\"] = \"ask\"\n        self.assertFalse(is_safe(value))\n\n    def test_exec_ask_must_be_always(self):\n        value = copy.deepcopy(SAFE)\n        value[\"tools\"][\"exec\"][\"ask\"] = \"never\"\n        self.assertFalse(is_safe(value))\n\n    def test_malformed_tools_is_rejected_without_exception(self):\n        value = copy.deepcopy(SAFE)\n        value[\"tools\"] = []\n        self.assertFalse(is_safe(value))\n\n    def test_malformed_security_is_rejected_without_exception(self):\n        value = copy.deepcopy(SAFE)\n        value[\"tools\"][\"exec\"][\"security\"] = []\n        self.assertFalse(is_safe(value))\n\n    def test_input_is_not_mutated(self):\n        value = {\"gateway\": {\"mode\": \"local\"}}\n        before = copy.deepcopy(value)\n        try:\n            is_safe(value)\n        except (KeyError, TypeError):\n            pass\n        self.assertEqual(value, before)\n\nif __name__ == \"__main__\":\n    unittest.main()\n'''\n\nfixture = '{\"purpose\":\"fictional educational fixture; not an OpenClaw schema\"}\\n'\n\n# All paths were checked before this first creation step.\nroot.mkdir()\nfor path, content in (\n    (reviewer_path, reviewer),\n    (test_path, tests),\n    (fixture_path, fixture),\n):\n    with path.open(\"x\", encoding=\"utf-8\") as handle:\n        handle.write(content)\n\nprint(\"Created\", root)\nprint(\"Run: python -m unittest discover -s openclaw-config-review -p 'test_*.py' -v\")"
+      }
+    },
+    {
+      "id": "offline-failure",
+      "title": "Run the faulty reviewer and identify the concrete failures",
+      "paragraphs": [
+        "Run the suite from the parent directory. The initial implementation is expected to run eight tests and end with FAILED (failures=3, errors=2). This count is derived from the supplied code, not presented as a live execution result. The actual output remains UNKNOWN until you run it.",
+        "The two expected errors have a common cause: the reviewer indexes malformed gateway.auth and tools values as though they were dictionaries. The three expected failures have distinct causes: it accepts security=\"ask\", ignores tools.exec.ask=\"never\", and mutates an incomplete gateway by inserting bind=\"loopback\" before later failing.",
+        "The recovery scope is reviewer.py only. Keep test_reviewer.py and fixtures.json unchanged so the tests continue to protect the contract. Record a different count or failure set exactly as observed rather than replacing it with the expected output."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Baseline command and expected summary",
+        "code": "python -m unittest discover -s openclaw-config-review -p 'test_*.py' -v\n\n# Expected from the intentionally faulty source, not a claimed live result:\n# Ran 8 tests\n# FAILED (failures=3, errors=2)\n# Actual result: UNKNOWN until this command is run."
+      }
+    },
+    {
+      "id": "scoped-recovery",
+      "title": "Replace only the faulty reviewer",
+      "paragraphs": [
+        "Replace only openclaw-config-review/reviewer.py with the complete reference below. Do not change the protected tests, the fictional fixture, OpenClaw configuration, provider state, or gateway state. Restoring a source file would not reverse an external effect such as a provider charge or a sent message.",
+        "This implementation accepts only JSON-like dictionary, list, string, number, Boolean, and null shapes relevant to the exercise. It checks every required container before nested access, checks Boolean fields by exact type, requires tools.exec.security to equal deny, and separately requires tools.exec.ask to equal always. It accepts an omitted channels key as no configured channels, rejects channels=null, returns False for malformed configuration values, and does not mutate its input.",
+        "After replacement, the expected result is eight passing tests and OK. That remains an expected local result until the learner runs the command. It does not establish any property of an installed OpenClaw gateway."
+      ],
+      "code": {
+        "language": "python",
+        "label": "openclaw-config-review/reviewer.py, complete corrected reference",
+        "code": "def is_safe(config):\n    if not isinstance(config, dict):\n        return False\n\n    gateway = config.get(\"gateway\")\n    tools = config.get(\"tools\")\n    channels = config.get(\"channels\", {})\n    if not isinstance(gateway, dict):\n        return False\n    if not isinstance(tools, dict):\n        return False\n    if not isinstance(channels, dict):\n        return False\n\n    auth = gateway.get(\"auth\")\n    filesystem = tools.get(\"fs\")\n    execution = tools.get(\"exec\")\n    elevated = tools.get(\"elevated\")\n    if not isinstance(auth, dict):\n        return False\n    if not isinstance(filesystem, dict):\n        return False\n    if not isinstance(execution, dict):\n        return False\n    if not isinstance(elevated, dict):\n        return False\n\n    mode = gateway.get(\"mode\")\n    bind = gateway.get(\"bind\")\n    auth_mode = auth.get(\"mode\")\n    workspace_only = filesystem.get(\"workspaceOnly\")\n    security = execution.get(\"security\")\n    ask = execution.get(\"ask\")\n    elevated_enabled = elevated.get(\"enabled\")\n\n    if not isinstance(mode, str):\n        return False\n    if not isinstance(bind, str):\n        return False\n    if not isinstance(auth_mode, str):\n        return False\n    if type(workspace_only) is not bool:\n        return False\n    if not isinstance(security, str):\n        return False\n    if not isinstance(ask, str):\n        return False\n    if type(elevated_enabled) is not bool:\n        return False\n\n    return (\n        mode == \"local\"\n        and bind == \"loopback\"\n        and auth_mode == \"token\"\n        and workspace_only is True\n        and security == \"deny\"\n        and ask == \"always\"\n        and elevated_enabled is False\n        and channels == {}\n    )"
+      }
+    },
+    {
+      "id": "changed-input",
+      "title": "Independent task: add exact port review without changing is_safe",
+      "paragraphs": [
+        "Complete this task before reading the feedback section. Keep the corrected is_safe function and all eight original tests unchanged. Add a separate review(config, required_port=18789) function to reviewer.py. This is a changed requirement because is_safe does not inspect gateway.port.",
+        "The new function has a finite contract. First, required_port itself must have exact type int, so bool is invalid, and must be from 1 through 65535 inclusive. Invalid required_port values must raise ValueError with exactly: required_port must be an integer from 1 through 65535. For a valid required_port, review must return False rather than raise when config is malformed, when is_safe(config) is false, when gateway.port is absent, when the configured port is a bool, list, dictionary, or out of range, or when it does not match required_port. It returns True only when the original safety contract passes and gateway.port is an exact integer in range that equals required_port. It must not mutate config.",
+        "Save the following as openclaw-config-review/test_port_review.py without modifying test_reviewer.py. With only the corrected first reference present, the combined discovery run has 16 test methods. The actual pre-implementation result reports 17 errors, not 8: unittest counts the 16 methods in its Ran line, while cases created by with self.subTest() are reported as additional individual error entries. This is an expected pre-implementation result, not a claimed run. After implementing review, all sixteen test methods are expected to pass."
+      ],
+      "code": {
+        "language": "python",
+        "label": "openclaw-config-review/test_port_review.py",
+        "code": "import copy\nimport unittest\nimport reviewer\n\nBASE = {\n    \"gateway\": {\n        \"mode\": \"local\",\n        \"bind\": \"loopback\",\n        \"auth\": {\"mode\": \"token\"},\n        \"port\": 18789,\n    },\n    \"tools\": {\n        \"fs\": {\"workspaceOnly\": True},\n        \"exec\": {\"security\": \"deny\", \"ask\": \"always\"},\n        \"elevated\": {\"enabled\": False},\n    },\n}\n\nclass PortReviewTests(unittest.TestCase):\n    def test_valid_default_port(self):\n        self.assertTrue(reviewer.review(copy.deepcopy(BASE)))\n\n    def test_absent_port_is_rejected(self):\n        value = copy.deepcopy(BASE)\n        del value[\"gateway\"][\"port\"]\n        self.assertFalse(reviewer.review(value))\n\n    def test_boolean_port_is_rejected(self):\n        value = copy.deepcopy(BASE)\n        value[\"gateway\"][\"port\"] = True\n        self.assertFalse(reviewer.review(value))\n\n    def test_list_and_dictionary_ports_are_rejected(self):\n        for port in ([], {}):\n            with self.subTest(port=port):\n                value = copy.deepcopy(BASE)\n                value[\"gateway\"][\"port\"] = port\n                self.assertFalse(reviewer.review(value))\n\n    def test_port_boundaries(self):\n        cases = (\n            (1, 1, True),\n            (65535, 65535, True),\n            (0, 1, False),\n            (65536, 65535, False),\n        )\n        for port, required_port, expected in cases:\n            with self.subTest(port=port, required_port=required_port):\n                value = copy.deepcopy(BASE)\n                value[\"gateway\"][\"port\"] = port\n                self.assertEqual(reviewer.review(value, required_port), expected)\n\n    def test_valid_port_mismatch_is_rejected(self):\n        value = copy.deepcopy(BASE)\n        value[\"gateway\"][\"port\"] = 18790\n        self.assertFalse(reviewer.review(value, required_port=18789))\n\n    def test_invalid_required_port_raises_defined_error(self):\n        invalid_values = (True, False, 0, 65536, [], {})\n        expected = \"required_port must be an integer from 1 through 65535\"\n        for required_port in invalid_values:\n            with self.subTest(required_port=required_port):\n                with self.assertRaises(ValueError) as caught:\n                    reviewer.review(copy.deepcopy(BASE), required_port)\n                self.assertEqual(str(caught.exception), expected)\n\n    def test_review_does_not_mutate_input(self):\n        value = copy.deepcopy(BASE)\n        before = copy.deepcopy(value)\n        reviewer.review(value)\n        self.assertEqual(value, before)\n\nif __name__ == \"__main__\":\n    unittest.main()"
+      }
+    },
+    {
+      "id": "feedback",
+      "title": "Causal feedback and complete changed-task answer",
+      "paragraphs": [
+        "Consult this section only after attempting the changed-input task. Append the function below to openclaw-config-review/reviewer.py. Do not replace or edit is_safe, test_reviewer.py, or test_port_review.py.",
+        "Validation of required_port occurs first because it is a caller contract rather than untrusted configuration content. Exact type checking rejects True and False even though Python treats bool as a subclass of int. The range check permits the inclusive boundaries 1 and 65535. Once required_port is valid, calling is_safe preserves every original requirement. The gateway container is then safe to read, but gateway.port still receives its own exact-type, range, and equality checks.",
+        "These causes map directly to the tests: a missing port produces None and returns False; bool, list, and dictionary values fail exact integer checking; 0 and 65536 fail the range; a valid but different integer fails equality; and invalid required_port values raise the specified ValueError. Neither function writes to config, so the mutation test passes.",
+        "Before appending the function, the expected combined result is sixteen test methods with 17 reported errors, not eight errors. The extra reports come from subTest cases within three test methods, which unittest reports separately. After appending it, the expected result is sixteen passing test methods and OK. Actual results remain UNKNOWN until run. Passing these tests proves only the stated educational contract and does not validate OpenClaw, start a gateway, authorize a provider call, or grant permission to commit or deploy."
+      ],
+      "code": {
+        "language": "python",
+        "label": "Append this function to reviewer.py, then run both suites",
+        "code": "def review(config, required_port=18789):\n    if type(required_port) is not int or not 1 <= required_port <= 65535:\n        raise ValueError(\n            \"required_port must be an integer from 1 through 65535\"\n        )\n\n    if not is_safe(config):\n        return False\n\n    port = config[\"gateway\"].get(\"port\")\n    if type(port) is not int:\n        return False\n    if not 1 <= port <= 65535:\n        return False\n    return port == required_port\n\n# After appending and saving reviewer.py, run from the parent directory:\n# python -m unittest discover -s openclaw-config-review -p 'test_*.py' -v\n# Expected after implementation: Ran 16 tests, then OK.\n# Record the actual output rather than reporting this expectation as observed."
+      }
+    },
+    {
+      "id": "shutdown",
+      "title": "Stop the gateway and preserve non-secret evidence",
+      "paragraphs": [
+        "Press Ctrl+C in the foreground gateway terminal before changing configuration or recovering source. Preserve only non-secret evidence: versions, paths, command outcomes, the harmless prompt, the response if permitted, and changed-file names. Do not capture API keys, gateway tokens, authorization headers, or secret-bearing configuration.",
+        "The original scope remains a local-only first chat plus an offline configuration-review exercise. If a live provider, local chat, or gateway result was not checked, record CANNOT VERIFY and state what would establish it. Never assume a source rollback reverses external effects."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Completion record",
+        "code": "Gateway stopped with Ctrl+C: [YES / NO / CANNOT VERIFY]\nNon-secret evidence preserved: [list]\nSecrets captured or published: NO\nExternal channels added: NO\nCommit or deployment authorized: NO\nUnverified items and evidence needed: [list or NONE]"
+      }
     }
   ],
   "sources": [
@@ -78,6 +308,42 @@
       "url": "https://docs.openclaw.ai/tools",
       "publisher": "OpenClaw",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "OpenClaw getting-started",
+      "url": "https://docs.openclaw.ai/start/getting-started",
+      "publisher": "OpenClaw",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "OpenClaw mistral",
+      "url": "https://docs.openclaw.ai/providers/mistral",
+      "publisher": "OpenClaw",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "OpenClaw hardened-baseline",
+      "url": "https://docs.openclaw.ai/gateway/security/hardened-baseline",
+      "publisher": "OpenClaw",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "OpenClaw config",
+      "url": "https://docs.openclaw.ai/cli/config",
+      "publisher": "OpenClaw",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "OpenClaw security",
+      "url": "https://docs.openclaw.ai/gateway/security",
+      "publisher": "OpenClaw",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "OpenClaw running",
+      "url": "https://docs.openclaw.ai/cli/gateway/running",
+      "publisher": "OpenClaw",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
