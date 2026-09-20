@@ -41,12 +41,16 @@
         "Every request in the taught profile carries params._meta with exactly three namespaced keys: io.modelcontextprotocol/protocolVersion, io.modelcontextprotocol/clientInfo, and io.modelcontextprotocol/clientCapabilities. The host constructs this metadata from trusted connection state. The lab rejects fields._meta so untrusted operation fields cannot replace it.",
         "A complete server/discover result contains resultType, supportedVersions, capabilities, result._meta with io.modelcontextprotocol/serverInfo, and top-level ttlMs and cacheScope. The lab accepts the primary cacheScope value server, caps the server TTL with a host maximum, limits cache size, isolates entries by server, client, and policy identity, and validates expected server identity on every cache hit.",
         "Authorization is operation-specific. The host derives an item from the validated actual request, such as fields.name for tools/call or prompts/get and fields.uri for resources/read. It rejects a separately supplied mismatch. An approval is a structured object containing server, method, item, exact arguments, policy identity, and client identity. Structured comparison avoids delimiter collisions and prevents approval for one item from authorizing different sent fields.",
-        "Sampling and logging primitives are deprecated in the 2026-07-28 profile. A new server should call its selected LLM provider directly and use stderr or OpenTelemetry for diagnostics. This module makes no live provider call and evaluates no provider behavior."
+        "Sampling and logging primitives are deprecated in the 2026-07-28 profile. A new server should call its selected LLM provider directly and use stderr or OpenTelemetry for diagnostics. This module makes no live provider call and evaluates no provider behavior.",
+        "The 2026-07-28 caching utility permits only `public` and `private`. The lab result is identical and non-user-specific, so the server emits `public`. A host validator accepts both defined values and rejects the invented value `server`. See https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching.",
+        "The host still caps the TTL, limits cache entry count, and keys entries by controlled server connection, client identity, and trusted policy identity. Accepting a public result does not authorize sharing it across those local boundaries.",
+        "`serverInfo` is self-reported display and debugging data. It is not authentication or security authority. The fixture checks its name for routing diagnostics, but authorization derives from trusted host policy, the controlled local launch, the selected client connection, and exact operation approval. See https://modelcontextprotocol.io/specification/2026-07-28/server/discover.",
+        "Worked negative example: `serverInfo.name` says `issues` on a filesystem fixture. The lab reports a diagnostic mismatch. It does not infer that the process authenticated as the issue server. Conversely, a process cannot gain issue-writing authority merely by reporting the name `issues`."
       ],
       "code": {
         "language": "json",
         "label": "Correct discovery result placement",
-        "code": "{\n  \"resultType\": \"complete\",\n  \"supportedVersions\": [\"2026-07-28\"],\n  \"capabilities\": {\n    \"tools\": {\"listChanged\": true},\n    \"resources\": {},\n    \"prompts\": {}\n  },\n  \"_meta\": {\n    \"io.modelcontextprotocol/serverInfo\": {\n      \"name\": \"issues\",\n      \"version\": \"1.0.0\"\n    }\n  },\n  \"ttlMs\": 1000,\n  \"cacheScope\": \"server\"\n}"
+        "code": "{\n  \"resultType\": \"complete\",\n  \"supportedVersions\": [\"2026-07-28\"],\n  \"capabilities\": {\n    \"tools\": {\"listChanged\": true},\n    \"resources\": {},\n    \"prompts\": {}\n  },\n  \"_meta\": {\n    \"io.modelcontextprotocol/serverInfo\": {\n      \"name\": \"issues\",\n      \"version\": \"1.0.0\"\n    }\n  },\n  \"ttlMs\": 1000,\n  \"cacheScope\": \"public\"\n}"
       }
     },
     {
@@ -179,98 +183,110 @@
       "url": "https://nodejs.org/api/child_process.html#optionsstdio",
       "publisher": "Node.js",
       "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "MCP 2026-07-28 discovery",
+      "url": "https://modelcontextprotocol.io/specification/2026-07-28/server/discover",
+      "publisher": "Model Context Protocol",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "MCP 2026-07-28 caching utilities",
+      "url": "https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching",
+      "publisher": "Model Context Protocol",
+      "lastVerified": "2026-09-20"
     }
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 465,
+    "estimatedSeconds": 514,
     "cues": [
       {
-        "id": "cue-mcp-host-client-server-1",
+        "id": "cue-mcp-host-client-server-1-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "Begin with the three participants. The\nhost is the AI application coordinating"
       },
       {
-        "id": "cue-mcp-host-client-server-2",
+        "id": "cue-mcp-host-client-server-2-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "access. For every connected server, the\nhost creates one dedicated client and one"
       },
       {
-        "id": "cue-mcp-host-client-server-3",
+        "id": "cue-mcp-host-client-server-3-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "connection. In this lab, the filesystem\nclient and issues client own separate"
       },
       {
-        "id": "cue-mcp-host-client-server-4",
+        "id": "cue-mcp-host-client-server-4-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "child processes, standard-input,\nstandard-output, standard-error,"
       },
       {
-        "id": "cue-mcp-host-client-server-5",
+        "id": "cue-mcp-host-client-server-5-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "pending-request maps, identities,\ndeadlines, and discovery entries. A shared"
       },
       {
-        "id": "cue-mcp-host-client-server-6",
+        "id": "cue-mcp-host-client-server-6-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "client could confuse response routing or\nidentity state. One client per server"
       },
       {
-        "id": "cue-mcp-host-client-server-7",
+        "id": "cue-mcp-host-client-server-7-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "prevents that class of mistake, but it\ndoes not grant authority. The filesystem"
       },
       {
-        "id": "cue-mcp-host-client-server-8",
+        "id": "cue-mcp-host-client-server-8-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "client could return confidential text, and\nthe host could still misuse that text in"
       },
       {
-        "id": "cue-mcp-host-client-server-9",
+        "id": "cue-mcp-host-client-server-9-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "an issue or email request. A policy gate\nmust therefore control every protected"
       },
       {
-        "id": "cue-mcp-host-client-server-10",
+        "id": "cue-mcp-host-client-server-10-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "operation and any cross-server data flow.\nIn the worked path, host H uses client"
       },
       {
-        "id": "cue-mcp-host-client-server-11",
+        "id": "cue-mcp-host-client-server-11-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "H F for filesystem server F and client H I\nfor issues server I."
       },
       {
-        "id": "cue-mcp-host-client-server-12",
+        "id": "cue-mcp-host-client-server-12-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "If a discovery record reached H F while\nclaiming the identity of I, validation"
       },
       {
-        "id": "cue-mcp-host-client-server-13",
+        "id": "cue-mcp-host-client-server-13-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "would reject it, including on a cache hit.\nKeep the layers distinct: JSON-RPC methods"
       },
       {
-        "id": "cue-mcp-host-client-server-14",
+        "id": "cue-mcp-host-client-server-14-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "and primitives form the data layer, stdio\ncarries the messages, and policy decides"
       },
       {
-        "id": "cue-mcp-host-client-server-15",
+        "id": "cue-mcp-host-client-server-15-1",
         "kind": "narration",
         "sectionId": "host-client-server-layers",
         "text": "which protected actions may run."
@@ -289,139 +305,139 @@
         "text": "Would separate connections make it safe to copy filesystem output into an email request? Explain your answer. The expected answer is no: routing isolation is not data-flow authorization."
       },
       {
-        "id": "cue-mcp-primitives-narration-1",
+        "id": "cue-mcp-primitives-narration-1-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "Now trace the limited 2026-07-28 teaching\nprofile. Every request has params dot"
       },
       {
-        "id": "cue-mcp-primitives-narration-2",
+        "id": "cue-mcp-primitives-narration-2-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "underscore meta with exactly three\ntrusted, namespaced keys:"
       },
       {
-        "id": "cue-mcp-primitives-narration-3",
+        "id": "cue-mcp-primitives-narration-3-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "io.modelcontextprotocol slash\nprotocolVersion, io.modelcontextprotocol"
       },
       {
-        "id": "cue-mcp-primitives-narration-4",
+        "id": "cue-mcp-primitives-narration-4-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "slash clientInfo, and\nio.modelcontextprotocol slash"
       },
       {
-        "id": "cue-mcp-primitives-narration-5",
+        "id": "cue-mcp-primitives-narration-5-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "clientCapabilities. The host creates these\nvalues from connection state. Caller"
       },
       {
-        "id": "cue-mcp-primitives-narration-6",
+        "id": "cue-mcp-primitives-narration-6-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "fields cannot insert or replace underscore\nmeta. The server rejects the wrong version"
       },
       {
-        "id": "cue-mcp-primitives-narration-7",
+        "id": "cue-mcp-primitives-narration-7-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "or a client identity that does not match\nthe connection. The server slash discover"
       },
       {
-        "id": "cue-mcp-primitives-narration-8",
+        "id": "cue-mcp-primitives-narration-8-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "result is complete and lists\nsupportedVersions and capabilities. Its"
       },
       {
-        "id": "cue-mcp-primitives-narration-9",
+        "id": "cue-mcp-primitives-narration-9-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "server identity is nested under result\nunderscore meta at io.modelcontextprotocol"
       },
       {
-        "id": "cue-mcp-primitives-narration-10",
+        "id": "cue-mcp-primitives-narration-10-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "slash serverInfo. The TTL and cacheScope\nare top-level result fields. The host caps"
       },
       {
-        "id": "cue-mcp-primitives-narration-11",
+        "id": "cue-mcp-primitives-narration-11-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "the TTL, limits the cache to eight\nentries, keys entries by server, client,"
       },
       {
-        "id": "cue-mcp-primitives-narration-12",
+        "id": "cue-mcp-primitives-narration-12-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "and policy identity, and revalidates\nidentity on every hit. Discovery can"
       },
       {
-        "id": "cue-mcp-primitives-narration-13",
+        "id": "cue-mcp-primitives-narration-13-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "advertise tools, resources, and prompts,\nincluding listChanged support, but"
       },
       {
-        "id": "cue-mcp-primitives-narration-14",
+        "id": "cue-mcp-primitives-narration-14-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "advertisement is not authorization. For a\nprotected call, the host derives the"
       },
       {
-        "id": "cue-mcp-primitives-narration-15",
+        "id": "cue-mcp-primitives-narration-15-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "actual item from name for tools slash call\nor prompts slash get, and from"
       },
       {
-        "id": "cue-mcp-primitives-narration-16",
+        "id": "cue-mcp-primitives-narration-16-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "uri for resources slash read. It then\nrequires an exact structured approval"
       },
       {
-        "id": "cue-mcp-primitives-narration-17",
+        "id": "cue-mcp-primitives-narration-17-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "containing server, method, item,\narguments, policy identity, and client"
       },
       {
-        "id": "cue-mcp-primitives-narration-18",
+        "id": "cue-mcp-primitives-narration-18-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "identity. A claimed item that disagrees\nwith the request produces ITEM_MISMATCH. A"
       },
       {
-        "id": "cue-mcp-primitives-narration-19",
+        "id": "cue-mcp-primitives-narration-19-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "delimiter-shaped forgery produces\nAPPROVAL_MISMATCH because objects are"
       },
       {
-        "id": "cue-mcp-primitives-narration-20",
+        "id": "cue-mcp-primitives-narration-20-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "canonically compared rather than joined\ninto strings. Sampling and logging"
       },
       {
-        "id": "cue-mcp-primitives-narration-21",
+        "id": "cue-mcp-primitives-narration-21-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "primitives are deprecated in this taught\nprofile. A new server calls its selected"
       },
       {
-        "id": "cue-mcp-primitives-narration-22",
+        "id": "cue-mcp-primitives-narration-22-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "model provider directly and uses standard\ndiagnostics such as standard-error or"
       },
       {
-        "id": "cue-mcp-primitives-narration-23",
+        "id": "cue-mcp-primitives-narration-23-1",
         "kind": "narration",
         "sectionId": "primitives-and-discovery",
         "text": "OpenTelemetry. This lab calls no provider\nand evaluates no provider behavior."
@@ -446,103 +462,103 @@
         "text": "Before continuing, explain why discovering files.wordCount still leads to DENIED when no exact operation rule authorizes it, and why a cached discovery identity must be checked again."
       },
       {
-        "id": "cue-mcp-transport-narration-1",
+        "id": "cue-mcp-transport-narration-1-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "Separate the data layer from transport\nbehavior. This lab carries JSON-RPC 2.0"
       },
       {
-        "id": "cue-mcp-transport-narration-2",
+        "id": "cue-mcp-transport-narration-2-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "through newline-delimited local stdio,\nwith a request-frame limit of 4,096 bytes"
       },
       {
-        "id": "cue-mcp-transport-narration-3",
+        "id": "cue-mcp-transport-narration-3-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "and a diagnostic limit of 512 bytes.\nResponses must be valid JSON-RPC and"
       },
       {
-        "id": "cue-mcp-transport-narration-4",
+        "id": "cue-mcp-transport-narration-4-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "contain exactly one of result or error.\nMalformed JSON, both fields together, an"
       },
       {
-        "id": "cue-mcp-transport-narration-5",
+        "id": "cue-mcp-transport-narration-5-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "unknown response identifier, an oversized\nframe, excessive standard-error, or a"
       },
       {
-        "id": "cue-mcp-transport-narration-6",
+        "id": "cue-mcp-transport-narration-6-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "child exit causes explicit failure rather\nthan silent acceptance. Timed-out"
       },
       {
-        "id": "cue-mcp-transport-narration-7",
+        "id": "cue-mcp-transport-narration-7-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "identifiers enter a bounded quarantine of\nat most thirty-two entries for one second,"
       },
       {
-        "id": "cue-mcp-transport-narration-8",
+        "id": "cue-mcp-transport-narration-8-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "so a known late response can be ignored\nwithout accepting arbitrary identifiers."
       },
       {
-        "id": "cue-mcp-transport-narration-9",
+        "id": "cue-mcp-transport-narration-9-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "Shutdown also has a deadline and forcibly\nterminates a child that does not exit."
       },
       {
-        "id": "cue-mcp-transport-narration-10",
+        "id": "cue-mcp-transport-narration-10-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "Streamable HTTP is a different remote\ntransport with concerns such as HTTP"
       },
       {
-        "id": "cue-mcp-transport-narration-11",
+        "id": "cue-mcp-transport-narration-11-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "authorization, TLS, origins, status\nhandling, reconnection, streaming, and"
       },
       {
-        "id": "cue-mcp-transport-narration-12",
+        "id": "cue-mcp-transport-narration-12-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "Server-Sent Events. None of those is\ntested here. Passing these stdio tests is"
       },
       {
-        "id": "cue-mcp-transport-narration-13",
+        "id": "cue-mcp-transport-narration-13-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "not evidence of Streamable HTTP\ncompatibility or full protocol"
       },
       {
-        "id": "cue-mcp-transport-narration-14",
+        "id": "cue-mcp-transport-narration-14-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "conformance. Self-describing requests\nallow more independent handling, which is"
       },
       {
-        "id": "cue-mcp-transport-narration-15",
+        "id": "cue-mcp-transport-narration-15-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "the benefit of stateless protocol\nexchanges. The cost is that application"
       },
       {
-        "id": "cue-mcp-transport-narration-16",
+        "id": "cue-mcp-transport-narration-16-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "records, approvals, subscriptions, and\nside-effect outcomes do not appear"
       },
       {
-        "id": "cue-mcp-transport-narration-17",
+        "id": "cue-mcp-transport-narration-17-1",
         "kind": "narration",
         "sectionId": "transport-and-statelessness",
         "text": "automatically. Servers must store and\nreconcile that state explicitly."
@@ -567,193 +583,193 @@
         "text": "State the limit precisely: this is a bounded local stdio teaching lab, not an HTTP test, SDK conformance suite, benchmark reproduction, or protocol conformance suite."
       },
       {
-        "id": "cue-mcp-fleet-narration-1",
+        "id": "cue-mcp-fleet-narration-1-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "Apply these ideas to a four-server policy.\nScope says who may see or use"
       },
       {
-        "id": "cue-mcp-fleet-narration-2",
+        "id": "cue-mcp-fleet-narration-2-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "a server declaration. Trust says which\nexact operation may run. Bounds limit"
       },
       {
-        "id": "cue-mcp-fleet-narration-3",
+        "id": "cue-mcp-fleet-narration-3-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "time, output, framing, diagnostics, cache\ngrowth, and shutdown. None replaces the"
       },
       {
-        "id": "cue-mcp-fleet-narration-4",
+        "id": "cue-mcp-fleet-narration-4-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "others. In the worksheet, a read-only\nfilesystem has local scope, no approval"
       },
       {
-        "id": "cue-mcp-fleet-narration-5",
+        "id": "cue-mcp-fleet-narration-5-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "for one named read, a\nfive-hundred-millisecond timeout, and a"
       },
       {
-        "id": "cue-mcp-fleet-narration-6",
+        "id": "cue-mcp-fleet-narration-6-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "512-byte output cap. A team issue tracker\nhas project scope, exact approval for each"
       },
       {
-        "id": "cue-mcp-fleet-narration-7",
+        "id": "cue-mcp-fleet-narration-7-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "write, an eight-hundred-millisecond\ntimeout, and a 1,024-byte cap. External"
       },
       {
-        "id": "cue-mcp-fleet-narration-8",
+        "id": "cue-mcp-fleet-narration-8-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "email has user scope, exact approval for\nevery recipient and payload, an"
       },
       {
-        "id": "cue-mcp-fleet-narration-9",
+        "id": "cue-mcp-fleet-narration-9-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "eight-hundred-millisecond timeout, and a\n512-byte cap. An ad hoc teammate server"
       },
       {
-        "id": "cue-mcp-fleet-narration-10",
+        "id": "cue-mcp-fleet-narration-10-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "has local scope, approval for every\noperation, a three-hundred-millisecond"
       },
       {
-        "id": "cue-mcp-fleet-narration-11",
+        "id": "cue-mcp-fleet-narration-11-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "timeout, and a 256-byte cap. Email is\nhighest risk because it can disclose"
       },
       {
-        "id": "cue-mcp-fleet-narration-12",
+        "id": "cue-mcp-fleet-narration-12-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "content outside the system. If issue\nsearch expands to create and close,"
       },
       {
-        "id": "cue-mcp-fleet-narration-13",
+        "id": "cue-mcp-fleet-narration-13-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "project scope may stay the same, but\ncreate and close need separate approvals,"
       },
       {
-        "id": "cue-mcp-fleet-narration-14",
+        "id": "cue-mcp-fleet-narration-14-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "exact arguments, and operation keys for\nreconciliation. Now run the actual"
       },
       {
-        "id": "cue-mcp-fleet-narration-15",
+        "id": "cue-mcp-fleet-narration-15-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "two-server lab with Node.js 24. Run node\nhost.mjs. Expect exactly six lines:"
       },
       {
-        "id": "cue-mcp-fleet-narration-16",
+        "id": "cue-mcp-fleet-narration-16-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "clients equals 2; discover equals\nfilesystem comma issues; issueTools equals"
       },
       {
-        "id": "cue-mcp-fleet-narration-17",
+        "id": "cue-mcp-fleet-narration-17-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "4; fsResources equals 1, templates equals\n0, read equals Local demonstration"
       },
       {
-        "id": "cue-mcp-fleet-narration-18",
+        "id": "cue-mcp-fleet-narration-18-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "content; issuePrompts equals 1, prompt\nequals Triage the selected issue; and"
       },
       {
-        "id": "cue-mcp-fleet-narration-19",
+        "id": "cue-mcp-fleet-narration-19-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "toolResult equals created colon Demo. Run\nnode regressions.mjs and retain RESULT 20"
       },
       {
-        "id": "cue-mcp-fleet-narration-20",
+        "id": "cue-mcp-fleet-narration-20-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "slash 20 regressions passed. These tests\ninclude causal negative cases such as"
       },
       {
-        "id": "cue-mcp-fleet-narration-21",
+        "id": "cue-mcp-fleet-narration-21-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "DENIED for discovered but unauthorized\naccess, RPC negative 32602 for a wrong"
       },
       {
-        "id": "cue-mcp-fleet-narration-22",
+        "id": "cue-mcp-fleet-narration-22-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "profile or forged identity, OUTPUT_LIMIT\nfor oversized operation output, and"
       },
       {
-        "id": "cue-mcp-fleet-narration-23",
+        "id": "cue-mcp-fleet-narration-23-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "UNKNOWN_OUTCOME for the timed-out side\neffect. Next run node learner-test.mjs. It"
       },
       {
-        "id": "cue-mcp-fleet-narration-24",
+        "id": "cue-mcp-fleet-narration-24-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "fails with APPROVAL_MISMATCH because\noperations zero authorizes issues.create"
       },
       {
-        "id": "cue-mcp-fleet-narration-25",
+        "id": "cue-mcp-fleet-narration-25-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "but its nested approval item says\nissues.search. Edit only operations zero"
       },
       {
-        "id": "cue-mcp-fleet-narration-26",
+        "id": "cue-mcp-fleet-narration-26-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "dot approval dot item in\npolicy.broken.json from issues.search to"
       },
       {
-        "id": "cue-mcp-fleet-narration-27",
+        "id": "cue-mcp-fleet-narration-27-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "issues.create. Do not edit the test,\nfixture, or regressions. Run the learner"
       },
       {
-        "id": "cue-mcp-fleet-narration-28",
+        "id": "cue-mcp-fleet-narration-28-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "test again and retain: PASS learner\nrepair: exact structured issue-create"
       },
       {
-        "id": "cue-mcp-fleet-narration-29",
+        "id": "cue-mcp-fleet-narration-29-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "approval accepted. Then rerun the\nregressions and confirm all twenty remain"
       },
       {
-        "id": "cue-mcp-fleet-narration-30",
+        "id": "cue-mcp-fleet-narration-30-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "green. Discovery, a longer timeout, a\nlarger output cap, or approval for prompts"
       },
       {
-        "id": "cue-mcp-fleet-narration-31",
+        "id": "cue-mcp-fleet-narration-31-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "slash get cannot fix this mismatch because\nnone changes the exact identity of the"
       },
       {
-        "id": "cue-mcp-fleet-narration-32",
+        "id": "cue-mcp-fleet-narration-32-1",
         "kind": "narration",
         "sectionId": "operating-a-fleet-of-servers",
         "text": "requested issues.create operation."
@@ -778,562 +794,682 @@
         "text": "Show four pieces of evidence: the four-row policy plus revised issue operations, the RESULT 20 slash 20 line, the one-value diff plus passing learner line, and a causal explanation separating isolation, discovery, scope, authorization, bounds, unknown outcome, and reconciliation."
       },
       {
-        "id": "cue-mcp-assessment-1",
+        "id": "cue-mcp-assessment-1-1",
         "kind": "assessment-handoff",
         "text": "Begin the knowledge check only after you\nhave recorded the regression result,"
       },
       {
-        "id": "cue-mcp-assessment-2",
+        "id": "cue-mcp-assessment-2-1",
         "kind": "assessment-handoff",
         "text": "completed the one-value repair, and\nexplained why a timed-out side effect must"
       },
       {
-        "id": "cue-mcp-assessment-3",
+        "id": "cue-mcp-assessment-3-1",
         "kind": "assessment-handoff",
         "text": "be reconciled without replay."
+      },
+      {
+        "id": "cue-mcp-correction-cue-2-1",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "Now inspect discovery. A complete result\ncarries capabilities, supported versions,"
+      },
+      {
+        "id": "cue-mcp-correction-cue-2-2",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "serverInfo metadata, ttlMs, and\ncacheScope. The caching utility defines"
+      },
+      {
+        "id": "cue-mcp-correction-cue-2-3",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "exactly public and private. This\nnon-user-specific fixture emits public."
+      },
+      {
+        "id": "cue-mcp-correction-cue-2-4",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "The host accepts public and private and\nrejects server. It still caps TTL, limits"
+      },
+      {
+        "id": "cue-mcp-correction-cue-2-5",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "cache size, and keys entries by controlled\nserver, client, and policy identities."
+      },
+      {
+        "id": "cue-mcp-correction-cue-3-1",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "Treat serverInfo carefully. It is\nself-reported display and debugging"
+      },
+      {
+        "id": "cue-mcp-correction-cue-3-2",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "metadata, not authentication or security\nauthority. A fixture name mismatch is"
+      },
+      {
+        "id": "cue-mcp-correction-cue-3-3",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "useful evidence of routing or\nconfiguration trouble, so the lab reports"
+      },
+      {
+        "id": "cue-mcp-correction-cue-3-4",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "it diagnostically. Authority instead comes\nfrom trusted host policy, the controlled"
+      },
+      {
+        "id": "cue-mcp-correction-cue-3-5",
+        "kind": "narration",
+        "sectionId": "primitives-and-discovery",
+        "text": "child launch, the selected connection, and\nthe exact operation approval."
       }
     ],
-    "transcript": "Begin with the three participants. The\nhost is the AI application coordinating access. For every connected server, the\nhost creates one dedicated client and one connection. In this lab, the filesystem\nclient and issues client own separate child processes, standard-input,\nstandard-output, standard-error, pending-request maps, identities,\ndeadlines, and discovery entries. A shared client could confuse response routing or\nidentity state. One client per server prevents that class of mistake, but it\ndoes not grant authority. The filesystem client could return confidential text, and\nthe host could still misuse that text in an issue or email request. A policy gate\nmust therefore control every protected operation and any cross-server data flow.\nIn the worked path, host H uses client H F for filesystem server F and client H I\nfor issues server I. If a discovery record reached H F while\nclaiming the identity of I, validation would reject it, including on a cache hit.\nKeep the layers distinct: JSON-RPC methods and primitives form the data layer, stdio\ncarries the messages, and policy decides which protected actions may run. Now trace the limited 2026-07-28 teaching\nprofile. Every request has params dot underscore meta with exactly three\ntrusted, namespaced keys: io.modelcontextprotocol slash\nprotocolVersion, io.modelcontextprotocol slash clientInfo, and\nio.modelcontextprotocol slash clientCapabilities. The host creates these\nvalues from connection state. Caller fields cannot insert or replace underscore\nmeta. The server rejects the wrong version or a client identity that does not match\nthe connection. The server slash discover result is complete and lists\nsupportedVersions and capabilities. Its server identity is nested under result\nunderscore meta at io.modelcontextprotocol slash serverInfo. The TTL and cacheScope\nare top-level result fields. The host caps the TTL, limits the cache to eight\nentries, keys entries by server, client, and policy identity, and revalidates\nidentity on every hit. Discovery can advertise tools, resources, and prompts,\nincluding listChanged support, but advertisement is not authorization. For a\nprotected call, the host derives the actual item from name for tools slash call\nor prompts slash get, and from uri for resources slash read. It then\nrequires an exact structured approval containing server, method, item,\narguments, policy identity, and client identity. A claimed item that disagrees\nwith the request produces ITEM_MISMATCH. A delimiter-shaped forgery produces\nAPPROVAL_MISMATCH because objects are canonically compared rather than joined\ninto strings. Sampling and logging primitives are deprecated in this taught\nprofile. A new server calls its selected model provider directly and uses standard\ndiagnostics such as standard-error or OpenTelemetry. This lab calls no provider\nand evaluates no provider behavior. Separate the data layer from transport\nbehavior. This lab carries JSON-RPC 2.0 through newline-delimited local stdio,\nwith a request-frame limit of 4,096 bytes and a diagnostic limit of 512 bytes.\nResponses must be valid JSON-RPC and contain exactly one of result or error.\nMalformed JSON, both fields together, an unknown response identifier, an oversized\nframe, excessive standard-error, or a child exit causes explicit failure rather\nthan silent acceptance. Timed-out identifiers enter a bounded quarantine of\nat most thirty-two entries for one second, so a known late response can be ignored\nwithout accepting arbitrary identifiers. Shutdown also has a deadline and forcibly\nterminates a child that does not exit. Streamable HTTP is a different remote\ntransport with concerns such as HTTP authorization, TLS, origins, status\nhandling, reconnection, streaming, and Server-Sent Events. None of those is\ntested here. Passing these stdio tests is not evidence of Streamable HTTP\ncompatibility or full protocol conformance. Self-describing requests\nallow more independent handling, which is the benefit of stateless protocol\nexchanges. The cost is that application records, approvals, subscriptions, and\nside-effect outcomes do not appear automatically. Servers must store and\nreconcile that state explicitly. Apply these ideas to a four-server policy.\nScope says who may see or use a server declaration. Trust says which\nexact operation may run. Bounds limit time, output, framing, diagnostics, cache\ngrowth, and shutdown. None replaces the others. In the worksheet, a read-only\nfilesystem has local scope, no approval for one named read, a\nfive-hundred-millisecond timeout, and a 512-byte output cap. A team issue tracker\nhas project scope, exact approval for each write, an eight-hundred-millisecond\ntimeout, and a 1,024-byte cap. External email has user scope, exact approval for\nevery recipient and payload, an eight-hundred-millisecond timeout, and a\n512-byte cap. An ad hoc teammate server has local scope, approval for every\noperation, a three-hundred-millisecond timeout, and a 256-byte cap. Email is\nhighest risk because it can disclose content outside the system. If issue\nsearch expands to create and close, project scope may stay the same, but\ncreate and close need separate approvals, exact arguments, and operation keys for\nreconciliation. Now run the actual two-server lab with Node.js 24. Run node\nhost.mjs. Expect exactly six lines: clients equals 2; discover equals\nfilesystem comma issues; issueTools equals 4; fsResources equals 1, templates equals\n0, read equals Local demonstration content; issuePrompts equals 1, prompt\nequals Triage the selected issue; and toolResult equals created colon Demo. Run\nnode regressions.mjs and retain RESULT 20 slash 20 regressions passed. These tests\ninclude causal negative cases such as DENIED for discovered but unauthorized\naccess, RPC negative 32602 for a wrong profile or forged identity, OUTPUT_LIMIT\nfor oversized operation output, and UNKNOWN_OUTCOME for the timed-out side\neffect. Next run node learner-test.mjs. It fails with APPROVAL_MISMATCH because\noperations zero authorizes issues.create but its nested approval item says\nissues.search. Edit only operations zero dot approval dot item in\npolicy.broken.json from issues.search to issues.create. Do not edit the test,\nfixture, or regressions. Run the learner test again and retain: PASS learner\nrepair: exact structured issue-create approval accepted. Then rerun the\nregressions and confirm all twenty remain green. Discovery, a longer timeout, a\nlarger output cap, or approval for prompts slash get cannot fix this mismatch because\nnone changes the exact identity of the requested issues.create operation. Begin the knowledge check only after you\nhave recorded the regression result, completed the one-value repair, and\nexplained why a timed-out side effect must be reconciled without replay.",
+    "transcript": "Begin with the three participants. The\nhost is the AI application coordinating access. For every connected server, the\nhost creates one dedicated client and one connection. In this lab, the filesystem\nclient and issues client own separate child processes, standard-input,\nstandard-output, standard-error, pending-request maps, identities,\ndeadlines, and discovery entries. A shared client could confuse response routing or\nidentity state. One client per server prevents that class of mistake, but it\ndoes not grant authority. The filesystem client could return confidential text, and\nthe host could still misuse that text in an issue or email request. A policy gate\nmust therefore control every protected operation and any cross-server data flow.\nIn the worked path, host H uses client H F for filesystem server F and client H I\nfor issues server I. If a discovery record reached H F while\nclaiming the identity of I, validation would reject it, including on a cache hit.\nKeep the layers distinct: JSON-RPC methods and primitives form the data layer, stdio\ncarries the messages, and policy decides which protected actions may run. Now trace the limited 2026-07-28 teaching\nprofile. Every request has params dot underscore meta with exactly three\ntrusted, namespaced keys: io.modelcontextprotocol slash\nprotocolVersion, io.modelcontextprotocol slash clientInfo, and\nio.modelcontextprotocol slash clientCapabilities. The host creates these\nvalues from connection state. Caller fields cannot insert or replace underscore\nmeta. The server rejects the wrong version or a client identity that does not match\nthe connection. The server slash discover result is complete and lists\nsupportedVersions and capabilities. Its server identity is nested under result\nunderscore meta at io.modelcontextprotocol slash serverInfo. The TTL and cacheScope\nare top-level result fields. The host caps the TTL, limits the cache to eight\nentries, keys entries by server, client, and policy identity, and revalidates\nidentity on every hit. Discovery can advertise tools, resources, and prompts,\nincluding listChanged support, but advertisement is not authorization. For a\nprotected call, the host derives the actual item from name for tools slash call\nor prompts slash get, and from uri for resources slash read. It then\nrequires an exact structured approval containing server, method, item,\narguments, policy identity, and client identity. A claimed item that disagrees\nwith the request produces ITEM_MISMATCH. A delimiter-shaped forgery produces\nAPPROVAL_MISMATCH because objects are canonically compared rather than joined\ninto strings. Sampling and logging primitives are deprecated in this taught\nprofile. A new server calls its selected model provider directly and uses standard\ndiagnostics such as standard-error or OpenTelemetry. This lab calls no provider\nand evaluates no provider behavior. Separate the data layer from transport\nbehavior. This lab carries JSON-RPC 2.0 through newline-delimited local stdio,\nwith a request-frame limit of 4,096 bytes and a diagnostic limit of 512 bytes.\nResponses must be valid JSON-RPC and contain exactly one of result or error.\nMalformed JSON, both fields together, an unknown response identifier, an oversized\nframe, excessive standard-error, or a child exit causes explicit failure rather\nthan silent acceptance. Timed-out identifiers enter a bounded quarantine of\nat most thirty-two entries for one second, so a known late response can be ignored\nwithout accepting arbitrary identifiers. Shutdown also has a deadline and forcibly\nterminates a child that does not exit. Streamable HTTP is a different remote\ntransport with concerns such as HTTP authorization, TLS, origins, status\nhandling, reconnection, streaming, and Server-Sent Events. None of those is\ntested here. Passing these stdio tests is not evidence of Streamable HTTP\ncompatibility or full protocol conformance. Self-describing requests\nallow more independent handling, which is the benefit of stateless protocol\nexchanges. The cost is that application records, approvals, subscriptions, and\nside-effect outcomes do not appear automatically. Servers must store and\nreconcile that state explicitly. Apply these ideas to a four-server policy.\nScope says who may see or use a server declaration. Trust says which\nexact operation may run. Bounds limit time, output, framing, diagnostics, cache\ngrowth, and shutdown. None replaces the others. In the worksheet, a read-only\nfilesystem has local scope, no approval for one named read, a\nfive-hundred-millisecond timeout, and a 512-byte output cap. A team issue tracker\nhas project scope, exact approval for each write, an eight-hundred-millisecond\ntimeout, and a 1,024-byte cap. External email has user scope, exact approval for\nevery recipient and payload, an eight-hundred-millisecond timeout, and a\n512-byte cap. An ad hoc teammate server has local scope, approval for every\noperation, a three-hundred-millisecond timeout, and a 256-byte cap. Email is\nhighest risk because it can disclose content outside the system. If issue\nsearch expands to create and close, project scope may stay the same, but\ncreate and close need separate approvals, exact arguments, and operation keys for\nreconciliation. Now run the actual two-server lab with Node.js 24. Run node\nhost.mjs. Expect exactly six lines: clients equals 2; discover equals\nfilesystem comma issues; issueTools equals 4; fsResources equals 1, templates equals\n0, read equals Local demonstration content; issuePrompts equals 1, prompt\nequals Triage the selected issue; and toolResult equals created colon Demo. Run\nnode regressions.mjs and retain RESULT 20 slash 20 regressions passed. These tests\ninclude causal negative cases such as DENIED for discovered but unauthorized\naccess, RPC negative 32602 for a wrong profile or forged identity, OUTPUT_LIMIT\nfor oversized operation output, and UNKNOWN_OUTCOME for the timed-out side\neffect. Next run node learner-test.mjs. It fails with APPROVAL_MISMATCH because\noperations zero authorizes issues.create but its nested approval item says\nissues.search. Edit only operations zero dot approval dot item in\npolicy.broken.json from issues.search to issues.create. Do not edit the test,\nfixture, or regressions. Run the learner test again and retain: PASS learner\nrepair: exact structured issue-create approval accepted. Then rerun the\nregressions and confirm all twenty remain green. Discovery, a longer timeout, a\nlarger output cap, or approval for prompts slash get cannot fix this mismatch because\nnone changes the exact identity of the requested issues.create operation. Begin the knowledge check only after you\nhave recorded the regression result, completed the one-value repair, and\nexplained why a timed-out side effect must be reconciled without replay. Now inspect discovery. A complete result\ncarries capabilities, supported versions, serverInfo metadata, ttlMs, and\ncacheScope. The caching utility defines exactly public and private. This\nnon-user-specific fixture emits public. The host accepts public and private and\nrejects server. It still caps TTL, limits cache size, and keys entries by controlled\nserver, client, and policy identities. Treat serverInfo carefully. It is\nself-reported display and debugging metadata, not authentication or security\nauthority. A fixture name mismatch is useful evidence of routing or\nconfiguration trouble, so the lab reports it diagnostically. Authority instead comes\nfrom trusted host policy, the controlled child launch, the selected connection, and\nthe exact operation approval.",
     "captions": [
       {
-        "cueId": "cue-mcp-host-client-server-1",
+        "cueId": "cue-mcp-host-client-server-1-1",
         "startSeconds": 0,
         "endSeconds": 6,
         "text": "Begin with the three participants. The\nhost is the AI application coordinating"
       },
       {
-        "cueId": "cue-mcp-host-client-server-2",
+        "cueId": "cue-mcp-host-client-server-2-1",
         "startSeconds": 6,
         "endSeconds": 12,
         "text": "access. For every connected server, the\nhost creates one dedicated client and one"
       },
       {
-        "cueId": "cue-mcp-host-client-server-3",
+        "cueId": "cue-mcp-host-client-server-3-1",
         "startSeconds": 12,
         "endSeconds": 18,
         "text": "connection. In this lab, the filesystem\nclient and issues client own separate"
       },
       {
-        "cueId": "cue-mcp-host-client-server-4",
+        "cueId": "cue-mcp-host-client-server-4-1",
         "startSeconds": 18,
         "endSeconds": 21,
         "text": "child processes, standard-input,\nstandard-output, standard-error,"
       },
       {
-        "cueId": "cue-mcp-host-client-server-5",
+        "cueId": "cue-mcp-host-client-server-5-1",
         "startSeconds": 21,
         "endSeconds": 25,
         "text": "pending-request maps, identities,\ndeadlines, and discovery entries. A shared"
       },
       {
-        "cueId": "cue-mcp-host-client-server-6",
+        "cueId": "cue-mcp-host-client-server-6-1",
         "startSeconds": 25,
         "endSeconds": 31,
         "text": "client could confuse response routing or\nidentity state. One client per server"
       },
       {
-        "cueId": "cue-mcp-host-client-server-7",
+        "cueId": "cue-mcp-host-client-server-7-1",
         "startSeconds": 31,
         "endSeconds": 37,
         "text": "prevents that class of mistake, but it\ndoes not grant authority. The filesystem"
       },
       {
-        "cueId": "cue-mcp-host-client-server-8",
+        "cueId": "cue-mcp-host-client-server-8-1",
         "startSeconds": 37,
         "endSeconds": 43,
         "text": "client could return confidential text, and\nthe host could still misuse that text in"
       },
       {
-        "cueId": "cue-mcp-host-client-server-9",
+        "cueId": "cue-mcp-host-client-server-9-1",
         "startSeconds": 43,
         "endSeconds": 49,
         "text": "an issue or email request. A policy gate\nmust therefore control every protected"
       },
       {
-        "cueId": "cue-mcp-host-client-server-10",
+        "cueId": "cue-mcp-host-client-server-10-1",
         "startSeconds": 49,
         "endSeconds": 55,
         "text": "operation and any cross-server data flow.\nIn the worked path, host H uses client"
       },
       {
-        "cueId": "cue-mcp-host-client-server-11",
+        "cueId": "cue-mcp-host-client-server-11-1",
         "startSeconds": 55,
         "endSeconds": 61,
         "text": "H F for filesystem server F and client H I\nfor issues server I."
       },
       {
-        "cueId": "cue-mcp-host-client-server-12",
+        "cueId": "cue-mcp-host-client-server-12-1",
         "startSeconds": 61,
         "endSeconds": 67,
         "text": "If a discovery record reached H F while\nclaiming the identity of I, validation"
       },
       {
-        "cueId": "cue-mcp-host-client-server-13",
+        "cueId": "cue-mcp-host-client-server-13-1",
         "startSeconds": 67,
         "endSeconds": 73,
         "text": "would reject it, including on a cache hit.\nKeep the layers distinct: JSON-RPC methods"
       },
       {
-        "cueId": "cue-mcp-host-client-server-14",
+        "cueId": "cue-mcp-host-client-server-14-1",
         "startSeconds": 73,
         "endSeconds": 79,
         "text": "and primitives form the data layer, stdio\ncarries the messages, and policy decides"
       },
       {
-        "cueId": "cue-mcp-host-client-server-15",
+        "cueId": "cue-mcp-host-client-server-15-1",
         "startSeconds": 79,
         "endSeconds": 82,
         "text": "which protected actions may run."
       },
       {
-        "cueId": "cue-mcp-primitives-narration-1",
+        "cueId": "cue-mcp-primitives-narration-1-1",
         "startSeconds": 82,
         "endSeconds": 88,
         "text": "Now trace the limited 2026-07-28 teaching\nprofile. Every request has params dot"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-2",
+        "cueId": "cue-mcp-primitives-narration-2-1",
         "startSeconds": 88,
         "endSeconds": 92,
         "text": "underscore meta with exactly three\ntrusted, namespaced keys:"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-3",
+        "cueId": "cue-mcp-primitives-narration-3-1",
         "startSeconds": 92,
         "endSeconds": 94,
         "text": "io.modelcontextprotocol slash\nprotocolVersion, io.modelcontextprotocol"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-4",
+        "cueId": "cue-mcp-primitives-narration-4-1",
         "startSeconds": 94,
         "endSeconds": 97,
         "text": "slash clientInfo, and\nio.modelcontextprotocol slash"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-5",
+        "cueId": "cue-mcp-primitives-narration-5-1",
         "startSeconds": 97,
         "endSeconds": 102,
         "text": "clientCapabilities. The host creates these\nvalues from connection state. Caller"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-6",
+        "cueId": "cue-mcp-primitives-narration-6-1",
         "startSeconds": 102,
         "endSeconds": 108,
         "text": "fields cannot insert or replace underscore\nmeta. The server rejects the wrong version"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-7",
+        "cueId": "cue-mcp-primitives-narration-7-1",
         "startSeconds": 108,
         "endSeconds": 114,
         "text": "or a client identity that does not match\nthe connection. The server slash discover"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-8",
+        "cueId": "cue-mcp-primitives-narration-8-1",
         "startSeconds": 114,
         "endSeconds": 118,
         "text": "result is complete and lists\nsupportedVersions and capabilities. Its"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-9",
+        "cueId": "cue-mcp-primitives-narration-9-1",
         "startSeconds": 118,
         "endSeconds": 123,
         "text": "server identity is nested under result\nunderscore meta at io.modelcontextprotocol"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-10",
+        "cueId": "cue-mcp-primitives-narration-10-1",
         "startSeconds": 123,
         "endSeconds": 129,
         "text": "slash serverInfo. The TTL and cacheScope\nare top-level result fields. The host caps"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-11",
+        "cueId": "cue-mcp-primitives-narration-11-1",
         "startSeconds": 129,
         "endSeconds": 135,
         "text": "the TTL, limits the cache to eight\nentries, keys entries by server, client,"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-12",
+        "cueId": "cue-mcp-primitives-narration-12-1",
         "startSeconds": 135,
         "endSeconds": 140,
         "text": "and policy identity, and revalidates\nidentity on every hit. Discovery can"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-13",
+        "cueId": "cue-mcp-primitives-narration-13-1",
         "startSeconds": 140,
         "endSeconds": 144,
         "text": "advertise tools, resources, and prompts,\nincluding listChanged support, but"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-14",
+        "cueId": "cue-mcp-primitives-narration-14-1",
         "startSeconds": 144,
         "endSeconds": 150,
         "text": "advertisement is not authorization. For a\nprotected call, the host derives the"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-15",
+        "cueId": "cue-mcp-primitives-narration-15-1",
         "startSeconds": 150,
         "endSeconds": 156,
         "text": "actual item from name for tools slash call\nor prompts slash get, and from"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-16",
+        "cueId": "cue-mcp-primitives-narration-16-1",
         "startSeconds": 156,
         "endSeconds": 162,
         "text": "uri for resources slash read. It then\nrequires an exact structured approval"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-17",
+        "cueId": "cue-mcp-primitives-narration-17-1",
         "startSeconds": 162,
         "endSeconds": 166,
         "text": "containing server, method, item,\narguments, policy identity, and client"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-18",
+        "cueId": "cue-mcp-primitives-narration-18-1",
         "startSeconds": 166,
         "endSeconds": 172,
         "text": "identity. A claimed item that disagrees\nwith the request produces ITEM_MISMATCH. A"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-19",
+        "cueId": "cue-mcp-primitives-narration-19-1",
         "startSeconds": 172,
         "endSeconds": 175,
         "text": "delimiter-shaped forgery produces\nAPPROVAL_MISMATCH because objects are"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-20",
+        "cueId": "cue-mcp-primitives-narration-20-1",
         "startSeconds": 175,
         "endSeconds": 180,
         "text": "canonically compared rather than joined\ninto strings. Sampling and logging"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-21",
+        "cueId": "cue-mcp-primitives-narration-21-1",
         "startSeconds": 180,
         "endSeconds": 186,
         "text": "primitives are deprecated in this taught\nprofile. A new server calls its selected"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-22",
+        "cueId": "cue-mcp-primitives-narration-22-1",
         "startSeconds": 186,
         "endSeconds": 191,
         "text": "model provider directly and uses standard\ndiagnostics such as standard-error or"
       },
       {
-        "cueId": "cue-mcp-primitives-narration-23",
+        "cueId": "cue-mcp-primitives-narration-23-1",
         "startSeconds": 191,
         "endSeconds": 196,
         "text": "OpenTelemetry. This lab calls no provider\nand evaluates no provider behavior."
       },
       {
-        "cueId": "cue-mcp-transport-narration-1",
+        "cueId": "cue-mcp-transport-narration-1-1",
         "startSeconds": 196,
         "endSeconds": 202,
         "text": "Separate the data layer from transport\nbehavior. This lab carries JSON-RPC 2.0"
       },
       {
-        "cueId": "cue-mcp-transport-narration-2",
+        "cueId": "cue-mcp-transport-narration-2-1",
         "startSeconds": 202,
         "endSeconds": 207,
         "text": "through newline-delimited local stdio,\nwith a request-frame limit of 4,096 bytes"
       },
       {
-        "cueId": "cue-mcp-transport-narration-3",
+        "cueId": "cue-mcp-transport-narration-3-1",
         "startSeconds": 207,
         "endSeconds": 213,
         "text": "and a diagnostic limit of 512 bytes.\nResponses must be valid JSON-RPC and"
       },
       {
-        "cueId": "cue-mcp-transport-narration-4",
+        "cueId": "cue-mcp-transport-narration-4-1",
         "startSeconds": 213,
         "endSeconds": 219,
         "text": "contain exactly one of result or error.\nMalformed JSON, both fields together, an"
       },
       {
-        "cueId": "cue-mcp-transport-narration-5",
+        "cueId": "cue-mcp-transport-narration-5-1",
         "startSeconds": 219,
         "endSeconds": 224,
         "text": "unknown response identifier, an oversized\nframe, excessive standard-error, or a"
       },
       {
-        "cueId": "cue-mcp-transport-narration-6",
+        "cueId": "cue-mcp-transport-narration-6-1",
         "startSeconds": 224,
         "endSeconds": 229,
         "text": "child exit causes explicit failure rather\nthan silent acceptance. Timed-out"
       },
       {
-        "cueId": "cue-mcp-transport-narration-7",
+        "cueId": "cue-mcp-transport-narration-7-1",
         "startSeconds": 229,
         "endSeconds": 235,
         "text": "identifiers enter a bounded quarantine of\nat most thirty-two entries for one second,"
       },
       {
-        "cueId": "cue-mcp-transport-narration-8",
+        "cueId": "cue-mcp-transport-narration-8-1",
         "startSeconds": 235,
         "endSeconds": 241,
         "text": "so a known late response can be ignored\nwithout accepting arbitrary identifiers."
       },
       {
-        "cueId": "cue-mcp-transport-narration-9",
+        "cueId": "cue-mcp-transport-narration-9-1",
         "startSeconds": 241,
         "endSeconds": 247,
         "text": "Shutdown also has a deadline and forcibly\nterminates a child that does not exit."
       },
       {
-        "cueId": "cue-mcp-transport-narration-10",
+        "cueId": "cue-mcp-transport-narration-10-1",
         "startSeconds": 247,
         "endSeconds": 253,
         "text": "Streamable HTTP is a different remote\ntransport with concerns such as HTTP"
       },
       {
-        "cueId": "cue-mcp-transport-narration-11",
+        "cueId": "cue-mcp-transport-narration-11-1",
         "startSeconds": 253,
         "endSeconds": 257,
         "text": "authorization, TLS, origins, status\nhandling, reconnection, streaming, and"
       },
       {
-        "cueId": "cue-mcp-transport-narration-12",
+        "cueId": "cue-mcp-transport-narration-12-1",
         "startSeconds": 257,
         "endSeconds": 263,
         "text": "Server-Sent Events. None of those is\ntested here. Passing these stdio tests is"
       },
       {
-        "cueId": "cue-mcp-transport-narration-13",
+        "cueId": "cue-mcp-transport-narration-13-1",
         "startSeconds": 263,
         "endSeconds": 267,
         "text": "not evidence of Streamable HTTP\ncompatibility or full protocol"
       },
       {
-        "cueId": "cue-mcp-transport-narration-14",
+        "cueId": "cue-mcp-transport-narration-14-1",
         "startSeconds": 267,
         "endSeconds": 271,
         "text": "conformance. Self-describing requests\nallow more independent handling, which is"
       },
       {
-        "cueId": "cue-mcp-transport-narration-15",
+        "cueId": "cue-mcp-transport-narration-15-1",
         "startSeconds": 271,
         "endSeconds": 276,
         "text": "the benefit of stateless protocol\nexchanges. The cost is that application"
       },
       {
-        "cueId": "cue-mcp-transport-narration-16",
+        "cueId": "cue-mcp-transport-narration-16-1",
         "startSeconds": 276,
         "endSeconds": 280,
         "text": "records, approvals, subscriptions, and\nside-effect outcomes do not appear"
       },
       {
-        "cueId": "cue-mcp-transport-narration-17",
+        "cueId": "cue-mcp-transport-narration-17-1",
         "startSeconds": 280,
         "endSeconds": 284,
         "text": "automatically. Servers must store and\nreconcile that state explicitly."
       },
       {
-        "cueId": "cue-mcp-fleet-narration-1",
+        "cueId": "cue-mcp-fleet-narration-1-1",
         "startSeconds": 284,
         "endSeconds": 290,
         "text": "Apply these ideas to a four-server policy.\nScope says who may see or use"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-2",
+        "cueId": "cue-mcp-fleet-narration-2-1",
         "startSeconds": 290,
         "endSeconds": 296,
         "text": "a server declaration. Trust says which\nexact operation may run. Bounds limit"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-3",
+        "cueId": "cue-mcp-fleet-narration-3-1",
         "startSeconds": 296,
         "endSeconds": 301,
         "text": "time, output, framing, diagnostics, cache\ngrowth, and shutdown. None replaces the"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-4",
+        "cueId": "cue-mcp-fleet-narration-4-1",
         "startSeconds": 301,
         "endSeconds": 307,
         "text": "others. In the worksheet, a read-only\nfilesystem has local scope, no approval"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-5",
+        "cueId": "cue-mcp-fleet-narration-5-1",
         "startSeconds": 307,
         "endSeconds": 311,
         "text": "for one named read, a\nfive-hundred-millisecond timeout, and a"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-6",
+        "cueId": "cue-mcp-fleet-narration-6-1",
         "startSeconds": 311,
         "endSeconds": 317,
         "text": "512-byte output cap. A team issue tracker\nhas project scope, exact approval for each"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-7",
+        "cueId": "cue-mcp-fleet-narration-7-1",
         "startSeconds": 317,
         "endSeconds": 321,
         "text": "write, an eight-hundred-millisecond\ntimeout, and a 1,024-byte cap. External"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-8",
+        "cueId": "cue-mcp-fleet-narration-8-1",
         "startSeconds": 321,
         "endSeconds": 327,
         "text": "email has user scope, exact approval for\nevery recipient and payload, an"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-9",
+        "cueId": "cue-mcp-fleet-narration-9-1",
         "startSeconds": 327,
         "endSeconds": 332,
         "text": "eight-hundred-millisecond timeout, and a\n512-byte cap. An ad hoc teammate server"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-10",
+        "cueId": "cue-mcp-fleet-narration-10-1",
         "startSeconds": 332,
         "endSeconds": 336,
         "text": "has local scope, approval for every\noperation, a three-hundred-millisecond"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-11",
+        "cueId": "cue-mcp-fleet-narration-11-1",
         "startSeconds": 336,
         "endSeconds": 342,
         "text": "timeout, and a 256-byte cap. Email is\nhighest risk because it can disclose"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-12",
+        "cueId": "cue-mcp-fleet-narration-12-1",
         "startSeconds": 342,
         "endSeconds": 348,
         "text": "content outside the system. If issue\nsearch expands to create and close,"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-13",
+        "cueId": "cue-mcp-fleet-narration-13-1",
         "startSeconds": 348,
         "endSeconds": 354,
         "text": "project scope may stay the same, but\ncreate and close need separate approvals,"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-14",
+        "cueId": "cue-mcp-fleet-narration-14-1",
         "startSeconds": 354,
         "endSeconds": 359,
         "text": "exact arguments, and operation keys for\nreconciliation. Now run the actual"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-15",
+        "cueId": "cue-mcp-fleet-narration-15-1",
         "startSeconds": 359,
         "endSeconds": 365,
         "text": "two-server lab with Node.js 24. Run node\nhost.mjs. Expect exactly six lines:"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-16",
+        "cueId": "cue-mcp-fleet-narration-16-1",
         "startSeconds": 365,
         "endSeconds": 370,
         "text": "clients equals 2; discover equals\nfilesystem comma issues; issueTools equals"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-17",
+        "cueId": "cue-mcp-fleet-narration-17-1",
         "startSeconds": 370,
         "endSeconds": 375,
         "text": "4; fsResources equals 1, templates equals\n0, read equals Local demonstration"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-18",
+        "cueId": "cue-mcp-fleet-narration-18-1",
         "startSeconds": 375,
         "endSeconds": 380,
         "text": "content; issuePrompts equals 1, prompt\nequals Triage the selected issue; and"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-19",
+        "cueId": "cue-mcp-fleet-narration-19-1",
         "startSeconds": 380,
         "endSeconds": 386,
         "text": "toolResult equals created colon Demo. Run\nnode regressions.mjs and retain RESULT 20"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-20",
+        "cueId": "cue-mcp-fleet-narration-20-1",
         "startSeconds": 386,
         "endSeconds": 392,
         "text": "slash 20 regressions passed. These tests\ninclude causal negative cases such as"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-21",
+        "cueId": "cue-mcp-fleet-narration-21-1",
         "startSeconds": 392,
         "endSeconds": 398,
         "text": "DENIED for discovered but unauthorized\naccess, RPC negative 32602 for a wrong"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-22",
+        "cueId": "cue-mcp-fleet-narration-22-1",
         "startSeconds": 398,
         "endSeconds": 403,
         "text": "profile or forged identity, OUTPUT_LIMIT\nfor oversized operation output, and"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-23",
+        "cueId": "cue-mcp-fleet-narration-23-1",
         "startSeconds": 403,
         "endSeconds": 408,
         "text": "UNKNOWN_OUTCOME for the timed-out side\neffect. Next run node learner-test.mjs. It"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-24",
+        "cueId": "cue-mcp-fleet-narration-24-1",
         "startSeconds": 408,
         "endSeconds": 412,
         "text": "fails with APPROVAL_MISMATCH because\noperations zero authorizes issues.create"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-25",
+        "cueId": "cue-mcp-fleet-narration-25-1",
         "startSeconds": 412,
         "endSeconds": 417,
         "text": "but its nested approval item says\nissues.search. Edit only operations zero"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-26",
+        "cueId": "cue-mcp-fleet-narration-26-1",
         "startSeconds": 417,
         "endSeconds": 421,
         "text": "dot approval dot item in\npolicy.broken.json from issues.search to"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-27",
+        "cueId": "cue-mcp-fleet-narration-27-1",
         "startSeconds": 421,
         "endSeconds": 427,
         "text": "issues.create. Do not edit the test,\nfixture, or regressions. Run the learner"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-28",
+        "cueId": "cue-mcp-fleet-narration-28-1",
         "startSeconds": 427,
         "endSeconds": 432,
         "text": "test again and retain: PASS learner\nrepair: exact structured issue-create"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-29",
+        "cueId": "cue-mcp-fleet-narration-29-1",
         "startSeconds": 432,
         "endSeconds": 437,
         "text": "approval accepted. Then rerun the\nregressions and confirm all twenty remain"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-30",
+        "cueId": "cue-mcp-fleet-narration-30-1",
         "startSeconds": 437,
         "endSeconds": 443,
         "text": "green. Discovery, a longer timeout, a\nlarger output cap, or approval for prompts"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-31",
+        "cueId": "cue-mcp-fleet-narration-31-1",
         "startSeconds": 443,
         "endSeconds": 449,
         "text": "slash get cannot fix this mismatch because\nnone changes the exact identity of the"
       },
       {
-        "cueId": "cue-mcp-fleet-narration-32",
+        "cueId": "cue-mcp-fleet-narration-32-1",
         "startSeconds": 449,
         "endSeconds": 451,
         "text": "requested issues.create operation."
       },
       {
-        "cueId": "cue-mcp-assessment-1",
+        "cueId": "cue-mcp-assessment-1-1",
         "startSeconds": 451,
         "endSeconds": 457,
         "text": "Begin the knowledge check only after you\nhave recorded the regression result,"
       },
       {
-        "cueId": "cue-mcp-assessment-2",
+        "cueId": "cue-mcp-assessment-2-1",
         "startSeconds": 457,
         "endSeconds": 463,
         "text": "completed the one-value repair, and\nexplained why a timed-out side effect must"
       },
       {
-        "cueId": "cue-mcp-assessment-3",
+        "cueId": "cue-mcp-assessment-3-1",
         "startSeconds": 463,
         "endSeconds": 465,
         "text": "be reconciled without replay."
+      },
+      {
+        "cueId": "cue-mcp-correction-cue-2-1",
+        "startSeconds": 465,
+        "endSeconds": 470,
+        "text": "Now inspect discovery. A complete result\ncarries capabilities, supported versions,"
+      },
+      {
+        "cueId": "cue-mcp-correction-cue-2-2",
+        "startSeconds": 470,
+        "endSeconds": 474,
+        "text": "serverInfo metadata, ttlMs, and\ncacheScope. The caching utility defines"
+      },
+      {
+        "cueId": "cue-mcp-correction-cue-2-3",
+        "startSeconds": 474,
+        "endSeconds": 478,
+        "text": "exactly public and private. This\nnon-user-specific fixture emits public."
+      },
+      {
+        "cueId": "cue-mcp-correction-cue-2-4",
+        "startSeconds": 478,
+        "endSeconds": 484,
+        "text": "The host accepts public and private and\nrejects server. It still caps TTL, limits"
+      },
+      {
+        "cueId": "cue-mcp-correction-cue-2-5",
+        "startSeconds": 484,
+        "endSeconds": 490,
+        "text": "cache size, and keys entries by controlled\nserver, client, and policy identities."
+      },
+      {
+        "cueId": "cue-mcp-correction-cue-3-1",
+        "startSeconds": 490,
+        "endSeconds": 494,
+        "text": "Treat serverInfo carefully. It is\nself-reported display and debugging"
+      },
+      {
+        "cueId": "cue-mcp-correction-cue-3-2",
+        "startSeconds": 494,
+        "endSeconds": 499,
+        "text": "metadata, not authentication or security\nauthority. A fixture name mismatch is"
+      },
+      {
+        "cueId": "cue-mcp-correction-cue-3-3",
+        "startSeconds": 499,
+        "endSeconds": 504,
+        "text": "useful evidence of routing or\nconfiguration trouble, so the lab reports"
+      },
+      {
+        "cueId": "cue-mcp-correction-cue-3-4",
+        "startSeconds": 504,
+        "endSeconds": 509,
+        "text": "it diagnostically. Authority instead comes\nfrom trusted host policy, the controlled"
+      },
+      {
+        "cueId": "cue-mcp-correction-cue-3-5",
+        "startSeconds": 509,
+        "endSeconds": 514,
+        "text": "child launch, the selected connection, and\nthe exact operation approval."
       }
     ],
     "reducedMotionAlternative": "Use static participant, discovery, approval, transport-limit, four-server policy, learner-repair, and reconciliation diagrams. Keep identities, policy gates, operation keys, limits, and outcomes visible without animation."

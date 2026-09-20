@@ -2,16 +2,20 @@
 
 ## Purpose and limits
 
-This dependency-free Node.js 24 lab starts two real child servers and gives the host one client and one stdio connection per server. It demonstrates a limited MCP 2026-07-28 teaching profile with `server/discover`, namespaced request metadata, tools, resources, prompts, server identity validation, operation-specific authorization, structured approvals, bounded discovery caching, output limits, deadlines, reconciliation, bounded framing, bounded diagnostics, and bounded shutdown.
+This dependency-free Node.js 24 lab starts two child servers and gives the host one client and one stdio connection per server. It demonstrates a limited MCP 2026-07-28 teaching profile with `server/discover`, request metadata, tools, resources, prompts, operation-specific authorization, structured approvals, bounded discovery caching, deadlines, reconciliation, framing limits, diagnostic limits, and bounded shutdown.
 
-It is not an MCP SDK, protocol conformance suite, benchmark reproduction, live-provider evaluation, or proof of Streamable HTTP compatibility. Newline-delimited JSON is this lab's local framing convention. The lab makes no network request, uses no credentials or dependencies, and does not call an LLM provider.
+It is not an MCP SDK, protocol conformance suite, benchmark reproduction, live-provider evaluation, or proof of Streamable HTTP compatibility. Newline-delimited JSON is the lab's local framing convention. The lab makes no provider call.
 
-Official references:
+The official caching utility defines only two `cacheScope` values: `public` and `private`. This lab's discovery result is identical and non-user-specific, so `server.mjs` emits `public`. The former value `server` was invented and is rejected. The host still keys cached entries by controlled server connection, client identity, and trusted policy identity. Accepting both protocol-defined values does not merge those local isolation boundaries.
 
-- MCP architecture: https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture
-- MCP server concepts: https://modelcontextprotocol.io/docs/2026-07-28/learn/server-concepts
+`io.modelcontextprotocol/serverInfo` is self-reported display and debugging metadata. It is never authentication evidence or security authority. A name mismatch in this fixture is retained as a routing and configuration diagnostic. Authorization comes from trusted host policy, the host-controlled local child launch, the selected connection, and exact operation approval. A server cannot gain authority by choosing a trusted-looking `serverInfo.name`.
+
+Official references, checked 2026-09-20:
+
+- MCP discovery: https://modelcontextprotocol.io/specification/2026-07-28/server/discover
+- MCP caching utilities: https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching
 - JSON-RPC 2.0: https://www.jsonrpc.org/specification
-- Node.js child processes: https://nodejs.org/api/child_process.html#optionsstdio
+- Node.js child-process stdio: https://nodejs.org/api/child_process.html#optionsstdio
 
 ## Run
 
@@ -20,120 +24,60 @@ Use Node.js 24 and run commands from this directory. No package installation is 
 ```sh
 node host.mjs
 node regressions.mjs
+node cache-scope-regression.mjs
 node learner-test.mjs
 ```
 
-Expected `node host.mjs` output:
+Expected cache-scope regression output:
 
 ```text
-clients=2
-discover=filesystem,issues
-issueTools=4
-fsResources=1,templates=0,read=Local demonstration content.
-issuePrompts=1,prompt=Triage the selected issue.
-toolResult=created:Demo
+PASS cacheScope public accepted
+PASS cacheScope private accepted
+PASS invented cacheScope server rejected
+PASS server, client, and policy cache-key isolation retained
+PASS serverInfo mismatch remains a routing diagnostic
 ```
 
-Expected `node regressions.mjs` output:
+Expected existing regression result:
 
 ```text
-PASS two isolated clients and primitive families
-PASS discovery is not authorization
-PASS operation-specific prompt and create approvals
-PASS wrong protocol version rejected
-PASS forged client identity rejected
-PASS caller metadata override rejected before send
-PASS claimed item mismatch rejected
-PASS structured approvals resist delimiter collision
-PASS cross-server discovery identity rejected
-PASS cache is bounded, isolated, and revalidated on hit
-PASS oversized operation result rejected
-PASS malformed JSON-RPC request receives invalid request
-PASS malformed response fails closed
-PASS result and error together fail closed
-PASS unknown response id fails closed
-PASS oversized response frame rejected
-PASS stderr diagnostics are bounded
-PASS early child exit rejects pending request
-PASS side-effect timeout is reconciled without replay
-PASS shutdown is bounded and leaves no live child
 RESULT 20/20 regressions passed
 ```
 
 ## Learner repair
 
-Before repair, `node learner-test.mjs` exits unsuccessfully. The first line starts with:
+Before repair, `node learner-test.mjs` must fail with a line beginning:
 
 ```text
 FAIL learner repair: APPROVAL_MISMATCH:
 ```
 
-The immutable test constructs the approval from the validated operation. Open `policy.broken.json` and change only the nested `approval.item` value from `issues.search` to `issues.create`. Do not edit `learner-test.mjs`, the fixture, or the regressions.
-
-The complete binding is a typed JSON object containing:
-
-- `server`
-- `method`
-- the actual `item` derived from the validated request
-- exact `args`
-- `policyIdentity`
-- `clientIdentity`
-
-It is not a delimiter-joined string. Structured comparison prevents delimiter collisions. The host also rejects a separately claimed item if it differs from the item derived from `fields.name` or `fields.uri`, and it rejects caller-supplied `fields._meta` before sending anything.
-
-After the one-value repair, expected output is:
+Open `policy.broken.json` and change only `operations[0].approval.item` from `issues.search` to `issues.create`. Do not edit the immutable test, fixture, or regressions. Run the learner test again. Expected output:
 
 ```text
 PASS learner repair: exact structured issue-create approval accepted
 ```
 
-`policy.solution.json` is reference-only. Compare it only after attempting the repair.
+Then rerun `node regressions.mjs` and `node cache-scope-regression.mjs`.
 
-## Why the original failure occurred
+The failure is causal. The validated request calls `issues.create`, but the policy approval names `issues.search`. Discovery, `cacheScope`, `serverInfo`, a longer timeout, a larger output cap, a delimiter-joined approval string, or approval for `prompts/get` cannot change the actual requested operation. The repair must align the exact structured approval with the validated request.
 
-The earlier fixture had one approval binding for `issues.create` but reused the same server rule for `prompts/get`. A prompt request therefore failed with `APPROVAL_MISMATCH`. The repaired design stores a separate rule and approval object for every protected operation. Approval for `issues.create` cannot authorize `prompts/get`, another tool, different arguments, another policy, or another client.
+## Negative cases and expected causes
 
-Discovery cannot repair this failure because discovery advertises capabilities but does not authorize an operation. Increasing a timeout or output cap also cannot repair an identity or approval mismatch.
-
-## Negative cases and causal feedback
-
-| Boundary | Expected result | Cause |
+| Case | Expected result | Cause |
 |---|---|---|
+| `cacheScope: "public"` | accepted | It is defined by the caching utility. |
+| `cacheScope: "private"` | accepted | It is defined by the caching utility. |
+| `cacheScope: "server"` | `BAD_DISCOVERY` | It is not a defined value. |
+| Different server, client, or policy identity | different cache key | Local cache isolation remains explicit. |
+| Unexpected `serverInfo.name` | `CROSS_SERVER_IDENTITY` diagnostic | The fixture may be routed or configured incorrectly. This is not authentication. |
 | Discovered but unauthorized tool | `DENIED` | Availability is not authority. |
-| Wrong protocol version | `RPC_-32602` | Every request is validated against the supported profile. |
-| Forged client metadata | `RPC_-32602` | Connection-bound client identity does not match. |
-| Supplied `_meta` in operation fields | `UNTRUSTED_META` | Untrusted fields may not replace host metadata. |
-| Claimed item differs from `name` or `uri` | `ITEM_MISMATCH` | Authorization uses the validated actual request item. |
-| Delimiter-shaped forged approval | `APPROVAL_MISMATCH` | Structured fields are compared without string concatenation. |
-| Wrong discovered server identity | `CROSS_SERVER_IDENTITY` | Cache and connection identity must remain aligned. |
-| Tampered cached identity | `CROSS_SERVER_IDENTITY` | Cache hits are revalidated rather than trusted blindly. |
-| Oversized operation result | `OUTPUT_LIMIT` | Approval does not waive the operation output cap. |
-| Invalid request envelope | `RPC_-32600` | JSON-RPC request shape is invalid. |
-| Malformed response JSON | `MALFORMED_RESPONSE` | The client fails closed instead of ignoring it. |
-| Response with both result and error | `INVALID_RESPONSE` | JSON-RPC responses must contain exactly one. |
-| Unknown response ID | `UNKNOWN_RESPONSE_ID` | Unmatched responses are not silently accepted. |
-| Late response for a timed-out ID | Ignored only while ID is quarantined | A bounded quarantine distinguishes a known late response from an unknown one. |
-| Oversized stdout frame | `FRAME_LIMIT` | Input framing has a byte bound. |
-| Excessive stderr | `DIAGNOSTIC_LIMIT` | Diagnostics cannot grow without limit. |
-| Child exits with work pending | `CHILD_EXIT` | All pending operations are rejected. |
-| Side-effect timeout | `UNKNOWN_OUTCOME` | Timeout does not prove whether the side effect occurred. |
-| Hung child during shutdown | Forced bounded termination | Shutdown cannot wait forever or leak the process. |
+| Wrong protocol metadata | `RPC_-32602` | Request metadata does not match the taught profile. |
+| Caller-supplied `_meta` | `UNTRUSTED_META` | Operation fields cannot replace host metadata. |
+| Claimed item differs from request | `ITEM_MISMATCH` | Authorization uses the validated request item. |
+| Wrong structured approval | `APPROVAL_MISMATCH` | Exact operation and identity fields do not match. |
+| Oversized result | `OUTPUT_LIMIT` | Approval does not waive output bounds. |
+| Side-effect deadline expires | `UNKNOWN_OUTCOME` | Timeout does not establish whether state changed. |
+| Malformed or ambiguous response | fail closed | JSON-RPC responses require exactly one of `result` or `error`. |
 
-## Meaningful reconciliation
-
-`issues.slowCreate` stores the issue record before delaying its response. The host times out after 20 ms and does not replay that operation. After the delayed response is quarantined, the host calls `issues.reconcile` with the operation key `slow-1`. The returned authoritative server record proves that the issue exists. The test counts one slow-create request and one separate reconciliation request. It does not mistake sent-message counts for proof of side-effect state.
-
-The discovery startup deadline is 600 ms and is separate from the 20 ms slow-create deadline. A short tool deadline therefore does not accidentally become the process startup budget.
-
-## Four-server worked policy
-
-| Server | Scope | Approval | Timeout | Output cap | Capability-specific reason |
-|---|---|---|---:|---:|---|
-| Read-only filesystem | local | None for one named read | 500 ms | 512 bytes | File reads can disclose local data, so paths and output remain bounded. |
-| Team issue tracker | project | Exact structured approval for each write | 800 ms | 1024 bytes | Writes change shared records and need operation keys for reconciliation. |
-| External email | user | Exact structured approval for every send | 800 ms | 512 bytes | Sending can disclose content to an external recipient. |
-| Ad hoc teammate server | local | Exact approval for every operation | 300 ms | 256 bytes | Provenance and behavior have not been established. |
-
-If the issue tracker changes from search to creating and closing issues, project scope may remain appropriate, but authorization must add separate structured bindings for create and close. Each binding should include exact arguments and an operation key. Timeout and output bounds remain independent controls. Moving the declaration to local scope would not make a destructive call safe.
-
-Highest risk in this example is external email because its send capability can transmit content outside the system. Scope determines who sees a declaration, trust determines which operation may run, and bounds limit resource use. None replaces the other two.
+For an uncertain side effect, do not replay blindly. Reconcile authoritative state using the operation key. Scope controls discovery visibility, authorization controls operations, and bounds control resource use. None replaces another.

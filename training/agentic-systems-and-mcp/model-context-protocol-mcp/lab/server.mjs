@@ -77,7 +77,7 @@ async function dispatch(method, params) {
       capabilities: {tools: {listChanged: true}, resources: {}, prompts: {}},
       _meta: {'io.modelcontextprotocol/serverInfo': {name: role, version: '1.0.0'}},
       ttlMs: 1000,
-      cacheScope: 'server'
+      cacheScope: 'public'
     };
   }
   if (method === 'tools/list') return {tools: d.tools};

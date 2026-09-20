@@ -2,6 +2,7 @@ import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
 export const VERSION = '2026-07-28';
+export const VALID_CACHE_SCOPES = new Set(['public', 'private']);
 const serverPath = fileURLToPath(new URL('./server.mjs', import.meta.url));
 
 export class LabError extends Error {
@@ -134,14 +135,9 @@ export class StdioClient {
     clearTimeout(pending.timer);
     this.pending.delete(message.id);
     if (hasError) {
-      if (!exactKeys(message.error, ['code', 'message']) || !Number.isInteger(message.error.code) || typeof message.error.message !== 'string') {
-        pending.reject(new LabError('INVALID_RESPONSE', 'invalid JSON-RPC error object'));
-      } else {
-        pending.reject(new LabError(`RPC_${message.error.code}`, message.error.message));
-      }
-    } else {
-      pending.resolve(message.result);
-    }
+      if (!exactKeys(message.error, ['code', 'message']) || !Number.isInteger(message.error.code) || typeof message.error.message !== 'string') pending.reject(new LabError('INVALID_RESPONSE', 'invalid JSON-RPC error object'));
+      else pending.reject(new LabError(`RPC_${message.error.code}`, message.error.message));
+    } else pending.resolve(message.result);
   }
   request(method, fields = {}, options = {}) {
     if (this.closed) return Promise.reject(new LabError('SHUTDOWN', 'client is closed'));
@@ -149,8 +145,7 @@ export class StdioClient {
     if (!object(fields) || Object.hasOwn(fields, '_meta')) return Promise.reject(new LabError('UNTRUSTED_META', 'call fields may not supply or replace params._meta'));
     const id = this.nextId++;
     const timeoutMs = options.timeoutMs ?? 500;
-    const metadata = options.trustedMeta ?? this.meta();
-    const params = {_meta: metadata, ...fields};
+    const params = {_meta: options.trustedMeta ?? this.meta(), ...fields};
     const request = {jsonrpc: '2.0', id, method, params};
     this.sentByMethod.set(method, (this.sentByMethod.get(method) ?? 0) + 1);
     return new Promise((resolve, reject) => {
@@ -217,22 +212,23 @@ export class Host {
   cacheKey(serverName, clientIdentity) {
     return canonical({serverName, clientIdentity, policyIdentity: this.policy.identity});
   }
-  validateDiscovery(result, expectedIdentity) {
+  validateDiscovery(result, expectedDisplayName) {
     const info = result?._meta?.['io.modelcontextprotocol/serverInfo'];
     if (!object(result) || result.resultType !== 'complete' || !Array.isArray(result.supportedVersions) || !result.supportedVersions.includes(VERSION)) throw new LabError('BAD_DISCOVERY', 'version or result type invalid');
     if (!object(result.capabilities) || !object(result.capabilities.tools) || !object(result.capabilities.resources) || !object(result.capabilities.prompts)) throw new LabError('BAD_DISCOVERY', 'capabilities invalid');
-    if (!exactKeys(result._meta, ['io.modelcontextprotocol/serverInfo']) || !object(info) || info.name !== expectedIdentity || typeof info.version !== 'string') throw new LabError('CROSS_SERVER_IDENTITY', `expected ${expectedIdentity}, received ${info?.name}`);
-    if (!Number.isInteger(result.ttlMs) || result.ttlMs < 0 || result.cacheScope !== 'server') throw new LabError('BAD_DISCOVERY', 'ttlMs or cacheScope invalid');
+    if (!exactKeys(result._meta, ['io.modelcontextprotocol/serverInfo']) || !object(info) || typeof info.name !== 'string' || typeof info.version !== 'string') throw new LabError('BAD_DISCOVERY', 'serverInfo display metadata invalid');
+    if (info.name !== expectedDisplayName) throw new LabError('CROSS_SERVER_IDENTITY', `serverInfo diagnostic mismatch: expected ${expectedDisplayName}, received ${info.name}`);
+    if (!Number.isInteger(result.ttlMs) || result.ttlMs < 0 || !VALID_CACHE_SCOPES.has(result.cacheScope)) throw new LabError('BAD_DISCOVERY', 'ttlMs or cacheScope invalid; cacheScope must be public or private');
     return result;
   }
-  async discover(serverName, expectedIdentity = serverName) {
+  async discover(serverName, expectedDisplayName = serverName) {
     const client = this.clients.get(serverName);
     if (!client) throw new LabError('NO_CLIENT', serverName);
     const key = this.cacheKey(serverName, client.clientIdentity);
     const cached = this.discoveryCache.get(key);
-    if (cached && cached.expiresAt > Date.now()) return this.validateDiscovery(cached.value, expectedIdentity);
+    if (cached && cached.expiresAt > Date.now()) return this.validateDiscovery(cached.value, expectedDisplayName);
     if (cached) this.discoveryCache.delete(key);
-    const result = this.validateDiscovery(await client.request('server/discover', {}, {timeoutMs: this.startupDeadlineMs}), expectedIdentity);
+    const result = this.validateDiscovery(await client.request('server/discover', {}, {timeoutMs: this.startupDeadlineMs}), expectedDisplayName);
     const ttl = Math.min(result.ttlMs, this.maxDiscoveryTtlMs);
     this.discoveryCache.set(key, {value: result, expiresAt: Date.now() + ttl});
     while (this.discoveryCache.size > this.maxDiscoveryEntries) this.discoveryCache.delete(this.discoveryCache.keys().next().value);
@@ -268,23 +264,13 @@ export class Host {
     const operation = operations.find(candidate => candidate.method === method && candidate.item === item && canonical(candidate.args) === canonical(args));
     if (!operation) throw new LabError('DENIED', 'discovery is not authorization and no exact operation rule matched');
     if (!Number.isInteger(operation.timeoutMs) || operation.timeoutMs < 1 || !Number.isInteger(operation.maxOutputBytes) || operation.maxOutputBytes < 1) throw new LabError('INVALID_POLICY', 'bounds must be positive integers');
-    const expected = {
-      server: serverName,
-      method,
-      item,
-      args,
-      policyIdentity: this.policy.identity,
-      clientIdentity: client.clientIdentity
-    };
-    if (operation.requiresApproval) {
-      if (canonical(operation.approval) !== canonical(expected) || canonical(suppliedApproval) !== canonical(expected)) throw new LabError('APPROVAL_MISMATCH', `required exact structured approval ${canonical(expected)}`);
-    }
+    const expected = {server: serverName, method, item, args, policyIdentity: this.policy.identity, clientIdentity: client.clientIdentity};
+    if (operation.requiresApproval && (canonical(operation.approval) !== canonical(expected) || canonical(suppliedApproval) !== canonical(expected))) throw new LabError('APPROVAL_MISMATCH', `required exact structured approval ${canonical(expected)}`);
     return {operation, item};
   }
   async operate(serverName, method, fields, approval, options = {}) {
     const {operation} = this.authorize(serverName, method, fields, approval, options.claimedItem);
-    const client = this.clients.get(serverName);
-    const result = await client.request(method, fields, {timeoutMs: operation.timeoutMs, sideEffect: operation.sideEffect === true});
+    const result = await this.clients.get(serverName).request(method, fields, {timeoutMs: operation.timeoutMs, sideEffect: operation.sideEffect === true});
     if (byteSize(result) > operation.maxOutputBytes) throw new LabError('OUTPUT_LIMIT', `result exceeds ${operation.maxOutputBytes} bytes`);
     return result;
   }
