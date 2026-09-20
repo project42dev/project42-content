@@ -37,6 +37,10 @@ The output contract always returns a stable kind: success, invalid, denied, conf
 
 Visual alternative: Success confirms the effect, invalid rejects malformed data, denied rejects current permission or policy, conflict reports incompatible state, and uncertain requires reconciliation.
 
+Sources:
+
+- <https://github.com/project42dev/project42-content/blob/4000879/training/reliable-agent-workflows/control-agent-actions/lab/contract.js>
+
 ## Narration: Exact Approval
 
 Trusted authority and approval answer different questions. Actor scope plus policy decides whether this principal may mutate this tenant's resolved ticket. Approval decides whether a reviewer accepted this exact actor, tenant, action, target, destination status, expected version, and operation key. A prior conversation cannot substitute. Any changed target, payload, revision, or key requires a new exact match before execution proceeds.
@@ -59,7 +63,7 @@ Sources:
 - <https://nodejs.org/api/globals.html#structuredclone>
 - <https://nodejs.org/api/globals.html>
 
-## Demonstration: Worked State Transition
+## Narration: Worked State Transition
 
 In the happy path, ticket_12345678 begins OPEN at version seven, with zero receipts and zero mutations. The request asks for RESOLVED at expectedVersion seven under op_resolve_acme_0001. After checks pass, the fixture changes status to RESOLVED, increments version to eight, records one mutation, and adds one matching receipt. Verification proves exactly that ticket and receipt pair, so result kind is success, UPDATED.
 
@@ -93,7 +97,11 @@ Sources:
 
 Budget figures are fixture units, not billing or security metrics. A trusted context accumulates steps, costUnits, and rateActions after each attempted mutation. Distinct operations sharing that context therefore consume one cumulative budget. The deterministic clock must remain inside its configured window; this lab denies outside it rather than silently resetting usage. Evaluate preflight against current usage plus the proposed charge.
 
-## Demonstration: Uncertain Recovery Demo
+Sources:
+
+- <https://github.com/project42dev/project42-content/blob/4000879/training/reliable-agent-workflows/control-agent-actions/lab/contract.js>
+
+## Narration: Uncertain Recovery Demo
 
 For timeout-after-success, run the case with --trace --recover. Recovery reports query=one, retryPerformed=false, callMutations=0, cumulativeMutations=1, and receipts=1. Reconciliation inspects the preserved operation, ticket, and all keyed receipts. One exact effect becomes verified. Zero evidence leaves uncertain without automatic retry. Extra, malformed, or contradictory evidence becomes conflict. Recovery never retries, selects convenient evidence, or invents certainty when authoritative state remains unresolved afterward.
 
@@ -117,7 +125,7 @@ If correct: Correct. You identified the first trusted control and connected it t
 
 If retrying: Start with the resolved target and current caller, then move through revision, approval, budget, mutation, and independent evidence.
 
-## Demonstration: Changed Exercise Demonstration
+## Narration: Changed Exercise Demonstration
 
 Watch the changed input, not its filename. The action contains action, targetId, toStatus, operationKey, and expectedVersion. Actor and tenant remain in trusted context, not the action. Repair only approval: resourceId ticket_87654321, expectedVersion 4, and operationKey op_beta_resolve_0001. The starter passes 3 of 4 checks and fails 1 because those approval bindings mismatch. Run the supplied test. The repaired solution passes 4 of 4, mutates once, sets the ticket to RESOLVED at version 5, and records accepted approval. A stale expectedVersion 3 conflicts before mutation. Changing targetId to ticket_12345678 is denied before mutation. Adding action.approval is INVALID_ACTION because approval is an unknown action field. It does not enlarge scope. All three negative variants produce zero mutations. Explain each result by naming the failed guard and its causal evidence.
 
