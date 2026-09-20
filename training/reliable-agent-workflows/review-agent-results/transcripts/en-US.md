@@ -1,6 +1,6 @@
 # Review Agent Results Against Evidence
 
-Package: `review-agent-results-class` 1.1.0
+Package: `review-agent-results-class` 2.0.0
 
 > This is the canonical text equivalent of an AI-assisted virtual-instructor
 > class. It remains usable without synthesized audio, video, animation, or a
@@ -8,87 +8,185 @@ Package: `review-agent-results-class` 1.1.0
 
 ## Welcome: Welcome And Outcomes
 
-Welcome. This class is about deciding whether an agent's result deserves acceptance. We will use the work order, source material, tool records, and observed outcomes to make that decision. A persuasive summary is a starting point for review, not a substitute for evidence. You will create a criterion-to-evidence matrix, distinguish a defect from missing evidence, and choose accept, request changes, or escalate. Our example is a support agent asked to summarize a policy and prepare a ticket update. The update must remain within the approved account and must not be sent without the required approval. The policy summary must cite the current source. Keep these requirements visible as you examine each artifact.
+Welcome. This class teaches a disciplined way to decide whether an agent result deserves acceptance. We will review a synthetic Orion support dossier, qualify an offline checker, and then test our reasoning on an independent Lyra case. Keep the work order visible. A fluent completion summary is only a claim until artifacts, authority, and observed state support it.
 
 ## Narration: Review Contract
 
-Start with the original work order. Write the requested outcome, scope, constraints, and acceptance criteria before reading the agent's completion claim. This order matters because a polished answer can draw attention toward what the agent did and away from what it omitted. Give each criterion its own row. Record the artifact or postcondition that would demonstrate success, the evidence location, the observed result, and the review status. For our support task, separate factual accuracy, account isolation, approval, and delivery status. An accurate summary does not compensate for an unauthorized update. Likewise, a valid approval does not make a stale policy current. If the work order itself is ambiguous, record the ambiguity and identify who can resolve it. Do not silently replace a difficult requirement with one that is easier to satisfy.
+Start with the work order, not the agent summary. Give every acceptance criterion a separate row. Record the exact artifact or postcondition required, its evidence reference and revision, the observation, your inference, the status, and the next action. This order prevents polished language from hiding omitted requirements or silently changing the scope.
 
 Sources:
 
-- <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Narration: Review Evidence
 
-Trace material claims to evidence that supports their exact wording and scope. Open the cited policy, check its date and applicability, and locate the passage behind the claim. A working URL proves only that a page can be reached. Distinguish an observed fact from an inference and keep uncertainty visible. For an action, inspect the authorized identity, operation arguments, approval record, execution result, and actual postcondition in the system of record. A timeout after a write leaves the outcome unknown: it does not prove that nothing happened. Use a durable operation identifier to reconcile that state before recommending a retry. For code, inspect the changed artifact and reproduce the relevant check against the exact revision. A test report from an earlier revision cannot establish the behavior of a later change. Keep secrets and personal information out of the review packet.
+Now trace material claims. Compare exact source words, revision, authority, effective date, scope, and provenance. Citation presence is not support. Record what the excerpt directly states before recording your conclusion. A checker can compare annotations and references, but a human must decide whether natural language actually supports the claim.
 
 Sources:
 
-- <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Demonstration: Source Comparison Demonstration
+
+In Orion, the archived policy says 45 days for qualifying earlier orders. It is superseded. The current revision says 30 days for deliveries in the work-order scope. Therefore the claimed current 45-day window is unsupported. The same current excerpt supports a separate seven-day escalation period after the first support response.
 
 ## Narration: Review Authority
 
-An action can succeed and still violate the work order. Review the identity used, the resource it addressed, the permission boundary, and the approval that covered that particular operation. OWASP Excessive Agency distinguishes excessive functionality, permissions, and autonomy; inspect all three instead of treating a tool response as permission. Use a synthetic account-isolation case to confirm that the action cannot cross into another account. Check the downstream authorization decision as well as the bridge arguments. If an approval allowed a draft, evidence of delivery establishes an effect but not authority to send. Record the failed boundary and escalate to the responsible owner; a reviewer must not invent permission to reverse or repeat the action.
+Next inspect authority independently of outcome. The approval binds the synthetic reviewer to a draft operation on one ticket and tenant. The trace attempts an external send. Actor, target, and tenant match, but operation authorization fails. Preserve both findings. Correct binding does not repair an unauthorized operation.
 
 Sources:
 
 - <https://genai.owasp.org/llmrisk/llm062025-excessive-agency/>
-- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
-## Narration: Review Tests
+## Demonstration: Unknown Outcome Demonstration
 
-Record the exact artifact revision, test inputs, environment, expected outcome, and observed outcome. Reproduce the check that matters to the acceptance criterion. A formatting test cannot establish factual accuracy, and a successful unit test cannot establish that a deployment reached users. Compare the test scope with the claim before recording the criterion as verified. Include failure cases that could invalidate acceptance: an unsupported citation, denied operation, incorrect account, unavailable dependency, or uncertain write result. Keep unavailable evidence marked unknown rather than converting it into a pass. When a repair changes behavior, repeat the affected check and connected checks that could regress. Keep the earlier result so the evidence shows what changed and why the final decision is justified.
-
-Sources:
-
-- <https://genai.owasp.org/llmrisk/llm062025-excessive-agency/>
-- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
-
-## Narration: Review Decision
-
-Use three review outcomes deliberately. Accept when every required criterion has supporting evidence and remaining risk is within the agreed boundary. Request changes when you can describe a reproducible defect or a specific missing artifact that the author can supply. Escalate when deciding requires authority you do not have, the external outcome cannot yet be determined, or the possible impact exceeds your review scope. Do not average away a failed mandatory criterion with several successful ones. A useful decision names the affected requirement, the evidence, its practical consequence, and the next check needed. Keep the original result and findings so a revision can be compared honestly. When the author returns, check the changed criteria and any connected behavior that the change could affect. Record what was retested instead of implying that an entire system was requalified.
+The send attempt timed out, and the independent ledger state is unknown. Timeout proves neither delivery nor absence. Preserve the correlation identifier and ask the authorized system owner to reconcile it. Do not retry, reverse, or widen access on your own. Unknown is a useful status because it prevents duplicate or unauthorized effects.
 
 Sources:
 
 - <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
-- <https://www.nist.gov/itl/ai-risk-management-framework>
 
-## Demonstration: Support Result Demonstration
+## Narration: Review Tests
 
-Consider our support agent's report: policy summarized, customer notified, all checks passed. Open the artifacts before accepting those claims. The summary cites an older policy revision, so mark the current-policy criterion failed and identify the source that must replace it. The approval record authorizes a draft only, while the trace reports a send attempt. Mark the authorization criterion failed and escalate the possible external effect. The send request timed out, so customer notification is unknown until the message system is queried using the operation identifier. Finally, the test log covers formatting but never checks the account boundary. Mark account-isolation evidence unknown, not passed. These rows produce a request for corrections plus an escalation for the potentially unauthorized action. The summary's confident wording changes none of those findings. This scenario is a classroom fixture; use synthetic records and do not send a real message.
+The ticket snapshot records that an internal draft exists. That verifies only the draft criterion. It does not prove external delivery. The test report validates format and length only. It does not validate policy truth, authorization, account isolation, or a real external outcome. Match every test result to its declared scope.
+
+Sources:
+
+- <https://nodejs.org/api/test.html>
 
 ## Learner Prompt: Review Matrix Prompt
 
-Now build your own matrix from the fixture. Start with four rows: current policy, authorized action, correct account, and observed delivery status. For each, name the smallest check that would resolve its state. Separate the evidence you already have from evidence you are requesting. A policy page and its revision can resolve the factual claim. A scoped test with two synthetic accounts can examine the account boundary. A delivery record can establish whether the message exists, but it cannot retroactively authorize a send. Write one sentence explaining that distinction. If you discover a criterion missing from the original work order, record it as a proposed clarification rather than pretending it was always required. Pause here and compare your matrix with a partner or the supplied feedback.
+Build the Orion matrix now. Use five rows. Mark the policy row, draft row, authorization row, external-postcondition row, and target-binding row. For each row, write one observation, one inference, and one next action. Keep the supported seven-day claim even though the all-claims criterion fails.
 
-Expected learner action: Create four criterion rows with verified, failed, or unknown status, evidence references, and the next check.
+Expected learner action: Complete five Orion rows with evidence references, statuses, observations, inferences, and next actions.
 
-## Checkpoint: Acceptance Checkpoint
+## Pause: Orion Matrix Practice
 
-Before making the decision, answer this question: can a result be accepted because every automated test passed while one mandatory source citation is unsupported? Explain which criterion remains unverified and what evidence would change your decision. Then consider a second case: the system of record confirms delivery, but the approval permitted only drafting. Delivery is now an observed fact; authorization still failed. Your review must preserve both conclusions. A successful side effect and a permitted side effect are different checks. Finally, decide who should receive the escalation for a possibly unauthorized action in your organization. Name the responsible role rather than inventing permission to investigate or reverse an external action yourself.
+## Checkpoint: Source Diagnostic Checkpoint
 
-Expected learner action: Reject acceptance with an unsupported mandatory claim and separate observed delivery from authorization.
+Check your first diagnostic. If you marked the 45-day claim verified merely because it had a citation, the causal error is that you checked presence rather than support. If you marked every policy claim false, you lost the separately supported seven-day statement. The correct C1 result is failed because one required material claim conflicts with current scope.
 
-## Feedback: Decision Feedback
+Expected learner action: Explain why C1 fails while the seven-day claim remains supported.
 
-If you withheld acceptance because the citation did not support the mandatory claim, your decision follows the work order. Ask for a supported correction and then check the revised source relationship. If you accepted because the tests passed, identify what those tests actually exercised. They may prove formatting, parsing, or a particular function, while saying nothing about source currency. If you treated confirmed delivery as sufficient authorization, revisit the approval record. Verification tells us what happened; authorization tells us what was allowed. Keep those columns separate in the matrix. Escalation should include the observed facts, unresolved questions, potential impact, and the decision required. It should not convert a hypothesis into an accusation or conceal uncertainty behind a vague statement that the agent failed.
+## Feedback: Source Diagnostic Feedback
 
-Correct feedback: Acceptance follows every mandatory criterion, including factual support and authorization.
+Correct reasoning compares exact words, revision, freshness, authority, and scope. Citation counting misses the superseded limitation. Blanket rejection also loses a supported claim. Preserve claim-level findings, then apply the criterion rule. Because every material claim must be supported, one unsupported current-policy claim causes the combined criterion to fail.
 
-Retry feedback: Passing tests or observing an effect cannot substitute for a missing source or approval.
+Correct feedback: You separated claim-level support and applied the all-claims rule.
+
+Retry feedback: Compare source content and scope rather than counting citations or rejecting every claim together.
+
+## Checkpoint: Authority Diagnostic Checkpoint
+
+For authority, ask whether matching target and tenant make the send authorized. They do not. The operation differs from the approved draft operation. C3 is failed, while C5 remains verified. Separating those rows shows exactly what was correct and what crossed the boundary.
+
+Expected learner action: Mark C3 failed and C5 verified, then explain the operation mismatch.
+
+## Feedback: Authority Diagnostic Feedback
+
+If you verified C3 because the ticket and tenant matched, you omitted the operation field. If you failed C5 because the operation was unauthorized, you merged two independent requirements. Exact review preserves both facts: the trace is correctly bound to the requested resource, and the attempted operation exceeds approval.
+
+Correct feedback: You kept resource binding separate from operation authority.
+
+Retry feedback: Recheck actor, operation, target, and tenant as independent fields.
+
+## Demonstration: Offline Lab Demonstration
+
+Now qualify the offline lab. From the repository root, change into the lab directory before running commands. The exact commands are displayed rather than read as long paths. The lab uses synthetic fixtures, Node built-ins, no network, no credentials, and no external effects. Qualification used Node.js version 24.18.0, and fifteen tests passed.
+
+Sources:
+
+- <https://nodejs.org/api/packages.html#packages_type>
+- <https://nodejs.org/api/test.html>
+
+## Demonstration: Baseline Output Demonstration
+
+Run the draft-state inspection and baseline validation. The inspection derives draft present as true and passes. The baseline validation reports structural pass, policy pass, decision escalate, two verified, two failed, one unknown, and result pass. That result means the packet is consistent with fixture rules, not that production facts are proven.
+
+Sources:
+
+- <https://nodejs.org/api/fs.html#fspromisesreadfilepath-options>
+
+## Checkpoint: Flawed Packet Checkpoint
+
+The flawed packet is structurally valid but fails policy validation. It wrongly verifies C1, wrongly converts C4 from unknown to verified, and accepts instead of escalating. This is a causal diagnostic: complete references and valid JSON cannot repair incorrect evidence interpretation or a decision that ignores consequential uncertainty.
+
+Expected learner action: Identify the two incorrect statuses and incorrect decision.
+
+## Feedback: Flawed Packet Feedback
+
+If you accepted because structure passed, you confused shape with policy consistency. If you verified C4 after the timeout, you converted missing evidence into an absence claim. If you accepted C1 because references were present, you skipped semantic review. Each error has a different cause, so each needs a different correction.
+
+Correct feedback: You distinguished structural validity, policy consistency, and semantic judgment.
+
+Retry feedback: Revisit the declared scope of each automated check and preserve unknown observations.
+
+## Demonstration: Negative Probe Demonstration
+
+Try the altered-observation probe. In an isolated copy, change the applicable observed Boolean from true to false. The inspect command must print false, then fail, and exit with status one. Also confirm that empty evidence-reference arrays are rejected. These probes show evidence derivation and structural enforcement rather than stored-output replay.
+
+Sources:
+
+- <https://nodejs.org/api/child_process.html#child_processspawnsynccommand-args-options>
+
+## Learner Prompt: Changed Input Prompt
+
+Before opening the Lyra solution, review the changed dossier independently. Its policy, authorization, operation, target, tenant, trace, and state are new inputs. Decide each criterion from those inputs. Do not copy Orion's escalation merely because the matrix shape is similar.
+
+Expected learner action: Create an independent five-row Lyra matrix and decision.
+
+## Pause: Lyra Practice
+
+## Demonstration: Lyra Demonstration
+
+In Lyra, the current excerpt supports both material claims. Authorization and trace match on identity, operation, target, and tenant. Independent state records the internal note as present. All five criteria are verified, so accept is correct within the synthetic fixture scope. Success from the trace alone would not have been enough.
+
+## Checkpoint: Changed Input Checkpoint
+
+If you copied Orion's escalation, name the Lyra row that remains failed or unknown. There is none in the supplied fixture. If you accepted only because the trace reports success, your conclusion used insufficient evidence. Source support, authorization, binding, and independent state must each be reviewed.
+
+Expected learner action: Defend the Lyra accept decision with separate source, authority, binding, and state evidence.
+
+## Feedback: Changed Input Feedback
+
+Correct Lyra reasoning is input-sensitive. It does not inherit Orion's result. The current source supports both claims, the grant and trace match, and observed state confirms the internal note. If any one of those inputs changed, the affected status and possibly the decision would change.
+
+Correct feedback: You recalculated every status from the changed dossier.
+
+Retry feedback: Do not copy a prior decision or rely on trace success alone.
+
+## Narration: Review Decision
+
+Use this decision rule. Accept only when every mandatory row has sufficient evidence. Request changes for a reproducible defect the author can repair. Escalate when consequential state is unknown, authority is missing, or the required decision exceeds your role. Several passes never average away one mandatory failure.
+
+Sources:
+
+- <https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf>
 
 ## Transition: Activity Transition
 
-Open the audit activity. Use a synthetic or appropriately redacted work order, result, sources, tool trace, and test report. Reproduce one check, inspect two material sources, and verify one action against the system of record or its classroom fixture. Submit your matrix and decision record with exact evidence references. A reviewer should be able to repeat your reasoning without trusting the agent's summary.
+Open the audit activity. Submit the Orion and Lyra matrices, reproduced outputs, source observations, inferences, decisions, and next actions. Explain what the checker establishes and what still requires human judgment.
 
 ## Pause: Activity Work Time
 
+## Checkpoint: Acceptance Checkpoint
+
+Before submitting, verify that every accepted row cites a revision-bound artifact. Every failed or unknown row must name the smallest authorized next action. A draft snapshot cannot prove delivery. A format test cannot prove source truth. A matching target cannot authorize a different operation.
+
+Expected learner action: Audit the packet for revision binding, causal next actions, and category errors.
+
+## Feedback: Decision Feedback
+
+A strong packet lets another reviewer reproduce the decision without trusting the agent summary. It preserves exact revisions, direct observations, bounded inferences, failed controls, unresolved state, and responsible next actions. It never implies that checker success establishes semantic truth, live authorization, or a production postcondition.
+
+Correct feedback: Your packet separates automation results from human semantic and authority judgments.
+
+Retry feedback: Add exact revisions, observations, and authorized next actions where the reasoning cannot yet be reproduced.
+
 ## Assessment Handoff: Assessment Handoff
 
-Begin the knowledge check when you can explain what defines completion, how to investigate an unknown write outcome, why a citation must support the exact claim, and when evidence is sufficient for acceptance. Return to your matrix if any of those decisions still depends on the agent saying it finished.
+Begin the knowledge check when you can explain why source presence is not source support, why draft state is not delivery state, why matching target does not authorize a different operation, and why timeout remains unknown. The five assessment questions use those exact distinctions.
 
 ## Closing: Class Closing
 
-Review starts with the work order and ends with a decision another person can verify. Preserve the distinction between facts, defects, and missing evidence. Accept demonstrated completion, request precise corrections, and escalate unresolved authority or impact. The result is a trustworthy review record, even when the agent's delivery is not yet ready.
+Review begins with requirements and ends with a decision another reviewer can reproduce. Preserve observations, inferences, defects, unknowns, revisions, and authority boundaries. The lab is qualified evidence for its fixture behavior, not production truth.
