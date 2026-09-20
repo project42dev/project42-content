@@ -1,22 +1,31 @@
 {
   "id": "model-identity-license-and-provenance",
   "title": "Model Identity, Licensing, and Provenance",
-  "summary": "Identify the exact model artifact, distinguish open weights from Open Source AI, and make a reviewable license and lineage decision before deployment.",
+  "summary": "Identify the exact model artifact, distinguish public weights from permissions and Open Source AI, and make a reviewable license and lineage decision before deployment.",
   "level": "advanced",
-  "reviewCadenceDays": 60,
-  "lastVerified": "2026-09-13",
+  "reviewCadenceDays": 30,
+  "lastVerified": "2026-09-20",
   "providers": [
-    "provider-neutral"
+    "provider-neutral",
+    "Meta Llama",
+    "DeepSeek",
+    "Mistral",
+    "Qwen",
+    "Phi",
+    "NVIDIA Nemotron",
+    "Z.ai GLM"
   ],
-  "estimatedMinutes": 48,
+  "estimatedMinutes": 105,
   "objectives": [
     "Separate an AI system, model architecture, weights, derivative, quantization, runtime, and hosted product.",
-    "Create an immutable identity record for the exact artifact proposed for deployment.",
-    "Evaluate license, acceptable-use, attribution, redistribution, and derivative obligations without treating availability as permission.",
-    "Record lineage, model-card evidence, known gaps, accountable reviewers, and a dated adoption decision."
+    "Create and verify an immutable identity record for the exact artifact proposed for deployment.",
+    "Evaluate license, acceptable-use, attribution, redistribution, and derivative evidence without treating availability or metadata as permission.",
+    "Record lineage, contradictions, evidence gaps, accountable reviewers, and a dated, expiring adoption decision.",
+    "Repair and test an offline policy gate that must hold rather than approve when required evidence is unknown or contradictory."
   ],
   "prerequisites": [
-    "deployment-shape-and-operating-model"
+    "deployment-shape-and-operating-model",
+    "Node.js 22 installed for the command-line lab"
   ],
   "sections": [
     {
@@ -24,70 +33,155 @@
       "title": "Name the exact object under review",
       "paragraphs": [
         "A provider name or model family is not a deployable identity. Separate the AI system from its architecture, weights, tokenizer, configuration, prompt or chat template, adapters, quantization, inference runtime, dependencies, and surrounding application. Each component can have a different publisher, version, license, security boundary, and failure mode.",
-        "Write the deployment object as an explicit tuple: publisher and repository, immutable revision, artifact filenames and digests, base-model lineage, derivative or adapter identity, quantization method and parameters, tokenizer, prompt template, runtime and version, and intended deployment shape. If any required element is unresolved, the artifact is not ready to promote."
+        "Write the deployment object as an explicit tuple: publisher and repository, immutable revision, weight filename, byte count and SHA-256, base-model lineage and evidence status, derivative identity, quantization method and parameters, tokenizer digest, prompt-template revision, runtime name and version, hardware architecture, and deployment shape. If a required element is unresolved, promotion must stop or follow an authorized exception process."
       ],
-      "callout": "A familiar model name is a search hint. It is not an immutable artifact identity."
+      "code": {
+        "language": "text",
+        "label": "Artifact identity tuple",
+        "code": "publisher/repository@immutable-revision\n  weights: filename, byte count, SHA-256\n  derivative: type, publisher, revision\n  base: repository, revision, evidence status\n  quantization: method, bits, group size in weights\n  tokenizer: filename, SHA-256\n  prompt template: identifier, revision\n  runtime: name, version, hardware architecture\n  deployment: shape, use, distribution, users"
+      }
     },
     {
       "id": "distinguish-access-from-freedom",
       "title": "Distinguish downloadable, open-weight, and Open Source AI claims",
       "paragraphs": [
-        "Downloadable weights may be described as open-weight even when their terms restrict use, modification, redistribution, users, fields, scale, or outputs. Public access does not by itself establish permission, source transparency, reproducibility, safety, support, or the freedoms associated with Open Source.",
-        "The Open Source Initiative's Open Source AI Definition version 1.0 evaluates freedoms to use, study, modify, and share, together with access to the preferred form for modification. Use the exact cited definition when making an Open Source AI claim. Otherwise describe only what the evidence establishes, such as publicly downloadable weights under named terms."
+        "Downloadable or publicly accessible weights establish access under presented conditions. They do not by themselves establish permission for commercial use, modification, redistribution, hosting, every user group, or every field of use. They also do not prove provenance, safety, support, or reproducibility.",
+        "The Open Source Initiative's Open Source AI Definition version 1.0 requires freedoms to use, study, modify, and share, plus access to the preferred form for making modifications, including relevant data information, code, and parameters. Apply that label only after evaluating the definition. Otherwise use a narrower evidence label, such as publicly downloadable weights under named terms."
       ],
-      "callout": "Use precise evidence labels. Do not turn “available to download” into “unrestricted” or “Open Source.”"
+      "code": {
+        "language": "text",
+        "label": "Evidence labels that must remain distinct",
+        "code": "PUBLICLY DOWNLOADABLE: retrieval was offered under presented conditions\nNAMED TERMS: pinned controlling text was collected\nPERMITTED USE: the exact use, distribution, and users were mapped\nOPEN SOURCE AI: the OSI definition requirements were evaluated\nLEGAL OR POLICY APPROVAL: an authorized human issued the decision"
+      }
     },
     {
       "id": "review-terms-as-a-system",
       "title": "Review all applicable terms as one decision",
       "paragraphs": [
-        "Collect the license text from the immutable revision, repository terms, acceptable-use policy, model card, notices, attribution requirements, base-model terms, dataset or adapter obligations, and any deployment or distribution conditions. Record the retrieved version and date. A short metadata label is an index, not a substitute for reading the controlling text.",
-        "Map the intended use against permissions and obligations: internal or external use, commercial use, modification, fine-tuning, generated-output terms, redistribution, hosting an API, sharing derivatives, attribution, notice preservation, downstream restrictions, geographic or user limits, and termination. Route ambiguity and consequential interpretations to an authorized legal or policy reviewer; a curriculum or model output is not legal approval."
-      ]
+        "Collect the license at the immutable revision, repository terms, acceptable-use policy, model card, notices, attribution requirements, base-model and adapter terms, and relevant dataset obligations. Preserve the retrieved text, source, revision, and date. Hugging Face documents a model-card metadata license field for discovery, but metadata does not replace the applicable controlling text.",
+        "Map stated use, distribution, and users separately to permissions, obligations, restrictions, and unknowns. Each matrix row must repeat the corresponding proposed value, preventing an old permission row from silently approving a changed scope. The lab's controlling excerpts are fictional educational policy, not legal advice or real vendor grants. Consequential interpretation remains a human legal or policy responsibility."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Minimum bound terms matrix row",
+        "code": "{\n  \"dimension\": \"distribution\",\n  \"proposedValue\": \"external-api\",\n  \"status\": \"unknown\",\n  \"evidenceStatus\": \"unknown\",\n  \"source\": \"pinned controlling text does not cover this value\"\n}"
+      }
     },
     {
       "id": "trace-lineage-and-evidence",
       "title": "Trace lineage and preserve evidence gaps",
       "paragraphs": [
-        "Model cards can describe intended uses, limitations, datasets, training details, base models, evaluation results, licenses, and library compatibility. Treat each field as a claim to verify, not a guarantee. Follow base-model, fine-tune, adapter, merge, conversion, and quantization links until the proposed artifact's ancestry and material transformations are understood.",
-        "Record missing training-data information, unclear derivative lineage, absent evaluations, incompatible versions, unverified publishers, and contradictory terms as explicit gaps. Do not fill a gap with an assumption or a generated explanation. Decide whether to stop, request evidence, isolate an experiment, choose another artifact, or accept a bounded residual risk through the authorized review process."
-      ]
+        "Model cards can describe intended uses, limitations, datasets, training, base models, evaluations, licenses, and library compatibility. Treat these as claims to verify. Follow base-model, fine-tune, adapter, merge, conversion, quantization, and tokenizer links until the ancestry and material transformations of the proposed artifact are understood. The SPDX AI Profile can structure model and provenance data, but it does not automatically grant legal or policy approval.",
+        "A SHA-256 match shows that local bytes match the bytes named by a digest. It does not prove who trained the model, which data were used, whether a claimed base was used, or whether the publisher had authority to distribute it. The lab also confines reads to its artifacts directory after resolving symlinks. That protects this exercise's boundary, but neither containment nor a digest proves provenance."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Example provenance graph with unresolved evidence",
+        "code": "Fictional Base r1\n  -> fine-tune claim: UNKNOWN EVIDENCE\nFictional Derivative r7\n  -> quantization: fictional-int4, 4 bits, group size 128 weights\nSynthetic local artifact\n  -> weights digest: VERIFIED\n  -> tokenizer digest: MISMATCH\nResult: byte identity partly verified; claimed lineage not proved"
+      }
     },
     {
       "id": "issue-a-dated-decision",
       "title": "Issue a dated, expiring, and reversible decision",
       "paragraphs": [
-        "The adoption record should identify the exact artifact tuple, intended uses, prohibited uses, applicable terms, required notices, lineage, evidence sources, unresolved gaps, reviewers, approval scope, decision date, and expiry or re-review triggers. Separate technical recommendation, security review, legal or policy approval, and operational acceptance so one signature is not mistaken for every authority.",
-        "Re-review when the publisher, repository, revision, license, acceptable-use policy, base model, adapter, quantization, tokenizer, prompt template, runtime, deployment audience, distribution method, or use case changes. Preserve the rejected candidate and reasons so a future operator can explain why the deployed artifact was chosen."
-      ]
+        "The adoption record identifies the exact artifact tuple, stated use, distribution, users, applicable terms, notices, lineage, evidence sources, unresolved gaps, reviewers, scope, decision date, expiry, and re-review triggers. Technical recommendation, security review, legal or policy interpretation, and operational acceptance remain separate authorities.",
+        "Use an explicit as-of date so the same input produces the same result without relying on the machine clock. Validate both dates as real Gregorian calendar dates. A decision is valid before its expiry date and expired on the expiry date. Re-review on expiry or whenever the artifact, terms, audience, distribution, use, tokenizer, template, runtime, derivative, or lineage changes."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Disposition vocabulary used in the lab",
+        "code": "approve-isolated-evaluation: fictional gate passed for the exact unexpired scope\nhold-for-evidence: unknown, contradictory, mismatched, uncovered, or expired\nreject: controlling fictional terms directly prohibit the stated scope\nNone of these values is legal approval."
+      }
+    },
+    {
+      "id": "provider-evidence-method",
+      "title": "Apply one evidence method across provider families",
+      "paragraphs": [
+        "For Meta Llama, DeepSeek, Mistral, Qwen, Phi, NVIDIA Nemotron, and Z.ai GLM, begin with the publisher and exact repository rather than a family nickname. Pin an immutable revision and record exact weight, tokenizer, configuration, template, adapter, and quantization files. Record the declared architecture with its source, plus the exact runtime name, version, hardware architecture, and deployment shape actually proposed.",
+        "For every family, retrieve controlling terms and notices from the pinned publisher source, then trace base and derivative links. Label each claim direct, inferred, unknown, or contradictory. This method does not assert a current license, architecture, permission, benchmark, price, or Open Source AI status for any listed family. Those conclusions require evidence for the exact selected artifact and revision."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Source-labelled provider review queue",
+        "code": "Meta Llama | collect exact publisher repository, revision, files, terms\nDeepSeek | collect exact publisher repository, revision, files, terms\nMistral | collect exact publisher repository, revision, files, terms\nQwen | collect exact publisher repository, revision, files, terms\nPhi | collect exact publisher repository, revision, files, terms\nNVIDIA Nemotron | collect exact publisher repository, revision, files, terms\nZ.ai GLM | collect exact publisher repository, revision, files, terms\nNever transfer a license or architecture conclusion between revisions."
+      }
+    },
+    {
+      "id": "worked-example",
+      "title": "Worked example: decide from a synthetic dossier",
+      "paragraphs": [
+        "The supplied Atlas fixture is entirely synthetic. Its three-byte weights file contains abc, whose SHA-256 is ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad. Its empty tokenizer has SHA-256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855. The CLI computes these hashes from fixture bytes. All twelve required checks are known, all three matrix values match the proposed scope, and no provenance gap is recorded.",
+        "With as-of date 2026-09-20, the decision dated 2026-09-20 has not reached its 30-day expiry. Completeness is 12 of 12, or 100 percent, and the fictional disposition is approve-isolated-evaluation. This does not grant rights, validate a vendor license, prove training lineage, measure model quality, or authorize production."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Completed worked result",
+        "code": "{\"fixture\":\"positive.json\",\"asOf\":\"2026-09-20\",\"completeness\":{\"known\":12,\"total\":12,\"percent\":100,\"missing\":[]},\"disposition\":\"approve-isolated-evaluation\",\"reasons\":[]}"
+      }
+    },
+    {
+      "id": "lab-entry",
+      "title": "Run the offline identity and evidence gate lab",
+      "paragraphs": [
+        "The public lab directory is https://github.com/project42dev/project42-content/tree/main/training/self-hosted-model-operations/model-identity-license-and-provenance/lab. From the repository root, run the commands below with Node.js 22. No dependency installation, network, GPU, model download, or remote artifact execution is needed. Numeric fixture values are synthetic; only hashes and decisions are derived from the returned files and code.",
+        "The starter has one bounded defect in decide: after preserving explicit rejection, it approves evidence problems instead of holding. Validation, proposal-to-matrix binding, calendar expiry, artifact containment, and independent tests are already complete. Edit only src/evaluate.mjs. The test runner gathers all cases and treats exceptions as failures. Attempt the repair before consulting the separate reference."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Commands from the repository root",
+        "code": "cd training/self-hosted-model-operations/model-identity-license-and-provenance/lab/\nnode src/cli.mjs fixtures/positive.json --as-of 2026-09-20\nnode test/run-tests.mjs starter\n# edit only src/evaluate.mjs, then:\nnode test/run-tests.mjs learner\n# after attempting the repair:\nnode test/run-tests.mjs reference"
+      }
+    },
+    {
+      "id": "learner-variation",
+      "title": "Learner variation: changed scope, contradictions, and expiry",
+      "paragraphs": [
+        "Evaluate changeduse.json after the worked example. Its bytes still match, but external API distribution is unknown, so the correct disposition is hold-for-evidence. Independent mutation tests also change proposed use, distribution, or users without changing the matrix. Correct validation rejects each stale matrix because every proposedValue must equal dossier.proposed[row.dimension].",
+        "The test suite also checks positive before expiry, on expiry, after expiry, invalid dates, digest and lineage gaps, explicit prohibition, traversal outside artifacts, and a symlink canary when the platform permits it. Repair only the decision priority: direct prohibition rejects; otherwise any missing check or problem holds; only a complete, unexpired, exact isolated-evaluation scope approves."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Required gate priority and worked answer",
+        "code": "1. Directly evidenced prohibition -> reject.\n2. Missing, unknown, contradictory, mismatched, stale, expired, or uncovered evidence -> hold.\n3. Complete exact isolated-evaluation scope before expiry -> approve-isolated-evaluation.\nFocused repair:\nif (assessment.completeness.missing.length > 0 || assessment.problems.length > 0)\n  return { disposition: 'hold-for-evidence', reasons: assessment.problems };"
+      }
     }
   ],
   "activity": {
     "id": "activity-model-identity-decision",
     "title": "Build an artifact identity and terms decision",
     "instructions": [
-      "Choose a low-risk candidate model repository without downloading or executing its artifacts.",
-      "Record publisher, repository, immutable revision, base-model lineage, derivative type, listed license, model-card claims, intended use, runtime expectation, and every unresolved identity field.",
-      "Retrieve the controlling license and related terms from the pinned revision or authoritative publisher source, then map the proposed use to permissions, obligations, restrictions, and required review.",
-      "Label each statement as directly evidenced, inferred, unknown, or requiring authorized legal or policy interpretation.",
-      "Write a decision of approve for isolated evaluation, reject, or hold for evidence. Include expiry conditions and the exact events that require re-review."
+      "Run the completed positive fixture and connect each output field to the artifact tuple, terms matrix, provenance graph, decision date, and as-of date.",
+      "Run the starter tests and confirm that all cases are gathered. Observe that only the deliberate decision-gate cases fail.",
+      "Inspect hold.json and changeduse.json. Identify the digest mismatch, contradiction, lineage gap, and changed distribution before changing code.",
+      "Edit only src/evaluate.mjs. Preserve the explicit reject rule, add a general hold gate for evidence problems, and do not edit validation, assessment, CLI, fixtures, tests, or expected outcomes.",
+      "Rerun learner tests. After making an attempt, compare the focused change with solution/repair.patch and run the independent reference suite.",
+      "For a real candidate, without downloading or executing remote artifacts, record publisher, repository, immutable revision, exact files, independently available digests, base lineage, derivative, tokenizer, template, runtime, architecture, intended use, distribution, users, decision date, expiry, and unresolved fields.",
+      "Retrieve controlling terms from the pinned authoritative source, map the exact proposed scope, label evidence status, and route legal or policy interpretation to an authorized human."
     ],
     "evidence": [
-      "A model identity tuple containing an immutable revision and the material components required for deployment.",
-      "A terms matrix linking each permission or obligation to its source and proposed use.",
-      "A lineage map with explicit gaps, reviewer boundaries, disposition, and re-review triggers."
+      "A verified model identity tuple containing immutable revisions, exact material files, digests, tokenizer, template, runtime, architecture, derivative, and base lineage.",
+      "A three-row terms matrix bound to the proposed use, distribution, and users, while separating metadata from controlling text.",
+      "A provenance graph that distinguishes byte verification from unproved lineage claims.",
+      "A focused evaluator repair for which positive, hold, reject, changed-scope, expiry, validation, and containment tests pass.",
+      "A dated disposition with deterministic as-of evaluation and artifact, terms, audience, distribution, use, and expiry triggers."
     ],
-    "reflectionPrompt": "Which missing fact would most change your decision, and why would assuming it be less defensible than stopping or requesting evidence?"
+    "reflectionPrompt": "Which missing, stale, or changed fact most affects the disposition, and why is holding for evidence more defensible than treating that fact as permission?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 1440,
+    "estimatedSeconds": 207,
     "cues": [
       {
-        "id": "cue-model-identity-object",
+        "id": "cue-model-identity-object-1",
         "kind": "narration",
         "sectionId": "name-the-deployment-object",
-        "text": "Decompose a familiar model name into publisher, repository, revision, weights, derivative, quantization, tokenizer, prompt template, runtime, and application."
+        "text": "Decompose a familiar model name into\npublisher, repository, revision, weights,"
+      },
+      {
+        "id": "cue-model-identity-object-2",
+        "kind": "narration",
+        "sectionId": "name-the-deployment-object",
+        "text": "derivative, quantization, tokenizer,\nprompt template, runtime, and application."
       },
       {
         "id": "cue-model-identity-visual",
@@ -97,10 +191,16 @@
         "accessibilityAlternative": "A static table lists every deployment-tuple field with columns for exact value, source, mutability, and unresolved status."
       },
       {
-        "id": "cue-model-identity-open-claims",
+        "id": "cue-model-identity-open-claims-1",
         "kind": "narration",
         "sectionId": "distinguish-access-from-freedom",
-        "text": "Contrast public access, open-weight descriptions, named license grants, and the Open Source AI Definition without treating them as synonyms."
+        "text": "Contrast public access, open-weight\ndescriptions, named license grants, and"
+      },
+      {
+        "id": "cue-model-identity-open-claims-2",
+        "kind": "narration",
+        "sectionId": "distinguish-access-from-freedom",
+        "text": "the Open Source AI Definition without\ntreating them as synonyms."
       },
       {
         "id": "cue-model-identity-checkpoint",
@@ -109,16 +209,28 @@
         "text": "Ask the learner which claim is supported when weights are downloadable but modification or redistribution rights remain unclear."
       },
       {
-        "id": "cue-model-identity-terms",
+        "id": "cue-model-identity-terms-1",
         "kind": "narration",
         "sectionId": "review-terms-as-a-system",
-        "text": "Walk from a short license label to the controlling text, related use terms, base-model obligations, intended deployment, and authorized review."
+        "text": "Walk from a short license label to the\ncontrolling text, related use terms,"
       },
       {
-        "id": "cue-model-identity-lineage",
+        "id": "cue-model-identity-terms-2",
+        "kind": "narration",
+        "sectionId": "review-terms-as-a-system",
+        "text": "base-model obligations, intended\ndeployment, and authorized review."
+      },
+      {
+        "id": "cue-model-identity-lineage-1",
         "kind": "narration",
         "sectionId": "trace-lineage-and-evidence",
-        "text": "Trace a hypothetical base model through fine-tuning, merging, conversion, and quantization while preserving every evidence gap."
+        "text": "Trace a hypothetical base model through\nfine-tuning, merging, conversion, and"
+      },
+      {
+        "id": "cue-model-identity-lineage-2",
+        "kind": "narration",
+        "sectionId": "trace-lineage-and-evidence",
+        "text": "quantization while preserving every\nevidence gap."
       },
       {
         "id": "cue-model-identity-activity",
@@ -126,60 +238,497 @@
         "text": "Guide the learner through the identity tuple, terms matrix, lineage map, evidence labels, and bounded disposition."
       },
       {
-        "id": "cue-model-identity-decision",
+        "id": "cue-model-identity-decision-1",
         "kind": "narration",
         "sectionId": "issue-a-dated-decision",
-        "text": "Close with distinct technical, security, legal or policy, and operational authorities plus explicit re-review triggers."
+        "text": "Close with distinct technical, security,\nlegal or policy, and operational"
       },
       {
-        "id": "cue-model-identity-assessment",
+        "id": "cue-model-identity-decision-2",
+        "kind": "narration",
+        "sectionId": "issue-a-dated-decision",
+        "text": "authorities plus explicit re-review\ntriggers."
+      },
+      {
+        "id": "cue-model-identity-assessment-1",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can defend the artifact identity, terms evidence, lineage gaps, reviewer boundaries, and decision expiry."
+        "text": "Begin the check after the learner can\ndefend the artifact identity, terms"
+      },
+      {
+        "id": "cue-model-identity-assessment-2",
+        "kind": "assessment-handoff",
+        "text": "evidence, lineage gaps, reviewer\nboundaries, and decision expiry."
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-1",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "For Meta Llama, DeepSeek, Mistral, Qwen,\nPhi, NVIDIA Nemotron, and Z.ai GLM, begin"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-2",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "with the publisher and exact repository\nrather than a family nickname. Pin an"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-3",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "immutable revision and record exact\nweight, tokenizer, configuration,"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-4",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "template, adapter, and quantization files.\nRecord the declared architecture with its"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-5",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "source, plus the exact runtime name,\nversion, hardware architecture, and"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-6",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "deployment shape actually proposed. For\nevery family, retrieve controlling terms"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-7",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "and notices from the pinned publisher\nsource, then trace base and derivative"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-8",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "links. Label each claim direct, inferred,\nunknown, or contradictory. This method"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-9",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "does not assert a current license,\narchitecture, permission, benchmark,"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-10",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "price, or Open Source AI status for any\nlisted family. Those conclusions require"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-provider-evidence-method-11",
+        "kind": "narration",
+        "sectionId": "provider-evidence-method",
+        "text": "evidence for the exact selected artifact\nand revision."
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-worked-example-1",
+        "kind": "narration",
+        "sectionId": "worked-example",
+        "text": "With as-of date 2026-09-20, the decision\ndated 2026-09-20 has not reached its"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-worked-example-2",
+        "kind": "narration",
+        "sectionId": "worked-example",
+        "text": "30-day expiry. Completeness is 12 of 12,\nor 100 percent, and the fictional"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-worked-example-3",
+        "kind": "narration",
+        "sectionId": "worked-example",
+        "text": "disposition is\napprove-isolated-evaluation. This does not"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-worked-example-4",
+        "kind": "narration",
+        "sectionId": "worked-example",
+        "text": "grant rights, validate a vendor license,\nprove training lineage, measure model"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-worked-example-5",
+        "kind": "narration",
+        "sectionId": "worked-example",
+        "text": "quality, or authorize production."
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-lab-entry-1",
+        "kind": "narration",
+        "sectionId": "lab-entry",
+        "text": "The starter has one bounded defect in\ndecide: after preserving explicit"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-lab-entry-2",
+        "kind": "narration",
+        "sectionId": "lab-entry",
+        "text": "rejection, it approves evidence problems\ninstead of holding. Validation,"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-lab-entry-3",
+        "kind": "narration",
+        "sectionId": "lab-entry",
+        "text": "proposal-to-matrix binding, calendar\nexpiry, artifact containment, and"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-lab-entry-4",
+        "kind": "narration",
+        "sectionId": "lab-entry",
+        "text": "independent tests are already complete.\nEdit only src/evaluate.mjs. The test"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-lab-entry-5",
+        "kind": "narration",
+        "sectionId": "lab-entry",
+        "text": "runner gathers all cases and treats\nexceptions as failures. Attempt the repair"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-lab-entry-6",
+        "kind": "narration",
+        "sectionId": "lab-entry",
+        "text": "before consulting the separate reference."
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-1",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "Evaluate changeduse.json after the worked\nexample. Its bytes still match, but"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-2",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "external API distribution is unknown, so\nthe correct disposition is"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-3",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "hold-for-evidence. Independent mutation\ntests also change proposed use,"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-4",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "distribution, or users without changing\nthe matrix. Correct validation rejects"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-5",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "each stale matrix because every\nproposedValue must equal"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-6",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "dossier.proposed[row.dimension]. The test\nsuite also checks positive before expiry,"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-7",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "on expiry, after expiry, invalid dates,\ndigest and lineage gaps, explicit"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-8",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "prohibition, traversal outside artifacts,\nand a symlink canary when the platform"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-9",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "permits it. Repair only the decision\npriority: direct prohibition rejects;"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-10",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "otherwise any missing check or problem\nholds; only a complete, unexpired, exact"
+      },
+      {
+        "id": "cue-model-identity-license-and-provenance-learner-variation-11",
+        "kind": "narration",
+        "sectionId": "learner-variation",
+        "text": "isolated-evaluation scope approves."
       }
     ],
-    "transcript": "Decompose a familiar model name into publisher, repository, revision, weights, derivative, quantization, tokenizer, prompt template, runtime, and application. A model family name is not a deployable identity. Separate the system, architecture, weights, tokenizer, configuration, template, adapters, quantization, runtime, dependencies, and application, then pin every material component to an immutable source. Contrast public access, open-weight descriptions, named license grants, and the Open Source AI Definition without treating them as synonyms. Publicly downloadable weights do not automatically provide unrestricted rights or establish an Open Source AI system. Walk from a short license label to the controlling text, related use terms, base-model obligations, intended deployment, and authorized review. Map the terms to the exact intended use, and send consequential ambiguity to an authorized reviewer. Trace a hypothetical base model through fine-tuning, merging, conversion, and quantization while preserving every evidence gap. Missing or contradictory evidence remains a gap rather than an invitation to assume. Close with distinct technical, security, legal or policy, and operational authorities plus explicit re-review triggers. Issue a dated decision and repeat review whenever the artifact, terms, audience, distribution, or use changes.",
+    "transcript": "Decompose a familiar model name into\npublisher, repository, revision, weights, derivative, quantization, tokenizer,\nprompt template, runtime, and application. Contrast public access, open-weight\ndescriptions, named license grants, and the Open Source AI Definition without\ntreating them as synonyms. Walk from a short license label to the\ncontrolling text, related use terms, base-model obligations, intended\ndeployment, and authorized review. Trace a hypothetical base model through\nfine-tuning, merging, conversion, and quantization while preserving every\nevidence gap. Close with distinct technical, security,\nlegal or policy, and operational authorities plus explicit re-review\ntriggers. Begin the check after the learner can\ndefend the artifact identity, terms evidence, lineage gaps, reviewer\nboundaries, and decision expiry. For Meta Llama, DeepSeek, Mistral, Qwen,\nPhi, NVIDIA Nemotron, and Z.ai GLM, begin with the publisher and exact repository\nrather than a family nickname. Pin an immutable revision and record exact\nweight, tokenizer, configuration, template, adapter, and quantization files.\nRecord the declared architecture with its source, plus the exact runtime name,\nversion, hardware architecture, and deployment shape actually proposed. For\nevery family, retrieve controlling terms and notices from the pinned publisher\nsource, then trace base and derivative links. Label each claim direct, inferred,\nunknown, or contradictory. This method does not assert a current license,\narchitecture, permission, benchmark, price, or Open Source AI status for any\nlisted family. Those conclusions require evidence for the exact selected artifact\nand revision. With as-of date 2026-09-20, the decision\ndated 2026-09-20 has not reached its 30-day expiry. Completeness is 12 of 12,\nor 100 percent, and the fictional disposition is\napprove-isolated-evaluation. This does not grant rights, validate a vendor license,\nprove training lineage, measure model quality, or authorize production. The starter has one bounded defect in\ndecide: after preserving explicit rejection, it approves evidence problems\ninstead of holding. Validation, proposal-to-matrix binding, calendar\nexpiry, artifact containment, and independent tests are already complete.\nEdit only src/evaluate.mjs. The test runner gathers all cases and treats\nexceptions as failures. Attempt the repair before consulting the separate reference. Evaluate changeduse.json after the worked\nexample. Its bytes still match, but external API distribution is unknown, so\nthe correct disposition is hold-for-evidence. Independent mutation\ntests also change proposed use, distribution, or users without changing\nthe matrix. Correct validation rejects each stale matrix because every\nproposedValue must equal dossier.proposed[row.dimension]. The test\nsuite also checks positive before expiry, on expiry, after expiry, invalid dates,\ndigest and lineage gaps, explicit prohibition, traversal outside artifacts,\nand a symlink canary when the platform permits it. Repair only the decision\npriority: direct prohibition rejects; otherwise any missing check or problem\nholds; only a complete, unexpired, exact isolated-evaluation scope approves.",
     "captions": [
       {
-        "cueId": "cue-model-identity-object",
+        "cueId": "cue-model-identity-object-1",
         "startSeconds": 0,
-        "endSeconds": 210,
-        "text": "Decompose a familiar model name into publisher, repository, revision, weights, derivative, quantization, tokenizer, prompt template, runtime, and application."
+        "endSeconds": 5,
+        "text": "Decompose a familiar model name into\npublisher, repository, revision, weights,"
       },
       {
-        "cueId": "cue-model-identity-open-claims",
-        "startSeconds": 210,
-        "endSeconds": 420,
-        "text": "Contrast public access, open-weight descriptions, named license grants, and the Open Source AI Definition without treating them as synonyms."
+        "cueId": "cue-model-identity-object-2",
+        "startSeconds": 5,
+        "endSeconds": 9,
+        "text": "derivative, quantization, tokenizer,\nprompt template, runtime, and application."
       },
       {
-        "cueId": "cue-model-identity-terms",
-        "startSeconds": 420,
-        "endSeconds": 720,
-        "text": "Walk from a short license label to the controlling text, related use terms, base-model obligations, intended deployment, and authorized review."
+        "cueId": "cue-model-identity-open-claims-1",
+        "startSeconds": 9,
+        "endSeconds": 13,
+        "text": "Contrast public access, open-weight\ndescriptions, named license grants, and"
       },
       {
-        "cueId": "cue-model-identity-lineage",
-        "startSeconds": 720,
-        "endSeconds": 990,
-        "text": "Trace a hypothetical base model through fine-tuning, merging, conversion, and quantization while preserving every evidence gap."
+        "cueId": "cue-model-identity-open-claims-2",
+        "startSeconds": 13,
+        "endSeconds": 18,
+        "text": "the Open Source AI Definition without\ntreating them as synonyms."
       },
       {
-        "cueId": "cue-model-identity-decision",
-        "startSeconds": 990,
-        "endSeconds": 1230,
-        "text": "Close with distinct technical, security, legal or policy, and operational authorities plus explicit re-review triggers."
+        "cueId": "cue-model-identity-terms-1",
+        "startSeconds": 18,
+        "endSeconds": 24,
+        "text": "Walk from a short license label to the\ncontrolling text, related use terms,"
       },
       {
-        "cueId": "cue-model-identity-activity",
-        "startSeconds": 1230,
-        "endSeconds": 1410,
-        "text": "Guide the learner through the identity tuple, terms matrix, lineage map, evidence labels, and bounded disposition."
+        "cueId": "cue-model-identity-terms-2",
+        "startSeconds": 24,
+        "endSeconds": 27,
+        "text": "base-model obligations, intended\ndeployment, and authorized review."
       },
       {
-        "cueId": "cue-model-identity-assessment",
-        "startSeconds": 1410,
-        "endSeconds": 1440,
-        "text": "Begin the check after the learner can defend the artifact identity, terms evidence, lineage gaps, reviewer boundaries, and decision expiry."
+        "cueId": "cue-model-identity-lineage-1",
+        "startSeconds": 27,
+        "endSeconds": 32,
+        "text": "Trace a hypothetical base model through\nfine-tuning, merging, conversion, and"
+      },
+      {
+        "cueId": "cue-model-identity-lineage-2",
+        "startSeconds": 32,
+        "endSeconds": 35,
+        "text": "quantization while preserving every\nevidence gap."
+      },
+      {
+        "cueId": "cue-model-identity-decision-1",
+        "startSeconds": 35,
+        "endSeconds": 40,
+        "text": "Close with distinct technical, security,\nlegal or policy, and operational"
+      },
+      {
+        "cueId": "cue-model-identity-decision-2",
+        "startSeconds": 40,
+        "endSeconds": 43,
+        "text": "authorities plus explicit re-review\ntriggers."
+      },
+      {
+        "cueId": "cue-model-identity-assessment-1",
+        "startSeconds": 43,
+        "endSeconds": 49,
+        "text": "Begin the check after the learner can\ndefend the artifact identity, terms"
+      },
+      {
+        "cueId": "cue-model-identity-assessment-2",
+        "startSeconds": 49,
+        "endSeconds": 53,
+        "text": "evidence, lineage gaps, reviewer\nboundaries, and decision expiry."
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-1",
+        "startSeconds": 53,
+        "endSeconds": 59,
+        "text": "For Meta Llama, DeepSeek, Mistral, Qwen,\nPhi, NVIDIA Nemotron, and Z.ai GLM, begin"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-2",
+        "startSeconds": 59,
+        "endSeconds": 65,
+        "text": "with the publisher and exact repository\nrather than a family nickname. Pin an"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-3",
+        "startSeconds": 65,
+        "endSeconds": 69,
+        "text": "immutable revision and record exact\nweight, tokenizer, configuration,"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-4",
+        "startSeconds": 69,
+        "endSeconds": 74,
+        "text": "template, adapter, and quantization files.\nRecord the declared architecture with its"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-5",
+        "startSeconds": 74,
+        "endSeconds": 79,
+        "text": "source, plus the exact runtime name,\nversion, hardware architecture, and"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-6",
+        "startSeconds": 79,
+        "endSeconds": 84,
+        "text": "deployment shape actually proposed. For\nevery family, retrieve controlling terms"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-7",
+        "startSeconds": 84,
+        "endSeconds": 90,
+        "text": "and notices from the pinned publisher\nsource, then trace base and derivative"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-8",
+        "startSeconds": 90,
+        "endSeconds": 95,
+        "text": "links. Label each claim direct, inferred,\nunknown, or contradictory. This method"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-9",
+        "startSeconds": 95,
+        "endSeconds": 99,
+        "text": "does not assert a current license,\narchitecture, permission, benchmark,"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-10",
+        "startSeconds": 99,
+        "endSeconds": 105,
+        "text": "price, or Open Source AI status for any\nlisted family. Those conclusions require"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-provider-evidence-method-11",
+        "startSeconds": 105,
+        "endSeconds": 109,
+        "text": "evidence for the exact selected artifact\nand revision."
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-worked-example-1",
+        "startSeconds": 109,
+        "endSeconds": 115,
+        "text": "With as-of date 2026-09-20, the decision\ndated 2026-09-20 has not reached its"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-worked-example-2",
+        "startSeconds": 115,
+        "endSeconds": 121,
+        "text": "30-day expiry. Completeness is 12 of 12,\nor 100 percent, and the fictional"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-worked-example-3",
+        "startSeconds": 121,
+        "endSeconds": 124,
+        "text": "disposition is\napprove-isolated-evaluation. This does not"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-worked-example-4",
+        "startSeconds": 124,
+        "endSeconds": 129,
+        "text": "grant rights, validate a vendor license,\nprove training lineage, measure model"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-worked-example-5",
+        "startSeconds": 129,
+        "endSeconds": 131,
+        "text": "quality, or authorize production."
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-lab-entry-1",
+        "startSeconds": 131,
+        "endSeconds": 136,
+        "text": "The starter has one bounded defect in\ndecide: after preserving explicit"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-lab-entry-2",
+        "startSeconds": 136,
+        "endSeconds": 140,
+        "text": "rejection, it approves evidence problems\ninstead of holding. Validation,"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-lab-entry-3",
+        "startSeconds": 140,
+        "endSeconds": 143,
+        "text": "proposal-to-matrix binding, calendar\nexpiry, artifact containment, and"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-lab-entry-4",
+        "startSeconds": 143,
+        "endSeconds": 148,
+        "text": "independent tests are already complete.\nEdit only src/evaluate.mjs. The test"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-lab-entry-5",
+        "startSeconds": 148,
+        "endSeconds": 154,
+        "text": "runner gathers all cases and treats\nexceptions as failures. Attempt the repair"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-lab-entry-6",
+        "startSeconds": 154,
+        "endSeconds": 157,
+        "text": "before consulting the separate reference."
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-1",
+        "startSeconds": 157,
+        "endSeconds": 162,
+        "text": "Evaluate changeduse.json after the worked\nexample. Its bytes still match, but"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-2",
+        "startSeconds": 162,
+        "endSeconds": 167,
+        "text": "external API distribution is unknown, so\nthe correct disposition is"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-3",
+        "startSeconds": 167,
+        "endSeconds": 171,
+        "text": "hold-for-evidence. Independent mutation\ntests also change proposed use,"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-4",
+        "startSeconds": 171,
+        "endSeconds": 176,
+        "text": "distribution, or users without changing\nthe matrix. Correct validation rejects"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-5",
+        "startSeconds": 176,
+        "endSeconds": 180,
+        "text": "each stale matrix because every\nproposedValue must equal"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-6",
+        "startSeconds": 180,
+        "endSeconds": 184,
+        "text": "dossier.proposed[row.dimension]. The test\nsuite also checks positive before expiry,"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-7",
+        "startSeconds": 184,
+        "endSeconds": 189,
+        "text": "on expiry, after expiry, invalid dates,\ndigest and lineage gaps, explicit"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-8",
+        "startSeconds": 189,
+        "endSeconds": 194,
+        "text": "prohibition, traversal outside artifacts,\nand a symlink canary when the platform"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-9",
+        "startSeconds": 194,
+        "endSeconds": 199,
+        "text": "permits it. Repair only the decision\npriority: direct prohibition rejects;"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-10",
+        "startSeconds": 199,
+        "endSeconds": 205,
+        "text": "otherwise any missing check or problem\nholds; only a complete, unexpired, exact"
+      },
+      {
+        "cueId": "cue-model-identity-license-and-provenance-learner-variation-11",
+        "startSeconds": 205,
+        "endSeconds": 207,
+        "text": "isolated-evaluation scope approves."
       }
     ],
     "reducedMotionAlternative": "Present the deployment tuple and lineage as static tables. Reveal no animated dependency lines; use numbered rows and textual status labels."
@@ -193,7 +742,7 @@
         "choices": [
           "The model family nickname",
           "The provider logo and parameter count",
-          "Publisher, repository, immutable revision, artifact digests, lineage, quantization, tokenizer, template, and runtime",
+          "Publisher, repository, immutable revision, artifact digests, lineage, quantization, tokenizer, template, runtime, and architecture",
           "The date someone first heard about the model"
         ],
         "answerIndex": 2,
@@ -209,31 +758,31 @@
           "That the artifact is safe and supported"
         ],
         "answerIndex": 0,
-        "explanation": "Availability alone does not establish specific permissions, Open Source status, safety, provenance, or support."
+        "explanation": "Availability alone does not establish permissions, Open Source AI status, safety, provenance, or support."
       },
       {
         "id": "q-model-identity-3",
-        "prompt": "A repository metadata field says a common license name, but the pinned revision includes additional terms. What should govern the review?",
+        "prompt": "A repository metadata field names a common license, but pinned controlling text conflicts with it. What should the automated fictional policy gate do?",
         "choices": [
-          "The shorter metadata label only",
-          "A generated summary",
-          "The most permissive interpretation",
-          "The controlling text and all applicable related terms for the exact proposed use"
+          "Approve from the metadata label",
+          "Ignore the controlling text",
+          "Hold for evidence or reject if the exact scope is directly prohibited",
+          "Ask the runtime to choose a license"
         ],
-        "answerIndex": 3,
-        "explanation": "Metadata helps discovery, but the review must examine controlling terms and the intended use."
+        "answerIndex": 2,
+        "explanation": "Metadata is not controlling text. Contradiction prevents approval, while a directly evidenced prohibition supports rejection under the fictional gate."
       },
       {
         "id": "q-model-identity-4",
-        "prompt": "What is the safest treatment of an unclear base-model lineage?",
+        "prompt": "What does a matching SHA-256 digest establish?",
         "choices": [
-          "Assume the derivative publisher resolved it",
-          "Record it as a gap and stop, request evidence, isolate a bounded evaluation, or choose another artifact through the authorized process",
-          "Remove the base-model field",
-          "Treat a benchmark score as lineage evidence"
+          "The local bytes match the bytes associated with that digest",
+          "The publisher trained the model as claimed",
+          "Every lineage statement is true",
+          "The artifact is legally approved"
         ],
-        "answerIndex": 1,
-        "explanation": "Unknown lineage is decision evidence, not a blank to fill with an assumption."
+        "answerIndex": 0,
+        "explanation": "A digest verifies byte identity. It does not prove origin, training data, lineage, authority, or legal approval."
       },
       {
         "id": "q-model-identity-5",
@@ -245,19 +794,31 @@
           "The runtime automatically"
         ],
         "answerIndex": 2,
-        "explanation": "Educational content can structure the evidence but cannot substitute for authorized legal or policy approval."
+        "explanation": "The lab structures evidence but cannot substitute for authorized legal or policy interpretation."
       },
       {
         "id": "q-model-identity-6",
-        "prompt": "Which change should trigger re-review?",
+        "prompt": "Why must changeduse.json be held even though its artifact bytes match?",
         "choices": [
-          "A new immutable model revision or changed intended use",
-          "Changing only the internal meeting time",
-          "Reformatting an unchanged evidence table",
-          "Correcting a spelling error in a private note"
+          "Every matching digest requires rejection",
+          "Its external API distribution is not covered by directly evidenced fictional terms",
+          "The fixture has no runtime",
+          "Node.js cannot hash files"
         ],
-        "answerIndex": 0,
-        "explanation": "Artifact, terms, audience, distribution, and use changes can alter the decision and require re-review."
+        "answerIndex": 1,
+        "explanation": "A prior scope decision does not carry over to a changed distribution whose permission evidence is unknown."
+      },
+      {
+        "id": "q-model-identity-7",
+        "prompt": "When a decision expires on 2026-10-20, which as-of date first requires re-review?",
+        "choices": [
+          "2026-10-19",
+          "2026-10-20",
+          "2026-10-21",
+          "Only when the machine clock changes"
+        ],
+        "answerIndex": 1,
+        "explanation": "The fictional policy treats the decision as expired on its calculated expiry date."
       }
     ]
   },
@@ -285,6 +846,12 @@
       "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
       "publisher": "NIST",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Project 42 content repository",
+      "url": "https://github.com/project42dev/project42-content",
+      "publisher": "Project 42",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
