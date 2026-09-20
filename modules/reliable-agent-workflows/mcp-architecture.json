@@ -1,10 +1,10 @@
 {
   "id": "mcp-architecture",
   "title": "Understand MCP Architecture and Contracts",
-  "summary": "Model the host, client, server, lifecycle, capabilities, primitives, and tool contracts that let AI applications connect to external context and actions.",
+  "summary": "Use a reproducible local child-process lab to model MCP roles, lifecycle, primitives, authorization, timeout handling, and portable provider boundaries.",
   "level": "intermediate",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "providers": [
     "provider-neutral"
   ],
@@ -23,173 +23,1122 @@
       "id": "host-client-server",
       "title": "Start with three roles and one connection per server",
       "paragraphs": [
-        "An MCP host is the AI application that coordinates policy, consent, model access, and multiple connections. It creates an MCP client for each server. Each client maintains an isolated one-to-one session with its server and routes protocol messages.",
-        "An MCP server exposes focused capabilities. Local and remote servers can have very different deployment and credential risks, but neither becomes trusted merely because it speaks MCP. Keep the host responsible for aggregation and user decisions so one server cannot silently observe another server's data."
+        "An MCP host is the AI application that coordinates user intent, policy, consent, model access, and results from multiple connections. It creates a separate MCP client for each server. Each client maintains its own session, negotiated capabilities, request identifiers, timeout state, and failure boundary. An MCP server exposes focused prompts, resources, or tools. Speaking MCP does not make a local or remote server trusted.",
+        "The lab starts two real Node.js child processes named curriculum and assessment. Their lifecycle state, capabilities, drafts, and identities remain separate. Duplicate configured identities and invalid workspace definitions are rejected during initialized-session setup before a child is spawned; an invalid constructor does not leak a child. Unqualified tool-name collisions are resolved as curriculum::create_training_draft and assessment::create_training_draft. The host alone decides whether information may cross those connections."
       ],
       "code": {
         "language": "text",
-        "label": "Responsibility map",
-        "code": "HOST: user intent, consent, policy, model, aggregation\n  CLIENT A: session + capability state <-> SERVER A: files\n  CLIENT B: session + capability state <-> SERVER B: tickets\nRule: data crosses connections only through an explicit host decision."
+        "label": "Run the two-child demonstration",
+        "code": "cd training/reliable-agent-workflows/mcp-architecture/lab\nnode --version\nnode src/demo.mjs"
       }
     },
     {
       "id": "lifecycle-and-negotiation",
       "title": "Negotiate before operating",
       "paragraphs": [
-        "The MCP lifecycle begins with initialization. Client and server agree on a protocol revision and advertise capabilities before normal operation. Each side must use only features that were successfully negotiated.",
-        "Treat capability state as runtime evidence. A configured tool name does not prove that a server currently exposes it, supports notifications, or implements the protocol revision your client expects. Fail closed or degrade deliberately when negotiation is incomplete."
-      ]
+        "This fixture pins a limited teaching profile to MCP revision 2025-11-25. The client sends initialize with protocolVersion set to 2025-11-25, a capabilities object, and clientInfo. The server returns the agreed version, capabilities, and serverInfo. The client then sends notifications/initialized without an id. It expects no response, and the server does not send an initialized notification. The fixture blocks operations until that client notification arrives.",
+        "Initialization evidence applies only to the current session. Missing tools capability means no tool operation, even if configuration names a tool. The lab closes stdin, waits 200 milliseconds, sends SIGTERM if necessary, waits another 200 milliseconds, then sends SIGKILL and waits up to 500 milliseconds. It sends no JSON-RPC shutdown method. These are deterministic fixture values, not production recommendations. The 2025-11-25 pin does not establish compatibility with a later specification revision."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Pinned initialization and shutdown trace",
+        "code": "C> {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"project42-teaching-host\",\"version\":\"2.0.0\"}}}\nS> {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"tools\":{},\"resources\":{},\"prompts\":{}},\"serverInfo\":{\"name\":\"curriculum\",\"version\":\"2.0.0-educational\"}}}\nC> {\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}\nC> tools/list only after the notification"
+      }
     },
     {
       "id": "primitives-and-control",
       "title": "Prompts, resources, and tools have different control models",
       "paragraphs": [
-        "MCP describes prompts as user-controlled templates, resources as application-controlled context, and tools as model-controlled functions. This control hierarchy is a design aid, not an authorization system.",
-        "Resources and tool results remain untrusted input. Tool discovery tells a model what may be requested; the host still decides what is exposed, what requires confirmation, and what a trusted executor will authorize."
+        "Prompts are user-controlled templates, resources are application-controlled context, and tools are functions a model may propose. These control labels help describe who initiates selection. They do not authorize an action. Prompt text, resource contents, tool descriptions, and tool results are all untrusted input, even when discovery and schema validation succeed.",
+        "In the demo, the prompt description explicitly says it is not authorization. The assessment child cannot use a string saying SERVER SAYS APPROVED to act in the curriculum workspace. The host decides which server and primitives are exposed, what context may be sent, whether confirmation is required, and which trusted executor may perform a side effect."
       ],
-      "callout": "Protocol compatibility enables communication. It does not grant permission or establish trust."
+      "code": {
+        "language": "text",
+        "label": "Control is separate from authority",
+        "code": "PROMPT user selects a template\nRESOURCE application selects context to read\nTOOL model may propose a function call\nHOST POLICY checks identity, scope and approval"
+      }
     },
     {
       "id": "tool-contract",
       "title": "Make tool contracts narrow and inspectable",
       "paragraphs": [
-        "A tool definition needs a stable name, a decision-oriented description, and a JSON input schema. Use precise types, required fields, enums, bounds, and descriptions that distinguish similar tools. Where supported, publish an output schema and return structured content that can be validated.",
-        "Document side effects, idempotency, error classes, approval policy, and the postcondition separately from the schema. An input schema constrains syntax; it cannot prove identity, ownership, authorization, or a successful real-world effect."
+        "The demonstrated tool has a stable name, a decision-oriented description, precise string bounds, required fields, and additionalProperties set to false. Its workspace pattern is ^ws_[a-z0-9]{4,12}$. Both ws_aaaa and ws_aaaaaaaa satisfy that pattern. Schema validity therefore proves only shape. Authorization requires exact membership in the host's trusted workspace allowlist.",
+        "The protocol-facing tools definition does not contain a hostAuthorizationTuple. That name is nonstandard host policy outside the MCP tools schema. The host separately checks exact server identity, exact tool name, exact workspace membership, title bounds, and an approval value bound to the prior values. The fixture's approvalToken is exactly JSON.stringify(['APPROVE', expectedIdentity, name, workspaceId, title]): four bound values plus the fixed APPROVE sentinel, serialized as exactly five array elements. It is not a cryptographic security token and has no circular fifth token field. A valid call with invalid tool input returns a normal result containing isError:true. A malformed tools/call or unknown tool name returns JSON-RPC error -32602.",
+        "A timed-out write has outcome UNKNOWN, not NOT_APPLIED. Do not replay it automatically. The fixture quarantines expired request identifiers in a history bounded to 64 entries and 5,000 milliseconds, prevents a late response from satisfying a new request, and uses a read-only state resource for reconciliation. An unrelated response identifier is a fatal protocol error. Cleanup is awaited so pending requests are rejected and children terminate."
       ],
       "code": {
         "language": "json",
-        "label": "Narrow MCP tool",
-        "code": "{\n  \"name\": \"create_training_draft\",\n  \"description\": \"Create one unpublished draft in the named workspace.\",\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"workspaceId\": {\"type\": \"string\", \"pattern\": \"^ws_[a-z0-9]{8}$\"},\n      \"title\": {\"type\": \"string\", \"minLength\": 3, \"maxLength\": 120}\n    },\n    \"required\": [\"workspaceId\", \"title\"],\n    \"additionalProperties\": false\n  }\n}"
+        "label": "Protocol tool schema",
+        "code": "{\n  \"name\": \"create_training_draft\",\n  \"description\": \"Create one unpublished in-memory draft in the named workspace.\",\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"workspaceId\": {\"type\": \"string\", \"pattern\": \"^ws_[a-z0-9]{4,12}$\"},\n      \"title\": {\"type\": \"string\", \"minLength\": 3, \"maxLength\": 120}\n    },\n    \"required\": [\"workspaceId\", \"title\"],\n    \"additionalProperties\": false\n  }\n}"
       }
     },
     {
       "id": "portable-provider-adapters",
       "title": "Separate the portable contract from provider adapters",
       "paragraphs": [
-        "Anthropic and OpenAI expose ways to connect remote MCP servers, while Google ADK documents MCP tools within its own agent framework. Their request shapes, supported transports, approval surfaces, and release maturity can differ.",
-        "Keep learning objectives and application policy provider-neutral: required capability, approved server identity, allowed tool set, data policy, approval rule, and expected result. Put provider-specific headers, SDK objects, connector identifiers, and limitations in replaceable adapters verified against current documentation."
-      ]
+        "The lab requires Node.js 24 or later and uses only built-in modules and local child processes. It makes no network request and uses no model, provider SDK, credential, remote server, production authentication system, durable store, or production sandbox. Passing the lab therefore does not prove compatibility with a hosted provider, local-model runtime, open-weight model, remote authorization service, or a later MCP revision.",
+        "Transfer the design by retaining provider-neutral invariants: one isolated session per server, negotiated capabilities, exact server and workspace identity, allowed tools, approval binding, timeout classification, postcondition checks, reconciliation, and awaited shutdown. Implement each provider or framework integration as a separately tested adapter. Verify its transport, SDK objects, approval surface, error mapping, supported MCP revision, and fallback behavior against dated first-party documentation. Do not infer identical behavior from the shared MCP name."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Run the runtime suite and learner probe separately",
+        "code": "cd training/reliable-agent-workflows/mcp-architecture/lab\nnpm test\nnpm run learner:test\nnpm run learner:solution"
+      }
     }
   ],
   "activity": {
     "id": "activity-mcp-contract",
-    "title": "Design and negotiate an MCP integration",
+    "title": "Repair exact workspace authorization in a real child-process flow",
     "instructions": [
-      "Draw the host, one client per server, server capabilities, credentials, data flows, and user-control points for a two-server learning assistant.",
-      "Write an initialization record containing protocol version, advertised capabilities, accepted capabilities, and the behavior when a required capability is absent.",
-      "Define one read tool and one write tool with narrow input schemas, stable result and error shapes, side-effect documentation, and postcondition checks.",
-      "Map the portable contract to one current Anthropic, OpenAI, or Google adapter and list every provider-specific assumption."
+      "From the repository root, run cd training/reliable-agent-workflows/mcp-architecture/lab. Confirm that Node.js is version 24 or later. Run node src/demo.mjs, save the actual output, and map each output line to the host, one of the two clients, or one of the two child servers.",
+      "Run npm test and save its actual result as the full runtime-suite evidence. The suite is expected to contain 23 tests, including collision, invalid-second-definition, bounded64, and unknown-ID cases. Treat the three independent security boundaries as regression-tested cases in this suite. Do not count separate collision, invalid-constructor, or history-bound qualification probes as extra cases, or attribute them to an older 20-case count, unless the repository output explicitly does so.",
+      "Run npm run learner:test and save the intentional baseline failure. This command imports test/learner-scope.test.mjs, which imports the editable src/scope-policy.broken.mjs. The prefix policy treats schema-valid ws_aaaaaaaa as allowed because it starts with ws_aaaa. The host call must demonstrate denial and zero server effects, not merely a helper return value.",
+      "Edit src/scope-policy.broken.mjs so the function is exactly: export function workspaceAllowed(allowedWorkspaces, requestedWorkspace) { return allowedWorkspaces.includes(requestedWorkspace); }. Rerun npm run learner:test after the edit and save the actual passing result. This rerun imports the edited file and is the proof of the learner's repair. Do not use npm run learner:solution as proof of the edit.",
+      "Make a meaningful changed-input assertion in test/learner-scope.test.mjs, or in the test input used by that test. Use the schema-valid but unauthorized identity ws_aaaab while keeping allowedWorkspaces as ['ws_aaaa']. Verify that host.callDraft denies the request and state.drafts.length === 0. Do not change only the requested ID to an authorized value while retaining denial assertions. Rerun the learner test and save the actual one-test passing result.",
+      "Run npm test again after the learner edit and save the actual full-regression result. Record the post-repair result as 23 passing tests only if the command output actually reports that result. Confirm that the intentional baseline remains tested independently and that no assertions or security-boundary checks were weakened.",
+      "Run npm run learner:solution separately and label its actual two-case result as reference comparison only. It imports src/scope-policy.solution.mjs, not the edited broken file. Its cases should deny ws_aaaaaaaa with zero effects and allow exact ws_aaaa with receipt exercise-ok:1. This result does not prove the learner's edit.",
+      "Write a causal explanation covering separate child sessions; initialize and the client-sent initialized notification; primitive control labels; schema validity versus authority; the exact five-element approval serialization; UNKNOWN timeout outcomes and no automatic replay; reconciliation with bounded history; bounded diagnostics; awaited shutdown; and what a provider adapter would still need to test. Explain which observed behavior would change first if the host confused schema validity, discovery, or prompt text with authorization."
     ],
     "evidence": [
-      "An architecture and lifecycle record that preserves connection and trust boundaries.",
-      "Two tool contracts plus a provider-adapter table showing negotiation, approvals, errors, and unsupported behavior."
+      "A saved demo transcript from the actual node src/demo.mjs run, with every line annotated as host, client, or one of two isolated child servers.",
+      "The actual npm test output, recorded as the full runtime suite. Record 23 tests, including collision, invalid-second-definition, bounded64, and unknown-ID, only when the repository output confirms that count. Keep separate collision, invalid-constructor, and history-bound qualification probes distinct from the suite count. Confirm that the three independent security boundaries remain regression-tested, rather than describing them as only independent probes.",
+      "The intentional npm run learner:test baseline failure, followed by the actual passing rerun after editing src/scope-policy.broken.mjs. The saved evidence must distinguish the baseline failure from the repaired-file proof.",
+      "A changed-input observation from test/learner-scope.test.mjs showing that schema-valid unauthorized ws_aaaab is denied by host.callDraft and leaves state.drafts.length === 0 while allowedWorkspaces remains ['ws_aaaa'].",
+      "The actual post-edit npm test result, saved after the repair and reported as complete regression evidence. Do not claim 23 passing tests unless the command output shows it. Include the unchanged independent intentional-baseline coverage and all three independent security-boundary checks.",
+      "A separately labelled npm run learner:solution reference comparison with two actual cases: denial with zero effects for ws_aaaaaaaa and an authorized receipt exercise-ok:1 for exact ws_aaaa. State explicitly that this imports src/scope-policy.solution.mjs and does not prove the learner's edit.",
+      "The repaired function text, causal rubric response, and scope limits: credit exact membership, zero unauthorized effects, one authorized reference effect, schema-versus-authority reasoning, lifecycle direction, isolated sessions, exact approval serialization, no replay after UNKNOWN, bounded reconciliation, awaited shutdown, and honest provider-adapter limits. Do not add hosted-model evidence or claim README accuracy without repository evidence."
     ],
-    "reflectionPrompt": "Which part of the design initially looked like protocol plumbing but actually belonged to application policy?"
+    "reflectionPrompt": "Which observed behavior would change first if the host confused schema validity, discovery, or prompt text with authorization?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 1440,
+    "estimatedSeconds": 432,
     "cues": [
       {
-        "id": "cue-mcp-architecture-roles",
+        "id": "cue-mcp-architecture-roles-1",
         "kind": "narration",
         "sectionId": "host-client-server",
-        "text": "Separate the host that owns policy from one client session per focused MCP server."
+        "text": "Start with the host. The host is the AI\napplication coordinating user intent,"
       },
       {
-        "id": "cue-mcp-architecture-lifecycle",
+        "id": "cue-mcp-architecture-roles-2",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "consent, policy, model access, and results\nfrom multiple connections. It creates one"
+      },
+      {
+        "id": "cue-mcp-architecture-roles-3",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "MCP client per server. Each client owns an\nisolated session, including negotiated"
+      },
+      {
+        "id": "cue-mcp-architecture-roles-4",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "capabilities, request identifiers,\ndeadlines, and failure state. The server"
+      },
+      {
+        "id": "cue-mcp-architecture-roles-5",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "exposes focused prompts, resources, or\ntools. In our fixture, curriculum and"
+      },
+      {
+        "id": "cue-mcp-architecture-roles-6",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "assessment are separate child processes.\nEach has its own identity, lifecycle,"
+      },
+      {
+        "id": "cue-mcp-architecture-roles-7",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "capability record, and in-memory drafts.\nIf assessment fails, curriculum does not"
+      },
+      {
+        "id": "cue-mcp-architecture-roles-8",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "lose its session state. If both advertise\ncreate_training_draft, the host qualifies"
+      },
+      {
+        "id": "cue-mcp-architecture-roles-9",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "the names with server identity. It must\nnot merge them into one ambiguous"
+      },
+      {
+        "id": "cue-mcp-architecture-roles-10",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "permission. Local placement does not\ncreate trust. The host still evaluates"
+      },
+      {
+        "id": "cue-mcp-architecture-roles-11",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "code provenance, credentials, data flow,\nside effects, and exact authorization."
+      },
+      {
+        "id": "cue-mcp-architecture-roles-12",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "Invalid definitions and duplicate\nidentities are rejected during"
+      },
+      {
+        "id": "cue-mcp-architecture-roles-13",
+        "kind": "narration",
+        "sectionId": "host-client-server",
+        "text": "initialized-session setup, while an\ninvalid constructor creates no child."
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-1",
         "kind": "narration",
         "sectionId": "lifecycle-and-negotiation",
-        "text": "Negotiate protocol version and capabilities during initialization before using any optional feature."
+        "text": "Now trace the lifecycle precisely. The\nclient sends a JSON-RPC initialize"
       },
       {
-        "id": "cue-mcp-architecture-visual",
-        "kind": "visual",
+        "id": "cue-mcp-architecture-lifecycle-2",
+        "kind": "narration",
         "sectionId": "lifecycle-and-negotiation",
-        "text": "Trace initialize, capability agreement, operation, and shutdown across the host, client, and server.",
-        "accessibilityAlternative": "A static sequence table lists host, client, and server messages for initialize, capability agreement, operation, and shutdown. Reduced-motion mode shows the full table."
+        "text": "request. Its params include\nprotocolVersion set to 2025-11-25,"
       },
       {
-        "id": "cue-mcp-architecture-primitives",
+        "id": "cue-mcp-architecture-lifecycle-3",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "capabilities as an object, and clientInfo.\nThe server response uses the same id and"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-4",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "returns protocolVersion, capabilities, and\nserverInfo. Both sides use the exact wire"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-5",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "key capabilities. After accepting that\nresult, the client sends notifications"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-6",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "slash initialized with no id. Because it\nis a notification, the server returns no"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-7",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "response. The server does not send its own\ninitialized notification. This fixture has"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-8",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "uninitialized,\nawaiting-initialized-notification, and"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-9",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "ready states. It blocks tools and other\noperations until the client notification"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-10",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "arrives. Duplicate or out-of-order\ninitialized notifications close the"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-11",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "fixture transport. Capability state is\nruntime evidence for this session. A"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-12",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "configured tool is not callable when tools\ncapability was not advertised. The correct"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-13",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "response is a declared fallback or a\nclosed failure, not invented support."
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-14",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "During shutdown, the host closes stdin,\nwaits within a bound, escalates signals if"
+      },
+      {
+        "id": "cue-mcp-architecture-lifecycle-15",
+        "kind": "narration",
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "needed, and awaits cleanup. It sends no\nJSON-RPC shutdown request."
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-1",
         "kind": "narration",
         "sectionId": "primitives-and-control",
-        "text": "Distinguish user-controlled prompts, application-controlled resources, and model-controlled tools without treating control as authorization."
+        "text": "Prompts, resources, and tools differ by\ncontrol model. A prompt is a template the"
       },
       {
-        "id": "cue-mcp-architecture-contract",
+        "id": "cue-mcp-architecture-primitives-2",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "user selects. A resource is context the\napplication elects to read. A tool is"
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-3",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "a function the model may propose calling.\nThese labels describe initiation, not"
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-4",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "permission. Prompt text can contain\nmisleading instructions. Resource data can"
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-5",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "be stale, sensitive, or adversarial. Tool\ndescriptions and results can attempt to"
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-6",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "influence later decisions. Discovery and\nvalid schemas do not make any of them"
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-7",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "trusted. The host decides which servers\nand primitives are exposed, what context"
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-8",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "crosses a boundary, what requires\nconfirmation, and which trusted executor"
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-9",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "may act. In the demo, SERVER SAYS APPROVED\nis only untrusted text. It does"
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-10",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "not match a host-created approval bound to\nidentity and scope. Protocol compatibility"
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-11",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "enables communication, but it does not\nauthenticate a principal, establish"
+      },
+      {
+        "id": "cue-mcp-architecture-primitives-12",
+        "kind": "narration",
+        "sectionId": "primitives-and-control",
+        "text": "ownership, grant consent, or prove a\nreal-world effect."
+      },
+      {
+        "id": "cue-mcp-architecture-contract-1",
         "kind": "narration",
         "sectionId": "tool-contract",
-        "text": "Specify narrow typed tool inputs and outputs while enforcing identity, approval, and postconditions outside the schema."
+        "text": "Build the write contract in two layers.\nThe protocol-facing definition has a"
       },
       {
-        "id": "cue-mcp-architecture-portability",
+        "id": "cue-mcp-architecture-contract-2",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "stable name, a description that says it\ncreates one unpublished draft, and a"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-3",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "strict input schema. Workspace identity\nmust match caret ws underscore, four"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-4",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "through twelve lowercase letters or\ndigits, dollar sign. Title length is three"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-5",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "through one hundred twenty. Both fields\nare required, and additional properties"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-6",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "are rejected. That establishes shape only.\nThe host-facing policy separately checks"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-7",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "exact server identity, exact tool name,\nworkspace identity that is an exact member"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-8",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "of the trusted allowlist, title within\nbounds, and an approval value bound to"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-9",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "those preceding values. The fixture\nserializes that value exactly as"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-10",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "JSON.stringify of an array containing the\nfixed APPROVE sentinel, expected identity,"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-11",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "tool name, workspace, and title. That is\nexactly five elements, not a circular"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-12",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "token field and not a cryptographic\nsecurity token. A token for another"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-13",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "server, workspace, tool, or title must\nfail. Valid call shape with invalid tool"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-14",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "input returns a normal tool result with\nisError true. Unknown tool names and"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-15",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "malformed tools slash call requests use\nJSON-RPC invalid params, code negative"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-16",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "thirty-two six zero two. After success,\nthe host validates receipt identity,"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-17",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "workspace, title, status, and\npostcondition before reporting success."
+      },
+      {
+        "id": "cue-mcp-architecture-contract-18",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "Timeouts require a separate outcome model.\nIf a read fails before reaching the"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-19",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "server, you may know it was not applied.\nIf a write times out after"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-20",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "transmission, its outcome is UNKNOWN. The\nchild may have created the draft while the"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-21",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "response was delayed. Do not replay\nautomatically. This fixture places the"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-22",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "expired request id in quarantine, records\na matching late response as quarantined,"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-23",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "and prevents that response from satisfying\na new request. The diagnostic history is"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-24",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "bounded to 64 identifiers and 5,000\nmilliseconds. An unrelated response id"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-25",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "remains a fatal protocol error. Reconcile\ndeliberately through the read-only state"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-26",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "resource, then decide whether policy\npermits another attempt. On shutdown,"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-27",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "close stdin and wait 200 milliseconds. If\nneeded, send SIGTERM and wait 200 more."
+      },
+      {
+        "id": "cue-mcp-architecture-contract-28",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "Finally send SIGKILL and wait no more than\n500 milliseconds. Await cleanup and reject"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-29",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "pending requests. These exact limits teach\nbounded behavior; they are not production"
+      },
+      {
+        "id": "cue-mcp-architecture-contract-30",
+        "kind": "narration",
+        "sectionId": "tool-contract",
+        "text": "timing advice."
+      },
+      {
+        "id": "cue-mcp-architecture-portability-1",
         "kind": "narration",
         "sectionId": "portable-provider-adapters",
-        "text": "Keep policy portable and isolate Anthropic, OpenAI, and Google implementation details in verified adapters."
+        "text": "Transfer these lessons without making\nvendor claims. Keep the application"
       },
       {
-        "id": "cue-mcp-architecture-prompt",
+        "id": "cue-mcp-architecture-portability-2",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "invariants provider-neutral: one isolated\nsession per server, negotiated"
+      },
+      {
+        "id": "cue-mcp-architecture-portability-3",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "capabilities, approved server identity,\nallowed tools, exact workspace scope,"
+      },
+      {
+        "id": "cue-mcp-architecture-portability-4",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "explicit approval, stable error mapping,\ntimeout classification, reconciliation,"
+      },
+      {
+        "id": "cue-mcp-architecture-portability-5",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "postcondition validation, and cleanup.\nThen create replaceable adapters for a"
+      },
+      {
+        "id": "cue-mcp-architecture-portability-6",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "hosted provider, a local-model runtime, an\nopen-weight stack, or another framework."
+      },
+      {
+        "id": "cue-mcp-architecture-portability-7",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "For each adapter, verify transport,\nsupported MCP revision, SDK request"
+      },
+      {
+        "id": "cue-mcp-architecture-portability-8",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "objects, credential handling, approval\nsurface, error behavior, streaming"
+      },
+      {
+        "id": "cue-mcp-architecture-portability-9",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "behavior, and fallback against dated\nfirst-party documentation. Run integration"
+      },
+      {
+        "id": "cue-mcp-architecture-portability-10",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "tests that exercise the same invariants.\nThe local fixture has tested none of those"
+      },
+      {
+        "id": "cue-mcp-architecture-portability-11",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "adapters. Therefore say not tested until\nthat evidence exists. Do not treat the"
+      },
+      {
+        "id": "cue-mcp-architecture-portability-12",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "pinned 2025-11-25 profile as latest-spec\ncompatibility, and do not infer remote"
+      },
+      {
+        "id": "cue-mcp-architecture-portability-13",
+        "kind": "narration",
+        "sectionId": "portable-provider-adapters",
+        "text": "authorization from a local in-memory\nallowlist."
+      },
+      {
+        "id": "cue-mcp-architecture-learner-prompt",
         "kind": "learner-prompt",
-        "sectionId": "portable-provider-adapters",
-        "text": "Ask learners what must happen when a configured server does not negotiate a required capability."
-      },
-      {
-        "id": "cue-mcp-architecture-pause",
-        "kind": "pause",
         "sectionId": "tool-contract",
-        "text": "Allow three minutes to remove one unnecessary field and add one explicit error to each tool contract."
+        "text": "Now repair a defect that changes a real child-process outcome. Confirm Node.js 24 or later. Run npm test and record its actual result as the full runtime suite, without attributing independent qualification probes to those cases. Run npm run learner:test. The baseline test imports test/learner-scope.test.mjs, which imports src/scope-policy.broken.mjs. It intentionally fails because allowed workspace ws_aaaa is treated as a prefix of requested workspace ws_aaaaaaaa. Both strings satisfy the schema, but only the shorter identity belongs to the allowlist. The test's host call must demonstrate denial and zero effects. Open src/scope-policy.broken.mjs. Replace startsWith logic with allowedWorkspaces.includes(requestedWorkspace). Then rerun npm run learner:test. This rerun imports the edited file and proves that exact repaired implementation. Next make a meaningful changed-input assertion in test/learner-scope.test.mjs: use schema-valid unauthorized ws_aaaab while leaving the allowlist as ws_aaaa. Expect host.callDraft denial and state.drafts.length equal to 0. Do not change only the requested ID to an authorized value while leaving denial assertions. Run npm run learner:test again and save the actual result. Then run npm test again after your edit and save the actual full-regression result, including the reported 23-test result only if the command output confirms it. Finally run npm run learner:solution separately. It imports scope-policy.solution.mjs, so it is reference comparison, not proof of your edit. Its supplied cases deny ws_aaaaaaaa with zero effects and permit exact ws_aaaa with receipt exercise-ok:1. Finish by explaining separate child sessions, initialize and the client-sent initialized notification, primitive control labels, schema validity versus authority, the exact five-element approval serialization, UNKNOWN timeout outcomes, reconciliation, bounded diagnostics, awaited shutdown, and what a provider adapter would still need to test."
       },
       {
         "id": "cue-mcp-architecture-checkpoint",
         "kind": "checkpoint",
-        "sectionId": "tool-contract",
-        "text": "Check that no schema field is being mistaken for authorization or proof of success."
+        "sectionId": "lifecycle-and-negotiation",
+        "text": "Checkpoint. Configuration names create_training_draft, but the initialize result has no tools capability. Should the client call the configured tool? State your answer and the causal reason. Also identify who sends notifications slash initialized and whether that message receives a response."
       },
       {
-        "id": "cue-mcp-architecture-activity",
-        "kind": "learner-prompt",
-        "text": "Guide the architecture map, negotiation record, two tool contracts, and provider-adapter comparison."
-      },
-      {
-        "id": "cue-mcp-architecture-assessment",
+        "id": "cue-mcp-architecture-assessment-handoff",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can trace every boundary and negotiated capability."
+        "text": "When your evidence is saved, begin the knowledge check. Question q-mcp-architecture-1 asks who owns consent and cross-connection policy. Question q-mcp-architecture-2 asks what missing negotiated tools capability causes. Question q-mcp-architecture-3 separates schema-valid workspace shape from authority. Question q-mcp-architecture-4 asks how to handle an UNKNOWN timed-out write. Question q-mcp-architecture-5 asks how to transfer the design without inventing provider compatibility. Read each explanation, including the causal feedback for incorrect choices. The check opens only when you choose Begin knowledge check."
+      },
+      {
+        "id": "cue-mcp-architecture-visual",
+        "kind": "visual",
+        "sectionId": "host-client-server",
+        "text": "A host coordinates two isolated client and child-server pairs.",
+        "accessibilityAlternative": "The host owns policy. Curriculum client connects only to curriculum child, and assessment client connects only to assessment child."
       }
     ],
-    "transcript": "Separate the host that owns policy from one client session per focused MCP server. Negotiate protocol version and capabilities during initialization before using any optional feature. Distinguish user-controlled prompts, application-controlled resources, and model-controlled tools without treating control as authorization. Specify narrow typed tool inputs and outputs while enforcing identity, approval, and postconditions outside the schema. Keep policy portable and isolate Anthropic, OpenAI, and Google implementation details in verified adapters.",
+    "transcript": "Start with the host. The host is the AI\napplication coordinating user intent, consent, policy, model access, and results\nfrom multiple connections. It creates one MCP client per server. Each client owns an\nisolated session, including negotiated capabilities, request identifiers,\ndeadlines, and failure state. The server exposes focused prompts, resources, or\ntools. In our fixture, curriculum and assessment are separate child processes.\nEach has its own identity, lifecycle, capability record, and in-memory drafts.\nIf assessment fails, curriculum does not lose its session state. If both advertise\ncreate_training_draft, the host qualifies the names with server identity. It must\nnot merge them into one ambiguous permission. Local placement does not\ncreate trust. The host still evaluates code provenance, credentials, data flow,\nside effects, and exact authorization. Invalid definitions and duplicate\nidentities are rejected during initialized-session setup, while an\ninvalid constructor creates no child. Now trace the lifecycle precisely. The\nclient sends a JSON-RPC initialize request. Its params include\nprotocolVersion set to 2025-11-25, capabilities as an object, and clientInfo.\nThe server response uses the same id and returns protocolVersion, capabilities, and\nserverInfo. Both sides use the exact wire key capabilities. After accepting that\nresult, the client sends notifications slash initialized with no id. Because it\nis a notification, the server returns no response. The server does not send its own\ninitialized notification. This fixture has uninitialized,\nawaiting-initialized-notification, and ready states. It blocks tools and other\noperations until the client notification arrives. Duplicate or out-of-order\ninitialized notifications close the fixture transport. Capability state is\nruntime evidence for this session. A configured tool is not callable when tools\ncapability was not advertised. The correct response is a declared fallback or a\nclosed failure, not invented support. During shutdown, the host closes stdin,\nwaits within a bound, escalates signals if needed, and awaits cleanup. It sends no\nJSON-RPC shutdown request. Prompts, resources, and tools differ by\ncontrol model. A prompt is a template the user selects. A resource is context the\napplication elects to read. A tool is a function the model may propose calling.\nThese labels describe initiation, not permission. Prompt text can contain\nmisleading instructions. Resource data can be stale, sensitive, or adversarial. Tool\ndescriptions and results can attempt to influence later decisions. Discovery and\nvalid schemas do not make any of them trusted. The host decides which servers\nand primitives are exposed, what context crosses a boundary, what requires\nconfirmation, and which trusted executor may act. In the demo, SERVER SAYS APPROVED\nis only untrusted text. It does not match a host-created approval bound to\nidentity and scope. Protocol compatibility enables communication, but it does not\nauthenticate a principal, establish ownership, grant consent, or prove a\nreal-world effect. Build the write contract in two layers.\nThe protocol-facing definition has a stable name, a description that says it\ncreates one unpublished draft, and a strict input schema. Workspace identity\nmust match caret ws underscore, four through twelve lowercase letters or\ndigits, dollar sign. Title length is three through one hundred twenty. Both fields\nare required, and additional properties are rejected. That establishes shape only.\nThe host-facing policy separately checks exact server identity, exact tool name,\nworkspace identity that is an exact member of the trusted allowlist, title within\nbounds, and an approval value bound to those preceding values. The fixture\nserializes that value exactly as JSON.stringify of an array containing the\nfixed APPROVE sentinel, expected identity, tool name, workspace, and title. That is\nexactly five elements, not a circular token field and not a cryptographic\nsecurity token. A token for another server, workspace, tool, or title must\nfail. Valid call shape with invalid tool input returns a normal tool result with\nisError true. Unknown tool names and malformed tools slash call requests use\nJSON-RPC invalid params, code negative thirty-two six zero two. After success,\nthe host validates receipt identity, workspace, title, status, and\npostcondition before reporting success. Timeouts require a separate outcome model.\nIf a read fails before reaching the server, you may know it was not applied.\nIf a write times out after transmission, its outcome is UNKNOWN. The\nchild may have created the draft while the response was delayed. Do not replay\nautomatically. This fixture places the expired request id in quarantine, records\na matching late response as quarantined, and prevents that response from satisfying\na new request. The diagnostic history is bounded to 64 identifiers and 5,000\nmilliseconds. An unrelated response id remains a fatal protocol error. Reconcile\ndeliberately through the read-only state resource, then decide whether policy\npermits another attempt. On shutdown, close stdin and wait 200 milliseconds. If\nneeded, send SIGTERM and wait 200 more. Finally send SIGKILL and wait no more than\n500 milliseconds. Await cleanup and reject pending requests. These exact limits teach\nbounded behavior; they are not production timing advice. Transfer these lessons without making\nvendor claims. Keep the application invariants provider-neutral: one isolated\nsession per server, negotiated capabilities, approved server identity,\nallowed tools, exact workspace scope, explicit approval, stable error mapping,\ntimeout classification, reconciliation, postcondition validation, and cleanup.\nThen create replaceable adapters for a hosted provider, a local-model runtime, an\nopen-weight stack, or another framework. For each adapter, verify transport,\nsupported MCP revision, SDK request objects, credential handling, approval\nsurface, error behavior, streaming behavior, and fallback against dated\nfirst-party documentation. Run integration tests that exercise the same invariants.\nThe local fixture has tested none of those adapters. Therefore say not tested until\nthat evidence exists. Do not treat the pinned 2025-11-25 profile as latest-spec\ncompatibility, and do not infer remote authorization from a local in-memory\nallowlist.",
     "captions": [
       {
-        "cueId": "cue-mcp-architecture-roles",
+        "cueId": "cue-mcp-architecture-roles-1",
         "startSeconds": 0,
-        "endSeconds": 240,
-        "text": "Separate the host that owns policy from one client session per focused MCP server."
+        "endSeconds": 6,
+        "text": "Start with the host. The host is the AI\napplication coordinating user intent,"
       },
       {
-        "cueId": "cue-mcp-architecture-lifecycle",
-        "startSeconds": 270,
-        "endSeconds": 510,
-        "text": "Negotiate protocol version and capabilities during initialization before using any optional feature."
+        "cueId": "cue-mcp-architecture-roles-2",
+        "startSeconds": 6,
+        "endSeconds": 12,
+        "text": "consent, policy, model access, and results\nfrom multiple connections. It creates one"
       },
       {
-        "cueId": "cue-mcp-architecture-primitives",
-        "startSeconds": 540,
-        "endSeconds": 810,
-        "text": "Distinguish user-controlled prompts, application-controlled resources, and model-controlled tools without treating control as authorization."
+        "cueId": "cue-mcp-architecture-roles-3",
+        "startSeconds": 12,
+        "endSeconds": 18,
+        "text": "MCP client per server. Each client owns an\nisolated session, including negotiated"
       },
       {
-        "cueId": "cue-mcp-architecture-contract",
-        "startSeconds": 840,
-        "endSeconds": 1110,
-        "text": "Specify narrow typed tool inputs and outputs while enforcing identity, approval, and postconditions outside the schema."
+        "cueId": "cue-mcp-architecture-roles-4",
+        "startSeconds": 18,
+        "endSeconds": 22,
+        "text": "capabilities, request identifiers,\ndeadlines, and failure state. The server"
       },
       {
-        "cueId": "cue-mcp-architecture-portability",
-        "startSeconds": 1140,
-        "endSeconds": 1380,
-        "text": "Keep policy portable and isolate Anthropic, OpenAI, and Google implementation details in verified adapters."
+        "cueId": "cue-mcp-architecture-roles-5",
+        "startSeconds": 22,
+        "endSeconds": 27,
+        "text": "exposes focused prompts, resources, or\ntools. In our fixture, curriculum and"
+      },
+      {
+        "cueId": "cue-mcp-architecture-roles-6",
+        "startSeconds": 27,
+        "endSeconds": 32,
+        "text": "assessment are separate child processes.\nEach has its own identity, lifecycle,"
+      },
+      {
+        "cueId": "cue-mcp-architecture-roles-7",
+        "startSeconds": 32,
+        "endSeconds": 37,
+        "text": "capability record, and in-memory drafts.\nIf assessment fails, curriculum does not"
+      },
+      {
+        "cueId": "cue-mcp-architecture-roles-8",
+        "startSeconds": 37,
+        "endSeconds": 42,
+        "text": "lose its session state. If both advertise\ncreate_training_draft, the host qualifies"
+      },
+      {
+        "cueId": "cue-mcp-architecture-roles-9",
+        "startSeconds": 42,
+        "endSeconds": 48,
+        "text": "the names with server identity. It must\nnot merge them into one ambiguous"
+      },
+      {
+        "cueId": "cue-mcp-architecture-roles-10",
+        "startSeconds": 48,
+        "endSeconds": 53,
+        "text": "permission. Local placement does not\ncreate trust. The host still evaluates"
+      },
+      {
+        "cueId": "cue-mcp-architecture-roles-11",
+        "startSeconds": 53,
+        "endSeconds": 58,
+        "text": "code provenance, credentials, data flow,\nside effects, and exact authorization."
+      },
+      {
+        "cueId": "cue-mcp-architecture-roles-12",
+        "startSeconds": 58,
+        "endSeconds": 62,
+        "text": "Invalid definitions and duplicate\nidentities are rejected during"
+      },
+      {
+        "cueId": "cue-mcp-architecture-roles-13",
+        "startSeconds": 62,
+        "endSeconds": 66,
+        "text": "initialized-session setup, while an\ninvalid constructor creates no child."
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-1",
+        "startSeconds": 66,
+        "endSeconds": 71,
+        "text": "Now trace the lifecycle precisely. The\nclient sends a JSON-RPC initialize"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-2",
+        "startSeconds": 71,
+        "endSeconds": 75,
+        "text": "request. Its params include\nprotocolVersion set to 2025-11-25,"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-3",
+        "startSeconds": 75,
+        "endSeconds": 81,
+        "text": "capabilities as an object, and clientInfo.\nThe server response uses the same id and"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-4",
+        "startSeconds": 81,
+        "endSeconds": 86,
+        "text": "returns protocolVersion, capabilities, and\nserverInfo. Both sides use the exact wire"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-5",
+        "startSeconds": 86,
+        "endSeconds": 91,
+        "text": "key capabilities. After accepting that\nresult, the client sends notifications"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-6",
+        "startSeconds": 91,
+        "endSeconds": 97,
+        "text": "slash initialized with no id. Because it\nis a notification, the server returns no"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-7",
+        "startSeconds": 97,
+        "endSeconds": 103,
+        "text": "response. The server does not send its own\ninitialized notification. This fixture has"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-8",
+        "startSeconds": 103,
+        "endSeconds": 105,
+        "text": "uninitialized,\nawaiting-initialized-notification, and"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-9",
+        "startSeconds": 105,
+        "endSeconds": 111,
+        "text": "ready states. It blocks tools and other\noperations until the client notification"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-10",
+        "startSeconds": 111,
+        "endSeconds": 115,
+        "text": "arrives. Duplicate or out-of-order\ninitialized notifications close the"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-11",
+        "startSeconds": 115,
+        "endSeconds": 120,
+        "text": "fixture transport. Capability state is\nruntime evidence for this session. A"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-12",
+        "startSeconds": 120,
+        "endSeconds": 126,
+        "text": "configured tool is not callable when tools\ncapability was not advertised. The correct"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-13",
+        "startSeconds": 126,
+        "endSeconds": 132,
+        "text": "response is a declared fallback or a\nclosed failure, not invented support."
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-14",
+        "startSeconds": 132,
+        "endSeconds": 138,
+        "text": "During shutdown, the host closes stdin,\nwaits within a bound, escalates signals if"
+      },
+      {
+        "cueId": "cue-mcp-architecture-lifecycle-15",
+        "startSeconds": 138,
+        "endSeconds": 143,
+        "text": "needed, and awaits cleanup. It sends no\nJSON-RPC shutdown request."
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-1",
+        "startSeconds": 143,
+        "endSeconds": 149,
+        "text": "Prompts, resources, and tools differ by\ncontrol model. A prompt is a template the"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-2",
+        "startSeconds": 149,
+        "endSeconds": 155,
+        "text": "user selects. A resource is context the\napplication elects to read. A tool is"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-3",
+        "startSeconds": 155,
+        "endSeconds": 161,
+        "text": "a function the model may propose calling.\nThese labels describe initiation, not"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-4",
+        "startSeconds": 161,
+        "endSeconds": 166,
+        "text": "permission. Prompt text can contain\nmisleading instructions. Resource data can"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-5",
+        "startSeconds": 166,
+        "endSeconds": 172,
+        "text": "be stale, sensitive, or adversarial. Tool\ndescriptions and results can attempt to"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-6",
+        "startSeconds": 172,
+        "endSeconds": 178,
+        "text": "influence later decisions. Discovery and\nvalid schemas do not make any of them"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-7",
+        "startSeconds": 178,
+        "endSeconds": 184,
+        "text": "trusted. The host decides which servers\nand primitives are exposed, what context"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-8",
+        "startSeconds": 184,
+        "endSeconds": 189,
+        "text": "crosses a boundary, what requires\nconfirmation, and which trusted executor"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-9",
+        "startSeconds": 189,
+        "endSeconds": 195,
+        "text": "may act. In the demo, SERVER SAYS APPROVED\nis only untrusted text. It does"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-10",
+        "startSeconds": 195,
+        "endSeconds": 201,
+        "text": "not match a host-created approval bound to\nidentity and scope. Protocol compatibility"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-11",
+        "startSeconds": 201,
+        "endSeconds": 206,
+        "text": "enables communication, but it does not\nauthenticate a principal, establish"
+      },
+      {
+        "cueId": "cue-mcp-architecture-primitives-12",
+        "startSeconds": 206,
+        "endSeconds": 210,
+        "text": "ownership, grant consent, or prove a\nreal-world effect."
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-1",
+        "startSeconds": 210,
+        "endSeconds": 216,
+        "text": "Build the write contract in two layers.\nThe protocol-facing definition has a"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-2",
+        "startSeconds": 216,
+        "endSeconds": 222,
+        "text": "stable name, a description that says it\ncreates one unpublished draft, and a"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-3",
+        "startSeconds": 222,
+        "endSeconds": 227,
+        "text": "strict input schema. Workspace identity\nmust match caret ws underscore, four"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-4",
+        "startSeconds": 227,
+        "endSeconds": 233,
+        "text": "through twelve lowercase letters or\ndigits, dollar sign. Title length is three"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-5",
+        "startSeconds": 233,
+        "endSeconds": 238,
+        "text": "through one hundred twenty. Both fields\nare required, and additional properties"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-6",
+        "startSeconds": 238,
+        "endSeconds": 243,
+        "text": "are rejected. That establishes shape only.\nThe host-facing policy separately checks"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-7",
+        "startSeconds": 243,
+        "endSeconds": 249,
+        "text": "exact server identity, exact tool name,\nworkspace identity that is an exact member"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-8",
+        "startSeconds": 249,
+        "endSeconds": 255,
+        "text": "of the trusted allowlist, title within\nbounds, and an approval value bound to"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-9",
+        "startSeconds": 255,
+        "endSeconds": 260,
+        "text": "those preceding values. The fixture\nserializes that value exactly as"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-10",
+        "startSeconds": 260,
+        "endSeconds": 265,
+        "text": "JSON.stringify of an array containing the\nfixed APPROVE sentinel, expected identity,"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-11",
+        "startSeconds": 265,
+        "endSeconds": 271,
+        "text": "tool name, workspace, and title. That is\nexactly five elements, not a circular"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-12",
+        "startSeconds": 271,
+        "endSeconds": 277,
+        "text": "token field and not a cryptographic\nsecurity token. A token for another"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-13",
+        "startSeconds": 277,
+        "endSeconds": 283,
+        "text": "server, workspace, tool, or title must\nfail. Valid call shape with invalid tool"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-14",
+        "startSeconds": 283,
+        "endSeconds": 289,
+        "text": "input returns a normal tool result with\nisError true. Unknown tool names and"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-15",
+        "startSeconds": 289,
+        "endSeconds": 294,
+        "text": "malformed tools slash call requests use\nJSON-RPC invalid params, code negative"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-16",
+        "startSeconds": 294,
+        "endSeconds": 299,
+        "text": "thirty-two six zero two. After success,\nthe host validates receipt identity,"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-17",
+        "startSeconds": 299,
+        "endSeconds": 303,
+        "text": "workspace, title, status, and\npostcondition before reporting success."
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-18",
+        "startSeconds": 303,
+        "endSeconds": 309,
+        "text": "Timeouts require a separate outcome model.\nIf a read fails before reaching the"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-19",
+        "startSeconds": 309,
+        "endSeconds": 315,
+        "text": "server, you may know it was not applied.\nIf a write times out after"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-20",
+        "startSeconds": 315,
+        "endSeconds": 321,
+        "text": "transmission, its outcome is UNKNOWN. The\nchild may have created the draft while the"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-21",
+        "startSeconds": 321,
+        "endSeconds": 326,
+        "text": "response was delayed. Do not replay\nautomatically. This fixture places the"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-22",
+        "startSeconds": 326,
+        "endSeconds": 332,
+        "text": "expired request id in quarantine, records\na matching late response as quarantined,"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-23",
+        "startSeconds": 332,
+        "endSeconds": 338,
+        "text": "and prevents that response from satisfying\na new request. The diagnostic history is"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-24",
+        "startSeconds": 338,
+        "endSeconds": 343,
+        "text": "bounded to 64 identifiers and 5,000\nmilliseconds. An unrelated response id"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-25",
+        "startSeconds": 343,
+        "endSeconds": 348,
+        "text": "remains a fatal protocol error. Reconcile\ndeliberately through the read-only state"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-26",
+        "startSeconds": 348,
+        "endSeconds": 353,
+        "text": "resource, then decide whether policy\npermits another attempt. On shutdown,"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-27",
+        "startSeconds": 353,
+        "endSeconds": 359,
+        "text": "close stdin and wait 200 milliseconds. If\nneeded, send SIGTERM and wait 200 more."
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-28",
+        "startSeconds": 359,
+        "endSeconds": 365,
+        "text": "Finally send SIGKILL and wait no more than\n500 milliseconds. Await cleanup and reject"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-29",
+        "startSeconds": 365,
+        "endSeconds": 371,
+        "text": "pending requests. These exact limits teach\nbounded behavior; they are not production"
+      },
+      {
+        "cueId": "cue-mcp-architecture-contract-30",
+        "startSeconds": 371,
+        "endSeconds": 372,
+        "text": "timing advice."
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-1",
+        "startSeconds": 372,
+        "endSeconds": 377,
+        "text": "Transfer these lessons without making\nvendor claims. Keep the application"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-2",
+        "startSeconds": 377,
+        "endSeconds": 381,
+        "text": "invariants provider-neutral: one isolated\nsession per server, negotiated"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-3",
+        "startSeconds": 381,
+        "endSeconds": 385,
+        "text": "capabilities, approved server identity,\nallowed tools, exact workspace scope,"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-4",
+        "startSeconds": 385,
+        "endSeconds": 389,
+        "text": "explicit approval, stable error mapping,\ntimeout classification, reconciliation,"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-5",
+        "startSeconds": 389,
+        "endSeconds": 394,
+        "text": "postcondition validation, and cleanup.\nThen create replaceable adapters for a"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-6",
+        "startSeconds": 394,
+        "endSeconds": 399,
+        "text": "hosted provider, a local-model runtime, an\nopen-weight stack, or another framework."
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-7",
+        "startSeconds": 399,
+        "endSeconds": 404,
+        "text": "For each adapter, verify transport,\nsupported MCP revision, SDK request"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-8",
+        "startSeconds": 404,
+        "endSeconds": 408,
+        "text": "objects, credential handling, approval\nsurface, error behavior, streaming"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-9",
+        "startSeconds": 408,
+        "endSeconds": 412,
+        "text": "behavior, and fallback against dated\nfirst-party documentation. Run integration"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-10",
+        "startSeconds": 412,
+        "endSeconds": 418,
+        "text": "tests that exercise the same invariants.\nThe local fixture has tested none of those"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-11",
+        "startSeconds": 418,
+        "endSeconds": 424,
+        "text": "adapters. Therefore say not tested until\nthat evidence exists. Do not treat the"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-12",
+        "startSeconds": 424,
+        "endSeconds": 429,
+        "text": "pinned 2025-11-25 profile as latest-spec\ncompatibility, and do not infer remote"
+      },
+      {
+        "cueId": "cue-mcp-architecture-portability-13",
+        "startSeconds": 429,
+        "endSeconds": 432,
+        "text": "authorization from a local in-memory\nallowlist."
       }
     ],
-    "reducedMotionAlternative": "Use a static role-and-lifecycle matrix with keyboard-focus highlights and no animated message flow."
+    "reducedMotionAlternative": "Use static role, lifecycle, authorization, timeout, and adapter tables with keyboard-focus highlighting."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -204,76 +1153,88 @@
           "The JSON schema"
         ],
         "answerIndex": 1,
-        "explanation": "The host coordinates users, policy, model integration, and separate client connections."
+        "explanation": "The host coordinates consent, model access, policy, and separate client connections. A result or schema carries data rather than authority."
       },
       {
         "id": "q-mcp-architecture-2",
-        "prompt": "A server is configured but did not advertise the tools capability during initialization. What should the client do?",
+        "prompt": "A server is configured with a write tool but did not advertise tools capability during initialization. What should happen?",
         "choices": [
-          "Call tools anyway",
-          "Treat configuration as permission",
-          "Do not use tool operations and follow the defined fallback",
-          "Invent the missing capability"
+          "Call the tool because configuration is authoritative",
+          "Invent a tools capability for this session",
+          "Do not call it; use the declared fallback or fail closed",
+          "Send notifications/initialized again"
         ],
         "answerIndex": 2,
-        "explanation": "Operation must respect the capabilities actually negotiated for that session."
+        "explanation": "Negotiated capability state governs the current session. Configuration cannot manufacture support, and repeating initialized does not negotiate a new capability."
       },
       {
         "id": "q-mcp-architecture-3",
-        "prompt": "What does a valid MCP input schema prove?",
+        "prompt": "Both ws_aaaa and ws_aaaaaaaa match the workspace schema. What does that establish?",
         "choices": [
-          "Arguments have the expected structure",
-          "The caller owns the target",
-          "The action is approved",
-          "The side effect succeeded"
+          "Only that both strings have the permitted shape",
+          "That both belong to the caller",
+          "That one approval value authorizes both",
+          "That either write has already succeeded"
         ],
         "answerIndex": 0,
-        "explanation": "Schema validation is necessary but separate from authorization, approval, and postcondition evidence."
+        "explanation": "The pattern validates syntax only. Exact trusted-allowlist membership, approval binding, and postcondition evidence are separate checks."
       },
       {
         "id": "q-mcp-architecture-4",
-        "prompt": "Why should a host normally create a separate client for each server?",
+        "prompt": "A write request times out before the host receives a response. What is the safest next step?",
         "choices": [
-          "To increase prompt length",
-          "To remove lifecycle state",
-          "To preserve isolated sessions and security boundaries",
-          "To let servers share credentials automatically"
+          "Replay it immediately with a new request id",
+          "Report success because the schema was valid",
+          "Report no effect because no response arrived",
+          "Classify the outcome as UNKNOWN and reconcile before any retry"
         ],
-        "answerIndex": 2,
-        "explanation": "The one-client-per-server relationship isolates capability and session state."
+        "answerIndex": 3,
+        "explanation": "The child may have applied the write before the timeout. Automatic replay can duplicate the effect, so quarantine the expired id and reconcile state."
       },
       {
         "id": "q-mcp-architecture-5",
-        "prompt": "What is the most portable way to support several providers?",
+        "prompt": "What is the most defensible way to transfer this local lab design to several providers?",
         "choices": [
-          "Assume every provider supports identical transports",
-          "Put policy and capability requirements in a neutral contract and isolate provider details",
-          "Copy one provider request everywhere",
-          "Avoid recording unsupported behavior"
+          "Assume every MCP product has identical transport and approval behavior",
+          "Keep policy invariants provider-neutral and validate each adapter separately",
+          "Treat a passing local test as remote authorization evidence",
+          "Replace exact scope checks with each provider's tool description"
         ],
         "answerIndex": 1,
-        "explanation": "A neutral contract preserves intent while adapters contain changing provider-specific behavior."
+        "explanation": "The local fixture demonstrates architecture and policy invariants, not provider compatibility. Each adapter needs dated first-party verification and integration tests."
       }
     ]
   },
   "sources": [
     {
-      "title": "MCP architecture",
+      "title": "MCP architecture, revision 2025-11-25",
       "url": "https://modelcontextprotocol.io/specification/2025-11-25/architecture",
       "publisher": "Model Context Protocol",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
-      "title": "MCP lifecycle",
+      "title": "MCP lifecycle, revision 2025-11-25",
       "url": "https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle",
       "publisher": "Model Context Protocol",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
-      "title": "MCP tools",
+      "title": "MCP tools, revision 2025-11-25",
       "url": "https://modelcontextprotocol.io/specification/2025-11-25/server/tools",
       "publisher": "Model Context Protocol",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "JSON-RPC 2.0 specification",
+      "url": "https://www.jsonrpc.org/specification",
+      "publisher": "JSON-RPC Working Group",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Node.js child process documentation",
+      "url": "https://nodejs.org/api/child_process.html",
+      "publisher": "OpenJS Foundation",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
