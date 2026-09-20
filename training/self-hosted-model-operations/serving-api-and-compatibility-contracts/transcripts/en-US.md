@@ -1,6 +1,6 @@
 # Expose a Model Service without Hiding Its Contract
 
-Package: `serving-api-and-compatibility-contracts-class` 1.0.0
+Package: `serving-api-and-compatibility-contracts-class` 1.1.0
 
 > This is the canonical text equivalent of an AI-assisted virtual-instructor
 > class. It remains usable without synthesized audio, video, animation, or a
@@ -89,23 +89,204 @@ Sources:
 - <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
 - <https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol>
 
-## Learner Prompt: Activity Transition
+## Narration: Serving Practical Run Pinned Cpu Service Narration
 
-Now design the portable serving conformance suite. Define separate health, readiness, identity, inference, stream, cancellation, timeout, invalid-input, unauthorized, rate-limit, and overload contracts. Map one application schema to two hypothetical adapters. Label each behavior required, transformed, ignored, emulated, rejected, or unavailable. Write deterministic normal, boundary, failure, restart, and recovery cases, then define cutover thresholds, canary scope, stop conditions, and rollback evidence.
-
-Expected learner action: Complete the endpoint and error contract, two-adapter matrix, deterministic conformance fixtures, and reversible baseline-candidate cutover decision.
+Run the lab as a controlled identity exercise, not as a performance demonstration. The qualified target is Windows x64 with PowerShell 7.6.6, .NET 10.0.12, and Python 3.13.9 using normal module-import configuration. Require PowerShell 7.6 or later; other versions are not independently qualified. The setup module verifies the pinned runtime archive, the model file, and the complete runtime DLL tree inside a controlled workspace. The runtime asset is llama-b10964-bin-win-cpu-x64.zip, with its exact size, SHA-256 pin, and commit recorded in the displayed identity table. The model is Qwen3-0.6B-Q8_0.gguf, with its exact size, SHA-256 pin, and revision recorded in that table. Compare the downloaded files and complete runtime DLL tree against those pins, and retain the verification result as evidence. Do not read the 64-character hashes aloud. Start the service on loopback port 11842 with alias p42-qwen3-06b. Verify identity with the client, then stop only an owned process.
 
 Sources:
 
-- <https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol>
-- <https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/>
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+- <https://huggingface.co/Qwen/Qwen3-0.6B>
+
+## Checkpoint: Serving Practical Run Pinned Cpu Service Checkpoint
+
+Checkpoint. The port responds and the alias is p42-qwen3-06b, but the model hash was not recorded. Is the service ready for the conformance run? State the evidence you still need and the routing decision.
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Pause: Serving Practical Run Pinned Cpu Service Pause
+
+## Feedback: Serving Practical Run Pinned Cpu Service Feedback
+
+The service may be live, but it is not ready for this evidence boundary. Require the model SHA-256, model revision, runtime hash and commit, complete runtime tree verification, and authenticated identity evidence before routing it into conformance. The observed alias is useful labeling, not cryptographic artifact proof. If you treated a responding port or matching alias as sufficient, the causal error is confusing process reachability with exact artifact identity. Record the hashes separately from client behavior, then rerun readiness and conformance against the verified bundle.
+
+Correct feedback: You withheld routing until exact runtime and model identity evidence was available.
+
+Retry feedback: A live port and alias do not prove the pinned artifacts. Name the hashes and revisions required before routing.
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Narration: Serving Practical Collect Live Conformance Narration
+
+Collect behavior evidence with the pinned service, while keeping scope precise. One observed run exited zero and recorded nine named observations: public health, wrong-key rejection, alias identity, bounded completion, a stream with terminal DONE and text, early disconnect, recovery after disconnect, a client timeout, and an overload sample. Treat this as one observed run, not implementation-history evidence or a benchmark. Missing-key 401 behavior was verified separately. This is one qualifying run, not a benchmark. The ordinary budget is 30 seconds and the streaming bound is 30 seconds. The deliberate client timeout is 50 milliseconds, and the overload sample uses a 12-second condition. Generation and timing are nondeterministic, so neither content length nor duration is guaranteed. Early disconnect proves client closure was exercised, not server-side cancellation. Four sampled concurrent outcomes do not establish queue, capacity, gateway, or rate-limit guarantees. Record status, body or event evidence, identity, and limitation for every observation. Hash and restart evidence remain separate evidence classes.
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Demonstration: Serving Practical Collect Live Conformance Demonstration
+
+Watch the instructor open the client receipt and classify each row. Health is an HTTP 200 observation, not an authentication test. Wrong-key rejection is an authenticated 401 observation. The stream row contains terminal DONE and nonempty text. The early-disconnect row says the client closed after a response byte and explicitly says server cancellation was not observed. The overload row contains four sampled 200 outcomes and no capacity guarantee. The instructor now places each row into observed, not-observed, or not-proven columns. Notice that a successful row is not expanded into a stronger claim. This is the same discipline you will apply to your own evidence table.
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Narration: Serving Practical Diagnose Contract Failures Narration
+
+Diagnose a failure by tracing the first violated contract, not by treating every symptom as a model failure. A public health success establishes reachability only. A 401 from an authenticated endpoint establishes rejection for that supplied credential, not universal authentication coverage. A client timeout establishes that the client deadline expired; it does not establish server cancellation or absence of work. A stream ending with DONE and text supports that observed exchange, but not every streaming edge case. A wrong model revision is an identity and readiness failure even if generation succeeds. An occupied port is a lifecycle setup failure, while an unrelated PID on that port is an ownership safety failure. The qualified lifecycle negatives include existing-file preservation, corrupted archive, occupied port, and refusal to stop an unrelated PID. The positive sequence is start, same-key identity, owned stop, restart, same-key identity, and owned stop. Diagnose the cause, preserve the failed evidence, choose hold, repair, and rerun the smallest affected gate.
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+- <https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/>
+
+## Checkpoint: Serving Practical Diagnose Contract Failures Checkpoint
+
+Checkpoint. A client deadline expires after the server has accepted a request. The client then reconnects successfully. What can you claim, what must remain unknown, and what evidence should you collect before calling this recovery?
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Pause: Serving Practical Diagnose Contract Failures Pause
+
+## Feedback: Serving Practical Diagnose Contract Failures Feedback
+
+You can claim that the client deadline expired and that a later client request recovered, if that later request has its own observed evidence. You must not claim that the server cancelled the first request, that no work occurred, or that the system has a general cancellation guarantee. Collect server-owned cancellation telemetry before making that claim. A common wrong answer calls reconnect success proof that the timed-out work stopped. That confuses client observation with server state and can make retries multiply work. Hold any cancellation or retry conclusion, preserve both receipts, classify the timeout, and rerun the relevant bounded recovery case.
+
+Correct feedback: You separated client timeout, later recovery, and unobserved server cancellation.
+
+Retry feedback: A client deadline is not server cancellation. State the missing server-owned evidence.
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Narration: Serving Practical Compare Two Adapters Narration
+
+Compare adapters at the application contract boundary. The offline exercise uses two explicitly fictional adapters, not two real servers. Both receive the same three semantic fixtures and preserve exactly four application fields: requestId, category, explanation, and modelArtifactId. Adapter A maps these to ticket_id, kind, reason, and artifact. Adapter B maps them to id, label, description, and model_id, trimming explanation as its documented transformation. Both reject unknown fields, unsupported tools, malformed values, identity mismatches, and caller-input mutation. The six-row matrix must label required, transformed, rejected, and unavailable behavior. A BrokenCandidate erases explanation and therefore returns HOLD because a required user-visible outcome disappeared. A corrected candidate can be OFFLINE_ELIGIBLE only within the synthetic fixture scope. That label is never deployment authorization. The gate also checks complete fixture coverage, exact identities, metrics, evidence label, latency and error regressions, and rollback. The restored adapter must rerun every original fixture and match expected normalized results.
+
+Sources:
+
+- <https://docs.python.org/3/library/unittest.html>
+- <https://docs.python.org/3/library/copy.html>
+- <https://docs.python.org/3/library/math.html#math.isfinite>
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Checkpoint: Serving Practical Compare Two Adapters Checkpoint
+
+Checkpoint. Candidate B uses different wire names but preserves all four semantic fields. Candidate C accepts the request but drops explanation and reports a matching model alias. Which candidate can pass the offline gate, and why does the other candidate remain HOLD? Include the deployment-authorization boundary.
+
+Sources:
+
+- <https://docs.python.org/3/library/unittest.html>
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Pause: Serving Practical Compare Two Adapters Pause
+
+## Feedback: Serving Practical Compare Two Adapters Feedback
+
+Candidate B may reach OFFLINE_ELIGIBLE when the complete synthetic matrix, exact identities, metrics, and evidence rules pass. Candidate C remains HOLD because dropping explanation changes a required application outcome. A matching alias cannot repair that loss, and an offline result cannot authorize deployment. A common wrong answer treats field spelling as the main issue. The causal issue is whether normalization preserves the semantic contract and artifact identity. Expected action: inspect normalized output, verify all fixture IDs and identities, then run rollback and compare every restored result.
+
+Correct feedback: You distinguished harmless wire-field differences from loss of a required semantic field and did not equate offline eligibility with authorization.
+
+Retry feedback: Dropping explanation is a user-visible contract failure. The alias is not artifact proof, and offline eligibility is not deployment authorization.
+
+Sources:
+
+- <https://docs.python.org/3/library/unittest.html>
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Narration: Serving Practical Practice Changed Contract Narration
+
+Now change the contract deliberately. The new account-recovery requirement adds a confidential boolean and a transport label, but the application must expose a normalized four-field result with escalated category and no confidential field. In map_request, accept the optional confidential field only as an actual Boolean, not integer one. An omitted field or confidential=false is backward-compatible for any original category. Only confidential=true requires category account_recovery and the derived transport label confidential_account_recovery. In normalize_response, when the field was supplied, require the same Boolean and the corresponding label, preserve requestId and modelArtifactId exactly, and reject missing, altered, or extra data. Return the normalized four-field result without confidential. The protected harness substitutes the learner's ChangedAdapter class before tests run. The original AdapterB is expected to reject the changed confidential account-recovery request, and that passing rejection is reported as ContractError, not as model-capability failure. Implement the changed adapter in a new practice folder, and require the learner's implementation to pass the protected changed tests. Keep the original four-field base cases unchanged. Run the protected changed tests after the attempt, then compare the answer implementation separately. This demonstrates a real contract delta without editing canonical tests.
+
+Sources:
+
+- <https://docs.python.org/3/library/unittest.html>
+- <https://docs.python.org/3/library/copy.html>
+
+## Checkpoint: Serving Practical Practice Changed Contract Checkpoint
+
+Checkpoint. A request has category account_recovery and confidential set to integer 1. Should the ChangedAdapter escalate it? Name the validation result and the reason, then state what a valid changed request would produce.
+
+Sources:
+
+- <https://docs.python.org/3/library/unittest.html>
+
+## Pause: Serving Practical Practice Changed Contract Pause
+
+## Feedback: Serving Practical Practice Changed Contract Feedback
+
+Reject integer 1. The requirement is an actual Boolean, and accepting a numerically similar value creates an ambiguous contract. A valid confidential request uses confidential=true with category account_recovery, produces transport label confidential_account_recovery, carries the same Boolean flag in the transport result, and normalizes to the required four fields with the escalated category and no confidential field. An omitted flag or confidential=false remains valid for any original category and does not require escalation. A common wrong answer accepts any truthy value or lets the caller directly supply the escalated category. Expected action: validate type and category before mapping, derive the transport label rather than trusting caller input, and preserve the original base cases. Then run the protected changed tests and inspect the ContractError expectation for the original adapter.
+
+Correct feedback: You enforced actual Boolean typing, derived escalation from the permitted category, and preserved the four-field normalized output.
+
+Retry feedback: Integer 1 is not an actual Boolean here. The adapter must derive the transport label and reject caller-supplied ambiguity.
+
+Sources:
+
+- <https://docs.python.org/3/library/unittest.html>
+
+## Narration: Serving Practical Rehearse Owned Recovery Narration
+
+Rehearse recovery as an ownership proof, not a kill-by-port shortcut. The lifecycle helper records process PID, executable path, and startTimeUtc, then compares the observed start instant within a one-second tolerance before stopping. This protects an unrelated process that happens to use the port. Tests cover UTC helper behavior, including JSON date-time round trips, offset strings, and malformed values, because timezone information can be lost if parsing is careless. Setup creates all paths inside the controlled workspace, avoids temporary directories, and verifies cache and actual HTTPS download paths. Setup does not generate the lifecycle API secret. The caller commands generate one key and hold that same key across Start, client, and Stop; nested cleanup removes it after an owned stop. Exercise the changed-port boundary on 11901: the old port 11842 should produce ConnectionRefused, while other errors are not proof. Obtain a fresh receipt, verify ownership and identity, stop the client, and stop the owned server. Retain the full cutover matrix, safety, latency, and observability gates. A synthetic eligibility result never authorizes deployment. Loopback does not implement TLS, multiuser authentication, gateway limits, or production audit.
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Checkpoint: Serving Practical Rehearse Owned Recovery Checkpoint
+
+Checkpoint. Port 11842 is occupied by a process with a different executable path, while the recorded service PID is gone. What should the stop operation do, and what evidence is needed before retrying recovery?
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Pause: Serving Practical Rehearse Owned Recovery Pause
+
+## Feedback: Serving Practical Rehearse Owned Recovery Feedback
+
+Refuse the stop. A matching port is not ownership. Preserve the occupied-port and unrelated-PID evidence, report the mismatch, and do not terminate that process. Before retrying, establish a newly started owned service with matching PID, executable path, and startTimeUtc within the one-second comparison tolerance, then collect a fresh authenticated identity receipt. A common wrong answer force-stops whatever owns the port. That can interrupt unrelated work and destroys the lifecycle safety boundary. Expected action: resolve the conflict outside the helper, rerun the ownership-checked start and identity sequence, and perform cleanup only through the owned-stop path.
+
+Correct feedback: You refused to stop an unrelated process and required fresh ownership evidence before recovery.
+
+Retry feedback: The port does not establish ownership. Compare PID, executable path, and startTimeUtc, and preserve the refusal evidence.
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Learner Prompt: Activity Transition
+
+Now perform the practical serving exercise. First run the pinned CPU service in the named lab module, verify the exact runtime and model assets, and collect the live client receipt. Then diagnose each observation by its contract boundary. Next run the two fictional adapters over the same semantic fixtures, implement the changed account-recovery requirement in the practice copy, and rehearse the owned lifecycle and changed-port boundary. Your deliverable is evidence, not a claim of production readiness: an identity record, conformance classification, causal failure notes, changed-task test result, rollback result, and explicit unknowns. Keep the original five core sections intact: separate serving layers, define health and identity, own the inference contract, test a compatibility subset, and preserve a portable adapter.
+
+Expected learner action: Run the pinned service and exercises, preserve receipts and failures, classify known and unknown behavior, implement the changed adapter in the practice copy, and produce reversible cutover evidence.
+
+Sources:
+
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+- <https://docs.python.org/3/library/unittest.html>
 
 ## Pause: Activity Work Time
 
 ## Assessment Handoff: Assessment Handoff
 
-Begin the check when you can place protocol translation in the adapter, distinguish liveness from readiness, bound compatibility claims, reject unsupported fields, design representative conformance cases, and plan a tested cutover and rollback. The check starts only when you choose Begin knowledge check.
+Submit when your evidence shows exact artifact identity, a bounded live observation record, causal diagnosis with unknown boundaries, both fictional adapter mappings, the changed-task result, and an ownership-checked recovery rehearsal. The graded changed task must show that the protected harness substituted your ChangedAdapter, that the original adapter's expected rejection is reported as ContractError, and that original base cases remain intact. Include the mutation exercise evidence: an unchanged copy of conformance.py and tests, removal of only the exact missing-DONE guard in the practice copy, the expected failure, restoration, and all eight tests passing. Include the changed-port result, fresh receipt, ownership evidence, and cleanup. Do not convert OFFLINE_ELIGIBLE into deployment authorization. Do not claim server-side cancellation, production security, multiuser authentication, gateway rate limits, or benchmark performance unless separate evidence exists.
+
+Expected learner action: Review the evidence bundle, correct unsupported claims, and choose Begin knowledge check only after the practical work is complete.
+
+Sources:
+
+- <https://docs.python.org/3/library/unittest.html>
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
 
 ## Closing: Class Closing
 
-Remember: a stable service owns its behavior above the runtime, proves exact readiness, calls compatibility only what it tests, and keeps every serving change observable and reversible.
+Carry the boundary forward: exact identity precedes readiness, client observations do not prove server cancellation, compatibility is only the tested subset, changed contracts require changed tests, and recovery must prove ownership before stopping anything. Your practical evidence should make both the successful behavior and the unknown behavior visible. Keep the adapter portable, the cutover reversible, and synthetic offline eligibility separate from deployment authorization.
