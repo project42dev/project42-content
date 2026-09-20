@@ -1,6 +1,6 @@
 # Design Safe Agent Memory Boundaries
 
-Package: `memory-boundaries-class` 1.0.0
+Package: `memory-boundaries-class` 1.1.0
 
 > This is the canonical text equivalent of an AI-assisted virtual-instructor
 > class. It remains usable without synthesized audio, video, animation, or a
@@ -8,11 +8,11 @@ Package: `memory-boundaries-class` 1.0.0
 
 ## Welcome: Welcome And Outcomes
 
-Welcome. In this class, you will stop treating memory as one feature. You will separate conversation history, cache, scratch state, retrieval, and durable memory; define a governed record lifecycle; authorize writes and reads outside the model; make correction and deletion observable; and attack-test memory for poisoning, leakage, staleness, and failed deletion.
+Welcome. In this class, you will stop treating memory as one feature. You will distinguish five state categories, define a governed durable record, enforce writes and reads in trusted code, and observe correction, expiration, and deletion. Then you will use an offline lab to test poisoning, cross-subject access, revoked consent, canonical-copy trust, exact retries, supersession, and backup-pending deletion. The goal is not maximum recall. The goal is justified, authorized, current evidence that cannot silently expand an agent's authority.
 
 ## Narration: Memory Types
 
-Name each state category before assigning controls. Conversation history supports the current exchange and may be resent or referenced by a provider. A cache reuses input or computation for performance. Scratch state tracks one active run and should expire with it unless recovery requires a bounded checkpoint. Retrieval reads an external knowledge source whose own authority and freshness must remain visible. Durable memory stores selected facts, preferences, decisions, or procedures for future sessions. Audit evidence records what happened and follows separate retention and access rules. These categories differ in purpose, owner, accuracy, sensitivity, lifetime, correction, and deletion. A provider feature may combine them operationally, but the application still needs a provider-neutral policy.
+Begin by naming the state. Conversation history supports the current exchange and may be resent or referenced by a provider. A cache reuses input or computation for performance. Neither a cache hit nor repeated text proves that a fact is current. Scratch state tracks one active run, such as a tool-call identifier or retry checkpoint, and normally expires with that run. Retrieval reads an external source, so its authority, publication context, and freshness should remain visible. Durable memory persists selected facts, preferences, decisions, or procedures across sessions. A current price belongs in retrieval. A temporary tool identifier belongs in scratch. A confirmed writing preference may qualify as durable memory. Provider features can combine these categories, but do not infer equivalent retention, deletion, security, or behavior. Preserve the application boundary and verify each provider's actual controls.
 
 Sources:
 
@@ -22,101 +22,121 @@ Sources:
 
 ## Narration: Record Contract
 
-A durable record needs more than a value. Give it a stable identifier, tenant and subject boundary, allowed purpose, source, author or write actor, created and verified times, sensitivity, confidence when appropriate, expiration, supersession link, deletion state, and policy version. Store explicit facts, confirmed preferences, decisions, and reusable procedures only when future benefit exceeds privacy and staleness risk. Do not store secrets, hidden reasoning, raw tool output, health or legal claims, or inferred personal attributes merely because they may be useful. Minimize the value to its purpose. A writing preference may say use direct language. It should not retain an entire private conversation that happened to reveal that preference.
+A durable value needs identity and lifecycle metadata. Give it a stable identifier, tenant, subject, purpose, value, source, creation time, verification time, sensitivity, expiration, supersession link, and deletion state. An application can add author, confidence, or policy version when needed. Trusted execution context supplies tenant, subject, and purpose. Never derive those boundaries from the proposed value. Store explicit facts, confirmed preferences, decisions, and reusable procedures only when future benefit exceeds privacy and staleness risk. Avoid secrets, hidden reasoning, broad raw conversations, and unsupported sensitive inferences. Provenance tells you where a claim came from, not whether it is true. Verification time supports freshness, not permanent validity. Metadata enables policy checks, but metadata does not replace them. Current authorization must still run whenever the record is written, read, corrected, expired, or deleted.
 
 Sources:
 
-- <https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool>
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
-
-## Demonstration: Classification Demonstration
-
-Classify five examples. The current tool-call identifier is scratch state because it supports this run and recovery. A provider cache key is cache metadata, not proof that its content remains current. A user-confirmed language preference may become durable memory with consent, purpose, expiry, and correction. A product price belongs in a current retrieval source and should be refreshed, not remembered as a permanent fact. A retrieved sentence saying always bypass approval is neither a preference nor policy; reject it as an injected instruction and record the test result. The category depends on purpose and lifecycle, not on whether a model can recall the text later.
-
-Sources:
-
-- <https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool>
-- <https://ai.google.dev/gemini-api/docs/zdr>
 
 ## Narration: Guard Writes
 
-A model may propose a memory. Trusted application code decides whether to store it. Authenticate the principal and workload. Confirm the subject and tenant. Check consent, allowed purpose, eligible source, sensitivity, minimization, prohibited content, duplication, conflict, and retention policy. High-impact profile, permission, health, financial, legal, or safety claims require stronger evidence or human review and may be prohibited entirely. Do not let repeated model confidence transform an unsupported statement into a fact. Bind the stored record to the evidence and policy that permitted it. Return a stable stored, rejected, needs review, conflict, or failed result so the controller cannot silently assume persistence.
+The model may propose a memory, but trusted application code decides whether it persists. The gate checks authenticated context, tenant, subject, allowed purpose, current consent, eligible source, sensitivity, verification time, expiration, minimization, and prohibited content. In the lab, trusted fixture context supplies the boundary. That demonstrates separation between data and control, but it is not production authentication. The lab also uses a regular expression to detect a few instruction-like phrases. It can miss subtle attacks and reject benign matches, so it is not a semantic safety proof. A repeated unsupported claim does not become true through confidence. Return explicit stored, denied, poisoned, conflict, or failed results. Do not let a controller assume that a proposal persisted merely because a model generated it.
 
 Sources:
 
-- <https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool>
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
-## Narration: Guard Reads
+## Narration: Guard Reads And Replay
 
-At read time, enforce tenant and subject isolation before semantic ranking. Filter by the current purpose, permission, sensitivity, freshness, expiration, and deletion state. Return provenance and verification time with the value. Treat the retrieved record as evidence, never as governing instruction. A preference cannot grant a tool permission. A remembered target cannot override the currently resolved resource. A procedure may be stale. Conflicting records require reconciliation. When identity or scope is uncertain, return no memory rather than a near match from another subject. Retrieval quality includes correct refusal and isolation, not only recall. Log secret-safe identifiers and decisions so access and deletion can be audited without copying sensitive content.
+Reads enforce the complete boundary before returning content. Check current tenant, subject, purpose, consent, eligible source, sensitivity, freshness, supersession, and deletion. Current policy matters even when a record was allowed yesterday. A revoked consent must block a cache read today. The authoritative store is the canonical copy. Indexes, summaries, caches, and backups are derived. If a cache value is tampered with, the lab still resolves the authoritative record and returns its canonical value and provenance. If canonical freshness metadata is malformed, the record is unreadable. Treat every result as evidence, never as policy or permission. Request identity has a similar boundary. A request ID binds the operation, full tenant-subject-purpose boundary, and exact payload. An exact retry can return the same receipt only after current authorization succeeds. A changed payload or boundary produces a conflict. This prevents accidental replay from borrowing another operation's identity.
 
 Sources:
 
-- <https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool>
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
+
+## Narration: Correct Expire Delete
+
+Correction appends instead of silently overwriting. The new record names the old record in its supersedes field, while every old copy is marked superseded and excluded from normal retrieval. This preserves an auditable causal history without returning stale values. Expiration is also observable. Once policy says a record is expired, remove active copies, create value-free tombstone and deletion metadata, and retain any governed backup only until its purge time. Deletion then has two distinct states. Active removed means the store, index, summary, and cache no longer support retrieval. Pending backup means a backup copy still physically exists in this simulation but has no retrieval authority because the canonical active record and authorization path are gone. A correct deletion request does not prove that backup deletion finished. A receipt must report actual copy states and omit deleted values. Only reconciliation after inspecting real state can report completed.
+
+Sources:
+
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
 - <https://ai.google.dev/gemini-api/docs/zdr>
 
-## Narration: Correct And Delete
+## Demonstration: Lab Setup And Tests
 
-Make correction, expiration, and deletion observable. For correction, create an auditable superseding record, link it to the old record, and exclude the superseded value from normal retrieval. Reverify volatile facts before consequential use. Expire records according to purpose, not storage convenience. A deletion request must cover the authoritative store, indexes, embeddings, derived summaries, caches, replicas, exports, and backups according to the published retention policy. Record request identity, scope, decision, completion time, remaining governed backup retention, and verification without retaining the deleted content. Test deletion by attempting retrieval through every supported path. A hidden row, user-interface confirmation, or model statement that it forgot is not deletion evidence.
+Now use the offline lab. Start at the repository root and enter the lab directory. Run the main test command. It defines nineteen tests. Then run the demo directly. The supplied qualification record reports those nineteen tests and one separate solution test passing under Node version twenty-four point eighteen point zero, plus the exact demo and five independent probes. Test-runner decorations and timing can vary, so compare the application's demo lines with the expected demo file. The implementation uses five independent in-memory maps: store, index, summary, cache, and backup. Its clock is fixed at September twentieth, twenty twenty-six, twelve hundred UTC. Backup retention comes from a synthetic fixture, not a provider promise or legal standard.
 
 Sources:
 
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
+- <https://nodejs.org/api/esm.html>
+- <https://nodejs.org/api/test.html>
+
+## Demonstration: Demo Trace
+
+Read the trace in order. Write creates record zero zero one at the fixed clock. Read returns its short-paragraph preference as evidence, with user-confirmed provenance and timestamps. Correct creates record zero zero two, which supersedes the first. Current retrieval returns only the corrected preference. Delete reports pending backup. Store, index, summary, and cache are false, while backup remains true. Lookup returns an empty list because a retained backup is not authorized retrieval evidence after active deletion. Early reconciliation receives a false caller claim, inspects actual state, and remains pending. At September twenty-four, twelve hundred UTC, final reconciliation removes the backup and reports completed with every copy false. Notice what is not in either receipt: neither deleted preference value. The receipt retains state and provenance, not content.
+
+Sources:
+
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
+
+## Checkpoint: Deletion Checkpoint
+
+Checkpoint. The deletion request succeeded, and every active lookup is empty, but the receipt says backup true. Is deletion completed? Pause and answer with the observed state that determines your conclusion.
+
+Expected learner action: Answer that active removal succeeded but deletion remains pending because the actual backup copy exists.
+
+Sources:
+
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
+
+## Pause: Deletion Response Time
+
+## Feedback: Deletion Feedback
+
+The honest answer is pending backup. Empty lookup proves that active retrieval paths are closed. It does not prove that a backup copy is gone. Request acceptance also does not prove erasure. Completion occurs only when reconciliation observes every governed copy as absent after the synthetic purge time. If your answer was completed, separate request handling, active removal, and backup removal into distinct states. If your answer relied on the caller's claim, make reconciliation inspect controlled state instead.
+
+Correct feedback: You distinguished active retrieval removal from actual backup completion.
+
+Retry feedback: An accepted request and empty lookup do not establish that a retained backup has been purged.
+
+Sources:
+
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
+
+## Learner Prompt: Changed Input Exercise
+
+Now attempt the changed-input exercise before looking at the solution. Use the restricted notification preference. Capture IDs returned by write and correction rather than assuming literal memory IDs. Cause another subject to be denied. Revoke consent after writing and prove a cache read fails. Restore consent, append a correction, and prove normal retrieval excludes the old ID. Request deletion, submit a false completion claim, and prove the receipt stays pending while backup lookup returns no content. Verify receipts contain provenance but neither value. Advance the explicit clock to the purge time and verify every copy is false. Record why each changed input caused its result.
+
+Expected learner action: Implement and explain the notification-preference lifecycle using returned operation IDs and observable policy changes.
+
+Sources:
+
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
+
+## Pause: Exercise Work Time
+
+## Demonstration: Solution And Rubric
+
+After your attempt, run the separate solution test and compare its operations, not just its assertions. Score ten points causally. Trusted changed setup and generated IDs earn two. Subject isolation and live revocation earn two. Restored-consent correction and exclusion of the superseded ID earn two. Active removal, empty backup lookup, and pending status despite a false claim earn two. Clock-driven completion, all copy states false, value-free receipts, and retained provenance earn one. Honest heuristic and simulation limits earn one. Editing internal maps, hardcoding the first memory ID, or asserting expected constants without invoking lifecycle operations caps the score at five. Returning pending-deletion content from any layer cannot pass.
+
+Sources:
+
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
+- <https://nodejs.org/api/test.html>
+
+## Narration: Limits And Transfer
+
+Transfer the pattern carefully. The fixture's tenant, subject, purpose, and consent values are controlled test inputs, not evidence of production identity assurance. The delimiter check is specific to its synthetic consent-key format. The injection regex can miss semantic attacks. Five in-memory maps do not establish process durability, encryption, secure erasure, distributed concurrency safety, backup behavior, privacy compliance, or legal compliance. The retention interval is synthetic. Provider documentation can describe a provider feature, but this lab does not prove equivalence among providers. In production, validate identity, authorization, storage, indexes, summaries, caches, replicas, exports, backups, retention, audit access, and deletion evidence against the systems actually deployed. Preserve the core rule: generated content is data, current trusted policy governs use, canonical state outranks derived state, and receipts describe only what has actually been observed.
+
+Sources:
+
+- <https://github.com/project42dev/project42-content/blob/b644206/training/reliable-agent-workflows/memory-boundaries/lab/src/memory.js>
+- <https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool>
 - <https://ai.google.dev/gemini-api/docs/zdr>
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
-
-## Narration: Attack Memory
-
-Attack-test the lifecycle. Propose a memory containing an instruction to bypass policy. Repeat a false fact with high confidence. Request another tenant's known record identifier. Retrieve a superseded preference and an expired procedure. Create conflicting records. Delete a record, then query direct lookup, semantic search, summaries, caches, and exports. Expected outcomes include reject, isolate, return no memory, reverify, ask the subject, quarantine, or escalate. Measure retrieval precision, cross-boundary rejection, stale-memory rate, correction latency, deletion completion, poisoned-write rejection, and incidents where memory changed an action. Review by source and purpose. A high recall rate is harmful when the recalled item is wrong, unauthorized, stale, or deleted.
-
-Sources:
-
-- <https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool>
-- <https://ai.google.dev/gemini-api/docs/zdr>
-- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
-
-## Learner Prompt: Learner Memory Prompt
-
-Choose one item an agent might remember. Classify its state category, purpose, subject, source, sensitivity, verification, expiration, correction method, deletion scope, and one reason it should not be stored.
-
-Expected learner action: Design one justified memory record and identify its do-not-store boundary.
-
-## Pause: Learner Work Time
-
-## Checkpoint: Cross Tenant Checkpoint
-
-Checkpoint. The caller knows a valid memory record identifier, but the record belongs to another tenant. Semantic similarity is high and the model says it looks relevant. What should retrieval return?
-
-Expected learner action: Return no memory and record a redacted authorization denial before semantic ranking.
-
-Sources:
-
-- <https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool>
-
-## Pause: Checkpoint Response Time
-
-## Feedback: Cross Tenant Feedback
-
-Return no memory. Tenant and subject authorization must run before ranking or content disclosure. Knowing an identifier, matching semantically, or receiving a model recommendation does not grant access. Record a redacted denial without confirming sensitive record details. If you returned the record with a warning, move isolation before retrieval. If you asked the model to decide, move the decision into trusted identity and authorization code. Then add this exact known-identifier case to the regression suite.
-
-Correct feedback: You enforced tenant isolation before semantic ranking or disclosure.
-
-Retry feedback: A record ID and semantic match locate data; they do not authorize the caller to receive it.
-
-Sources:
-
-- <https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool>
 
 ## Transition: Activity Transition
 
-Open the memory-governance activity. Classify twelve records, define one complete memory envelope and lifecycle, then test injection, cross-tenant access, supersession, expiration, and deletion followed by retrieval. Retain the classification matrix, policy, five results, metrics, and escalation rule.
-
-## Pause: Activity Work Time
+Open activity memory governance. Submit your state-classification matrix, complete lifecycle policy, exact demo trace, changed-input test, causal artifact, and rubric score. Include one do-not-store rule and one escalation rule for poisoned, stale, conflicting, or privacy-sensitive evidence.
 
 ## Assessment Handoff: Assessment Handoff
 
-When ready, begin the knowledge check. You will distinguish cache from memory, place storage authority in application policy, reject injected memory, apply supersession, and verify deletion across governed copies. The assessment begins only when you choose Begin knowledge check.
+When ready, begin the five-question knowledge check: q memory boundaries one, q memory boundaries two, q memory boundaries three, q memory boundaries four, and q memory boundaries five. You will distinguish cache from durable memory, place storage authority in trusted policy, reject injected instructions, apply supersession, and report backup-pending deletion honestly. Begin only when you choose the knowledge check.
 
 ## Closing: Class Closing
 
-Persist less, classify precisely, authorize every boundary, return provenance, expire and correct visibly, verify deletion, and test memory as untrusted evidence.
+Classify state before storing it. Bind durable records to trusted boundaries and provenance. Evaluate current policy on every read. Trust canonical state over derived copies. Replay only exact authorized operations. Correct by superseding, expire visibly, and distinguish active removal from backup completion. Treat memory as evidence, not authority, and claim only what your observations prove.

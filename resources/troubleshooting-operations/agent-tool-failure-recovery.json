@@ -20,7 +20,7 @@
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 60,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "agents",
     "tools",
@@ -33,33 +33,110 @@
       "id": "locate-tool-divergence",
       "title": "Find the first broken contract",
       "paragraphs": [
-        "Walk the trace from user authority and intended outcome through tool exposure, selection, call identifier, schema validation, policy validation, handler execution, result matching, model continuation, and external postcondition. Distinguish wrong tool, missing tool, invalid arguments, rejected authorization, dependency failure, timeout, malformed result, unmatched result ID, injected tool content, loop exhaustion, and an outcome that is unknown after a write.",
-        "Never ask the model to decide whether it had authority or whether a side effect occurred. Enforce those checks in application code. Treat external tool results as untrusted data, preserve provider-specific call/result ordering, and do not substitute prose for a required structured error result."
-      ]
+        "Start with the requested outcome and the authority that permits it. Walk the trace in order: user authority, exposed tools, model tool selection, call identifier, tool-contract and argument validation, policy and tenant validation, handler execution, result identifier and ordering, model continuation, and the external postcondition. The first broken boundary is the earliest point at which the observed trace no longer satisfies the contract. Do not diagnose from the final natural-language answer alone.",
+        "Retain the important failure taxonomy. Selection means the wrong tool or no tool was chosen. Schema means the action is malformed, incomplete, has extra properties, or uses an unsupported operation. Authority means the actor, tenant, target, approval, policy, revision, or budget is not currently valid. Handler or execution failure means the authorized operation could not complete. Result-ID failure means a result is missing, duplicated, malformed, unmatched, or out of order. Continuation failure includes looping, ignoring a typed error, or allowing untrusted tool text to become instructions. A postcondition failure means the claimed state is not independently observed. A timeout after a possible write is not an ordinary failure: its outcome is unknown until reconciliation.",
+        "The bundled lab demonstrates application validation, trusted-context authorization, idempotency, mutation counters, receipts, injected-output containment, timeout recovery, budgets, and postcondition evidence. It does not implement production authentication, authorization, durable idempotency, network behavior, transaction processing, accounting, or a provider-specific wire protocol. Selection, provider result-ordering, and MCP-server behavior are adapter checks that must be tested at the relevant boundary. The same reasoning applies to local, open-weight, and hosted executors, but this fixture does not compare those environments or establish equivalence among their APIs.",
+        "Never ask the model to decide whether it had authority or whether a side effect occurred. Application code must enforce those decisions. Treat model-selected arguments and tool-output text as untrusted data. Preserve provider-specific call and result ordering, and return a required structured error rather than substituting prose for it."
+      ],
+      "code": {
+        "language": "text",
+        "label": "First-broken-boundary decision path",
+        "code": "1. Request and current authority: [outcome -> actor, tenant, scope, approval]\n2. Trace/call/result IDs: [correlation and ordering]\n3. Tool and contract: [name -> schema/policy version]\n4. Executor and target: [adapter/client/server -> resource]\n5. First failure stage: [SELECTION | SCHEMA | AUTH | EXECUTION | RESULT | CONTINUATION | POSTCONDITION]\n6. Observed state: [SUCCESS | FAILURE | UNKNOWN]\n7. Evidence: [receipt, query, independent postcondition]\n8. Attempts and budgets: [attempt, time, cost, loop, rate]\n9. Stop criteria: [auth | unknown write | budget | injection | mismatch]\n10. Recovery: [correct | compensate | restore | manual queue]\n11. Verification: [isolated reproduction + end-to-end postcondition]"
+      }
     },
     {
       "id": "record-tool-failure",
       "title": "Record and contain the failed transition",
       "paragraphs": [
-        "Pause the loop before another consequential action. Record stable operation, trace, call, and result identifiers; the redacted arguments; schema and policy versions; executor; timeout; attempt; result class; and observed external state. Use a controlled test client or MCP Inspector against an isolated target when protocol or server behavior needs reproduction."
+        "Use the project42-content repository root and Node.js 22 or later. The lab controls one consequential in-memory action: changing tenant_acme ticket_12345678 from OPEN to RESOLVED. The ordinary happy path uses actor_agent, approval_acme_1, expected version 7, and operation key op_resolve_acme_0001. Run the complete fixture first, then inspect the trace and the recovery behavior. The exact commands and expected summaries below are part of the runnable record, not pseudocode.",
+        "In the timeout-after-success case, the observed result is uncertain with code TIMEOUT_AFTER_POSSIBLE_WRITE. The trace records accepted exact action and trusted context validation, a new operation key, successful authorization and approval, budget acceptance at nowMs 2000, intended transition OPEN version 7 to RESOLVED version 8, and an observed ticket state of RESOLVED version 8. It reports callMutations=1, cumulativeMutations=1, and receiptCount=1. The timeout therefore follows a possible mutation, not a missing mutation. A receipt is evidence associated with an operation; it is not the mutation itself. callMutations counts mutations attempted by this executor call, cumulativeMutations counts trusted mutations across calls, and effects is an alias for callMutations. A missing receipt can coexist with a real mutation: failed-postcondition changes version 7 to 8, reports callMutations=1 and cumulativeMutations=1, but receiptCount=0, so its result remains uncertain.",
+        "Reconcile before replay. In the demonstrated recovery, the query is one, retryPerformed is false, callMutations=0, cumulativeMutations=1, and receipts=1. One matching independent record means deduplicate and do not execute the write again. Zero evidence means reconcile further or route to a manual decision; zero alone does not authorize a retry because the write may have happened without a receipt. Conflicting evidence means reject and escalate. Never select one convenient receipt while hiding malformed, extra, or contradictory evidence.",
+        "A same-key, same-request duplicate can be a safe successful no-op only after current actor, tenant, resource, policy, approval, budget, and independent state are revalidated. It is not safe merely because the key is familiar. A changed target or payload under the same key is a conflict before transition checks. Revoked authority, a cross-tenant context, or a changed current scope cannot reuse cached authority, even when the prior request was approved. A stale revision or divergent prior state is also a conflict. Stop on authorization failure, an unknown write, exhausted limits, injected instructions, broken result identity or ordering, or a contract mismatch."
+      ],
+      "code": {
+        "language": "sh",
+        "label": "Run the bundled lab from the repository root",
+        "code": "node training/reliable-agent-workflows/control-agent-actions/lab/run.js --all\nnode training/reliable-agent-workflows/control-agent-actions/lab/run.js --case timeout-after-success --trace --recover\nnode --test training/reliable-agent-workflows/control-agent-actions/lab/tests/contract.test.js\nnode --test training/reliable-agent-workflows/control-agent-actions/lab/tests/trace.test.js\nnode --test training/reliable-agent-workflows/control-agent-actions/lab/tests/exercise.test.js\nnode --test training/reliable-agent-workflows/control-agent-actions/lab/tests/starter.test.js"
+      }
+    },
+    {
+      "id": "record-tool-failure-expected-results",
+      "title": "Expected results",
+      "paragraphs": [
+        "The --all summaries are:"
       ],
       "code": {
         "language": "text",
-        "label": "Agent tool failure decision path",
-        "code": "User outcome and authority: [REQUEST -> ALLOWED SCOPE]\nTrace/call/result IDs: [CORRELATION]\nTool and contract version: [NAME -> SCHEMA/POLICY]\nExecutor and target: [CLIENT | PROVIDER | MCP SERVER -> RESOURCE]\nFailure stage: [SELECTION | VALIDATION | AUTH | EXECUTION | RESULT | CONTINUATION | POSTCONDITION]\nObserved result: [SUCCESS | FAILURE | UNKNOWN]\nAttempts and budgets: [TOOL/TIME/COST/LOOP]\nExternal-state check: [POSTCONDITION OR RECONCILIATION RESULT]\nOwner and cadence: [SERVICE OWNER -> UPDATE INTERVAL]\nStop criteria: [AUTH FAILURE | UNKNOWN WRITE | BUDGET | INJECTION | CONTRACT MISMATCH]\nRecovery: [CORRECT RESULT | COMPENSATE | RESTORE | MANUAL QUEUE]\nVerification: [ISOLATED REPRODUCTION + END-TO-END POSTCONDITION]"
+        "label": "Expected results",
+        "code": "The --all summaries are:\nhappy-path: success callMutations=1 cumulativeMutations=1 receipts=1\nmalformed-arguments: invalid callMutations=0 cumulativeMutations=0 receipts=0\nunauthorized-target: denied callMutations=0 cumulativeMutations=0 receipts=0\ninjected-tool-output: success callMutations=1 cumulativeMutations=1 receipts=1\ntimeout-after-success: uncertain callMutations=1 cumulativeMutations=1 receipts=1\nduplicate-call: success callMutations=0 cumulativeMutations=1 receipts=1\nstale-approval: denied callMutations=0 cumulativeMutations=0 receipts=0\nmismatched-approval: denied callMutations=0 cumulativeMutations=0 receipts=0\nsame-key-changed-payload: conflict callMutations=0 cumulativeMutations=1 receipts=1\nfailed-postcondition: uncertain callMutations=1 cumulativeMutations=1 receipts=0\n\nBaseline status:\ncontract.test.js: pass\ntrace.test.js: pass\nexercise.test.js: 3 pass, 1 fail deliberately, until the learner fixes the exercise\nstarter.test.js: deliberate negative-control failure, distinct from exercise.test.js\n\nAfter the learner repair:\nexercise.test.js: 4 pass"
       }
     },
     {
       "id": "verify-tool-recovery",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence is a complete redacted transition from authorized request to tool contract, execution, result, continuation, and postcondition, plus the containment and owner. Verify the fix with deterministic schema and policy tests, provider-format fixtures, timeout and duplicate-delivery cases, injected-result cases, isolated execution, and a final end-to-end trajectory.",
-        "Stop the agent when authorization fails, a write outcome is unknown, result identity or ordering is broken, untrusted content crosses an instruction boundary, budgets are exhausted, or the observed state differs from the claimed state. Recovery means reconciling the target before retry, returning a typed error to the loop, applying an approved compensation or rollback, restoring the last verified tool contract, and routing unresolved operations to a human queue."
+        "A complete incident record connects the authorized request to the exact tool contract, executor and target, action fingerprint, approval, budget decision, effect intent, observed state, receipt evidence, recovery decision, owner, and verification result. Redact secrets while retaining stable operation, trace, call, and result identifiers. Record the schema and policy versions, executor, timeout, attempt number, result class, current external state, and the stop criterion. For a protocol or server defect, reproduce with a controlled client or MCP Inspector against an isolated target. This lab itself is offline and has no network, credentials, external effects, dependencies, or paid model calls.",
+        "Verify deterministic schema and policy tests, provider-format fixtures at each adapter, timeout and duplicate-delivery cases, injected-result cases, isolated execution, and the final end-to-end postcondition. The fixture's test runner emits TAP metadata whose numbering and timing can vary, so judge exit status and assertions rather than byte-identical TAP output. A passing local fixture is evidence about this fixture's contracts, not a blanket production safety guarantee.",
+        "For escalation, pause the agent and create a manual queue entry when evidence remains zero or conflicting, when a write may have occurred without a receipt, when authority is revoked, when the target state differs from the claimed state, or when result identity and ordering cannot be established. The owner should decide whether to compensate, restore, correct a result, or leave the operation unchanged. Do not ask an automated retry loop to infer that decision from silence. State the exact uncertainty, affected tenant and resource, operation key, expected and observed revisions, mutation counters, receipt count, last trusted authority, and next human action.",
+        "The general recovery sequence is: contain the loop; classify the first broken boundary; preserve the original operation and fingerprint; query independent state and all evidence; classify zero, one, or conflicting evidence; apply only an approved deduplication, compensation, restore, or manual action; then verify the postcondition independently. A recovery operation never fabricates certainty and, in the bundled timeout path, never retries."
       ],
-      "callout": "After a timeout, unknown is a real state; repeating the write can create a second incident."
+      "callout": "After a timeout, unknown is a real state. Repeating the write can create a second incident.",
+      "code": {
+        "language": "json",
+        "label": "Incident record",
+        "code": "{\n  \"resultClass\": \"uncertain\",\n  \"errorCode\": \"TIMEOUT_AFTER_POSSIBLE_WRITE\",\n  \"operationKey\": \"op_resolve_acme_0001\",\n  \"target\": \"tenant_acme/ticket_12345678\",\n  \"expectedTransition\": \"OPEN version 7 to RESOLVED version 8\",\n  \"observedState\": \"RESOLVED version 8\",\n  \"callMutations\": 1,\n  \"cumulativeMutations\": 1,\n  \"receiptCount\": 1,\n  \"reconciliationQueries\": 1,\n  \"retryPerformed\": false,\n  \"recovery\": \"Deduplicate after one matching independent record; do not replay the write.\",\n  \"verification\": \"Independent state and receipt agree.\"\n}"
+      }
+    },
+    {
+      "id": "learner-practice",
+      "title": "Fixed learner practice",
+      "paragraphs": [
+        "Complete this task before reading the answer and rubric. Use the existing exercise only. Edit only training/reliable-agent-workflows/control-agent-actions/lab/exercise/changed-input.js. Do not create files, edit the executor, or edit tests. The task is fixed: authorize actor_learner to resolve ticket_87654321 in tenant_beta, starting at version 4, with operation key op_beta_resolve_0001.",
+        "The actor.allowedResources and policy.resourceId bindings are already correct. Repair exactly these three approval fields: resourceId must be ticket_87654321, expectedVersion must be 4, and operationKey must be op_beta_resolve_0001. Leave the actor, policy, executor, and tests unchanged. Run the exercise test and use each assertion's causal feedback. Success requires one mutation, version 5, status RESOLVED, and an accepted approval ledger entry. The stale-revision, changed-target, and forged-authority variants must each produce zero mutations.",
+        "Do not weaken validation, add a generic no-op, alter the operation key, or make the model-supplied request grant itself authority. This practice tests current trusted context and exact binding, not production identity or durable storage.",
+        "Open training/reliable-agent-workflows/control-agent-actions/lab/exercise/changed-input.js in your chosen editor. Change only context.approval.resourceId to ticket_87654321, context.approval.expectedVersion to 4, and context.approval.operationKey to op_beta_resolve_0001. Then run the command above."
+      ],
+      "code": {
+        "language": "sh",
+        "label": "Test the supplied exercise after editing it",
+        "code": "node --test training/reliable-agent-workflows/control-agent-actions/lab/tests/exercise.test.js"
+      }
+    },
+    {
+      "id": "answer-and-rubric",
+      "title": "Answer and causal rubric",
+      "paragraphs": [
+        "Answer: in exercise/changed-input.js, change exactly these three approval values: approval.resourceId:'ticket_87654321', approval.expectedVersion:4, and approval.operationKey:'op_beta_resolve_0001'. The existing actor.allowedResources:['ticket_87654321'] and policy.resourceId:'ticket_87654321' are already correct. Leave every other approval field, including approvalId, actorId, tenantId, action, and toStatus, unchanged. Do not change the executor or tests.",
+        "Causal rubric: full credit requires the base case to mutate exactly once, produce version 5 and RESOLVED, and record an accepted approval. It also requires zero mutations for stale revision, changed target, and forged authority. If the base case fails, inspect the first rejected binding: approval target, intended status, expected version, or operation key may not be aligned. The actor and policy resource bindings should not be edited for this exercise because they are already correct. If stale revision mutates, current revision validation is bypassed. If changed target mutates, the target is not included in the authorization and approval binding. If forged authority mutates, trusted actor scope is being taken from untrusted action input. If duplicate behavior is wrong, check that the same-key fingerprint is exact and that current authority is revalidated before cached success.",
+        "The expected causal distinction is not merely pass or fail. A denied result means current authority, transition, approval, or simulated budget disallows the action and should have callMutations=0. An invalid result means malformed or unsupported input and should not reach mutation. A conflict means stale or divergent identity, payload, or recovery evidence and should not be retried blindly. An uncertain result means a mutation may have occurred and requires reconciliation. A receipt supports the conclusion but is not itself the effect."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Answer checklist",
+        "code": "[ ] approval.resourceId is ticket_87654321\n[ ] approval.expectedVersion is 4\n[ ] approval.operationKey is op_beta_resolve_0001\n[ ] actor.allowedResources and policy.resourceId remain unchanged and correct\n[ ] base case: one mutation, version 5, RESOLVED, accepted ledger entry\n[ ] stale revision: zero mutations\n[ ] changed target: zero mutations\n[ ] forged authority: zero mutations\n[ ] executor and tests were not edited"
+      }
+    },
+    {
+      "id": "sources-and-scope",
+      "title": "Sources and scope notes",
+      "paragraphs": [
+        "The bundled lab is the primary executable source for fixture behavior and was verified on 2026-09-20. Its immutable published README identifies the lab path, commands, semantics, exercise, limitations, and files. The general trace and recovery principles in this guide are preserved from the supplied field-guide evidence, while claims about exact counters and fixture outcomes are limited to the supplied lab README and timeout trace.",
+        "The provider-neutral boundary applies to local, open-weight, and hosted model adapters. The cited provider documentation describes tool or function calling behavior for those ecosystems, but these citations do not establish that their APIs, failure modes, or guarantees are equivalent. Adapter-specific tests remain necessary."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Immutable lab source",
+        "code": "Project42, Control agent actions lab README, published commit 4000879, verified 2026-09-20:\nhttps://github.com/project42dev/project42-content/blob/4000879/training/reliable-agent-workflows/control-agent-actions/lab/README.md"
+      }
     }
   ],
   "sources": [
+    {
+      "title": "Control agent actions lab README",
+      "url": "https://github.com/project42dev/project42-content/blob/4000879/training/reliable-agent-workflows/control-agent-actions/lab/README.md",
+      "publisher": "Project 42",
+      "lastVerified": "2026-09-20"
+    },
     {
       "title": "Troubleshooting tool use",
       "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/troubleshooting-tool-use",
