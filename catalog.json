@@ -1073,7 +1073,7 @@
     {
       "id": "control-agent-actions",
       "title": "Design Typed Tool Contracts and Action Controls",
-      "summary": "Give an agent narrow, validated interfaces and enforce authority, idempotency, verification, and recovery outside the model.",
+      "summary": "Give an agent narrow, runtime-validated interfaces and enforce authority, exact approval, revision binding, idempotency, verification, and recovery outside the model.",
       "level": "intermediate",
       "providers": [
         "provider-neutral"
@@ -1093,233 +1093,460 @@
           "id": "action-ladder",
           "title": "Not every tool call carries the same risk",
           "paragraphs": [
-            "Reading a file, editing a local draft, sending a message, deploying production, and deleting data have different consequences. Permission design should reflect those differences instead of treating tool access as a single switch.",
-            "Prefer the smallest authority that can finish the task. Keep secrets out of prompts and logs, scope credentials to the required system, and expire temporary access."
+            "Reading data, changing a reversible local draft, sending an external message, changing production, changing permissions, and destroying data have different consequences. Classify each operation by data access, reversibility, external impact, cost, permission change, and destruction. Give the executor only the actor, tenant, resource, operation, and duration required for the task.",
+            "The supplied lab controls one consequential action: changing one in-memory support ticket from OPEN to RESOLVED. It has no network access, credentials, external effects, dependencies, or paid model calls. Its controls illustrate an application boundary that can be used with local, open-weight, or hosted model adapters, but the fixture does not test or rank providers."
           ],
-          "callout": "Read-only inspection, reversible local change, external communication, production change, and destructive change each deserve a distinct policy."
+          "callout": "Read-only inspection, reversible local change, external communication, production change, permission change, and destructive change require distinct policies. Keep credentials outside model prompts and ordinary logs."
         },
         {
           "id": "typed-tool-contract",
           "title": "The schema is an API contract, not a permission grant",
           "paragraphs": [
-            "Give each tool one clear purpose and a narrow schema with required fields, enums, formats, length and numeric bounds, and additional properties disabled where the provider supports it. Validate again in application code because generated structure can still contain unauthorized or semantically unsafe values.",
-            "Return stable success and error shapes. Separate retriable transport failures from validation, authorization, policy, conflict, and unknown-outcome errors so the controller can make a bounded recovery decision."
+            "The executable action contract has exactly five own properties: action, targetId, toStatus, operationKey, and expectedVersion. Runtime validation rejects missing, extra, inherited, and prototype-polluting fields. It restricts ticket identifiers with ^ticket_[0-9]{8}$, operation keys with ^op_[A-Za-z0-9_]{13,61}$, the action to update_ticket_status, the destination to RESOLVED, and the revision to a nonnegative safe integer. JSDoc types assist development, but runtime checks protect the execution boundary.",
+            "The trusted context has separate actor, policy, approval, limits, usage, charge, clock, and toolOutput structures. The environment has tickets, receipts, operations, ledger, and mutationCount. Application code revalidates structure, semantic meaning, authority, approval, and policy separately. A valid ticket identifier can still identify an unauthorized resource, and a valid revision can still be stale.",
+            "Every result has a stable kind: success, invalid, denied, conflict, or uncertain. Invalid identifies malformed input, context, environment, behavior, or evidence. Denied identifies insufficient current authority, a forbidden transition, an approval mismatch, or a failed budget preflight. Conflict covers stale revisions, changed payloads under an existing operation key, divergent prior state, and contradictory recovery evidence. Uncertain means a mutation may have occurred but exact success has not been established."
           ],
           "code": {
-            "language": "json",
-            "label": "Bounded change-request schema",
-            "code": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"resourceId\": {\"type\": \"string\", \"pattern\": \"^doc_[a-z0-9]{8}$\"},\n    \"operation\": {\"type\": \"string\", \"enum\": [\"archive\"]},\n    \"idempotencyKey\": {\"type\": \"string\", \"minLength\": 16, \"maxLength\": 64}\n  },\n  \"required\": [\"resourceId\", \"operation\", \"idempotencyKey\"],\n  \"additionalProperties\": false\n}"
-          }
+            "language": "js",
+            "label": "Exact runtime action contract",
+            "code": "{\n  action: 'update_ticket_status',\n  targetId: 'ticket_12345678',\n  toStatus: 'RESOLVED',\n  operationKey: 'op_resolve_acme_0001',\n  expectedVersion: 7\n}\n\n// Runtime rules:\n// exactly these five own properties\n// targetId: /^ticket_[0-9]{8}$/\n// operationKey: /^op_[A-Za-z0-9_]{13,61}$/\n// expectedVersion: nonnegative safe integer"
+          },
+          "callout": "A type or schema controls representation. It does not authenticate a caller, authorize a resolved resource, prove approval, or establish that an effect succeeded."
         },
         {
           "id": "approval-before-impact",
           "title": "Approval belongs before the consequential step",
           "paragraphs": [
-            "A human gate is useful only when the reviewer can still prevent impact. Ask before sending, purchasing, publishing, deploying, or destroying, not after the action has already happened.",
-            "Safe automation also needs an idempotency strategy, a bounded retry policy, and a recovery path. Repeating a failed action blindly can duplicate messages, charges, or changes."
-          ]
+            "Authority and approval are separate. Actor scope and trusted policy determine whether the authenticated principal may perform this operation on this resolved tenant resource. Approval records whether a reviewer accepted the exact actor, tenant, action, target, destination status, expected revision, and operation key. Approval cannot manufacture authority that the caller lacks.",
+            "The lab compares approval before mutation. A changed target, revision, destination, actor, tenant, action, or operation key causes denial. A general conversation, an earlier approval, or approval for another ticket does not apply. Revision binding also prevents an approval for version 7 from silently authorizing a later state.",
+            "An idempotency fingerprint binds the same request fields. Reusing an operation key with a changed payload returns conflict before transition checks. Reusing the same key and request can return a cached success without another mutation, but only after current authorization, approval, budget, and postcondition checks pass. Revoked resource scope or policy therefore blocks cached reuse."
+          ],
+          "callout": "Exact approval answers whether this reviewed action may proceed now. Authorization answers whether this principal is allowed to perform it at all."
         },
         {
           "id": "validate-execute-verify",
           "title": "Separate selection from execution",
           "paragraphs": [
-            "The model may select a tool and propose arguments. A trusted executor authenticates the caller, validates the schema, authorizes the resolved resource, binds any approval to that exact action, enforces limits, and only then calls the implementation.",
-            "Treat returned content as untrusted data. Verify the real postcondition and record a secret-safe audit event containing the request identity, decision, target, result, and recovery status."
+            "The model proposes an action and arguments. The trusted executor validates the environment, action, and context; checks the idempotency fingerprint; authorizes actor and policy; checks the current ticket revision and transition; matches exact approval; enforces cumulative step, simulated cost, rate, and deterministic time limits; mutates once; verifies an independent postcondition; and records a secret-safe decision ledger.",
+            "The normal mutation changes exactly one ticket from OPEN version 7 to RESOLVED version 8. callMutations counts mutations by the current executor call. cumulativeMutations counts mutations across calls sharing the fixture environment. receiptCount counts evidence records. A receipt is not the mutation. The failed-postcondition fixture therefore reports one call mutation, one cumulative mutation, and zero receipts, with an uncertain result.",
+            "The verifier queries the ticket and every receipt sharing the operation key. Success requires the intended status and revision plus exactly one matching receipt as the only keyed receipt. Tool-output text remains bounded untrusted data and cannot change actor scope, policy, approval, limits, state, or execution behavior."
           ],
-          "callout": "Structured output improves parsing; it does not prove authorization, safety, or success."
+          "callout": "Structured output improves parsing. Independent state and evidence checks establish whether the intended effect occurred."
+        },
+        {
+          "id": "worked-runtime",
+          "title": "Worked runtime example and exact fixture results",
+          "paragraphs": [
+            "Before the happy path, ticket_12345678 belongs to tenant_acme, has status OPEN and version 7, and the environment has zero mutations and zero receipts. The request names expectedVersion 7 and operation key op_resolve_acme_0001. Trusted actor scope, policy, approval, and budget all match.",
+            "After one accepted execution, the ticket is RESOLVED at version 8, mutationCount is 1, and one exact receipt records the OPEN-to-RESOLVED transition from version 7 to 8. The independent verifier checks both the ticket and all receipts under the key before returning success with code UPDATED.",
+            "Run the complete deterministic fixture set from the repository root. The ten summary lines below are the documented outputs. TAP numbering and timing may vary, so tests grade exit status and assertions rather than byte-identical TAP metadata."
+          ],
+          "code": {
+            "language": "text",
+            "label": "Commands and exact --all output",
+            "code": "node training/reliable-agent-workflows/control-agent-actions/lab/run.js --all\n\nhappy-path: success callMutations=1 cumulativeMutations=1 receipts=1\nmalformed-arguments: invalid callMutations=0 cumulativeMutations=0 receipts=0\nunauthorized-target: denied callMutations=0 cumulativeMutations=0 receipts=0\ninjected-tool-output: success callMutations=1 cumulativeMutations=1 receipts=1\ntimeout-after-success: uncertain callMutations=1 cumulativeMutations=1 receipts=1\nduplicate-call: success callMutations=0 cumulativeMutations=1 receipts=1\nstale-approval: denied callMutations=0 cumulativeMutations=0 receipts=0\nmismatched-approval: denied callMutations=0 cumulativeMutations=0 receipts=0\nsame-key-changed-payload: conflict callMutations=0 cumulativeMutations=1 receipts=1\nfailed-postcondition: uncertain callMutations=1 cumulativeMutations=1 receipts=0"
+          }
+        },
+        {
+          "id": "threat-tests",
+          "title": "Threat, safety, idempotency, and budget tests",
+          "paragraphs": [
+            "The five required threat cases isolate different controls. malformed-arguments is invalid before mutation. unauthorized-target is denied before mutation. injected-tool-output succeeds exactly once because the hostile string remains data rather than authority. timeout-after-success is uncertain after one mutation. duplicate-call returns cached success with no second mutation.",
+            "Five additional fixtures cover the happy path, stale approval, mismatched approval, same-key changed payload, and failed postcondition. Independent tests also verify denial after resource or policy revocation, exact own-property validation, stale revision handling, cumulative fixture budgets, conflicting recovery evidence, and strict CLI parsing. Unknown, duplicate, incomplete, or incompatible CLI options exit with status 2.",
+            "Budget values are offline fixture units, not production billing or security measurements. Usage accumulates in the trusted context after attempted mutations. Distinct operations sharing that context consume the same step, costUnits, and rateActions budget. The deterministic fixture clock must remain inside the configured rate window; preflight denies an out-of-window request instead of silently resetting usage."
+          ],
+          "code": {
+            "language": "sh",
+            "label": "Qualification commands",
+            "code": "node --test training/reliable-agent-workflows/control-agent-actions/lab/tests/contract.test.js\nnode --test training/reliable-agent-workflows/control-agent-actions/lab/tests/trace.test.js\nnode --test training/reliable-agent-workflows/control-agent-actions/lab/tests/exercise.test.js\n\n# Deliberate negative control, expected to exit nonzero:\nnode --test training/reliable-agent-workflows/control-agent-actions/lab/tests/starter.test.js"
+          },
+          "callout": "Verified with Node.js 24.18.0: 25 positive qualification tests passed, comprising 20 contract tests, 4 solution tests, and 1 trace test. The unsafe starter remains an intentional failing control and is not a working solution."
+        },
+        {
+          "id": "uncertain-recovery",
+          "title": "Reconcile uncertain outcomes without blind retry",
+          "paragraphs": [
+            "A timeout after the write does not establish failure. The operation record preserves the exact key, fingerprint, expected revision, intended mutation, uncertainty, and original run. The reconciler validates the environment and examines the authoritative ticket plus every keyed receipt. It does not call the mutation again.",
+            "One exact receipt plus the exact resulting ticket state produces query=one and verified success. No keyed receipt plus the exact original ticket state produces query=zero, which remains uncertain because this fixture does not retry automatically. Malformed, duplicate, extra, or contradictory evidence produces query=conflicting and a conflict result requiring review.",
+            "For timeout-after-success with recovery, the documented result is query=one, retryPerformed=false, callMutations=0, cumulativeMutations=1, and receipts=1. For omit_receipt, the ticket mutates once but verification fails because the matching receipt is absent. That result remains uncertain. Missing evidence does not imply that no effect occurred."
+          ],
+          "code": {
+            "language": "text",
+            "label": "Recovery command and summary",
+            "code": "node training/reliable-agent-workflows/control-agent-actions/lab/run.js --case timeout-after-success --trace --recover\n\nrecovery: kind=success query=one retryPerformed=false callMutations=0 cumulativeMutations=1 receipts=1"
+          }
+        },
+        {
+          "id": "changed-input-exercise",
+          "title": "Changed Policy and Target Exercise",
+          "paragraphs": [
+            "The assigned change is fixed. Authorize actor_learner to resolve ticket_87654321 in tenant_beta, starting at version 4, with operation key op_beta_resolve_0001. Edit only exercise/changed-input.js. Do not edit the executor, fixtures, or tests.",
+            "The starter already has the correct actor.allowedResources and policy.resourceId. Repair only approval.resourceId, approval.expectedVersion, and approval.operationKey so that approval binds the exact target, revision, and operation. The starter is intentionally incomplete: three of four exercise checks pass and one fails, so the test command exits nonzero. This deliberate learner failure is not a working solution.",
+            "A safe repair passes all four checks. Objective evidence requires one mutation, status RESOLVED, version 5, and an accepted approval ledger entry for the base case. Stale-revision, changed-target, and forged-authority variants must each produce zero mutations. Use subtest names and assertion messages to identify which binding caused each failure."
+          ],
+          "code": {
+            "language": "sh",
+            "label": "Run the independent changed-input exercise",
+            "code": "node --test training/reliable-agent-workflows/control-agent-actions/lab/tests/exercise.test.js"
+          },
+          "callout": "Exercise pause: repair the three approval bindings, run the tests, and explain each result by naming the first control that accepted or rejected the request."
         }
       ],
       "activity": {
         "id": "activity-typed-tool-threat-test",
-        "title": "Specify and threat-test a consequential tool",
+        "title": "Run and diagnose the qualified typed-tool lab",
         "instructions": [
-          "Choose a tool that writes, sends, spends, changes permission, or deletes, and define its narrow JSON input and stable result/error union.",
-          "Write executor checks for identity, schema, semantic validity, authorization, exact-target approval, rate and cost limits, and idempotency.",
-          "Test malformed arguments, an unauthorized target, prompt-injected tool output, timeout after success, and a duplicate call.",
-          "Define the postcondition query and recovery or escalation for each outcome."
+          "Use Node.js 24.18.0 from the repository root. Run the ten supplied fixtures with node training/reliable-agent-workflows/control-agent-actions/lab/run.js --all and compare all ten summaries with the documented output.",
+          "Run timeout-after-success with --trace --recover. Identify the preserved operation evidence, the independent ticket and receipt query, retryPerformed=false, and the distinction between original and recovery call mutations.",
+          "Inspect malformed-arguments, unauthorized-target, injected-tool-output, timeout-after-success, and duplicate-call. For each case, name the first decisive control and explain why its mutation and receipt counts follow from that control.",
+          "Inspect stale-approval, mismatched-approval, same-key-changed-payload, and failed-postcondition. Explain revision binding, exact approval, fingerprint conflict, and why a missing receipt can coexist with one mutation.",
+          "Complete the Changed Policy and Target Exercise by editing only exercise/changed-input.js. Preserve the already correct actor resource and policy target. Repair the three exact approval values, run the exercise tests, and use the negative variants to confirm that stale, changed-target, and forged-authority requests do not mutate."
         ],
         "evidence": [
-          "A typed tool contract with side effects, error taxonomy, approval, idempotency, and postcondition rules.",
-          "A five-case threat-test table showing rejection, verification, and recovery evidence."
+          "All ten exact CLI summary lines.",
+          "A causal table naming each fixture, result kind, decisive control, callMutations, cumulativeMutations, receiptCount, and recovery action.",
+          "The changed-input exercise passing all four checks without changes to the executor or tests.",
+          "A short explanation distinguishing schema validity, semantic validity, current authority, exact approval, idempotency, postcondition evidence, and uncertain recovery."
         ],
-        "reflectionPrompt": "Which unsafe request passed JSON validation but failed authorization or policy?"
+        "reflectionPrompt": "Which requests were structurally valid but still failed current authority, revision, approval, budget, or postcondition checks, and what harmful mutation would have occurred if that control were absent?"
       },
       "instructorScript": {
         "schemaVersion": "1.1",
-        "estimatedSeconds": 1350,
+        "estimatedSeconds": 900,
         "cues": [
           {
             "id": "cue-tool-risk",
             "kind": "narration",
             "sectionId": "action-ladder",
-            "text": "Classify tool calls by data access, reversibility, external impact, cost, permission change, and destruction."
+            "text": "Classify every tool by data access, reversibility, external impact, cost, permission change, and destruction. Give the executor only the actor, tenant, resource, operation, and duration required. This lab changes one in-memory ticket and makes no network, credential, external, or paid model call."
           },
           {
             "id": "cue-tool-contract",
             "kind": "narration",
             "sectionId": "typed-tool-contract",
-            "text": "Treat the schema as a narrow API contract while keeping authorization and policy in trusted application code."
+            "text": "The action has exactly five own properties, and runtime validation rejects missing, extra, inherited, malformed, or unsupported values. Stable results separate invalid, denied, conflict, uncertain, and success outcomes. Types improve development, but trusted application code must still validate meaning, authority, approval, and policy."
           },
           {
             "id": "cue-tool-schema-visual",
             "kind": "visual",
             "sectionId": "typed-tool-contract",
-            "text": "Build the contract from typed inputs through stable result and error variants.",
-            "accessibilityAlternative": "A static table maps each input constraint to validation, authorization, side effect, and error handling. Reduced-motion mode reveals no moving elements."
+            "text": "Show action fields, trusted context, environment state, result variants, and side-effect accounting as separate contract layers.",
+            "accessibilityAlternative": "A static table lists the five action fields, eight trusted context groups, five environment groups, five result kinds, and the mutation and receipt counters."
           },
           {
             "id": "cue-tool-approval",
             "kind": "narration",
             "sectionId": "approval-before-impact",
-            "text": "Bind approval to the exact resolved target before a consequential or irreversible action."
+            "text": "Authority and approval are separate. Actor scope and policy authorize the resolved ticket. Approval must match the exact actor, tenant, action, target, destination, expected revision, and operation key before mutation. A changed value requires a new match, and approval cannot create authority the caller lacks."
           },
           {
             "id": "cue-tool-executor",
             "kind": "narration",
             "sectionId": "validate-execute-verify",
-            "text": "Place identity, validation, authorization, limits, execution, postcondition checks, and audit in a trusted executor."
+            "text": "The trusted executor validates environment, action, and context; checks idempotency; authorizes actor and policy; compares revision; matches approval; enforces cumulative limits; mutates once; and independently verifies ticket state plus every keyed receipt. Tool-output instructions remain bounded untrusted data throughout this sequence."
+          },
+          {
+            "id": "cue-tool-worked",
+            "kind": "narration",
+            "sectionId": "worked-runtime",
+            "text": "Before the happy path, the ticket is OPEN at version seven with no mutation or receipt. After checks pass, it is RESOLVED at version eight with one mutation and one exact receipt. The verifier establishes that pair before returning success with code UPDATED."
+          },
+          {
+            "id": "cue-tool-fixtures",
+            "kind": "narration",
+            "sectionId": "threat-tests",
+            "text": "Run all ten fixtures. The required five cover malformed arguments, unauthorized target, injected output, timeout after success, and duplicate call. Additional cases cover stale and mismatched approval, changed payload under one key, failed postcondition, and the happy path. Diagnose counters from the causal control."
           },
           {
             "id": "cue-tool-prompt",
             "kind": "learner-prompt",
             "sectionId": "validate-execute-verify",
-            "text": "Ask learners which control rejects a validly shaped request for another tenant's resource."
-          },
-          {
-            "id": "cue-tool-pause",
-            "kind": "pause",
-            "sectionId": "validate-execute-verify",
-            "text": "Allow two minutes to add a semantic authorization test to the tool contract."
+            "text": "Which control rejects a validly shaped request for another tenant's ticket, and why can neither model recommendation nor reviewer approval replace that control?"
           },
           {
             "id": "cue-tool-checkpoint",
             "kind": "checkpoint",
             "sectionId": "validate-execute-verify",
-            "text": "Check that learners distinguish schema validity, authorization, approval, and postcondition evidence."
+            "text": "Confirm that learners distinguish representation validation, semantic checks, current object authority, exact approval, idempotency, mutation accounting, receipt evidence, and postcondition verification."
           },
           {
-            "id": "cue-tool-activity",
+            "id": "cue-tool-recovery",
+            "kind": "narration",
+            "sectionId": "uncertain-recovery",
+            "text": "A timeout after a write is not confirmed failure. Reconciliation queries the preserved operation, ticket, and all keyed receipts without retrying. One exact effect becomes verified, zero evidence remains uncertain in this fixture, and malformed, duplicate, or contradictory evidence becomes conflict."
+          },
+          {
+            "id": "cue-changed-exercise",
             "kind": "learner-prompt",
-            "text": "Run the five threat cases and retain the contract and result table."
+            "sectionId": "changed-input-exercise",
+            "text": "Edit only changed-input.js. Keep the correct actor resource and policy target, then repair approval resourceId, expectedVersion, and operationKey for tenant_beta and ticket_87654321."
+          },
+          {
+            "id": "cue-changed-exercise-pause",
+            "kind": "pause",
+            "sectionId": "changed-input-exercise",
+            "text": "Changed Policy and Target Exercise pause: run the four checks and repair the exact approval bindings."
+          },
+          {
+            "id": "cue-diagnosis-checkpoint",
+            "kind": "checkpoint",
+            "sectionId": "changed-input-exercise",
+            "text": "Check for one successful mutation to RESOLVED version five and zero mutations for stale revision, changed target, and forged authority."
+          },
+          {
+            "id": "cue-tool-closing",
+            "kind": "narration",
+            "sectionId": "changed-input-exercise",
+            "text": "The unsafe starter is a deliberate failing control, not a solution. The repaired exercise passes four checks. These boundaries transfer across local, open-weight, and hosted adapters, but this offline fixture makes no production security, durability, authentication, billing, or provider-performance claim."
           },
           {
             "id": "cue-tool-assessment",
             "kind": "assessment-handoff",
-            "text": "Begin the check after every side effect has a validation, authorization, verification, and recovery control."
+            "text": "Begin the five-question check only when you can explain the first control that stops each unsafe action.",
+            "questionIds": [
+              "q-control-agent-1",
+              "q-control-agent-2",
+              "q-control-agent-3",
+              "q-control-agent-4",
+              "q-control-agent-5"
+            ]
           }
         ],
-        "transcript": "Classify tool calls by data access, reversibility, external impact, cost, permission change, and destruction. Treat the schema as a narrow API contract while keeping authorization and policy in trusted application code. Bind approval to the exact resolved target before a consequential or irreversible action. Place identity, validation, authorization, limits, execution, postcondition checks, and audit in a trusted executor.",
+        "transcript": "Classify every tool by data access, reversibility, external impact, cost, permission change, and destruction. Give the executor only the actor, tenant, resource, operation, and duration required. This lab changes one in-memory ticket and makes no network, credential, external, or paid model call. The action has exactly five own properties, and runtime validation rejects missing, extra, inherited, malformed, or unsupported values. Stable results separate invalid, denied, conflict, uncertain, and success outcomes. Types improve development, but trusted application code must still validate meaning, authority, approval, and policy. Authority and approval are separate. Actor scope and policy authorize the resolved ticket. Approval must match the exact actor, tenant, action, target, destination, expected revision, and operation key before mutation. A changed value requires a new match, and approval cannot create authority the caller lacks. The trusted executor validates environment, action, and context; checks idempotency; authorizes actor and policy; compares revision; matches approval; enforces cumulative limits; mutates once; and independently verifies ticket state plus every keyed receipt. Tool-output instructions remain bounded untrusted data throughout this sequence. Before the happy path, the ticket is OPEN at version seven with no mutation or receipt. After checks pass, it is RESOLVED at version eight with one mutation and one exact receipt. The verifier establishes that pair before returning success with code UPDATED. Run all ten fixtures. The required five cover malformed arguments, unauthorized target, injected output, timeout after success, and duplicate call. Additional cases cover stale and mismatched approval, changed payload under one key, failed postcondition, and the happy path. Diagnose counters from the causal control. A timeout after a write is not confirmed failure. Reconciliation queries the preserved operation, ticket, and all keyed receipts without retrying. One exact effect becomes verified, zero evidence remains uncertain in this fixture, and malformed, duplicate, or contradictory evidence becomes conflict. The unsafe starter is a deliberate failing control, not a solution. The repaired exercise passes four checks. These boundaries transfer across local, open-weight, and hosted adapters, but this offline fixture makes no production security, durability, authentication, billing, or provider-performance claim.",
         "captions": [
           {
             "cueId": "cue-tool-risk",
             "startSeconds": 0,
-            "endSeconds": 240,
-            "text": "Classify tool calls by data access, reversibility, external impact, cost, permission change, and destruction."
+            "endSeconds": 24,
+            "text": "Classify every tool by data access, reversibility, external impact, cost, permission change, and destruction. Give the executor only the actor, tenant, resource, operation, and duration required. This lab changes one in-memory ticket and makes no network, credential, external, or paid model call."
           },
           {
             "cueId": "cue-tool-contract",
-            "startSeconds": 270,
-            "endSeconds": 570,
-            "text": "Treat the schema as a narrow API contract while keeping authorization and policy in trusted application code."
+            "startSeconds": 45,
+            "endSeconds": 72,
+            "text": "The action has exactly five own properties, and runtime validation rejects missing, extra, inherited, malformed, or unsupported values. Stable results separate invalid, denied, conflict, uncertain, and success outcomes. Types improve development, but trusted application code must still validate meaning, authority, approval, and policy."
           },
           {
             "cueId": "cue-tool-approval",
-            "startSeconds": 600,
-            "endSeconds": 870,
-            "text": "Bind approval to the exact resolved target before a consequential or irreversible action."
+            "startSeconds": 120,
+            "endSeconds": 148,
+            "text": "Authority and approval are separate. Actor scope and policy authorize the resolved ticket. Approval must match the exact actor, tenant, action, target, destination, expected revision, and operation key before mutation. A changed value requires a new match, and approval cannot create authority the caller lacks."
           },
           {
             "cueId": "cue-tool-executor",
-            "startSeconds": 900,
-            "endSeconds": 1230,
-            "text": "Place identity, validation, authorization, limits, execution, postcondition checks, and audit in a trusted executor."
+            "startSeconds": 190,
+            "endSeconds": 220,
+            "text": "The trusted executor validates environment, action, and context; checks idempotency; authorizes actor and policy; compares revision; matches approval; enforces cumulative limits; mutates once; and independently verifies ticket state plus every keyed receipt. Tool-output instructions remain bounded untrusted data throughout this sequence."
+          },
+          {
+            "cueId": "cue-tool-worked",
+            "startSeconds": 260,
+            "endSeconds": 284,
+            "text": "Before the happy path, the ticket is OPEN at version seven with no mutation or receipt. After checks pass, it is RESOLVED at version eight with one mutation and one exact receipt. The verifier establishes that pair before returning success with code UPDATED."
+          },
+          {
+            "cueId": "cue-tool-fixtures",
+            "startSeconds": 330,
+            "endSeconds": 358,
+            "text": "Run all ten fixtures. The required five cover malformed arguments, unauthorized target, injected output, timeout after success, and duplicate call. Additional cases cover stale and mismatched approval, changed payload under one key, failed postcondition, and the happy path. Diagnose counters from the causal control."
+          },
+          {
+            "cueId": "cue-tool-recovery",
+            "startSeconds": 470,
+            "endSeconds": 498,
+            "text": "A timeout after a write is not confirmed failure. Reconciliation queries the preserved operation, ticket, and all keyed receipts without retrying. One exact effect becomes verified, zero evidence remains uncertain in this fixture, and malformed, duplicate, or contradictory evidence becomes conflict."
+          },
+          {
+            "cueId": "cue-tool-closing",
+            "startSeconds": 870,
+            "endSeconds": 900,
+            "text": "The unsafe starter is a deliberate failing control, not a solution. The repaired exercise passes four checks. These boundaries transfer across local, open-weight, and hosted adapters, but this offline fixture makes no production security, durability, authentication, billing, or provider-performance claim."
           }
         ],
-        "reducedMotionAlternative": "Present the tool-contract and trusted-executor stages as one static table with keyboard-focus highlights."
+        "reducedMotionAlternative": "Present the risk ladder, contract layers, executor sequence, fixture table, state transition, and recovery branches as static keyboard-accessible tables."
       },
       "knowledgeCheck": {
         "passPercent": 80,
         "questions": [
           {
             "id": "q-control-agent-1",
-            "prompt": "What is the safest default permission strategy?",
+            "prompt": "What is the safest default permission strategy for the ticket tool?",
             "choices": [
-              "Grant every available tool",
-              "Grant only the authority required for the task",
-              "Reuse production administrator credentials",
-              "Let the model create credentials"
+              "Grant only the actor, tenant, resource, and operation required for the task",
+              "Grant every available tool so the model can recover",
+              "Let the request add its own resource to actor scope",
+              "Reuse an administrator credential for all tenants"
             ],
-            "answerIndex": 1,
-            "explanation": "Least privilege limits both mistakes and misuse while preserving the ability to complete the task."
+            "answerIndex": 0,
+            "explanation": "Least privilege limits the executor to the authority required for the intended action.",
+            "choiceFeedback": [
+              "Correct. Narrow current authority limits both mistakes and hostile proposals.",
+              "Incorrect. Broad tools enlarge the effect of a mistaken or manipulated request.",
+              "Incorrect. Untrusted action input cannot grant itself trusted authority.",
+              "Incorrect. Shared administrator authority defeats tenant and resource isolation."
+            ]
           },
           {
             "id": "q-control-agent-2",
-            "prompt": "When should approval occur for an external or destructive action?",
+            "prompt": "When must exact approval be checked for this consequential mutation?",
             "choices": [
-              "Before the action can cause impact",
-              "Only after the action succeeds",
-              "At the end of the month",
-              "After an automatic retry"
+              "After mutation, when a receipt exists",
+              "Before mutation, against the resolved actor, tenant, target, operation, arguments, revision, and key",
+              "Only when JSON validation fails",
+              "Once per conversation, regardless of later argument changes"
             ],
-            "answerIndex": 0,
-            "explanation": "Approval must happen while the reviewer can still prevent or change the action."
+            "answerIndex": 1,
+            "explanation": "Approval is preventive only when it is matched to the exact resolved request before the side effect.",
+            "choiceFeedback": [
+              "Incorrect. Post-action review cannot prevent the mutation.",
+              "Correct. Exact pre-effect binding prevents approval from drifting to another request.",
+              "Incorrect. Approval and schema validation answer different questions.",
+              "Incorrect. Changed arguments or revisions require a new exact match."
+            ]
           },
           {
             "id": "q-control-agent-3",
-            "prompt": "A tool call matches its JSON schema but targets a resource owned by another tenant. What must happen?",
+            "prompt": "A request has valid fields but names a ticket outside the current actor resource scope. What should happen?",
             "choices": [
-              "Execute because the JSON is valid",
-              "Authorize the resolved resource for the current identity and reject it",
-              "Ask the model whether it feels safe",
-              "Remove the resource ID"
+              "Execute because the action passed runtime validation",
+              "Use the reviewer's approval as replacement authority",
+              "Deny at object-level authorization before mutation",
+              "Remove the target and let the executor choose one"
             ],
-            "answerIndex": 1,
-            "explanation": "Schema validation does not replace object-level authorization."
+            "answerIndex": 2,
+            "explanation": "Valid representation does not grant the caller permission on the resolved resource.",
+            "choiceFeedback": [
+              "Incorrect. Runtime shape validation does not establish permission.",
+              "Incorrect. Approval cannot create authority absent from actor scope and policy.",
+              "Correct. Current object-level authority must reject the request before effects.",
+              "Incorrect. Choosing a different target would change the intended and approved action."
+            ]
           },
           {
             "id": "q-control-agent-4",
-            "prompt": "A timeout occurs after a write may have succeeded. What should the controller do?",
+            "prompt": "A timeout occurs after the ticket may have changed. What is the bounded recovery step?",
             "choices": [
-              "Retry without limits",
-              "Assume success from the model's narration",
-              "Reconcile the idempotency key and actual postcondition before retrying",
-              "Change the schema"
+              "Retry immediately with a new operation key",
+              "Assume failure because no success response arrived",
+              "Assume success because the model expected success",
+              "Reconcile the preserved operation, ticket state, and all keyed receipts without retrying"
             ],
-            "answerIndex": 2,
-            "explanation": "Unknown outcome requires reconciliation because a blind retry can duplicate the side effect."
+            "answerIndex": 3,
+            "explanation": "An uncertain outcome requires authoritative reconciliation before any retry decision.",
+            "choiceFeedback": [
+              "Incorrect. A new key can duplicate an effect that already occurred.",
+              "Incorrect. A timeout does not prove that the write failed.",
+              "Incorrect. Model narration is not postcondition evidence.",
+              "Correct. Reconciliation distinguishes one exact effect, zero evidence, and conflicting evidence without another mutation."
+            ]
           },
           {
             "id": "q-control-agent-5",
-            "prompt": "Why should tool results be treated as untrusted data?",
+            "prompt": "Why can failed-postcondition report one mutation and zero receipts?",
             "choices": [
-              "They can contain stale, malformed, or malicious instructions",
-              "They are always empty",
-              "They cannot affect later decisions",
-              "They replace authorization"
+              "A receipt is independent evidence, so its absence does not undo or disprove the ticket mutation",
+              "The mutation counter is always copied from receipt count",
+              "Uncertain means the executor definitely made no change",
+              "The model is allowed to create a replacement receipt"
             ],
             "answerIndex": 0,
-            "explanation": "Results can mislead the model or carry prompt injection and must not change governing authority."
+            "explanation": "Mutation accounting and receipt accounting are separate; missing evidence leaves the result uncertain.",
+            "choiceFeedback": [
+              "Correct. The ticket can change even when required receipt evidence is missing.",
+              "Incorrect. callMutations and cumulativeMutations count effects, not receipts.",
+              "Incorrect. Uncertain means exact success is not established, not that no effect occurred.",
+              "Incorrect. Untrusted model output cannot fabricate trusted evidence."
+            ]
           }
         ]
       },
+      "lab": {
+        "runtime": "Node.js 24.18.0",
+        "root": "training/reliable-agent-workflows/control-agent-actions/lab",
+        "filesUnchanged": true,
+        "fixtureCount": 10,
+        "requiredThreatCases": [
+          "malformed-arguments",
+          "unauthorized-target",
+          "injected-tool-output",
+          "timeout-after-success",
+          "duplicate-call"
+        ],
+        "additionalCases": [
+          "happy-path",
+          "stale-approval",
+          "mismatched-approval",
+          "same-key-changed-payload",
+          "failed-postcondition"
+        ],
+        "qualification": {
+          "positiveTestsPassed": 25,
+          "contractTestsPassed": 20,
+          "solutionTestsPassed": 4,
+          "traceTestsPassed": 1,
+          "documentedCliSummariesMatched": 10,
+          "resourceRevocationDenied": true,
+          "policyRevocationDenied": true,
+          "omitReceiptMutationCount": 1,
+          "omitReceiptResult": "uncertain",
+          "invalidCliExitCode": 2,
+          "unsafeStarterExpectedToFail": true,
+          "changedInputStarterPassingChecks": 2,
+          "changedInputStarterTotalChecks": 4,
+          "safeChangedInputSolutionPassingChecks": 4,
+          "safeChangedInputSolutionTotalChecks": 4
+        }
+      },
       "sources": [
+        {
+          "title": "Node.js ECMAScript modules",
+          "url": "https://nodejs.org/api/esm.html#packages",
+          "publisher": "Node.js"
+        },
+        {
+          "title": "Node.js test runner",
+          "url": "https://nodejs.org/api/test.html",
+          "publisher": "Node.js"
+        },
+        {
+          "title": "Node.js structuredClone global",
+          "url": "https://nodejs.org/api/globals.html#structuredclone",
+          "publisher": "Node.js"
+        },
+        {
+          "title": "Node.js globals",
+          "url": "https://nodejs.org/api/globals.html",
+          "publisher": "Node.js"
+        },
+        {
+          "title": "JSON Schema validation: required properties",
+          "url": "https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.10.2",
+          "publisher": "JSON Schema"
+        },
+        {
+          "title": "JSON Schema validation: additional properties",
+          "url": "https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.10.3.1.1",
+          "publisher": "JSON Schema"
+        },
+        {
+          "title": "JSON Schema core: instance properties",
+          "url": "https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.3.5",
+          "publisher": "JSON Schema"
+        },
         {
           "title": "Function calling",
           "url": "https://developers.openai.com/api/docs/guides/function-calling",
-          "publisher": "OpenAI",
-          "lastVerified": "2026-09-13"
+          "publisher": "OpenAI"
         },
         {
           "title": "Tool use with Claude",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview",
-          "publisher": "Anthropic",
-          "lastVerified": "2026-09-13"
+          "publisher": "Anthropic"
         },
         {
           "title": "Function calling with the Gemini API",
           "url": "https://ai.google.dev/gemini-api/docs/function-calling",
-          "publisher": "Google",
-          "lastVerified": "2026-09-13"
+          "publisher": "Google"
         }
       ]
     },
