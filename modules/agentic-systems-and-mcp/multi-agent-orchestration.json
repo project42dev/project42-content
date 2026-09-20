@@ -23,50 +23,50 @@
       "paragraphs": [
         "Anthropic's BrowseComp analysis reported that token usage, tool calls, and model choice explained 95% of measured performance variance, with token usage alone explaining 80%. These are scoped measurements from that study, not a universal law or a live evaluation in this lesson. Source: https://www.anthropic.com/engineering/multi-agent-research-system",
         "The same write-up reported approximately four times the tokens for an agent interaction and approximately fifteen times for its multi-agent system. Independent jurisdiction research is a suitable worked example because each worker can finish without waiting for another. Tightly coupled refactoring is a poor fit because workers need shared intermediate state and must merge edits. Compare against a single-agent or best-of-N baseline before paying for parallel capacity. Source: https://www.anthropic.com/engineering/multi-agent-research-system",
-        "MAST reports minimal benchmark gains in some comparisons with single-agent or best-of-N systems. Agent count is therefore not a quality guarantee. Source: https://arxiv.org/abs/2503.13657"
+        "MAST reports minimal benchmark gains in some comparisons with single-agent or best-of-N systems. Agent count is therefore not a quality guarantee. Source: https://arxiv.org/abs/2503.13657",
+        "Ten jurisdiction lookups can run independently. Ten agents editing one shared function cannot safely do so without an explicit merge protocol, revision policy, and verification step."
       ],
-      "callout": "If you cannot name independently completable subtasks, extra agents may add coordination cost without useful capacity.",
-      "workedExample": "Ten jurisdiction lookups can run independently. Ten agents editing one shared function cannot safely do so without an explicit merge protocol, revision policy, and verification step."
+      "callout": "If you cannot name independently completable subtasks, extra agents may add coordination cost without useful capacity."
     },
     {
       "id": "voting-and-agreement",
       "title": "Voting: agreement is a confidence signal, not a verdict",
       "paragraphs": [
         "Self-consistency samples diverse reasoning paths and selects the most frequent answer from a fixed answer set. Wang et al. reported a 17.9 percentage-point GSM8K gain under the paper's evaluated models and conditions. This lab does not reproduce that benchmark. Source: https://arxiv.org/abs/2203.11171",
-        "Agreement is max_votes divided by all valid samples. A strict majority is greater than one half. Ties, invalid outputs, empty answers, duplicate answer-set entries, and non-finite thresholds must be handled explicitly. The lab uses 0.8 as an illustrative policy, not a universal threshold. The paper discusses beginning with 5 to 10 samples, but deployment settings require local evaluation. Source: https://arxiv.org/abs/2203.11171"
+        "Agreement is max_votes divided by all valid samples. A strict majority is greater than one half. Ties, invalid outputs, empty answers, duplicate answer-set entries, and non-finite thresholds must be handled explicitly. The lab uses 0.8 as an illustrative policy, not a universal threshold. The paper discusses beginning with 5 to 10 samples, but deployment settings require local evaluation. Source: https://arxiv.org/abs/2203.11171",
+        "Votes yes=4, no=2, unclear=1 produce agreement 4/7, approximately 0.571, so the illustrative 0.8 policy escalates. Five yes votes can produce agreement 1.0 while an external record says no."
       ],
-      "callout": "A unanimous answer can be unanimously wrong. Agreement routes work; an external check tests correctness.",
-      "workedExample": "Votes yes=4, no=2, unclear=1 produce agreement 4/7, approximately 0.571, so the illustrative 0.8 policy escalates. Five yes votes can produce agreement 1.0 while an external record says no."
+      "callout": "A unanimous answer can be unanimously wrong. Agreement routes work; an external check tests correctness."
     },
     {
       "id": "debate-and-convergence",
       "title": "Debate: agents that read each other can converge on the wrong answer",
       "paragraphs": [
         "Du et al. studied independent answers followed by peer-visible updates over rounds and reported gains in their evaluated settings, including a three-agent, two-round configuration. Debate requires a round cap, per-round timeout, overall timeout, convergence definition, and external verification. Source: https://arxiv.org/abs/2305.14325",
-        "The lab passes previous state and peer state to real asynchronous fixture responders. Convergence requires all position and artifact pairs to match. One trace changes to 42 and passes an external check. Another converges immediately on 41 and fails the same check. A timeout prevents waiting forever, but JavaScript promises cannot be forcibly cancelled by this lab, so no external-cancellation claim is made. Source: https://arxiv.org/abs/2305.14325"
+        "The lab passes previous state and peer state to real asynchronous fixture responders. Convergence requires all position and artifact pairs to match. One trace changes to 42 and passes an external check. Another converges immediately on 41 and fails the same check. A timeout prevents waiting forever, but JavaScript promises cannot be forcibly cancelled by this lab, so no external-cancellation claim is made. Source: https://arxiv.org/abs/2305.14325",
+        "Three agents can agree on the same incorrect artifact. Only an answer key, executable test, authoritative record, or other independent check can expose that error."
       ],
-      "callout": "Convergence is a stopping condition, not a truth condition.",
-      "workedExample": "Three agents can agree on the same incorrect artifact. Only an answer key, executable test, authoritative record, or other independent check can expose that error."
+      "callout": "Convergence is a stopping condition, not a truth condition."
     },
     {
       "id": "orchestrator-worker-joins",
       "title": "Orchestrator-worker joins: make the merge independent of timing",
       "paragraphs": [
         "Parallel branches do not automatically share history or state and may complete in nondeterministic order. A portable join therefore treats each result as an explicit, self-identifying message. The lab uses this general pattern and does not claim ADK compatibility. Source: https://adk.dev/agents/workflow-agents/parallel-agents/",
-        "The join validates trusted nonempty tenant and revision values, unique worker IDs, required IDs that are a subset of configured workers, immutable input, admission budget, per-run deadline, envelope identity, revision, tenant, and evidence. It records failures and sorts valid envelopes by worker ID. Completion is set inclusion, never a raw count. Anthropic describes bounded delegation and the cost of slow or duplicated work. Source: https://www.anthropic.com/engineering/multi-agent-research-system"
+        "The join validates trusted nonempty tenant and revision values, unique worker IDs, required IDs that are a subset of configured workers, immutable input, admission budget, per-run deadline, envelope identity, revision, tenant, and evidence. It records failures and sorts valid envelopes by worker ID. Completion is set inclusion, never a raw count. Anthropic describes bounded delegation and the cost of slow or duplicated work. Source: https://www.anthropic.com/engineering/multi-agent-research-system",
+        "Configure required workers alpha, beta, and gamma plus optional worker delta. If beta returns a revision-mismatched envelope while alpha, gamma, and delta return valid envelopes, there are still three valid results. A count-only policy incorrectly reports complete because 3 equals 3. Identity-set inclusion correctly reports incomplete because beta is absent."
       ],
-      "callout": "Count required identities, not successful envelopes.",
-      "workedExample": "Configure required workers alpha, beta, and gamma plus optional worker delta. If beta returns a revision-mismatched envelope while alpha, gamma, and delta return valid envelopes, there are still three valid results. A count-only policy incorrectly reports complete because 3 equals 3. Identity-set inclusion correctly reports incomplete because beta is absent."
+      "callout": "Count required identities, not successful envelopes."
     },
     {
       "id": "diagnose-with-mast",
       "title": "Diagnose failures by category before adding agents",
       "paragraphs": [
         "MAST describes 14 failure modes in three categories and reports kappa 0.88 inter-annotator agreement over more than 150 traces. Task verification failures include premature termination, missing or incomplete verification, and incorrect verification. Source: https://arxiv.org/abs/2503.13657",
-        "The count-only join is incorrect verification because a check ran but counting envelopes did not establish required identity coverage. The repair is a set-inclusion predicate and a changed-input regression. MAST reports scoped improvements from verification and role specifications in its studied systems, not a guarantee for this lab. Source: https://arxiv.org/abs/2503.13657"
+        "The count-only join is incorrect verification because a check ran but counting envelopes did not establish required identity coverage. The repair is a set-inclusion predicate and a changed-input regression. MAST reports scoped improvements from verification and role specifications in its studied systems, not a guarantee for this lab. Source: https://arxiv.org/abs/2503.13657",
+        "Required alpha, beta, gamma plus valid alpha, gamma, delta is not complete. Adding another result cannot prove beta participated. Replacing delta with epsilon must not change that conclusion."
       ],
-      "callout": "Classify the mechanism that failed, then repair that mechanism.",
-      "workedExample": "Required alpha, beta, gamma plus valid alpha, gamma, delta is not complete. Adding another result cannot prove beta participated. Replacing delta with epsilon must not change that conclusion."
+      "callout": "Classify the mechanism that failed, then repair that mechanism."
     }
   ],
   "activity": {
@@ -261,13 +261,13 @@
         "id": "cue-consensus-capacity-narration-7",
         "kind": "narration",
         "sectionId": "capacity-not-wisdom",
-        "text": "editing one tightly coupled function\ncannot proceed independently without"
+        "text": "editing one tightly coupled function\ncannot proceed independently"
       },
       {
         "id": "cue-consensus-capacity-narration-8",
         "kind": "narration",
         "sectionId": "capacity-not-wisdom",
-        "text": "coordination."
+        "text": "without coordination."
       },
       {
         "id": "cue-consensus-capacity-visual",
@@ -420,13 +420,13 @@
         "id": "cue-consensus-join-narration-6",
         "kind": "narration",
         "sectionId": "orchestrator-worker-joins",
-        "text": "final evidence independent of completion\norder and avoids a hidden shared"
+        "text": "final evidence independent of completion\norder and avoids a hidden"
       },
       {
         "id": "cue-consensus-join-narration-7",
         "kind": "narration",
         "sectionId": "orchestrator-worker-joins",
-        "text": "accumulator."
+        "text": "shared accumulator."
       },
       {
         "id": "cue-consensus-join-visual",
@@ -553,13 +553,13 @@
         "cueId": "cue-consensus-capacity-narration-7",
         "startSeconds": 30,
         "endSeconds": 34,
-        "text": "editing one tightly coupled function\ncannot proceed independently without"
+        "text": "editing one tightly coupled function\ncannot proceed independently"
       },
       {
         "cueId": "cue-consensus-capacity-narration-8",
         "startSeconds": 34,
         "endSeconds": 35,
-        "text": "coordination."
+        "text": "without coordination."
       },
       {
         "cueId": "cue-consensus-voting-narration-1",
@@ -673,13 +673,13 @@
         "cueId": "cue-consensus-join-narration-6",
         "startSeconds": 123,
         "endSeconds": 128,
-        "text": "final evidence independent of completion\norder and avoids a hidden shared"
+        "text": "final evidence independent of completion\norder and avoids a hidden"
       },
       {
         "cueId": "cue-consensus-join-narration-7",
         "startSeconds": 128,
         "endSeconds": 129,
-        "text": "accumulator."
+        "text": "shared accumulator."
       },
       {
         "cueId": "cue-consensus-mast-narration-1",
