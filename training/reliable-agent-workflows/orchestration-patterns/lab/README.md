@@ -1,6 +1,6 @@
 # Reliable orchestration patterns lab
 
-This dependency-free Node.js 22-or-later lab compares seven executable orchestration patterns: direct, sequential, router, manager, handoff, parallel, and evaluator. Trusted deterministic local fixtures make no network requests, call no language model, and do not execute learner-supplied code.
+This dependency-free Node.js 22-or-later lab compares seven executable orchestration patterns: direct, sequential, router, manager, handoff, parallel, and evaluator. The fixtures make no model calls, but your edited graph file executes as regular Node.js code during tests.
 
 ## Start here
 
