@@ -57,6 +57,177 @@
         "Expected evidence includes the selected mode, permission decisions, rules, snapshot state, final Git diff, and test output. Confirm an automatic mode switch did not broaden file or tool access unexpectedly.",
         "If the task crosses scope, stop approvals, preserve the trace, restore from a snapshot or Git checkpoint as appropriate, and retry in a narrower mode."
       ]
+    },
+    {
+      "id": "first-task-brief",
+      "title": "First task: deterministic JSON inventory aggregation",
+      "paragraphs": [
+        "Work in a version-controlled project directory named `kilo-inventory-lab`. Implement `aggregate_inventory(items)` in `inventory.py`. Each item must be a mapping with a non-empty string `sku` and an integer `quantity`. Boolean values are not valid integers for this contract, and negative quantities are invalid.",
+        "The function must sum duplicate SKUs, return a new list sorted by SKU, and never mutate the input list or any input mapping. Tests, Git metadata, unrelated files, secrets, external directories, and network access are outside the requested edit scope. Offline tests verify Python behavior only. They do not prove that a model call occurred or identify the selected model."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Task contract",
+        "code": "Input item: {\"sku\": string, \"quantity\": non-negative integer}\nOutput: [{\"sku\": string, \"quantity\": integer}, ...]\nRules:\n1. Reject missing or malformed fields.\n2. Reject bool quantities and negative quantities.\n3. Sum duplicate SKUs.\n4. Sort output by SKU ascending.\n5. Do not mutate items or any item mapping."
+      }
+    },
+    {
+      "id": "safe-cross-platform-setup",
+      "title": "Create the lab without overwriting anything",
+      "paragraphs": [
+        "From the new project directory, save the following as `setup_lab.py`, then run it with Python 3. The script preflights every destination before writing any destination. If any destination already exists, it refuses to write anything. It uses only the Python standard library and writes UTF-8 text with actual newline characters. No package installation is needed.",
+        "The JSON fixture is the input used by the human verification command. The CSV fixture is ancillary and is not read by `aggregate_inventory`; it is included only as a second-format inspection exercise."
+      ],
+      "code": {
+        "language": "python",
+        "label": "setup_lab.py",
+        "code": "from pathlib import Path\nimport json\n\nFILES = {\n    Path(\"inventory.py\"): '''import json\n\n\ndef aggregate_inventory(items):\n    totals = {}\n    for item in items:\n        sku = item.pop(\"sku\")\n        quantity = item.pop(\"quantity\")\n        totals[sku] = totals.get(sku, 0) + quantity\n    return [{\"sku\": sku, \"quantity\": quantity} for sku, quantity in totals.items()]\n''',\n    Path(\"test_inventory.py\"): '''import copy\nimport unittest\n\nfrom inventory import aggregate_inventory\n\n\nclass InventoryTests(unittest.TestCase):\n    def test_sums_duplicates_and_sorts(self):\n        items = [\n            {\"sku\": \"b\", \"quantity\": 2},\n            {\"sku\": \"a\", \"quantity\": 3},\n            {\"sku\": \"a\", \"quantity\": 2},\n        ]\n        self.assertEqual(\n            aggregate_inventory(items),\n            [\n                {\"sku\": \"a\", \"quantity\": 5},\n                {\"sku\": \"b\", \"quantity\": 2},\n            ],\n        )\n\n    def test_does_not_mutate_input(self):\n        items = [\n            {\"sku\": \"b\", \"quantity\": 2},\n            {\"sku\": \"a\", \"quantity\": 3},\n        ]\n        before = copy.deepcopy(items)\n        aggregate_inventory(items)\n        self.assertEqual(items, before)\n\n    def test_rejects_bool_and_negative_quantities(self):\n        for bad in (True, False, -1):\n            with self.subTest(quantity=bad):\n                with self.assertRaises(ValueError):\n                    aggregate_inventory([{\"sku\": \"x\", \"quantity\": bad}])\n\n    def test_rejects_non_integer_quantity(self):\n        with self.assertRaises(ValueError):\n            aggregate_inventory([{\"sku\": \"x\", \"quantity\": 1.5}])\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n''',\n    Path(\"sample_inventory.json\"): json.dumps([\n        {\"sku\": \"b\", \"quantity\": 2},\n        {\"sku\": \"a\", \"quantity\": 3},\n        {\"sku\": \"a\", \"quantity\": 2},\n    ], indent=2) + \"\\n\",\n    Path(\"sample_inventory.csv\"): \"sku,quantity\\nb,2\\na,3\\na,2\\n\",\n}\n\nfor destination in FILES:\n    if destination.exists():\n        raise SystemExit(f\"refusing to overwrite existing destination: {destination}\")\n\nfor destination, content in FILES.items():\n    destination.parent.mkdir(parents=True, exist_ok=True)\n    destination.write_text(content, encoding=\"utf-8\", newline=\"\")\n\nprint(\"created:\")\nfor destination in FILES:\n    print(f\"  {destination}\")\n"
+      }
+    },
+    {
+      "id": "kilo-cli-provider-and-policy",
+      "title": "Configure Kilo CLI, Mistral, and scoped permissions",
+      "paragraphs": [
+        "From the project directory, run `kilo --version`. For Kilo CLI 1.0+, run `kilo` separately to start the TUI. In the TUI, use `/connect` to configure an approved provider, `/models` to select an actually available model, `/agents` to switch agents, `/about` to inspect version and configuration paths, and `/diff` to compare changes. Record the exact version and model displayed by the learner's client. Those live values are UNKNOWN until observed. Source: https://kilo.ai/docs/code-with-ai/platforms/cli",
+        "Mistral is one supported provider, not the only valid choice. A Codestral key belongs with `codestral.mistral.ai`, while a La Plateforme key belongs with `api.mistral.ai`; do not interchange them. Enter a key only through the approved provider flow. Never place it in source, a project configuration file, the prompt, test output, or Git. Repository project environment references are ignored, so do not rely on them to supply a provider secret. The documentation does not guarantee any model's availability or pricing. Source: https://kilo.ai/docs/ai-providers/mistral and https://kilo.ai/docs/code-with-ai/platforms/cli",
+        "Project `kilo.jsonc` overrides the global configuration. Permissions use allow, ask, and deny, with the last matching pattern winning, so each broad rule appears before its exceptions. The read catchall requires reviewed approval for necessary lab reads, followed by explicit denials for root and nested sensitive names. The edit catchall denies every path, then allows only `inventory.py`, followed by the sensitive-name denials. A whole-value pattern such as `**/.env` contains a slash and therefore does not match root `.env`; root and nested forms are both listed. Wildcard matching is anchored to worktree-relative paths, normalizes backslashes, and uses the last matching rule. Source: https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/util/wildcard.ts",
+        "These rules do not discover every possible secret, prove installed-runtime enforcement, or create an operating-system sandbox for processes or network activity. Keep auto-approve disabled, review every requested read, and stop on an unexpected path. `external_directory` does not restrict the underlying read or edit operations by itself, so it remains denied alongside shell, task, and network tools. Source: https://kilo.ai/docs/code-with-ai/platforms/cli"
+      ],
+      "code": {
+        "language": "json",
+        "label": "kilo.jsonc",
+        "code": "{\n  \"permission\": {\n    \"*\": \"ask\",\n    \"edit\": {\n      \"*\": \"deny\",\n      \"inventory.py\": \"allow\",\n      \".env\": \"deny\",\n      \".env.*\": \"deny\",\n      \"**/.env\": \"deny\",\n      \"**/.env.*\": \"deny\",\n      \"private.pem\": \"deny\",\n      \"**/private.pem\": \"deny\",\n      \"secrets.txt\": \"deny\",\n      \"**/secrets.txt\": \"deny\",\n      \"*secret*\": \"deny\",\n      \"**/*secret*\": \"deny\",\n      \"*credential*\": \"deny\",\n      \"**/*credential*\": \"deny\",\n      \"*token*\": \"deny\",\n      \"**/*token*\": \"deny\"\n    },\n    \"read\": {\n      \"*\": \"ask\",\n      \".env\": \"deny\",\n      \".env.*\": \"deny\",\n      \"**/.env\": \"deny\",\n      \"**/.env.*\": \"deny\",\n      \"private.pem\": \"deny\",\n      \"**/private.pem\": \"deny\",\n      \"secrets.txt\": \"deny\",\n      \"**/secrets.txt\": \"deny\",\n      \"*secret*\": \"deny\",\n      \"**/*secret*\": \"deny\",\n      \"*credential*\": \"deny\",\n      \"**/*credential*\": \"deny\",\n      \"*token*\": \"deny\",\n      \"**/*token*\": \"deny\"\n    },\n    \"bash\": \"deny\",\n    \"task\": \"deny\",\n    \"webfetch\": \"deny\",\n    \"websearch\": \"deny\",\n    \"external_directory\": \"deny\"\n  }\n}"
+      }
+    },
+    {
+      "id": "custom-primary-agent",
+      "title": "Use a narrow custom primary agent",
+      "paragraphs": [
+        "Create `.kilo/agents/inventory-lab.md` before launching the agent. Current custom agents support YAML frontmatter, `mode: primary`, and permission overrides. Configuration merges from global to project to directory definitions and then environment overrides. Last matching permission wins, so broad defaults must precede specific exceptions. Source: https://kilo.ai/docs/customize/custom-modes",
+        "This agent may edit only `inventory.py`. Necessary nonsensitive lab reads require individual reviewed approval. Root and nested `.env` and `.env.local` files, `private.pem`, `secrets.txt`, and names containing `secret`, `credential`, or `token` are denied for both reading and editing. These name patterns are a boundary for this lab, not a claim that every secret can be identified by its filename.",
+        "The agent is primary, not a security sandbox. Natural-language instructions and configured permissions do not establish process or network isolation. Keep auto-approve disabled, retain the project policy, inspect actual changed paths, and have the human run all tests outside the agent."
+      ],
+      "code": {
+        "language": "yaml",
+        "label": ".kilo/agents/inventory-lab.md",
+        "code": "---\ndescription: Bounded inventory implementation agent\nmode: primary\npermission:\n  edit:\n    \"*\": deny\n    inventory.py: allow\n    \".env\": deny\n    \".env.*\": deny\n    \"**/.env\": deny\n    \"**/.env.*\": deny\n    private.pem: deny\n    \"**/private.pem\": deny\n    secrets.txt: deny\n    \"**/secrets.txt\": deny\n    \"*secret*\": deny\n    \"**/*secret*\": deny\n    \"*credential*\": deny\n    \"**/*credential*\": deny\n    \"*token*\": deny\n    \"**/*token*\": deny\n  read:\n    \"*\": ask\n    \".env\": deny\n    \".env.*\": deny\n    \"**/.env\": deny\n    \"**/.env.*\": deny\n    private.pem: deny\n    \"**/private.pem\": deny\n    secrets.txt: deny\n    \"**/secrets.txt\": deny\n    \"*secret*\": deny\n    \"**/*secret*\": deny\n    \"*credential*\": deny\n    \"**/*credential*\": deny\n    \"*token*\": deny\n    \"**/*token*\": deny\n  bash: deny\n  task: deny\n  webfetch: deny\n  websearch: deny\n  external_directory: deny\n---\nYou may edit only inventory.py.\nDo not edit, run, or weaken tests.\nDo not touch fixtures, configuration, Git metadata, secrets, or files outside this project.\nDo not run commands, use the shell, access the web, inspect secrets, or call subagents.\nImplement the stated aggregate_inventory contract.\nStop and report if the request crosses these boundaries.\n"
+      }
+    },
+    {
+      "id": "launch-and-baseline",
+      "title": "Launch Kilo and establish the baseline",
+      "paragraphs": [
+        "Run the setup, version, and baseline commands from the directory containing `setup_lab.py`. Setup must precede the baseline. `kilo --version` reports the client version; it does not launch the interactive session. The Windows setup alternative is `py -3 setup_lab.py`, and the Windows baseline alternative is `py -3 -m unittest -v test_inventory.py`.",
+        "After setup, version capture, and the human-run baseline are complete, launch the interactive client separately by running `kilo`. Inside the TUI, use `/connect` to complete the approved provider flow, `/models` to select and record an actually available model, and `/agents` to select `inventory-lab`. Slash commands belong in the TUI, not in a shell command block. Source: https://kilo.ai/docs/code-with-ai/platforms/cli",
+        "The baseline contains four original tests and is expected to fail against the deliberately faulty implementation. This is an expected static result, not a claim that the commands were run for the learner. Actual version output, provider connection, model selection, approvals, and test output remain UNKNOWN until the learner records them."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Setup, launch, and baseline commands",
+        "code": "cd /path/to/kilo-inventory-lab\npython3 setup_lab.py\nkilo --version\npython3 -m unittest -v test_inventory.py\n\n# Windows alternatives for setup and baseline:\n# py -3 setup_lab.py\n# kilo --version\n# py -3 -m unittest -v test_inventory.py"
+      }
+    },
+    {
+      "id": "concrete-failure-and-recovery",
+      "title": "Diagnose the concrete failure and recover narrowly",
+      "paragraphs": [
+        "Python's default unittest loader sorts test method names, so this file runs `test_does_not_mutate_input` before `test_sums_duplicates_and_sorts`. Do not describe the sorting assertion as the first observed failure. Source: https://docs.python.org/3/library/unittest.html",
+        "Each named test has a separate cause. `test_does_not_mutate_input` fails because `pop` removes `sku` and `quantity` from caller-owned mappings. `test_rejects_bool_and_negative_quantities` fails because the baseline accepts `True`, `False`, and `-1` instead of raising `ValueError`. `test_rejects_non_integer_quantity` fails because it accepts `1.5` instead of raising `ValueError`. `test_sums_duplicates_and_sorts` fails because the returned list follows first-seen dictionary insertion order, `b` then `a`, rather than the required sorted order, `a` then `b`. These are expected causes derived from the supplied code and tests, not fabricated live Kilo output.",
+        "The scoped repair is the existing corrected `inventory.py` reference: validate each record, read fields without mutation, aggregate duplicate SKUs, and construct the result in sorted SKU order. Do not edit or weaken either test file, fixtures, setup, configuration, Git metadata, secret-bearing paths, or anything outside the project. After the first task is independently verified, the separate reservations task changes the input and behavior while retaining the original function and all four original tests.",
+        "If an agent touches an out-of-scope path, stop it before approving more work. Inspect `git diff --stat`, `git diff --name-only`, and the complete diff. Do not use `git reset --hard`, `git clean`, or an unreviewed broad restore. Restore only each reviewed out-of-scope file from an authoritative Git checkpoint, or manually reverse that specific change. Then confirm that only `inventory.py` remains changed and retry the bounded prompt."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Fictional evidence record, explicitly not observed",
+        "code": "EVIDENCE RECORD: FICTIONAL EXAMPLE, NOT OBSERVED LIVE\nDate: UNKNOWN\nClient version from kilo --version: UNKNOWN\nProvider connected through /connect: UNKNOWN\nExact model shown by /models: UNKNOWN\nHuman approvals observed: UNKNOWN\nBaseline command: python3 -m unittest -v test_inventory.py\nExpected baseline: 4 tests fail for separate mutation, validation, and sorting causes\nExpected default order begins with: test_does_not_mutate_input\nAgent changed paths: UNKNOWN until inspected\nHuman verification after review: UNKNOWN\n"
+      }
+    },
+    {
+      "id": "narrow-agent-prompt",
+      "title": "Give only the bounded source prompt",
+      "paragraphs": [
+        "After selecting the custom primary agent and recording the model actually shown by `/models`, send this prompt. The prompt requests only the first-task source change and does not ask the agent to run tests or edit tests."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Narrow TUI prompt",
+        "code": "Inspect inventory.py and the stated contract. Edit only inventory.py to satisfy the existing test_inventory.py contract: validate records, reject bool and negative quantities, sum duplicate SKUs, sort by SKU, and do not mutate inputs. Do not edit, run, or weaken tests. Do not touch setup files, fixtures, configuration, Git metadata, secrets, or files outside this project. Stop if the request needs any other path."
+      }
+    },
+    {
+      "id": "corrected-reference",
+      "title": "Complete corrected first-task reference",
+      "paragraphs": [
+        "The following complete implementation is the expected first-task answer. It validates records before accumulation, reads values without mutation, and constructs sorted output. It does not read or write files."
+      ],
+      "code": {
+        "language": "python",
+        "label": "inventory.py corrected reference",
+        "code": "def aggregate_inventory(items):\n    totals = {}\n    for index, item in enumerate(items):\n        if not isinstance(item, dict):\n            raise ValueError(f\"item {index} must be an object\")\n        if not isinstance(item.get(\"sku\"), str) or not item[\"sku\"]:\n            raise ValueError(f\"item {index} has an invalid sku\")\n        quantity = item.get(\"quantity\")\n        if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity < 0:\n            raise ValueError(f\"item {index} has an invalid quantity\")\n        sku = item[\"sku\"]\n        totals[sku] = totals.get(sku, 0) + quantity\n    return [\n        {\"sku\": sku, \"quantity\": totals[sku]}\n        for sku in sorted(totals)\n    ]\n"
+      }
+    },
+    {
+      "id": "fixture-load-and-verification",
+      "title": "Load the JSON fixture and verify the corrected result",
+      "paragraphs": [
+        "After reviewing the proposed source diff, the human must run the unit tests and then load the generated JSON fixture into `aggregate_inventory`. These commands verify that setup generated actual JSON and not a literal backslash followed by `n`. The CSV is ancillary and is not used by this function.",
+        "The expected printed Python value is `[{'sku': 'a', 'quantity': 5}, {'sku': 'b', 'quantity': 2}]`. Python's representation uses single quotes even though the input file is JSON."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Human verification commands",
+        "code": "cd /path/to/kilo-inventory-lab\npython3 -m unittest -v test_inventory.py\npython3 -c 'import json; from inventory import aggregate_inventory; data=json.load(open(\"sample_inventory.json\", encoding=\"utf-8\")); print(aggregate_inventory(data))'\ngit diff -- inventory.py test_inventory.py setup_lab.py sample_inventory.json sample_inventory.csv kilo.jsonc\n# Windows alternative for the two Python commands:\n# py -3 -m unittest -v test_inventory.py\n# py -3 -c \"import json; from inventory import aggregate_inventory; data=json.load(open('sample_inventory.json', encoding='utf-8')); print(aggregate_inventory(data))\""
+      }
+    },
+    {
+      "id": "independent-changed-input",
+      "title": "Independent task: reservations and availability",
+      "paragraphs": [
+        "Only after independently verifying the first task, create `test_inventory_reservations.py` with the complete tests below. This materially changes the requirement. Add `aggregate_available(inventory, reservations)` to `inventory.py` while preserving `aggregate_inventory` and `test_inventory.py`. Inventory quantities are stock. Reservation quantities reduce available stock. Duplicate SKUs in either input are summed. Every inventory SKU appears in sorted order. Reject malformed records, boolean or negative quantities, unknown reservation SKUs, and reservations greater than stock. Neither input may be mutated.",
+        "Run the new test file separately before looking at the answer key. Do not modify the original test file to make this task pass."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_inventory_reservations.py complete independent test",
+        "code": "import copy\nimport unittest\n\nfrom inventory import aggregate_available\n\n\nclass ReservationTests(unittest.TestCase):\n    def test_sums_and_computes_available_without_mutation(self):\n        inventory = [\n            {\"sku\": \"b\", \"quantity\": 5},\n            {\"sku\": \"a\", \"quantity\": 8},\n            {\"sku\": \"a\", \"quantity\": 2},\n        ]\n        reservations = [\n            {\"sku\": \"b\", \"quantity\": 2},\n            {\"sku\": \"a\", \"quantity\": 4},\n            {\"sku\": \"a\", \"quantity\": 1},\n        ]\n        inventory_before = copy.deepcopy(inventory)\n        reservations_before = copy.deepcopy(reservations)\n        self.assertEqual(\n            aggregate_available(inventory, reservations),\n            [\n                {\"sku\": \"a\", \"available\": 5},\n                {\"sku\": \"b\", \"available\": 3},\n            ],\n        )\n        self.assertEqual(inventory, inventory_before)\n        self.assertEqual(reservations, reservations_before)\n\n    def test_zero_reservation_is_available(self):\n        self.assertEqual(\n            aggregate_available([{\"sku\": \"x\", \"quantity\": 2}], []),\n            [{\"sku\": \"x\", \"available\": 2}],\n        )\n\n    def test_rejects_unknown_or_excess_reservation(self):\n        with self.assertRaises(ValueError):\n            aggregate_available(\n                [{\"sku\": \"x\", \"quantity\": 2}],\n                [{\"sku\": \"y\", \"quantity\": 1}],\n            )\n        with self.assertRaises(ValueError):\n            aggregate_available(\n                [{\"sku\": \"x\", \"quantity\": 2}],\n                [{\"sku\": \"x\", \"quantity\": 3}],\n            )\n\n    def test_rejects_bool_and_negative_quantities(self):\n        with self.assertRaises(ValueError):\n            aggregate_available([{\"sku\": \"x\", \"quantity\": True}], [])\n        with self.assertRaises(ValueError):\n            aggregate_available(\n                [{\"sku\": \"x\", \"quantity\": 2}],\n                [{\"sku\": \"x\", \"quantity\": -1}],\n            )\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "independent-answer-key",
+      "title": "Separate runnable answer key for the changed requirement",
+      "paragraphs": [
+        "This complete function is the answer key for the independent task. Append it to `inventory.py` without replacing `aggregate_inventory`. The original four tests and the four new tests remain separate and unchanged."
+      ],
+      "code": {
+        "language": "python",
+        "label": "Append to inventory.py",
+        "code": "def aggregate_available(inventory, reservations):\n    stock = {}\n    reserved = {}\n\n    def add(records, target, label):\n        for index, record in enumerate(records):\n            if not isinstance(record, dict):\n                raise ValueError(f\"{label} item {index} must be an object\")\n            sku = record.get(\"sku\")\n            quantity = record.get(\"quantity\")\n            if not isinstance(sku, str) or not sku:\n                raise ValueError(f\"{label} item {index} has an invalid sku\")\n            if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity < 0:\n                raise ValueError(f\"{label} item {index} has an invalid quantity\")\n            target[sku] = target.get(sku, 0) + quantity\n\n    add(inventory, stock, \"inventory\")\n    add(reservations, reserved, \"reservation\")\n    for sku, quantity in reserved.items():\n        if sku not in stock or quantity > stock[sku]:\n            raise ValueError(f\"reservation exceeds stock for {sku}\")\n    return [\n        {\"sku\": sku, \"available\": stock[sku] - reserved.get(sku, 0)}\n        for sku in sorted(stock)\n    ]\n"
+      }
+    },
+    {
+      "id": "causal-feedback-and-snapshots",
+      "title": "Run both suites and provide causal feedback",
+      "paragraphs": [
+        "For the corrected first task, the expected result is `4 tests ... OK`, with all four original tests unchanged and the reviewed source diff limited to `inventory.py`. The setup script now writes `sample_inventory.json` using `json.dumps(..., indent=2)` followed by an actual newline, so the fixture is valid JSON. The expected fixture result is `[{'sku': 'a', 'quantity': 5}, {'sku': 'b', 'quantity': 2}]`. These are expected results from the supplied implementation and fixture, not claims of a live run.",
+        "For the independent changed-input task, append the supplied `aggregate_available` answer without replacing `aggregate_inventory`, retain both test files unchanged, and run `python3 -m unittest -v test_inventory.py test_inventory_reservations.py`. The expected result is `8 tests ... OK`: four original tests plus four independent reservation tests. Inspect the diff and run both suites again. Actual learner output remains UNKNOWN until recorded.",
+        "Causal feedback for the first task is specific: avoiding `pop` preserves caller-owned mappings; explicit checks reject booleans, negative values, and non-integer quantities; accumulation combines duplicate SKUs; and sorting the keys produces deterministic SKU order. Causal feedback for the independent task is also separate: independently aggregating stock and reservations handles duplicates, validation rejects malformed quantities and unknown or excessive reservations, and subtraction computes availability without mutating either changed input.",
+        "Snapshots are enabled by default and stored in separate Git data outside the project, leaving the project's real Git history unchanged. A UI revert corresponds to a user-message checkpoint, not an arbitrary file or execution step. If snapshots are disabled or unavailable, only the conversation may rewind. Ignored files are excluded, and unsaved, manual, or external changes are not guaranteed to be protected. Stop the agent, inspect actual paths, and use authoritative project Git for reviewed recovery. Do not claim that a snapshot reverses network, remote, or other external effects. Source: https://kilo.ai/docs/code-with-ai/features/checkpoints"
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Final independent verification",
+        "code": "cd /path/to/kilo-inventory-lab\npython3 -m unittest -v test_inventory.py test_inventory_reservations.py\npython3 -c 'import json; from inventory import aggregate_inventory; data=json.load(open(\"sample_inventory.json\", encoding=\"utf-8\")); print(aggregate_inventory(data))'\ngit diff -- inventory.py test_inventory.py test_inventory_reservations.py\npython3 -m unittest -v test_inventory.py test_inventory_reservations.py\n\n# Windows alternatives for the Python commands:\n# py -3 -m unittest -v test_inventory.py test_inventory_reservations.py\n# py -3 -c \"import json; from inventory import aggregate_inventory; data=json.load(open('sample_inventory.json', encoding='utf-8')); print(aggregate_inventory(data))\"\n# py -3 -m unittest -v test_inventory.py test_inventory_reservations.py"
+      }
+    },
+    {
+      "id": "official-source-boundaries",
+      "title": "Official workflow boundaries and unknown live facts",
+      "paragraphs": [
+        "Kilo CLI documentation states that CLI 1.0+ uses `kilo --version`, starts a TUI, and provides `/connect`, `/models`, `/agents`, `/about`, and `/diff`. It also states that project `kilo.jsonc` overrides the global configuration and that permission matching uses allow, ask, and deny with the last matching pattern winning. Source: https://kilo.ai/docs/code-with-ai/platforms/cli",
+        "Kilo's Mistral documentation distinguishes the Codestral endpoint `codestral.mistral.ai` from the La Plateforme endpoint `api.mistral.ai` and instructs users to select an actually available model. It does not establish an exact model ID or guarantee availability or pricing. Source: https://kilo.ai/docs/ai-providers/mistral",
+        "Current custom-agent documentation supports `.kilo/agents/name.md` with YAML frontmatter, including `mode: primary` and permission overrides. Source: https://kilo.ai/docs/customize/custom-modes",
+        "The following facts remain UNKNOWN unless observed and recorded from the actual learner client: exact Kilo version, provider approval, exact Mistral model identity, actual permission decisions, actual enforcement behavior, agent response, changed paths, and test execution results. Offline tests do not establish that a model call occurred. No fabricated UI, model identity, live outcome, or hidden answer-reveal control is claimed. The official sources above were checked on 2026-09-20."
+      ]
     }
   ],
   "sources": [
@@ -77,6 +248,18 @@
       "url": "https://kilo.ai/docs/code-with-ai/features/checkpoints",
       "publisher": "Kilo Code",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Kilo Mistral provider",
+      "url": "https://kilo.ai/docs/ai-providers/mistral",
+      "publisher": "Kilo Code",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Kilo custom agents",
+      "url": "https://kilo.ai/docs/customize/custom-modes",
+      "publisher": "Kilo Code",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
