@@ -56,6 +56,146 @@
         "Expected evidence includes the approved plan, action history, checkpoint or file comparisons, final Git diff, and verification output. Confirm the project folder and provider configuration were the intended ones.",
         "For recovery, stop new approvals, preserve the failing output, compare the checkpoint with Git, and restore only the affected scope before retrying."
       ]
+    },
+    {
+      "id": "supplement-configure",
+      "title": "Configure Cline without inventing a model identity",
+      "paragraphs": [
+        "Open the project folder in your editor, open the Cline panel, and use the settings gear. For the primary configured-provider path, select DeepSeek in the API Provider dropdown, enter the key in the DeepSeek API Key field, and choose a model from the Model dropdown. This path is documented at https://docs.cline.bot/provider-config/deepseek. That page does not establish a fixed list of model IDs, so record the exact model displayed by your installation instead of copying a model name from this lesson.",
+        "Keep the key outside files, shell commands, screenshots, and Cline conversations. In a private lab note, record the installed editor and Cline extension versions, provider, exact displayed model identity, and observation date. Provider settings select a model route. Local Ollama or LM Studio require a running local runtime, as described at https://docs.cline.bot/getting-started/authorizing-with-cline. Model calls may use network access and credits. The Python tests in this lab are offline and make no model calls.",
+        "Cline interface labels are version-sensitive. The IDE and checkpoint documentation use different labels for some restore actions. Verify the wording shown by the installed extension before choosing one. Plan mode clarifies an approach, but it is not a complete sandbox for external reads or side effects."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Configuration record, with secret excluded",
+        "code": "Editor: [exact installed name and version]\nCline extension: [exact installed version]\nProvider: DeepSeek\nModel: [exact value displayed by this installation]\nObserved: [YYYY-MM-DD]\nAPI key captured: no"
+      }
+    },
+    {
+      "id": "supplement-setup",
+      "title": "Create a safe, runnable lab workspace",
+      "paragraphs": [
+        "Run this setup script from a new lab directory or a version-controlled directory containing unrelated work. It creates only dedup.py and tests/test_dedup.py, and stops before writing if either path already exists. It does not install packages, delete files, reset Git, or overwrite user files. The deliberately faulty source establishes a meaningful baseline. Python's list containment operation uses equality, which is the basis of the reference implementation: https://docs.python.org/3/library/stdtypes.html#list.__contains__."
+      ],
+      "code": {
+        "language": "python",
+        "label": "setup_lab.py",
+        "code": "from pathlib import Path\nimport sys\n\nfiles = {\n    Path(\"dedup.py\"): '''def deduplicate(items):\n    \"\"\"Return one copy of each item, in first-seen order.\"\"\"\n    return sorted(set(items))\n''',\n    Path(\"tests\") / \"test_dedup.py\": '''import unittest\nfrom dedup import deduplicate\n\n\nclass DeduplicateTests(unittest.TestCase):\n    def test_keeps_first_occurrence_order(self):\n        self.assertEqual(\n            deduplicate([\"b\", \"a\", \"b\", \"c\", \"a\"]),\n            [\"b\", \"a\", \"c\"],\n        )\n\n    def test_accepts_an_iterable_and_preserves_values(self):\n        values = (value for value in [3, 1, 3, 2])\n        self.assertEqual(deduplicate(values), [3, 1, 2])\n\n    def test_supports_unhashable_values(self):\n        values = [[1], [2], [1]]\n        self.assertEqual(deduplicate(values), [[1], [2]])\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n''',\n}\n\nexisting = [str(path) for path in files if path.exists()]\nif existing:\n    print(\"Refusing to overwrite existing paths:\")\n    print(\"\\\\n\".join(existing))\n    sys.exit(2)\n\nfor path, contents in files.items():\n    path.parent.mkdir(parents=True, exist_ok=True)\n    path.write_text(contents, encoding=\"utf-8\")\n\nprint(\"Created dedup.py and tests/test_dedup.py\")\n"
+      }
+    },
+    {
+      "id": "supplement-baseline",
+      "title": "Establish the baseline before asking Cline to edit",
+      "paragraphs": [
+        "Run the setup script with Python 3, then run the offline suite from the project root. The expected authored baseline is three test failures or errors: the faulty source sorts hashable values instead of preserving first-seen order and raises TypeError for the unhashable-list case. Exact traceback wording varies by Python version. Preserve the complete output you actually observe. Do not describe this expected result as a live agent or provider result.",
+        "For a new Git repository, establish a baseline without staging unrelated work. A typical sequence is shown below. In an existing repository, inspect status first and follow local policy. Record the baseline commit or another known revision. The tests are protected and must not be edited."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Baseline commands",
+        "code": "python setup_lab.py\npython -m unittest discover -s tests -v\ngit init\ngit add setup_lab.py dedup.py tests/test_dedup.py\ngit commit -m \"baseline stable dedup lab\"\ngit status --short\ngit diff -- dedup.py tests/test_dedup.py"
+      }
+    },
+    {
+      "id": "supplement-plan",
+      "title": "Use a bounded Plan to Act transition",
+      "paragraphs": [
+        "Open the project folder in Cline, paste the plan request, and leave the Plan/Act toggle in Plan until the proposed algorithm, file scope, and verification are specific. Cline documents opening a project, entering a task, using the Plan/Act toggle, reviewing proposed changes and approvals, and comparing actual files at https://docs.cline.bot/usage/ide. When the plan is acceptable, switch to Act deliberately and approve only the requested inspection, source edit, and offline test command.",
+        "Reject requests to edit tests, install packages, access credentials, change Git files, modify unrelated paths, or run destructive commands. A command such as rm -rf ., git reset --hard, git clean, or an equivalent workspace-wide reset is outside this exercise. Plan mode is a planning boundary, not proof that all reads and effects are sandboxed."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Plan prompt, then Act task",
+        "code": "Plan prompt:\nImplement the local stable de-duplication task. First inspect dedup.py and tests/test_dedup.py. Explain the smallest change that makes every existing test pass. The only file allowed to change is dedup.py. Do not install packages, access credentials, edit tests, edit Git files, or touch unrelated paths. In Plan mode, report the proposed algorithm, risks, and verification commands. Do not run mutating commands.\n\nAct task after reviewing the plan:\nApply only the planned change to dedup.py. Preserve the public function name deduplicate and its docstring. Do not change tests or any other file. Run python -m unittest discover -s tests -v only after showing the proposed source change. Stop and ask if an additional file, permission, secret, network request, or destructive command is requested. Show the final dedup.py and the test output."
+      }
+    },
+    {
+      "id": "supplement-first-task",
+      "title": "The first task: stable de-duplication",
+      "paragraphs": [
+        "The concrete requirement is that deduplicate(items) accepts any iterable, returns a list, keeps the first occurrence of each value, preserves first-seen order, compares values using normal Python equality, supports unhashable values such as lists, does not sort, and does not mutate the input iterable. The task is limited to dedup.py. A result list and equality checks satisfy these requirements without package installation. The protected tests are the executable specification."
+      ],
+      "code": {
+        "language": "python",
+        "label": "Expected reviewed dedup.py after the first task",
+        "code": "def deduplicate(items):\n    \"\"\"Return one copy of each item, in first-seen order.\"\"\"\n    result = []\n    for item in items:\n        if item not in result:\n            result.append(item)\n    return result\n"
+      }
+    },
+    {
+      "id": "supplement-verify",
+      "title": "Review the first result independently",
+      "paragraphs": [
+        "Inspect the actual file, not only Cline's description. Run the protected suite and inspect the real Git diff. The expected authored reference result is three passing tests, unchanged tests/test_dedup.py, and a one-file dedup.py diff replacing sorted(set(items)) with first-seen equality checks. This is a reference expectation, not a claim that an agent, client, or provider executed it.",
+        "If an alternative passes, check generators, unhashable values, first-object preservation, order, and no test changes. A passing test command does not authorize commit, merge, deployment, or another external action.",
+        "Cline checkpoints use a separate shadow Git repository and provide file comparisons. Compare the checkpoint view with the real repository diff. Checkpoint behavior and restore choices are documented at https://docs.cline.bot/core-workflows/checkpoints. The real Git history and independent review remain authoritative."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Independent first-task verification",
+        "code": "python -m unittest discover -s tests -v\ngit diff -- dedup.py\ngit diff -- tests/test_dedup.py\ngit status --short"
+      }
+    },
+    {
+      "id": "supplement-failure-recovery",
+      "title": "Diagnose a failure and recover only the affected scope",
+      "paragraphs": [
+        "A configuration failure may be an unavailable provider, rejected credential, unavailable selected model, or insufficient permission. Stop approving active Cline actions, preserve the error text without exposing the key, and verify the installed provider and exact model identity in the settings UI. Do not invent a model ID or put a key in a transcript. The documented DeepSeek path is settings gear, API Provider set to DeepSeek, DeepSeek API Key field, and Model dropdown: https://docs.cline.bot/provider-config/deepseek.",
+        "For a code regression, stop the active tool first. Inspect the complete current workspace diff and the checkpoint contents, including unrelated edits, before selecting recovery. A checkpoint file restoration is a workspace snapshot operation, not a scoped single-file operation. Never restore a snapshot over unrelated edits. If inspection proves dedup.py alone is wrong, use a non-destructive, policy-approved method to restore only dedup.py from the known baseline, such as writing the baseline version back from a reviewed Git comparison. Do not assume a Cline restore is file-scoped. If the conversation is wrong but files are correct, do not restore files merely to change conversation state.",
+        "Cline's documented restore choices differ in which conversation and files they preserve, and labels can differ between pages and installed versions. Verify the installed label and contents before acting. Checkpoint restoration cannot reverse remote requests, provider charges, messages, or other external effects. After a scoped recovery, rerun protected tests and inspect the real diff. Never use rm, git reset --hard, git clean, or an equivalent destructive shortcut."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Non-destructive diagnostic commands",
+        "code": "python -m unittest discover -s tests -v\ngit diff -- dedup.py\ngit diff -- tests/test_dedup.py\ngit status --short"
+      }
+    },
+    {
+      "id": "supplement-independent",
+      "title": "Independent changed-input task before feedback",
+      "paragraphs": [
+        "Now perform a separate task before reading the feedback section. The requirement materially changes the comparison rule while preserving displayed values: extend deduplicate with an optional keyword-only key callable. When key is supplied, two items are duplicates when key(item1) and key(item2) compare equal. Return the original first-seen items, not their keys. With no key, preserve the original behavior. Only dedup.py may change. Keep setup_lab.py and both test files protected.",
+        "Create the following exact file as tests/test_keyed.py before starting the independent task. This file is protected and must not be edited by Cline. Together with the three original tests, discovery must run six tests. The third test deliberately uses unhashable derived keys."
+      ],
+      "code": {
+        "language": "python",
+        "label": "tests/test_keyed.py, protected independent input",
+        "code": "import unittest\nfrom dedup import deduplicate\n\n\nclass KeyedDeduplicateTests(unittest.TestCase):\n    def test_casefold_key_preserves_first_displayed_value(self):\n        self.assertEqual(\n            deduplicate([\"A\", \"a\", \"B\", \"A\"], key=str.casefold),\n            [\"A\", \"B\"],\n        )\n\n    def test_key_is_optional_and_original_behavior_remains(self):\n        self.assertEqual(deduplicate([\"b\", \"a\", \"b\"]), [\"b\", \"a\"])\n\n    def test_key_can_compare_unhashable_derived_values(self):\n        values = [[1, 2], [1, 2], [2, 1]]\n        self.assertEqual(\n            deduplicate(values, key=lambda value: list(reversed(value))),\n            [[1, 2], [2, 1]],\n        )\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "supplement-keyed-answer",
+      "title": "Complete answer key for the independent task",
+      "paragraphs": [
+        "Run the independent task against the first-task source before giving the learner the answer below. The expected intermediate outcome is six discovered tests with two errors caused by the first-task signature rejecting the keyword argument key. The optional-key test passes because it exercises the unchanged no-key behavior. This is an authored expected outcome, not a live execution claim.",
+        "After the learner records the intermediate result and causal diagnosis, the complete reference implementation is the following. It uses a separate list of comparison keys so unhashable keys are supported while original items remain in the output. The key parameter is keyword-only because it follows *."
+      ],
+      "code": {
+        "language": "python",
+        "label": "dedup.py, complete reference after the independent task",
+        "code": "def deduplicate(items, *, key=None):\n    \"\"\"Return first-seen items, optionally comparing them by key.\"\"\"\n    result = []\n    seen_keys = []\n    for item in items:\n        comparison = item if key is None else key(item)\n        if comparison not in seen_keys:\n            seen_keys.append(comparison)\n            result.append(item)\n    return result\n"
+      }
+    },
+    {
+      "id": "supplement-feedback-evidence",
+      "title": "Give causal feedback and capture usable evidence",
+      "paragraphs": [
+        "Causal feedback must match the observed failure. If calls with key raise an unexpected-keyword or argument error, the function signature still implements only the original requirement. If lowercase strings or transformed lists are returned, the implementation stored keys instead of original items. If it uses a set of keys, unhashable derived keys cause a TypeError because set membership requires hashable keys. Set membership alone does not inherently destroy output order, but constructing output from a set or otherwise separating it from first-seen items can lose the required order and displayed values. The repair is a separate equality-based seen_keys list plus appending the original item.",
+        "Run the complete suite after the reference or reviewed solution is in place: the expected authored result is six passing tests, with both test files unchanged. Capture the date, project path, baseline revision, installed editor and Cline extension versions, provider, exact model identity, redacted Plan text, approved scope, checkpoint comparison, actual git diff -- dedup.py, protected test diffs, complete test output, and whether a provider request was made. Do not capture secrets. The actual client, model, provider response, approvals, and commit identifier for this lesson are UNKNOWN unless the learner records them.",
+        "Fictional evidence example, not live evidence: 2026-09-20; project=stable-dedup-lab; provider=DeepSeek; model=UNKNOWN; installed Cline version=UNKNOWN; baseline commit=UNKNOWN; approved scope=dedup.py; checkpoint comparison=dedup.py only; protected test diffs=none; tests=6 passed; live agent execution=UNKNOWN; provider request=UNKNOWN; secret output=none. Replace UNKNOWN only with observed values. Test output alone cannot authorize a commit or deployment."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Final verification and capture commands",
+        "code": "python -m unittest discover -s tests -v\ngit diff -- dedup.py\ngit diff -- tests/test_dedup.py tests/test_keyed.py\ngit status --short"
+      }
+    },
+    {
+      "id": "supplement-scope-boundaries",
+      "title": "Keep permissions, scope, and evidence separate",
+      "paragraphs": [
+        "The first production task changes one source file. The independent task retains that boundary and adds a human-authored protected test file before the agent task. Tests must not be weakened to obtain a pass, and a checkpoint comparison must not be treated as the real repository diff. Do not place secrets in source, test fixtures, command history, screenshots, or captured transcripts.",
+        "A model call may require network access, provider authorization, and credits. The offline unittest commands require only Python 3 standard-library behavior and do not establish that Cline, a provider, or a model worked. Record observed facts separately from the authored reference output, and leave unknown client, model, approval, and commit values as UNKNOWN. Preserve unrelated edits throughout setup, review, and recovery."
+      ]
     }
   ],
   "sources": [
@@ -76,6 +216,24 @@
       "url": "https://docs.cline.bot/core-workflows/checkpoints",
       "publisher": "Cline",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Cline authorizing-with-cline",
+      "url": "https://docs.cline.bot/getting-started/authorizing-with-cline",
+      "publisher": "Cline",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Cline deepseek",
+      "url": "https://docs.cline.bot/provider-config/deepseek",
+      "publisher": "Cline",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Python standard library reference",
+      "url": "https://docs.python.org/3/library/stdtypes.html#list.__contains__",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-20"
     }
   ]
 }

@@ -57,6 +57,183 @@
         "Expected evidence includes the effective config, rule files, enabled tools, chosen model, reviewed diff, and test output. Verify that shared blocks and MCP servers stayed within their stated authority.",
         "If behavior changes unexpectedly, return to the last reviewed config, disable newly introduced blocks or tools, restore the affected files, and repeat the same case."
       ]
+    },
+    {
+      "id": "continue-first-task",
+      "title": "First Continue task: repair a CSV row validator",
+      "paragraphs": [
+        "You will use Continue to inspect and propose a small Python change. The program validates a CSV file with the exact header `name,age,email`, a nonempty name of at most 40 characters, an integer age from 0 through 120 inclusive, and a simple email pattern. You will run four offline tests before and after reviewing a proposed change.",
+        "Use Continue IDE Chat or Edit with the local Ollama configuration described below. The Python tests use only the standard library. A model response, proposed diff, or passing test result does not authorize commit or deployment. Review the changed file and run the tests independently."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Task card",
+        "code": "Outcome: repair csv_validator.py so all four tests pass\nWorkspace: continue-csv-lab/\nInitial files: csv_validator.py, test_csv_validator.py, malformed.csv\nChange scope: csv_validator.py only\nModel example: Ollama provider, qwen2.5-coder:7b tag\nInteraction: Chat or Edit, followed by manual review and test execution\nSecrets: none in files; never paste credentials into prompts\nVerification: inspect the diff, then run python -m unittest -v test_csv_validator.py\nRecovery: stop the active tool and restore only the scoped file from the reviewed reference or checkpoint\nExternal effects: Python tests are offline; model calls and client bootstrap may use network or credits"
+      }
+    },
+    {
+      "id": "continue-safe-setup",
+      "title": "Create the first-task files without overwriting anything",
+      "paragraphs": [
+        "Run the setup script from a parent directory in which you are allowed to create a new folder. It refuses to overwrite any existing file. Before writing, it checks every file destination, including nested rule and configuration paths. If any destination already exists, choose another root directory. The script does not remove, reset, or clean files.",
+        "The configuration file is included as a named CLI configuration exercise. An arbitrary `.continue/qwen-local.yaml` file is not assumed to be automatically discoverable by the IDE. Later instructions explain how to merge its model entry manually into the existing user configuration."
+      ],
+      "code": {
+        "language": "python",
+        "label": "setup_continue_csv_lab.py",
+        "code": "from pathlib import Path\nimport sys\n\nFILES = {\n    \"csv_validator.py\": '''import csv\nimport re\n\nEXPECTED_FIELDS = [\"name\", \"age\", \"email\"]\nEMAIL = re.compile(r\"[^@]+@[^@]+\")\n\n\ndef validate(path):\n    errors = []\n    with open(path, newline=\"\", encoding=\"utf-8\") as handle:\n        reader = csv.DictReader(handle)\n        if reader.fieldnames is None or set(reader.fieldnames) != set(EXPECTED_FIELDS):\n            errors.append(\"line 1: header must be name,age,email\")\n        for line_number, row in enumerate(reader, start=2):\n            name = (row.get(\"name\") or \"\").strip()\n            age_text = (row.get(\"age\") or \"\").strip()\n            email = (row.get(\"email\") or \"\").strip()\n            if not name:\n                errors.append(f\"line {line_number}: name is required\")\n            elif len(name) > 40:\n                errors.append(f\"line {line_number}: name is too long\")\n            try:\n                age = int(age_text)\n                if age > 120:\n                    raise ValueError\n            except ValueError:\n                errors.append(f\"line {line_number}: age must be an integer from 0 through 120\")\n            if not EMAIL.fullmatch(email):\n                errors.append(f\"line {line_number}: email is invalid\")\n    return errors\n''',\n    \"test_csv_validator.py\": '''import tempfile\nimport unittest\nfrom pathlib import Path\n\nfrom csv_validator import validate\n\n\nclass CsvValidatorTests(unittest.TestCase):\n    def write_csv(self, text):\n        handle = tempfile.NamedTemporaryFile(mode=\"w\", newline=\"\", encoding=\"utf-8\", delete=False)\n        self.addCleanup(lambda: Path(handle.name).unlink(missing_ok=True))\n        handle.write(text)\n        handle.close()\n        return handle.name\n\n    def test_valid_row(self):\n        path = self.write_csv(\"name,age,email\\\\nAda Lovelace,36,ada@example.com\\\\n\")\n        self.assertEqual(validate(path), [])\n\n    def test_exact_header_order_is_required(self):\n        path = self.write_csv(\"age,name,email\\\\n36,Ada Lovelace,ada@example.com\\\\n\")\n        self.assertIn(\"line 1: header must be name,age,email\", validate(path))\n\n    def test_negative_age_is_rejected(self):\n        path = self.write_csv(\"name,age,email\\\\nAda Lovelace,-1,ada@example.com\\\\n\")\n        self.assertIn(\"line 2: age must be an integer from 0 through 120\", validate(path))\n\n    def test_malformed_row_values_are_reported(self):\n        path = self.write_csv(\"name,age,email\\\\n,abc,not-an-email\\\\n\")\n        errors = validate(path)\n        self.assertEqual(len(errors), 3)\n        self.assertIn(\"line 2: name is required\", errors)\n        self.assertIn(\"line 2: age must be an integer from 0 through 120\", errors)\n        self.assertIn(\"line 2: email is invalid\", errors)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n''',\n    \"malformed.csv\": \"name,age,email\\n,abc,not-an-email\\n\",\n    \".continue/qwen-local.yaml\": '''name: qwen-local\nversion: 1.0.0\nschema: v1\nmodels:\n  - name: Qwen local coding\n    provider: ollama\n    model: qwen2.5-coder:7b\n    apiBase: http://localhost:11434\n    roles:\n      - chat\n      - edit\n      - apply\n''',\n    \".continue/rules/csv-lab.md\": '''# CSV lab rule\n\nWork only on the requested CSV validator change. Preserve unrelated edits.\nUse Python 3 standard-library code. Explain proposed edits before applying them.\nDo not add packages, credentials, network services, or generated files.\nRun the named unit test after editing and report failures without claiming that a\nmodel or tool ran a command unless the user actually observed that command.\n''',\n}\n\nroot = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(\"continue-csv-lab\")\nroot = root.resolve()\ntargets = [root / relative for relative in FILES]\nexisting = [target for target in targets if target.exists()]\nif existing:\n    names = \"\\n\".join(str(target) for target in existing)\n    raise FileExistsError(\"Refusing to overwrite these destinations:\\n\" + names)\nroot.mkdir(parents=True, exist_ok=True)\nfor target in targets:\n    target.parent.mkdir(parents=True, exist_ok=True)\nfor relative, content in FILES.items():\n    target = root / relative\n    target.write_text(content, encoding=\"utf-8\", newline=\"\")\n    print(f\"created {target}\")\nprint(f\"Lab created at {root}\")"
+      }
+    },
+    {
+      "id": "continue-configure",
+      "title": "Configure Ollama and Continue without guessing IDE controls",
+      "paragraphs": [
+        "The YAML entry uses provider `ollama`, model tag `qwen2.5-coder:7b`, and `http://localhost:11434`, with `chat`, `edit`, and `apply` roles. The tag is a sourced example, not a recommendation or compatibility guarantee. Run `ollama list` and compare the complete tag exactly before diagnosing a connection problem. Continue's Ollama guide says the configured tag must match an installed tag and documents this API base. Source: https://docs.continue.dev/guides/ollama-guide, observed 2026-09-20.",
+        "Continue configuration requires `name`, `version`, and `schema`; model entries require `name`, `provider`, and `model`. Declaring roles does not prove that the model supports native tool use. This task uses Chat or Edit plus manual review and test commands, so native Agent tool support is not required. Source: https://docs.continue.dev/reference, observed 2026-09-20.",
+        "For VS Code, open the Continue sidebar with Ctrl+L on Windows or Linux, or Cmd+L on macOS. Use the gear associated with the agent selector above the input, then use the documented Local Config cog to open the existing user `config.yaml`. On Windows, this is under the user profile's `.continue/config.yaml`; on other systems it is under `~/.continue/config.yaml`. Manually merge the `models` entry from `.continue/qwen-local.yaml`, preserving all existing settings and entries. Save the user configuration so Continue refreshes it. Do not use an overwrite script and do not assume the project YAML is automatically selectable. Source: https://docs.continue.dev/customize/deep-dives/configuration, observed 2026-09-20.",
+        "The project rule is at `.continue/rules/csv-lab.md` and can be versioned with the repository. Rules guide Agent, Chat, and Edit behavior, but natural-language rules are not filesystem or shell security boundaries. Source: https://docs.continue.dev/customize/rules, observed 2026-09-20."
+      ],
+      "code": {
+        "language": "yaml",
+        "label": "Model entry to review and merge manually",
+        "code": "name: qwen-local\nversion: 1.0.0\nschema: v1\nmodels:\n  - name: Qwen local coding\n    provider: ollama\n    model: qwen2.5-coder:7b\n    apiBase: http://localhost:11434\n    roles:\n      - chat\n      - edit\n      - apply"
+      }
+    },
+    {
+      "id": "continue-version-and-selection",
+      "title": "Capture versions and select the configuration",
+      "paragraphs": [
+        "Record the actual Continue extension version from the installed client's extension details before the task. This artifact does not claim a current extension version. If you use the CLI, run `cn --version` and record its actual output. Do not copy a version from this exercise and do not label an example as observed.",
+        "The documented CLI alternative selects a named file deterministically with `--config`. Its precedence is the command-specific config path, then saved configuration, then `~/.continue/config.yaml`. This CLI path is separate from the IDE's Local Config workflow. The quickstart describes `cn` as an interactive TUI and `cn -p` as headless. Initial authentication may still be requested, even when the model endpoint is local. Sources: https://docs.continue.dev/cli/configuration and https://docs.continue.dev/cli/quickstart, observed 2026-09-20."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Optional CLI diagnostic and model-tag check",
+        "code": "cd continue-csv-lab\ncn --version\nollama list\ncn --config .continue/qwen-local.yaml"
+      }
+    },
+    {
+      "id": "continue-baseline",
+      "title": "Run the baseline before requesting a repair",
+      "paragraphs": [
+        "Run the supplied tests before asking Continue to edit anything. The faulty source accepts a negative age and accepts a reordered header because it compares header sets instead of the exact header sequence. The output below is the authored expected result for the supplied files, not a live execution claim.",
+        "The acceptance result is four tests with exactly two failures: the header-order test and the negative-age test. The valid-row and malformed-values tests pass. Keep the original tests unchanged."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Baseline command and expected offline result",
+        "code": "python -m unittest -v test_csv_validator.py\n\n# Authored reference expectation, not observed execution:\n# test_exact_header_order_is_required ... FAIL\n# test_negative_age_is_rejected ... FAIL\n# test_malformed_row_values_are_reported ... ok\n# test_valid_row ... ok\n# Ran 4 tests\n# FAILED (failures=2)"
+      }
+    },
+    {
+      "id": "continue-scoped-prompt",
+      "title": "Request a scoped Chat or Edit change",
+      "paragraphs": [
+        "Use Chat to request a proposed patch, or use Edit and inspect the proposed change before applying it. Ask for changes only in `csv_validator.py`. Do not ask the client to commit, deploy, install packages, change permissions, or edit the tests. If the proposal touches another file, stop and request a narrower proposal."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Scoped prompt",
+        "code": "Repair only csv_validator.py for the existing tests.\n\nRequirements:\n1. Require the exact header sequence name,age,email.\n2. Require a nonempty stripped name of at most 40 characters.\n3. Require an integer age from 0 through 120 inclusive, rejecting negative values.\n4. Preserve the existing simple email pattern.\n5. Preserve validate(path) and the existing error strings.\n6. Use only Python 3 standard-library code.\n7. Do not edit tests, malformed.csv, configuration, rules, or unrelated files.\n\nFirst explain the smallest proposed change and map it to the two baseline failures. Then show the proposed diff. Do not claim that tests or tools ran unless their output is visible to me. I will run the test command manually."
+      }
+    },
+    {
+      "id": "continue-reference",
+      "title": "Review the expected corrected source and result",
+      "paragraphs": [
+        "A correct minimal repair compares `reader.fieldnames` directly with the expected ordered list and rejects ages below zero as well as ages above 120. Python's `csv.DictReader.fieldnames` preserves header order, which is why a set comparison is insufficient. Source: https://docs.python.org/3/library/csv.html#csv.DictReader, observed 2026-09-20.",
+        "The following is the complete authored reference source. It is not a claim that Continue or Ollama generated or applied it. After reviewing an equivalent diff, run the tests yourself. The expected result is four passing tests and unchanged tests."
+      ],
+      "code": {
+        "language": "python",
+        "label": "csv_validator.py reviewed reference",
+        "code": "import csv\nimport re\n\nEXPECTED_FIELDS = [\"name\", \"age\", \"email\"]\nEMAIL = re.compile(r\"[^@]+@[^@]+\")\n\n\ndef validate(path):\n    errors = []\n    with open(path, newline=\"\", encoding=\"utf-8\") as handle:\n        reader = csv.DictReader(handle)\n        if reader.fieldnames != EXPECTED_FIELDS:\n            errors.append(\"line 1: header must be name,age,email\")\n        for line_number, row in enumerate(reader, start=2):\n            name = (row.get(\"name\") or \"\").strip()\n            age_text = (row.get(\"age\") or \"\").strip()\n            email = (row.get(\"email\") or \"\").strip()\n            if not name:\n                errors.append(f\"line {line_number}: name is required\")\n            elif len(name) > 40:\n                errors.append(f\"line {line_number}: name is too long\")\n            try:\n                age = int(age_text)\n                if age < 0 or age > 120:\n                    raise ValueError\n            except ValueError:\n                errors.append(f\"line {line_number}: age must be an integer from 0 through 120\")\n            if not EMAIL.fullmatch(email):\n                errors.append(f\"line {line_number}: email is invalid\")\n    return errors"
+      }
+    },
+    {
+      "id": "continue-failure-recovery",
+      "title": "Diagnose configuration, permission, and code failures",
+      "paragraphs": [
+        "If Ollama returns a missing-model response such as 404, stop the active Continue generation first. Run `ollama list`, compare the complete configured tag, and use only an approved exact installed tag in a separately reviewed configuration. Do not silently substitute a model or put credentials in YAML. The Ollama guide documents the exact-tag requirement and the missing-tag failure. Source: https://docs.continue.dev/guides/ollama-guide, observed 2026-09-20.",
+        "If the wrong configuration loaded, stop the active tool, verify the project directory and the explicit `--config` path if using the CLI, and inspect the selected file. Do not use a wildcard allow rule to resolve uncertainty. A local model endpoint does not prove that the whole client is offline.",
+        "CLI permissions distinguish `allow` for automatic execution, `ask` for TUI approval, and `exclude` for hiding a tool. Write, Edit, MultiEdit, and Bash default to `ask`; headless mode excludes ask tools. `--exclude Bash` hides the terminal tool, while read-only tools can include network-capable Fetch. Source: https://docs.continue.dev/cli/tool-permissions, observed 2026-09-20.",
+        "If an edit regresses the code, stop the active tool before recovery. Preserve unrelated edits and restore only `csv_validator.py` from the reviewed reference or a known checkpoint. Rerun the test command and inspect the diff. Restoring a file cannot undo external effects such as network requests, model charges, or actions already performed by an external tool."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Scoped diagnostics after stopping the active tool",
+        "code": "# Run from continue-csv-lab.\nollama list\npython -m unittest -v test_csv_validator.py\n\n# Optional diagnostic session with terminal hidden. Not a repair command.\ncn --config .continue/qwen-local.yaml --exclude Bash"
+      }
+    },
+    {
+      "id": "continue-independent-setup",
+      "title": "Independent changed-input task: create a separate folder first",
+      "paragraphs": [
+        "Before reading the feedback section, create a separate folder named `continue-csv-lab-independent`. Do not modify the original folder. The setup below creates a complete independent copy with the first task's corrected three-column source and a protected four-column test suite. It preflights every destination before writing and refuses to overwrite anything.",
+        "The independent contract materially changes the requirements: the exact header is `name,age,email,country`; age must be 18 through 65 inclusive; country must be nonempty after stripping and no more than two characters. The protected tests cover a valid row, both age boundaries, rejection of 17 and 66, a blank country, the old header, malformed values, and the existing name and email rules. Do not weaken or copy the original test methods unchanged."
+      ],
+      "code": {
+        "language": "python",
+        "label": "setup_continue_csv_lab_independent.py",
+        "code": "from pathlib import Path\nimport sys\n\nFILES = {\n    \"csv_validator.py\": '''import csv\nimport re\n\nEXPECTED_FIELDS = [\"name\", \"age\", \"email\"]\nEMAIL = re.compile(r\"[^@]+@[^@]+\")\n\n\ndef validate(path):\n    errors = []\n    with open(path, newline=\"\", encoding=\"utf-8\") as handle:\n        reader = csv.DictReader(handle)\n        if reader.fieldnames != EXPECTED_FIELDS:\n            errors.append(\"line 1: header must be name,age,email\")\n        for line_number, row in enumerate(reader, start=2):\n            name = (row.get(\"name\") or \"\").strip()\n            age_text = (row.get(\"age\") or \"\").strip()\n            email = (row.get(\"email\") or \"\").strip()\n            if not name:\n                errors.append(f\"line {line_number}: name is required\")\n            elif len(name) > 40:\n                errors.append(f\"line {line_number}: name is too long\")\n            try:\n                age = int(age_text)\n                if age < 0 or age > 120:\n                    raise ValueError\n            except ValueError:\n                errors.append(f\"line {line_number}: age must be an integer from 0 through 120\")\n            if not EMAIL.fullmatch(email):\n                errors.append(f\"line {line_number}: email is invalid\")\n    return errors\n''',\n    \"test_csv_validator.py\": '''import tempfile\nimport unittest\nfrom pathlib import Path\n\nfrom csv_validator import validate\n\n\nclass IndependentCsvValidatorTests(unittest.TestCase):\n    def write_csv(self, text):\n        handle = tempfile.NamedTemporaryFile(mode=\"w\", newline=\"\", encoding=\"utf-8\", delete=False)\n        self.addCleanup(lambda: Path(handle.name).unlink(missing_ok=True))\n        handle.write(text)\n        handle.close()\n        return handle.name\n\n    def test_valid_adult_row(self):\n        path = self.write_csv(\"name,age,email,country\\\\nGrace Hopper,36,grace@example.com,US\\\\n\")\n        self.assertEqual(validate(path), [])\n\n    def test_age_18_is_accepted(self):\n        path = self.write_csv(\"name,age,email,country\\\\nAda Lovelace,18,ada@example.com,GB\\\\n\")\n        self.assertEqual(validate(path), [])\n\n    def test_age_65_is_accepted(self):\n        path = self.write_csv(\"name,age,email,country\\\\nGrace Hopper,65,grace@example.com,US\\\\n\")\n        self.assertEqual(validate(path), [])\n\n    def test_age_17_is_rejected(self):\n        path = self.write_csv(\"name,age,email,country\\\\nAda Lovelace,17,ada@example.com,GB\\\\n\")\n        self.assertIn(\"line 2: age must be an integer from 18 through 65\", validate(path))\n\n    def test_age_66_is_rejected(self):\n        path = self.write_csv(\"name,age,email,country\\\\nAda Lovelace,66,ada@example.com,GB\\\\n\")\n        self.assertIn(\"line 2: age must be an integer from 18 through 65\", validate(path))\n\n    def test_old_header_is_rejected(self):\n        path = self.write_csv(\"name,age,email\\\\nAda Lovelace,36,ada@example.com\\\\n\")\n        self.assertIn(\"line 1: header must be name,age,email,country\", validate(path))\n\n    def test_blank_country_is_rejected(self):\n        path = self.write_csv(\"name,age,email,country\\\\nAda Lovelace,36,ada@example.com,\\\\n\")\n        self.assertIn(\"line 2: country is required\", validate(path))\n\n    def test_country_over_two_characters_is_rejected(self):\n        path = self.write_csv(\"name,age,email,country\\\\nAda Lovelace,36,ada@example.com,GBR\\\\n\")\n        self.assertIn(\"line 2: country must be at most 2 characters\", validate(path))\n\n    def test_malformed_values_are_reported(self):\n        path = self.write_csv(\"name,age,email,country\\\\n,abc,not-an-email,\\\\n\")\n        errors = validate(path)\n        self.assertEqual(len(errors), 4)\n        self.assertIn(\"line 2: name is required\", errors)\n        self.assertIn(\"line 2: age must be an integer from 18 through 65\", errors)\n        self.assertIn(\"line 2: email is invalid\", errors)\n        self.assertIn(\"line 2: country is required\", errors)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n''',\n    \"malformed.csv\": \"name,age,email,country\\n,abc,not-an-email,\\n\",\n}\n\nroot = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(\"continue-csv-lab-independent\")\nroot = root.resolve()\ntargets = [root / relative for relative in FILES]\nexisting = [target for target in targets if target.exists()]\nif existing:\n    names = \"\\n\".join(str(target) for target in existing)\n    raise FileExistsError(\"Refusing to overwrite these destinations:\\n\" + names)\nroot.mkdir(parents=True, exist_ok=True)\nfor target in targets:\n    target.parent.mkdir(parents=True, exist_ok=True)\nfor relative, content in FILES.items():\n    target = root / relative\n    target.write_text(content, encoding=\"utf-8\", newline=\"\")\n    print(f\"created {target}\")\nprint(f\"Independent lab created at {root}\")"
+      }
+    },
+    {
+      "id": "continue-independent-task",
+      "title": "Attempt the changed requirement before reading feedback",
+      "paragraphs": [
+        "Run the protected independent suite from `continue-csv-lab-independent` before asking Continue for help. The starting source still validates the original three-column contract, so failures should expose the causal mismatch. Ask Continue to edit only the independent `csv_validator.py`; do not edit the protected tests or the original folder.",
+        "Use the exact key `adult-range-and-header` when you are ready to reveal the feedback. Your prompt should require the four-column header, country validation, and the inclusive adult age range. Run the copied test suite after reviewing any proposed diff."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Independent task prompt",
+        "code": "Key: adult-range-and-header\n\nUpdate only csv_validator.py in this independent folder.\n\nRequirements:\n1. Require the exact header name,age,email,country.\n2. Preserve the name and email requirements and error strings.\n3. Require an integer age from 18 through 65 inclusive.\n4. Require a nonempty stripped country of at most 2 characters.\n5. Use the exact error strings asserted by the protected tests.\n6. Use only Python 3 standard-library code.\n7. Do not edit test_csv_validator.py, malformed.csv, the original lab, or unrelated files.\n\nExplain how the changed schema affects the header comparison and row lookups. Show a proposed diff before any edit. Do not claim tests ran unless their output is visible to me."
+      }
+    },
+    {
+      "id": "continue-independent-feedback",
+      "title": "Causal feedback after the independent attempt",
+      "paragraphs": [
+        "Reveal this section only after attempting the independent task and running its protected tests. The key is `adult-range-and-header`. The schema changed from three columns to four, so the exact header constant, country row lookup, country validation, and expected header error must change together. The age predicate must change from `0 <= age <= 120` to `18 <= age <= 65`; changing only one endpoint is incomplete.",
+        "The independent suite deliberately asserts exact complete error strings, including the `line 2: ` prefix. Assertions must search for those complete strings in the returned error list. Do not use unprefixed fragments such as `\"country is required\" in errors`, because that cannot pass when the implementation correctly includes the line prefix.",
+        "The original source and original reference are not solutions for this task. If the changed tests fail while the source still has the original constants, that is causal evidence that the new requirement was not propagated through the implementation. Keep the original three-column exercise untouched."
+      ],
+      "code": {
+        "language": "python",
+        "label": "Complete independent answer implementation",
+        "code": "import csv\nimport re\n\nEXPECTED_FIELDS = [\"name\", \"age\", \"email\", \"country\"]\nEMAIL = re.compile(r\"[^@]+@[^@]+\")\n\n\ndef validate(path):\n    errors = []\n    with open(path, newline=\"\", encoding=\"utf-8\") as handle:\n        reader = csv.DictReader(handle)\n        if reader.fieldnames != EXPECTED_FIELDS:\n            errors.append(\"line 1: header must be name,age,email,country\")\n        for line_number, row in enumerate(reader, start=2):\n            name = (row.get(\"name\") or \"\").strip()\n            age_text = (row.get(\"age\") or \"\").strip()\n            email = (row.get(\"email\") or \"\").strip()\n            country = (row.get(\"country\") or \"\").strip()\n            if not name:\n                errors.append(f\"line {line_number}: name is required\")\n            elif len(name) > 40:\n                errors.append(f\"line {line_number}: name is too long\")\n            try:\n                age = int(age_text)\n                if age < 18 or age > 65:\n                    raise ValueError\n            except ValueError:\n                errors.append(f\"line {line_number}: age must be an integer from 18 through 65\")\n            if not EMAIL.fullmatch(email):\n                errors.append(f\"line {line_number}: email is invalid\")\n            if not country:\n                errors.append(f\"line {line_number}: country is required\")\n            elif len(country) > 2:\n                errors.append(f\"line {line_number}: country must be at most 2 characters\")\n    return errors"
+      }
+    },
+    {
+      "id": "continue-permissions-and-evidence",
+      "title": "Capture observed evidence and preserve boundaries",
+      "paragraphs": [
+        "For a real run, record the date, workspace path, actual Continue extension version, exact configuration path, model tag shown by `ollama list`, interaction type, proposed or applied files, reviewed diff, exact test command, and exact output. Redact tokens, API keys, authorization headers, private URLs, and personal data. Record an approval only if an approval was actually shown.",
+        "The fictional example below is deliberately labeled and must not be reported as observed: `FICTIONAL EXAMPLE, not observed: I selected the local configuration, the model proposed changes only to csv_validator.py, I reviewed the diff, and the test command reported four tests OK.` Local Python tests do not establish that Continue bootstrap, model calls, or other client tools were offline.",
+        "Before commit, compare the final diff with the requested scope and rerun the tests. Passing tests are evidence about tested behavior, not authorization to commit or deploy."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Usable observed-run capture",
+        "code": "Run date: [actual date]\nWorkspace: [actual path]\nContinue extension version: [actual installed version]\nConfiguration: [IDE user config path or exact CLI --config path]\nOllama tag: [exact ollama list line, if permitted]\nInteraction: [Chat / Edit proposal / manually applied]\nFiles proposed or changed: [actual list]\nDiff reviewed: [yes/no]\nTest command: python -m unittest -v test_csv_validator.py\nObserved output: [paste exact output]\nNetwork or credits note: [what was observed, not inferred]\nCommit/deploy authorization: [separate decision]"
+      }
+    },
+    {
+      "id": "continue-assumptions",
+      "title": "ASSUMPTIONS",
+      "paragraphs": [
+        "The learner has Python 3, a supported Continue client, permission to create new local directories, and an Ollama installation if choosing the local model route. The operating system, IDE version, Continue extension version, Ollama version, installed tags, endpoint reachability, and model tool capability are not established here.",
+        "The supplied official documentation findings were observed on 2026-09-20. Configuration snippets are exercise inputs and documented shapes, not evidence of a live backend, installed model, successful authentication, or successful client execution. The learner may have unrelated repository edits, so the procedure uses separate folders and scoped file changes."
+      ]
+    },
+    {
+      "id": "continue-omitted",
+      "title": "OMITTED",
+      "paragraphs": [
+        "No live Continue, IDE, Ollama, model call, permission approval, network state, test run, generated patch, or current extension or Ollama version is claimed. No price, guaranteed model capability, or credential-free startup behavior is supplied because those facts were not established.",
+        "The independent task intentionally requires an attempt before revealing its answer implementation. The complete runnable answer is supplied afterward, together with protected tests and causal feedback."
+      ]
     }
   ],
   "sources": [
@@ -77,6 +254,36 @@
       "url": "https://docs.continue.dev/customize/rules",
       "publisher": "Continue",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Continue tool-permissions",
+      "url": "https://docs.continue.dev/cli/tool-permissions",
+      "publisher": "Continue",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Continue ollama-guide",
+      "url": "https://docs.continue.dev/guides/ollama-guide",
+      "publisher": "Continue",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Continue quickstart",
+      "url": "https://docs.continue.dev/cli/quickstart",
+      "publisher": "Continue",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Continue configuration",
+      "url": "https://docs.continue.dev/customize/deep-dives/configuration",
+      "publisher": "Continue",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Python standard library reference",
+      "url": "https://docs.python.org/3/library/csv.html#csv.DictReader",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
