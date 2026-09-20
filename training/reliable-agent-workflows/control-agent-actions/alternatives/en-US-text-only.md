@@ -27,9 +27,9 @@ Visual alternative: The action name, ticket identifier, destination status, oper
 
 Sources:
 
-- <https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.10.2>
-- <https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.10.3.1.1>
-- <https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.3.5>
+- <https://json-schema.org/draft/2020-12/json-schema-validation.html>
+- <https://json-schema.org/draft/2020-12/json-schema-core.html>
+- <https://json-schema.org/draft/2020-12/json-schema-core.html>
 
 ## Narration: Runtime Output Contract
 
