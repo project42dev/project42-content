@@ -57,6 +57,140 @@
         "Expected evidence includes the chosen mode, approval configuration, checkpoint comparisons, Git diff, command history, and test results. Confirm each enabled MCP tool has the intended data and side-effect boundary.",
         "If an auto-approved action crosses scope, disable auto-approval, stop the task, preserve the record, restore the affected state, and narrow the action list before continuing."
       ]
+    },
+    {
+      "id": "first-successful-task-v2",
+      "title": "First task: merge validated intervals",
+      "paragraphs": [
+        "This exercise uses Roo Code for one bounded local Python change. Implement `merge_intervals` in the root-level file `interval_merge.py`. The function must accept a non-empty list of 2-item tuples, reject malformed or non-finite numeric data with `ValueError`, reject intervals whose start exceeds their end, return deterministic output sorted by start, merge overlapping or touching intervals, and leave the caller's input unchanged.",
+        "Use Python 3 standard-library functionality only. No package installation is needed for the offline lab tests. A model call can use network access or provider credits, but the tests run locally. In Roo Code settings, select API Provider `DeepSeek`, enter the key in its key field, and select a model from the Model dropdown. Record the exact model label displayed by the client. This lesson does not assert a model name, identifier, price, or current availability. Source: https://roocodeinc.github.io/Roo-Code/providers/deepseek/ (official documentation observed 2026-09-20).",
+        "Keep Auto-Approve disabled. The Auto-Approve control is distinct from the individual permission categories, which include read, edit, commands, browser, MCP, and mode switches. Human review is required for mode changes and subtasks. Source: https://roocodeinc.github.io/Roo-Code/features/auto-approving-actions/ (official documentation observed 2026-09-20)."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Bounded first-task card",
+        "code": "Task: Implement merge_intervals in interval_merge.py.\nRequirements:\n1. Accept a non-empty list of intervals.\n2. Each interval must be a tuple containing exactly two numeric values.\n3. Numeric values must be finite; reject bool, NaN, and positive or negative infinity.\n4. Reject an interval when start > end.\n5. Raise ValueError for invalid input.\n6. Return intervals sorted by start value.\n7. Merge overlapping intervals.\n8. Merge touching intervals where one end equals the next start.\n9. Do not mutate the caller's list or interval tuples.\nScope: This workspace; edit interval_merge.py only.\nProtected: tests/test_interval_merge.py and all unrelated files.\nPermissions: read as provided by the selected mode; edit interval_merge.py only; no command, browser, MCP, mode-switch, or subtask authority.\nApprovals: Auto-Approve disabled. A human runs every command and reviews mode changes or subtasks.\nVerification: Human runs the supplied Python 3 unittest command and reviews the changed-path list and diff.\nDelivery boundary: Tests and review do not authorize commit, push, deployment, or external side effects."
+      }
+    },
+    {
+      "id": "lab-setup-v2",
+      "title": "Create the lab with an all-path preflight",
+      "paragraphs": [
+        "Use a new version-controlled workspace or a deliberately empty subdirectory. Review the directory before running setup. The setup script below checks every output path before opening any file for writing. It creates the source, the protected original tests, and the `.roomodes` configuration only when none of those paths already exists. If any target exists, it stops before writing anything. It does not remove, reset, clean, or overwrite files.",
+        "The initial source is deliberately faulty. The protected tests exercise real requirements, including sorting, overlap, touching boundaries, nested and negative intervals, invalid shapes, reversed intervals, non-finite values, and input preservation. The human runs setup and tests. The model is not given command authority by this exercise."
+      ],
+      "code": {
+        "language": "python",
+        "label": "setup_lab.py",
+        "code": "from pathlib import Path\n\nSOURCE = '''def merge_intervals(intervals):\n    if not intervals:\n        return []\n\n    merged = []\n    for start, end in sorted(intervals):\n        if merged and start < merged[-1][1]:\n            merged[-1] = (merged[-1][0], max(merged[-1][1], end))\n        else:\n            merged.append((start, end))\n    return merged\n'''\n\nTESTS = '''import unittest\n\nfrom interval_merge import merge_intervals\n\n\nclass MergeIntervalsTests(unittest.TestCase):\n    def test_overlapping_and_unsorted_intervals_are_sorted_and_merged(self):\n        original = [(5, 7), (1, 3), (2, 6), (10, 12)]\n        snapshot = list(original)\n        self.assertEqual(\n            merge_intervals(original),\n            [(1, 7), (10, 12)],\n        )\n        self.assertEqual(original, snapshot)\n\n    def test_touching_intervals_merge(self):\n        self.assertEqual(\n            merge_intervals([(8, 10), (1, 3), (3, 5), (5, 8)]),\n            [(1, 10)],\n        )\n\n    def test_nested_and_negative_intervals(self):\n        self.assertEqual(\n            merge_intervals([(2, 4), (-5, -1), (-3, 3), (9, 9)]),\n            [(-5, 4), (9, 9)],\n        )\n\n    def test_empty_input_is_invalid(self):\n        with self.assertRaises(ValueError):\n            merge_intervals([])\n\n    def test_interval_must_have_exactly_two_numeric_values(self):\n        bad_inputs = [\n            [(1,)],\n            [(1, 2, 3)],\n            [(1, \"two\")],\n            [\"not-an-interval\"],\n            [[1, 2]],\n        ]\n        for bad in bad_inputs:\n            with self.subTest(bad=bad):\n                with self.assertRaises(ValueError):\n                    merge_intervals(bad)\n\n    def test_reversed_interval_is_invalid(self):\n        with self.assertRaises(ValueError):\n            merge_intervals([(4, 2)])\n\n    def test_non_finite_values_are_invalid(self):\n        for bad in [[(float(\"nan\"), 2)], [(1, float(\"inf\"))], [(float(\"-inf\"), 2)]]:\n            with self.subTest(bad=bad):\n                with self.assertRaises(ValueError):\n                    merge_intervals(bad)\n\n    def test_input_is_not_mutated(self):\n        original = [(4, 6), (1, 2)]\n        snapshot = list(original)\n        result = merge_intervals(original)\n        self.assertEqual(original, snapshot)\n        self.assertIsNot(result, original)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n'''\n\nROOMODES = '''{\n  \"customModes\": [\n    {\n      \"slug\": \"interval-source-only\",\n      \"name\": \"Interval Source Only\",\n      \"roleDefinition\": \"Implement and review the bounded interval-merging task. Read the workspace as needed for context, but edit only the exact source path allowed below. Do not use commands, browser access, MCP, mode switches, or subtasks.\",\n      \"groups\": [\n        \"read\",\n        [\n          \"edit\",\n          {\n            \"fileRegex\": \"^interval_merge\\\\\\\\.py$\",\n            \"description\": \"Edit only the exact root-level source path interval_merge.py\"\n          }\n        ]\n      ]\n    }\n  ]\n}'''\n\n\ndef write_new(path, text):\n    path.parent.mkdir(parents=True, exist_ok=True)\n    with path.open(\"x\", encoding=\"utf-8\", newline=\"\") as handle:\n        handle.write(text)\n\n\nroot = Path(\".\")\ntargets = [\n    root / \"interval_merge.py\",\n    root / \"tests\" / \"test_interval_merge.py\",\n    root / \".roomodes\",\n]\nexisting = [str(path) for path in targets if path.exists()]\nif existing:\n    raise FileExistsError(\"Refusing to write existing target(s): \" + \", \".join(existing))\n\nwrite_new(targets[0], SOURCE)\nwrite_new(targets[1], TESTS)\nwrite_new(targets[2], ROOMODES)\nprint(\"Created interval_merge.py, tests/test_interval_merge.py, and .roomodes\")"
+      }
+    },
+    {
+      "id": "baseline-and-scoped-prompt",
+      "title": "Establish the failure and request one scoped edit",
+      "paragraphs": [
+        "From the workspace root, a human runs the test suite. The Python `unittest` discovery command below is documented by the Python standard library: `python3 -m unittest discover -s tests -v` discovers tests below `tests` and enables verbose output. On Windows, `py -3 -m unittest discover -s tests -v` is an equivalent launcher choice. Source: https://docs.python.org/3/library/unittest.html (official documentation observed 2026-09-20).",
+        "The faulty source is expected, by inspection of the supplied inputs and implementation, to fail the empty-input, touching-boundary, invalid-input, reversed-interval, and non-finite-value requirements. This is an expected baseline, not a live result. Capture the actual command, interpreter version, complete output, and exit status. Do not copy an expected passing result into the evidence record.",
+        "After confirming the mode and protected paths, send Roo Code the prompt below. The human reviews the proposed diff and runs the command. The prompt does not grant command execution authority."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Human-run baseline command",
+        "code": "# Unix-like shells\npython3 -m unittest discover -s tests -v\n\n# Windows launcher alternative\npy -3 -m unittest discover -s tests -v"
+      }
+    },
+    {
+      "id": "roo-mode-boundary-v2",
+      "title": "Configure the exact source-only edit boundary",
+      "paragraphs": [
+        "Place the following project `.roomodes` file in the workspace before starting the task. In the documented schema, `groups` contains the string `read` and an edit tuple of the form `[\"edit\", {\"fileRegex\": ..., \"description\": ...}]`. The anchored, case-sensitive regular expression matches the full relative workspace path `interval_merge.py` only. It rejects nested paths, test paths, and similarly named files. JSON requires escaped backslashes.",
+        "The `read` group is intentionally broad. This configuration does not claim to restrict reading. The edit restriction applies to Roo edit attempts, not to shell commands or every other capability. A project mode with the matching slug replaces the global mode with that slug rather than merging with it. Sources: https://roocodeinc.github.io/Roo-Code/features/custom-modes/ and https://roocodeinc.github.io/Roo-Code/features/auto-approving-actions/ (official documentation observed 2026-09-20).",
+        "Keep Auto-Approve disabled. Review any mode switch or subtask request as a human. Do not treat this mode as a shell sandbox or as permission to commit, deploy, contact external systems, or expose secrets."
+      ],
+      "code": {
+        "language": "json",
+        "label": ".roomodes",
+        "code": "{\n  \"customModes\": [\n    {\n      \"slug\": \"interval-source-only\",\n      \"name\": \"Interval Source Only\",\n      \"roleDefinition\": \"Implement and review the bounded interval-merging task. Read the workspace as needed for context, but edit only the exact source path allowed below. Do not use commands, browser access, MCP, mode switches, or subtasks.\",\n      \"groups\": [\n        \"read\",\n        [\n          \"edit\",\n          {\n            \"fileRegex\": \"^interval_merge\\\\.py$\",\n            \"description\": \"Edit only the exact root-level source path interval_merge.py\"\n          }\n        ]\n      ]\n    }\n  ]\n}"
+      }
+    },
+    {
+      "id": "first-task-prompt",
+      "title": "Give Roo Code the bounded implementation request",
+      "paragraphs": [
+        "Use this exact prompt after checking the selected provider, recorded model label, mode, and approval settings. It preserves the original test file and limits the requested mutation to the source file."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Scoped Roo Code prompt",
+        "code": "Read interval_merge.py and tests/test_interval_merge.py for context. Edit only interval_merge.py. Implement all stated requirements, including finite numeric validation, rejection of bool values, rejection of reversed intervals, sorted deterministic output, merging overlapping and touching intervals, and no mutation of the caller's input. Do not edit, delete, rename, or generate tests. Do not run commands. Return a concise explanation of the proposed change."
+      }
+    },
+    {
+      "id": "reference-solution-v2",
+      "title": "Authored offline reference solution",
+      "paragraphs": [
+        "The following is a complete authored reference output. It is not a transcript of Roo Code, a provider, or a live test run. Equivalent code is acceptable if it preserves the requirements. `math.isfinite` explicitly rejects NaN and infinity. Booleans are rejected even though Python treats `bool` as a subclass of `int`."
+      ],
+      "code": {
+        "language": "python",
+        "label": "Expected corrected interval_merge.py",
+        "code": "import math\n\n\ndef merge_intervals(intervals):\n    if not isinstance(intervals, list) or not intervals:\n        raise ValueError(\"intervals must be a non-empty list\")\n\n    validated = []\n    for interval in intervals:\n        if not isinstance(interval, tuple) or len(interval) != 2:\n            raise ValueError(\"each interval must be a 2-item tuple\")\n\n        start, end = interval\n        for value in (start, end):\n            if isinstance(value, bool) or not isinstance(value, (int, float)):\n                raise ValueError(\"interval values must be numeric\")\n            if isinstance(value, float) and not math.isfinite(value):\n                raise ValueError(\"interval values must be finite\")\n\n        if start > end:\n            raise ValueError(\"interval start cannot exceed interval end\")\n        validated.append((start, end))\n\n    ordered = sorted(validated, key=lambda interval: interval[0])\n    merged = [ordered[0]]\n    for start, end in ordered[1:]:\n        previous_start, previous_end = merged[-1]\n        if start <= previous_end:\n            merged[-1] = (previous_start, max(previous_end, end))\n        else:\n            merged.append((start, end))\n    return merged"
+      }
+    },
+    {
+      "id": "verification-and-recovery",
+      "title": "Review changed paths and recover narrowly",
+      "paragraphs": [
+        "After reviewing the proposed source diff, a human runs the test command again. The authored reference expectation is eight passing tests and zero failures for the supplied original suite. This is not a live outcome. Record the actual result, including the complete output and exit status.",
+        "Review `git diff -- interval_merge.py`, `git status --short`, and the changed-path list shown by Roo Code. Confirm that the protected original test file and unrelated user files were not altered. Test output alone does not authorize commit, push, deployment, or another external action. Preserve unrelated edits and versioned scope.",
+        "If Roo reports `FileRestrictionError`, stop any active Roo task before recovery. Do not widen the mode to bypass the error. Preserve the protected tests, inspect the current changed paths and diff, and narrow the request to `interval_merge.py` only before retrying. An edit restriction is not a read or shell sandbox, so it does not itself prevent reading or executing a separately human-approved command.",
+        "Roo Code checkpoints require Git and use a separate shadow Git repository. Documentation states that checkpoints are enabled by default, are created at task start and before file modifications, and are not automatically created before command execution. Stop and inspect the active task and actual changed paths before any scoped recovery. A checkpoint cannot reverse external side effects such as commands, network activity, or service changes. Source: https://roocodeinc.github.io/Roo-Code/features/checkpoints/ (official documentation observed 2026-09-20)."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Diff and test review commands",
+        "code": "python3 -m unittest discover -s tests -v\ngit diff -- interval_merge.py\ngit status --short\n\n# Windows launcher alternative for the test command\npy -3 -m unittest discover -s tests -v"
+      }
+    },
+    {
+      "id": "independent-variation-v2",
+      "title": "Independent task: add an opt-in touching-boundary option",
+      "paragraphs": [
+        "Before reading the feedback section, ask for a materially different requirement: add an optional `merge_touching` argument to `merge_intervals`. Its default must be `True`, so every original behavior and original test remains valid. When `merge_touching=False`, overlapping intervals still merge, but intervals that only touch at a boundary remain separate. Validation, sorted output, and no mutation remain unchanged.",
+        "Add the variation test file as a separate human-reviewed setup action, because the source-only mode must not edit tests. Do not replace, weaken, or rewrite the protected original tests. Run both suites before receiving the separate causal feedback. The complete authored answer below is reference material, not evidence of a live attempt."
+      ],
+      "code": {
+        "language": "python",
+        "label": "tests/test_interval_merge_touching_option.py",
+        "code": "import unittest\n\nfrom interval_merge import merge_intervals\n\n\nclass TouchingOptionTests(unittest.TestCase):\n    def test_default_preserves_original_touching_merge(self):\n        self.assertEqual(merge_intervals([(1, 3), (3, 5)]), [(1, 5)])\n\n    def test_false_keeps_touching_intervals_separate(self):\n        self.assertEqual(\n            merge_intervals([(5, 7), (1, 3), (3, 5), (8, 10)], merge_touching=False),\n            [(1, 3), (3, 5), (5, 7), (8, 10)],\n        )\n\n    def test_false_still_merges_overlaps(self):\n        self.assertEqual(\n            merge_intervals([(1, 4), (3, 6)], merge_touching=False),\n            [(1, 6)],\n        )\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+      }
+    },
+    {
+      "id": "independent-reference-and-feedback",
+      "title": "Complete independent answer and causal feedback",
+      "paragraphs": [
+        "A complete solution for the independent task is shown below. It preserves the original contract by defaulting `merge_touching` to `True`. With `False`, the merge condition changes from `start <= previous_end` to `start < previous_end`; all validation and ordering logic remains shared.",
+        "After the learner has attempted the independent task and run both suites, provide this causal feedback if needed: the new option must be opt-in, so keep `merge_touching=True` as the default. Use overlap-only comparison when it is `False`, while retaining validation, sorted output, and no mutation. Change only `interval_merge.py`, then have a human rerun both suites.",
+        "If the attempt edited tests or another path, stop the active task, preserve those files, inspect the changed paths, and recover by narrowing the edit scope. Do not assume checkpoint restoration reverses commands, network calls, or other external effects. The independent attempt, reference code, and feedback are authored exercise material, not evidence of a live execution."
+      ],
+      "code": {
+        "language": "python",
+        "label": "Complete corrected independent interval_merge.py",
+        "code": "import math\n\n\ndef merge_intervals(intervals, merge_touching=True):\n    if not isinstance(intervals, list) or not intervals:\n        raise ValueError(\"intervals must be a non-empty list\")\n    if not isinstance(merge_touching, bool):\n        raise ValueError(\"merge_touching must be a bool\")\n\n    validated = []\n    for interval in intervals:\n        if not isinstance(interval, tuple) or len(interval) != 2:\n            raise ValueError(\"each interval must be a 2-item tuple\")\n\n        start, end = interval\n        for value in (start, end):\n            if isinstance(value, bool) or not isinstance(value, (int, float)):\n                raise ValueError(\"interval values must be numeric\")\n            if isinstance(value, float) and not math.isfinite(value):\n                raise ValueError(\"interval values must be finite\")\n\n        if start > end:\n            raise ValueError(\"interval start cannot exceed interval end\")\n        validated.append((start, end))\n\n    ordered = sorted(validated, key=lambda interval: interval[0])\n    merged = [ordered[0]]\n    for start, end in ordered[1:]:\n        previous_start, previous_end = merged[-1]\n        joins = start <= previous_end if merge_touching else start < previous_end\n        if joins:\n            merged[-1] = (previous_start, max(previous_end, end))\n        else:\n            merged.append((start, end))\n    return merged"
+      }
+    },
+    {
+      "id": "evidence-capture-v2",
+      "title": "Capture usable evidence without claiming a live outcome",
+      "paragraphs": [
+        "Record the exact DeepSeek model label displayed in the client, the Roo mode name, approval settings, task prompt, timestamps, changed paths, human-run commands, complete test output, exit status, and reviewed diff. Redact API keys and every other secret. If a checkpoint is used, record the paths shown by its comparison before any restore.",
+        "The example below is explicitly fictional and filled. It demonstrates the format, but it is not evidence that an agent ran, a provider responded, approvals occurred, or tests passed. Replace it with facts from the learner's own capture."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Fictional filled evidence example, not live evidence",
+        "code": "FICTIONAL EXAMPLE ONLY\nProvider: DeepSeek\nModel label: <exact label copied from this learner's dropdown>\nMode: interval-source-only\nAuto-Approve: disabled\nTask timestamp: 2026-09-20T10:15:00Z\nPrompt result: source-only diff proposed; protected tests unchanged\nChanged paths reviewed: interval_merge.py\nBaseline command: python3 -m unittest discover -s tests -v\nBaseline result: recorded from the learner's actual terminal output\nFinal command: python3 -m unittest discover -s tests -v\nFinal result: recorded from the learner's actual terminal output\nExit status: recorded from the learner's terminal\nSecrets: API key omitted and redacted\nDelivery: no commit, push, deployment, or external action authorized\nStatus: illustrative record, not an actual Roo Code or provider run"
+      }
     }
   ],
   "sources": [
@@ -77,6 +211,24 @@
       "url": "https://roocodeinc.github.io/Roo-Code/features/checkpoints",
       "publisher": "Roo Code",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Roo Code custom-modes",
+      "url": "https://roocodeinc.github.io/Roo-Code/features/custom-modes/",
+      "publisher": "Roo Code",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Roo Code deepseek",
+      "url": "https://roocodeinc.github.io/Roo-Code/providers/deepseek/",
+      "publisher": "Roo Code",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Python unittest discovery",
+      "url": "https://docs.python.org/3/library/unittest.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
