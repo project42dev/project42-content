@@ -53,7 +53,8 @@
         "Before implementation, fill a task card with one observable result, exact file scope, mode and tool boundaries, applicable durable guidance, a named checkpoint, verification evidence, and a recovery action. Treat the card as human-readable authorization for this task, not as an automatically enforced product permission configuration.",
         "Start in Ask to inspect the request and propose a plan without edits or commands. Move to Code only for the authorized edit and local commands. Do not use Plan as a read-only mode because the modes documentation says it has all tools enabled. Network access is outside this task. If a proposed command, edit, tool call, or path falls outside the card, stop and revise the card rather than silently expanding scope.",
         "Create a named Cascade checkpoint before risky work such as changing a path predicate. The cited documentation warns that a broad checkpoint revert is irreversible. Prefer inspected, targeted Git recovery when it can preserve unrelated work. Source: https://docs.devin.ai/desktop/cascade/cascade.",
-        "The following worked example retains every task-card label and contains no placeholders."
+        "The following worked example retains every task-card label and contains no placeholders.",
+        "In Devin Cascade Plan mode, the plan is written as external Markdown under `~/.devin/plans`; for a Windsurf agent, use the corresponding `~/.windsurf/plans` location. An `@mention` requests continuation, and Implement transitions to Code. Although the modes documentation says all tools are enabled, that is not a guarantee that Plan is read-only. These are workflow descriptions, not claims that this exercise has been executed. Source: https://docs.devin.ai/desktop/cascade/modes"
       ],
       "code": {
         "language": "text",
@@ -151,6 +152,20 @@
         "language": "javascript",
         "label": "test.mjs",
         "code": "import assert from \"node:assert/strict\";\n\nconst modulePath = process.argv[2];\nif (typeof modulePath !== \"string\") {\n  throw new Error(\"usage: node test.mjs ./starter.mjs\");\n}\n\nconst { isAllowedPath } = await import(modulePath);\nconst cases = [\n  [\"allowed descendant\", \"src/app/config.json\", true],\n  [\"allowed nested descendant\", \"src/app/lib/index.js\", true],\n  [\"allowed directory itself\", \"src/app\", true],\n  [\"sibling-prefix changed input\", \"src/application/config.json\", false],\n  [\"unrelated path\", \"src/api/config.json\", false],\n  [\"null input\", null, false],\n  [\"structurally invalid input\", { path: \"src/app/config.json\" }, false],\n  [\"empty string\", \"\", false],\n  [\"traversal escapes root\", \"src/app/../../secret\", false],\n  [\"parent segment changes directory\", \"src/app/../other\", false],\n  [\"current-directory segment\", \"src/app/./config.json\", false],\n  [\"absolute path\", \"/src/app/config.json\", false],\n  [\"backslash separator\", \"src\\\\app\\\\config.json\", false],\n  [\"URL input\", \"https://example.test/src/app/config.json\", false],\n  [\"percent-encoded path\", \"src/app%2Fsecret.txt\", false]\n];\n\nconst failures = [];\nfor (const [name, input, expected] of cases) {\n  const actual = isAllowedPath(input);\n  try {\n    assert.equal(actual, expected);\n  } catch {\n    failures.push(`${name}: expected ${expected}, received ${actual}`);\n  }\n}\n\nif (failures.length > 0) {\n  console.error(`FAIL ${failures.length}/${cases.length}`);\n  for (const failure of failures) console.error(failure);\n  console.error(\"Cause: the authorization predicate crosses the src/app directory boundary.\");\n  process.exitCode = 1;\n} else {\n  console.log(`PASS ${cases.length}/${cases.length}`);\n}"
+      }
+    },
+    {
+      "id": "windsurf-baseline",
+      "title": "Create a tracked baseline before running the exercise",
+      "paragraphs": [
+        "Use Bash, Git, and Node.js for this setup. Check Node with `node --version`; this card intends Node 22, although the supplied vendor sources do not independently confirm that exact version requirement.",
+        "Windsurf's offline setup creates fresh untracked files in the exercise directory. After every starter, test, solution, and rule file has been created, and while you are still in that fresh exercise directory, initialize Git there only. Do not run `git init` in a parent directory or in another repository.",
+        "The commands below track only this exercise's named baseline files. They do not add a remote, push anything, or remove or clean up files. The local identity is supplied on the commit command, so your global Git settings are unchanged. If a file name differs in the card, replace that name with the card's exact file name before running `git add`."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Initialize and commit the Windsurf exercise baseline",
+        "code": "node --version\ngit init\ngit add -- package.json .devin/rules/path-repair.md starter.mjs test.mjs solution.mjs\ngit -c user.name='Project 42 Learner' -c user.email='learner@example.invalid' commit -m 'Baseline exercise files'\n# Confirm the baseline is clean before making learner changes.\ngit status --short\n# Later, from this same exercise directory, inspect only tracked learner hunks:\ngit diff"
       }
     },
     {
