@@ -2,7 +2,7 @@
   "id": "openai-evaluation-error-triage",
   "slug": "openai-evaluation-error-triage",
   "title": "OpenAI Evaluation and Error Triage",
-  "summary": "Apply eval-driven development to an OpenAI workflow, preserve request evidence, classify failures, and release or recover through explicit gates.",
+  "summary": "Apply evaluation-driven development to an OpenAI workflow, preserve privacy-safe request evidence, classify failures, bound total attempts, reconcile uncertain side effects, and release or recover through explicit gates.",
   "category": "Provider workflows",
   "format": "playbook",
   "audience": [
@@ -17,66 +17,196 @@
   "prerequisites": [
     "A defined OpenAI workflow",
     "Representative redacted or synthetic cases",
-    "Access to application telemetry without secrets"
+    "Access to application telemetry without secrets",
+    "Node.js 22 and PowerShell 7 for the offline exercise"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "openai",
     "evaluation",
     "errors",
-    "troubleshooting"
+    "troubleshooting",
+    "reliability",
+    "offline-evaluation"
   ],
   "sections": [
     {
       "id": "build-evaluation",
-      "title": "Use eval-driven development",
+      "title": "Use evaluation-driven development",
       "paragraphs": [
-        "Translate the real task into measurable success and failure criteria before changing prompts or models. Build representative, boundary, adversarial, refusal, and regression cases from redacted or synthetic data. Prefer deterministic grading for schemas, calculations, citations, required evidence, and prohibited outputs; calibrate human or model graders against examples when judgment is necessary.",
-        "Version the prompt, model, parameters, dataset, grader, and thresholds. Compare candidates with the current baseline across quality, safety, latency, and cost. Inspect slices and severe individual failures rather than relying on one average. Promotion requires all blocking thresholds and documented approval."
-      ]
+        "Translate the real task into measurable success and failure criteria before changing prompts, models, or application code. Use representative, boundary, adversarial, refusal, and regression cases drawn from approved redacted or synthetic data. Deterministic graders work well for schemas, calculations, required evidence, and prohibited outputs. When quality requires judgment, define a rubric, provide examples, and calibrate human reviewers.",
+        "Version the baseline, candidate, dataset, grader, thresholds, and application commit. Compare the same cases, inspect important slices and severe individual failures, and monitor for regressions after release. OpenAI's evaluation guidance recommends scoped task-specific tests, representative data, metrics combined with calibrated human judgment, baseline comparison, slice inspection, and continuous regression detection."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Evaluation record",
+        "code": "Evaluation ID: payment-summary-eval-2026-09-20\nBaseline: verified application commit b17\nCandidate: application commit c42\nDataset: payment-summary-set-v6\nGraders: deterministic policy checks plus calibrated human rubric\nGates: overall >= 90%; each safety slice >= 95%; zero severe payment-refusal failures\nDecision owner: release owner\nEvidence classification: authored teaching example, not live model evidence"
+      }
+    },
+    {
+      "id": "worked-evaluation",
+      "title": "Find a severe regression hidden by the average",
+      "paragraphs": [
+        "This filled example uses illustrative teaching data, not live OpenAI measurements. The candidate reaches 92% overall compared with 90% for the baseline. That average appears favorable, but the payment-refusal slice falls from 98% to 82% and contains one severe false-approval failure. Because the gate requires every safety slice to reach 95% with zero severe payment-refusal failures, the correct decision is HOLD.",
+        "Inspect the severe example and nearby cases, identify whether the prompt, application logic, configuration, or grader changed, and repair or revert. Then rerun the fixed case, the complete payment-refusal slice, representative negative cases, and the full evaluation. A higher aggregate score cannot override a blocking slice threshold."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Filled baseline versus candidate decision",
+        "code": "Metric                         Baseline   Candidate   Gate                 Result\nOverall quality                90%        92%         >= 90%               PASS\nPayment-refusal slice          98%        82%         >= 95%               FAIL\nSevere payment-refusal errors  0          1           0                     FAIL\nOther evaluated slices         91%        94%         documented thresholds PASS\n\nDecision: HOLD candidate c42\nReason: severe regression hidden by the aggregate score\nNext action: repair or restore b17, then rerun the affected slice and full suite"
+      }
     },
     {
       "id": "triage-failure",
       "title": "Classify the failure before acting",
       "paragraphs": [
-        "Separate connection, authentication, permission, invalid request, rate limit, server, model-completion, application-validation, and downstream-side-effect failures. Capture HTTP status, error code and type, x-request-id, response ID when present, timestamp, model, attempt, latency, and a privacy-safe input fingerprint. Never log the API key or sensitive body.",
-        "Do not retry authentication, permission, or invalid-request errors unchanged. Retry only transient rate, timeout, connection, and server failures within a bounded exponential-backoff budget with jitter. Respect provider headers and preserve the application operation identifier so retries cannot duplicate side effects."
+        "Separate connection, authentication, permission, invalid-request, rate-limit, server, completion, application-validation, and downstream-side-effect failures. Capture status, provider error code and type, x-request-id when present, timestamp, configured model, total attempts consumed, latency, operation identifier, and a one-way input fingerprint. Do not log API keys, authorization headers, prompts, completions, personal data, or sensitive request and response bodies.",
+        "For OpenAI responses, HTTP 429 is not one diagnosis. It can indicate transient rate_limit or slow_down behavior, or an organization, project, usage, spend, billing, or quota restriction. Inspect error.code and, when supplied, error.type. A broader type can be insufficient_quota. Retrying cannot restore billing, spend, or quota access. Authentication and invalid-request failures require correction rather than an unchanged retry."
       ],
       "code": {
         "language": "text",
-        "label": "OpenAI workflow evidence record",
-        "code": "Workflow/version: [NAME / COMMIT]\nModel/configuration: [MODEL / PARAMETERS]\nDataset/grader: [VERSION / METHOD]\nRequired thresholds: [QUALITY / SAFETY / LATENCY / COST]\nObserved results and worst slice: [METRICS]\nFailure class: [CONNECTION | AUTH | INVALID | RATE | SERVER | COMPLETION | APPLICATION | DOWNSTREAM]\nHTTP/error/request and response IDs: [REDACTED EVIDENCE]\nRetry decision and budget: [DO NOT RETRY | ATTEMPT N OF LIMIT]\nRollback target: [LAST VERIFIED VERSION]\nRelease decision/approver: [PROMOTE | HOLD | REVERT / OWNER]"
+        "label": "Provider-aware classification table",
+        "code": "Observed condition                         Classification          Action\n429 + rate_limit or slow_down              transient rate          bounded retry\n429 + insufficient_quota                   quota or billing        no retry\n429 + recognized spend or usage code       quota or billing        no retry\n401                                         authentication          correct credential or access\ninvalid_request code or type                invalid request         correct request\n500 server error                            transient server        bounded retry\n503 overload                                transient overload      bounded retry\nResult unknown after possible side effect   uncertain completion    reconcile first"
+      }
+    },
+    {
+      "id": "retry-policy",
+      "title": "Bound retries by cause and total attempts",
+      "paragraphs": [
+        "For transient rate or overload responses, follow Retry-After when present. OpenAI identifies 500 server errors and 503 overload as bounded-retry candidates. Enforce one total-attempt budget across the application, SDK, and transport. The initial request counts. If the cap is three and two attempts have already been consumed inside an SDK, the application has at most one attempt left.",
+        "Validate attempt accounting before making a retry decision. Attempts consumed and the cap must be positive integers. A retry is allowed only when attempts consumed is less than the cap. The exercise accepts a nonnegative finite numeric Retry-After value expressed in seconds and rejects malformed or negative values. This parsing rule and unified budget are authored application patterns, not a claim about a complete OpenAI SDK implementation."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Total-attempt examples",
+        "code": "cap=3, attemptsConsumed=1: a transient failure may use attempt 2\ncap=3, attemptsConsumed=2: a transient failure may use attempt 3\ncap=3, attemptsConsumed=3: stop; the cap has been reached\ncap=3, attemptsConsumed=-1: reject invalid accounting\ncap=0, attemptsConsumed=1: reject invalid accounting\n\nattemptsConsumed includes the initial request and attempts already made by an SDK or transport."
+      }
+    },
+    {
+      "id": "diagnostic-record",
+      "title": "Collect privacy-safe diagnostic evidence",
+      "paragraphs": [
+        "A useful incident record identifies an operation without reproducing its contents. x-request-id is a provider-supplied request identifier useful for debugging and support. An inputFingerprint is an authored privacy pattern: compute a one-way hash such as SHA-256 over a suitably normalized input and retain only the hash. A hash can still be sensitive when its input domain is small, so access and retention controls remain necessary.",
+        "Use an allowlist when constructing diagnostic output. Do not copy an arbitrary error or diagnostic object and then try to remove known secrets. Preserve only approved fields, and explicitly mark omitted body and credential fields. Review redaction before sending identifiers or records to support."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Redacted diagnostic record",
+        "code": "{\n  \"operationId\": \"op_7f31\",\n  \"workflowVersion\": \"payment-summary@b17\",\n  \"status\": 429,\n  \"errorCode\": \"rate_limit\",\n  \"errorType\": \"rate_limit_error\",\n  \"xRequestId\": \"req_redacted_123\",\n  \"timestamp\": \"2026-09-20T12:00:00Z\",\n  \"attemptsConsumed\": 2,\n  \"totalAttemptCap\": 3,\n  \"latencyMs\": 814,\n  \"inputFingerprint\": \"sha256:redacted\",\n  \"apiKey\": \"OMITTED\",\n  \"body\": \"OMITTED\"\n}"
+      }
+    },
+    {
+      "id": "side-effect-reconciliation",
+      "title": "Reconcile an unknown side effect before retrying",
+      "paragraphs": [
+        "A timeout or lost response can leave an operation in an unknown state. If the request could create an order, message, charge, write, or other durable effect, do not immediately repeat it. Freeze automatic retry, query durable state using an application operation identifier, inspect restricted telemetry, and classify the effect as absent, present once, or indeterminate.",
+        "Retry only after absence is established and duplicate execution is prevented by the application's design. If the effect is present, continue from the recorded result instead of repeating it. If the state remains indeterminate, pause and escalate. This reconciliation protocol is an authored operational pattern because the supplied OpenAI sources do not specify a complete application side-effect protocol."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Reconciliation decision",
+        "code": "1. Freeze retry for operationId op_7f31.\n2. Query the downstream durable store by operationId.\n3. Correlate restricted telemetry with x-request-id when available.\n4. If absent: permit a guarded retry within the remaining attempt budget.\n5. If present once: resume from the durable result without repeating the effect.\n6. If indeterminate: keep retry disabled and escalate with redacted evidence.\n7. Record the state, evidence, owner, and decision time."
+      }
+    },
+    {
+      "id": "worked-incident",
+      "title": "Work a simulated incident from alert to rollback",
+      "paragraphs": [
+        "This incident is a filled simulation, not a provider log or a claim that an API call occurred. Candidate c42 triggers a release-gate failure because its payment-refusal slice is 82% with one severe failure. During the same controlled exercise, operation op_7f31 records a transient 429 rate_limit on attempt 2 of a three-attempt budget with Retry-After set to 2 seconds. A second operation, op_7f32, has an unknown downstream result, so it is reconciled rather than retried.",
+        "The release owner holds c42 and restores verified commit b17. Reconciliation finds op_7f32 present exactly once, so no duplicate request is issued. The team then reruns the severe case, affected slice, full evaluation, invalid and negative cases, retry-cap checks, and redaction checks. The arithmetic below is authored worked evidence and must not be presented as live-product evidence."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Filled simulated incident timeline",
+        "code": "12:00 UTC  Gate fails: candidate c42 payment-refusal slice 82%, severe failures 1\n12:03 UTC  Promotion frozen; incident owner assigned\n12:05 UTC  op_7f31 classified transient rate_limit, attempts consumed 2 of 3\n12:05 UTC  Retry-After recorded as 2 seconds; at most one further attempt permitted\n12:07 UTC  op_7f32 automatic retry frozen because side effect is unknown\n12:12 UTC  Durable-state query finds op_7f32 present exactly once; no retry issued\n12:20 UTC  Candidate c42 withdrawn; verified commit b17 restored\n12:35 UTC  Recovery evaluation and operational checks completed in the simulation\nDecision: retain b17 and keep c42 on HOLD"
       }
     },
     {
       "id": "verify-and-recover",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence is a versioned evaluation report and a reproducible, privacy-safe triage record. Verify dataset integrity, grader agreement, thresholds, regression slices, retry limits, redaction, request identifiers, and the final release decision. Re-run fixed regression cases after every incident.",
-        "If the gate fails or production regresses, halt promotion and restore the last verified prompt, model configuration, or application version. Reconcile uncertain downstream operations before retrying, then repeat the same evaluation and smoke checks. Escalate persistent provider failures with request IDs and a redacted timeline; close only when service and post-rollback evidence pass."
-      ]
+        "Recovery is not proved by one successful request. Verify the rollback target, reconcile operations with uncertain side effects, and rerun the fixed regression case, affected slice, representative negative cases, and full evaluation. Also verify diagnostic redaction and the total-attempt boundary. Compare results with the saved baseline and retain evidence locations and ownership.",
+        "The filled record below completes the simulated incident. It shows restoration of the baseline slice result, removal of the severe failure, successful negative tests, and a reconciled side effect. In a real incident, replace these teaching values with actual approved telemetry and evaluation artifacts. If any gate still fails, keep the release held or revert again."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Filled simulated recovery record",
+        "code": "Rollback target: payment-summary commit b17\nCandidate status: c42 held\nReconciled operation: op_7f32 present exactly once; duplicate retry prevented\nPost-rollback overall evaluation: 90%, gate PASS\nPost-rollback payment-refusal slice: 98%, gate PASS\nPost-rollback severe payment-refusal failures: 0, gate PASS\nInvalid-input and negative tests: PASS in the worked scenario\nRetry-cap and redaction checks: PASS in the worked scenario\nRelease decision: RETAIN b17\nClosure condition: satisfied for this authored simulation"
+      }
+    },
+    {
+      "id": "offline-exercise",
+      "title": "Understand the offline repair exercise",
+      "paragraphs": [
+        "The exercise below replays deterministic error-shaped fixtures with Node.js 22. It makes no network request, needs no secret, does not sleep, and does not execute a real side effect. It tests a local decision contract, not an OpenAI SDK. The first eight core cases reproduce the corrected baseline of 3 passing and 5 failing. Nine added negative and changed-input cases expand the complete baseline to 3 passing and 14 failing across 17 gathered cases.",
+        "OpenAI's official API error-code guide, fetched and reviewer-confirmed on 2026-09-20, explicitly lists organization_spend_limit_exceeded, project_spend_limit_exceeded, and organization_usage_limit_exceeded: https://developers.openai.com/api/docs/guides/error-codes. These billing, spend, and quota restrictions require restored access or corrected account limits. Retrying the same request unchanged does not restore access."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Exercise contract",
+        "code": "Edit only: learner.mjs\nDo not edit: fixtures.mjs or run-tests.mjs\nReference: reference-answer.mjs, separate from the starter\nCore baseline: 3 pass, 5 fail, 8 total\nComplete baseline: 3 pass, 14 fail, 17 total, exit code 1\nComplete repaired result: 17 pass, 0 fail, exit code 0\nReference result: 17 pass, 0 fail, exit code 0\nNo network, credentials, waiting, SDK, or model execution occurs."
+      }
+    },
+    {
+      "id": "offline-setup",
+      "title": "Create the complete Node.js 22 exercise safely",
+      "paragraphs": [
+        "Save the following block as setup.ps1 in a new parent directory and run it with PowerShell 7. It creates openai-triage-offline only when that path does not exist. It refuses an existing path and contains no deletion, recursive removal, or overwrite workflow. The generated starter is deliberately flawed; the correct implementation is written only to the separate reference-answer.mjs file.",
+        "The runner gathers every fixture and invokes decide(null) for the invalid-input case. It uses deep structural comparison, reports every mismatch, and sets a nonzero exit code when any case fails. Set SOLUTION to reference only when checking the separate reference answer."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "PowerShell 7 setup.ps1",
+        "code": "$ErrorActionPreference = 'Stop'\n$root = Join-Path (Get-Location) 'openai-triage-offline'\nif (Test-Path -LiteralPath $root) { throw \"Refusing existing path: $root\" }\nNew-Item -ItemType Directory -Path $root | Out-Null\n\n@'\nexport const allCases = [\n  { id: \"invalid-input\", core: true, input: null, expected: { action: \"invalid_input\" } },\n  { id: \"transient-rate\", core: true, error: { status: 429, code: \"rate_limit\", type: \"rate_limit_error\", headers: { \"retry-after\": \"2\" } }, attemptsConsumed: 1, totalAttemptCap: 3, expected: { action: \"retry\", waitSeconds: 2 } },\n  { id: \"billing-quota\", core: true, error: { status: 429, code: \"insufficient_quota\", type: \"insufficient_quota\" }, attemptsConsumed: 1, totalAttemptCap: 3, expected: { action: \"no_retry\", reason: \"quota_or_billing\" } },\n  { id: \"authentication\", core: true, error: { status: 401, code: \"invalid_api_key\", type: \"authentication_error\" }, attemptsConsumed: 1, totalAttemptCap: 3, expected: { action: \"no_retry\", reason: \"authentication\" } },\n  { id: \"invalid-request\", core: true, error: { status: 400, code: \"invalid_request\", type: \"invalid_request_error\" }, attemptsConsumed: 1, totalAttemptCap: 3, expected: { action: \"no_retry\", reason: \"invalid_request\" } },\n  { id: \"cap-reached\", core: true, error: { status: 503, code: \"overload\", type: \"server_error\" }, attemptsConsumed: 3, totalAttemptCap: 3, expected: { action: \"no_retry\", reason: \"attempt_cap\" } },\n  { id: \"unknown-side-effect\", core: true, error: { status: 503, code: \"overload\", type: \"server_error\" }, attemptsConsumed: 1, totalAttemptCap: 3, sideEffect: \"unknown\", expected: { action: \"reconcile\" } },\n  { id: \"safe-diagnostics\", core: true, diagnostic: { apiKey: \"[SYNTHETIC_API_KEY]\", body: \"private text\", status: 429, code: \"rate_limit\", xRequestId: \"req-1\", unrelatedSecret: \"do-not-copy\" }, expected: { action: \"redacted\", apiKey: \"OMITTED\", body: \"OMITTED\", status: 429, code: \"rate_limit\", xRequestId: \"req-1\" } },\n  { id: \"slow-down\", error: { status: 429, code: \"slow_down\", type: \"rate_limit_error\", headers: { \"retry-after\": \"1.5\" } }, attemptsConsumed: 1, totalAttemptCap: 3, expected: { action: \"retry\", waitSeconds: 1.5 } },\n  { id: \"organization-spend\", error: { status: 429, code: \"organization_spend_limit_exceeded\", type: \"rate_limit_error\" }, attemptsConsumed: 1, totalAttemptCap: 3, expected: { action: \"no_retry\", reason: \"quota_or_billing\" } },\n  { id: \"project-spend\", error: { status: 429, code: \"project_spend_limit_exceeded\", type: \"rate_limit_error\" }, attemptsConsumed: 1, totalAttemptCap: 3, expected: { action: \"no_retry\", reason: \"quota_or_billing\" } },\n  { id: \"organization-usage\", error: { status: 429, code: \"organization_usage_limit_exceeded\", type: \"rate_limit_error\" }, attemptsConsumed: 1, totalAttemptCap: 3, expected: { action: \"no_retry\", reason: \"quota_or_billing\" } },\n  { id: \"server-500\", error: { status: 500, code: \"server_error\", type: \"server_error\" }, attemptsConsumed: 1, totalAttemptCap: 2, expected: { action: \"retry\", waitSeconds: 0 } },\n  { id: \"negative-attempt\", error: { status: 503, code: \"overload\", type: \"server_error\" }, attemptsConsumed: -1, totalAttemptCap: 3, expected: { action: \"invalid_input\", reason: \"invalid_attempt_budget\" } },\n  { id: \"zero-cap\", error: { status: 503, code: \"overload\", type: \"server_error\" }, attemptsConsumed: 1, totalAttemptCap: 0, expected: { action: \"invalid_input\", reason: \"invalid_attempt_budget\" } },\n  { id: \"negative-retry-after\", error: { status: 429, code: \"rate_limit\", type: \"rate_limit_error\", headers: { \"retry-after\": \"-4\" } }, attemptsConsumed: 1, totalAttemptCap: 3, expected: { action: \"invalid_input\", reason: \"invalid_retry_after\" } },\n  { id: \"changed-input-cap\", error: { status: 429, code: \"rate_limit\", type: \"rate_limit_error\", headers: { \"retry-after\": \"4\" } }, attemptsConsumed: 2, totalAttemptCap: 2, expected: { action: \"no_retry\", reason: \"attempt_cap\" } }\n];\n'@ | Set-Content -Encoding utf8 (Join-Path $root 'fixtures.mjs')\n\n@'\nexport function decide(input) {\n  if (!input || typeof input !== \"object\") return { action: \"retry\" };\n  if (input.diagnostic) return { action: \"redacted\", ...input.diagnostic };\n  const e = input.error;\n  if (!e) return { action: \"invalid_input\" };\n  if (input.sideEffect === \"unknown\") return { action: \"retry\" };\n  if (e.status === 401) return { action: \"no_retry\", reason: \"authentication\" };\n  if (e.code === \"invalid_request\") return { action: \"no_retry\", reason: \"invalid_request\" };\n  if (e.status === 429 && e.code === \"rate_limit\" && input.attemptsConsumed <= input.totalAttemptCap) {\n    return { action: \"retry\", waitSeconds: Number(e.headers?.[\"retry-after\"] || 0) };\n  }\n  return { action: \"retry\" };\n}\n'@ | Set-Content -Encoding utf8 (Join-Path $root 'learner.mjs')\n\n@'\nimport assert from \"node:assert/strict\";\nimport { allCases } from \"./fixtures.mjs\";\n\nconst solutionPath = process.env.SOLUTION === \"reference\" ? \"./reference-answer.mjs\" : \"./learner.mjs\";\nconst { decide } = await import(solutionPath);\n\nfunction invoke(testCase) {\n  return Object.hasOwn(testCase, \"input\") ? decide(testCase.input) : decide(testCase);\n}\n\nconst results = [];\nfor (const testCase of allCases) {\n  let actual;\n  let pass = false;\n  try {\n    actual = invoke(testCase);\n    assert.deepStrictEqual(actual, testCase.expected);\n    pass = true;\n  } catch (error) {\n    if (actual === undefined) actual = { threw: error?.message || String(error) };\n  }\n  results.push({ id: testCase.id, core: testCase.core === true, pass, actual, expected: testCase.expected });\n}\n\nconst failedIds = results.filter(result => !result.pass).map(result => result.id);\nconst coreResults = results.filter(result => result.core);\nconst coreFailedIds = coreResults.filter(result => !result.pass).map(result => result.id);\nconst summary = {\n  passed: results.filter(result => result.pass).length,\n  failed: failedIds.length,\n  total: results.length,\n  failedIds,\n  core: {\n    passed: coreResults.filter(result => result.pass).length,\n    failed: coreFailedIds.length,\n    total: coreResults.length,\n    failedIds: coreFailedIds\n  }\n};\n\nconsole.log(JSON.stringify(summary));\nfor (const result of results) {\n  if (!result.pass) console.log(JSON.stringify({ id: result.id, actual: result.actual, expected: result.expected }));\n}\nprocess.exitCode = failedIds.length === 0 ? 0 : 1;\n'@ | Set-Content -Encoding utf8 (Join-Path $root 'run-tests.mjs')\n\n@'\nconst quotaCodes = new Set([\n  \"insufficient_quota\",\n  \"organization_spend_limit_exceeded\",\n  \"project_spend_limit_exceeded\",\n  \"organization_usage_limit_exceeded\"\n]);\n\nfunction isRecord(value) {\n  return value !== null && typeof value === \"object\" && !Array.isArray(value);\n}\n\nfunction parseRetryAfter(error) {\n  const headers = error.headers;\n  if (headers === undefined) return 0;\n  if (!isRecord(headers)) return null;\n  const raw = headers[\"retry-after\"];\n  if (raw === undefined) return 0;\n  if (typeof raw !== \"string\" || !/^(?:0|[1-9]\\d*)(?:\\.\\d+)?$/.test(raw)) return null;\n  const seconds = Number(raw);\n  return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;\n}\n\nexport function decide(input) {\n  if (!isRecord(input)) return { action: \"invalid_input\" };\n\n  if (Object.hasOwn(input, \"diagnostic\")) {\n    const diagnostic = input.diagnostic;\n    if (!isRecord(diagnostic)) return { action: \"invalid_input\" };\n    if (Object.hasOwn(diagnostic, \"status\") && (!Number.isInteger(diagnostic.status) || diagnostic.status < 100 || diagnostic.status > 599)) {\n      return { action: \"invalid_input\" };\n    }\n    if (Object.hasOwn(diagnostic, \"code\") && typeof diagnostic.code !== \"string\") return { action: \"invalid_input\" };\n    if (Object.hasOwn(diagnostic, \"xRequestId\") && typeof diagnostic.xRequestId !== \"string\") return { action: \"invalid_input\" };\n    const output = {\n      action: \"redacted\",\n      apiKey: \"OMITTED\",\n      body: \"OMITTED\"\n    };\n    if (Object.hasOwn(diagnostic, \"status\")) output.status = diagnostic.status;\n    if (Object.hasOwn(diagnostic, \"code\")) output.code = diagnostic.code;\n    if (Object.hasOwn(diagnostic, \"xRequestId\")) output.xRequestId = diagnostic.xRequestId;\n    return output;\n  }\n\n  const error = input.error;\n  if (!isRecord(error) || !Number.isInteger(error.status)) return { action: \"invalid_input\" };\n  if (error.code !== undefined && typeof error.code !== \"string\") return { action: \"invalid_input\" };\n  if (error.type !== undefined && typeof error.type !== \"string\") return { action: \"invalid_input\" };\n\n  if (!Number.isInteger(input.attemptsConsumed) || input.attemptsConsumed < 1 || !Number.isInteger(input.totalAttemptCap) || input.totalAttemptCap < 1) {\n    return { action: \"invalid_input\", reason: \"invalid_attempt_budget\" };\n  }\n\n  if (input.sideEffect === \"unknown\") return { action: \"reconcile\" };\n  if (error.status === 401) return { action: \"no_retry\", reason: \"authentication\" };\n  if (error.code === \"invalid_request\" || error.type === \"invalid_request_error\") return { action: \"no_retry\", reason: \"invalid_request\" };\n  if (error.status === 429 && (quotaCodes.has(error.code) || error.type === \"insufficient_quota\")) {\n    return { action: \"no_retry\", reason: \"quota_or_billing\" };\n  }\n\n  const transientRate = error.status === 429 && (error.code === \"rate_limit\" || error.code === \"slow_down\");\n  const transientServer = error.status === 500 || error.status === 503;\n  if (transientRate || transientServer) {\n    if (input.attemptsConsumed >= input.totalAttemptCap) return { action: \"no_retry\", reason: \"attempt_cap\" };\n    const waitSeconds = parseRetryAfter(error);\n    if (waitSeconds === null) return { action: \"invalid_input\", reason: \"invalid_retry_after\" };\n    return { action: \"retry\", waitSeconds };\n  }\n\n  return { action: \"no_retry\", reason: \"unclassified\" };\n}\n'@ | Set-Content -Encoding utf8 (Join-Path $root 'reference-answer.mjs')\n\nWrite-Output \"Created $root\"\nWrite-Output 'Baseline command: node .\\run-tests.mjs'\nWrite-Output 'Expected complete baseline: {\"passed\":3,\"failed\":14,\"total\":17,\"failedIds\":[\"invalid-input\",\"billing-quota\",\"cap-reached\",\"unknown-side-effect\",\"safe-diagnostics\",\"slow-down\",\"organization-spend\",\"project-spend\",\"organization-usage\",\"server-500\",\"negative-attempt\",\"zero-cap\",\"negative-retry-after\",\"changed-input-cap\"],\"core\":{\"passed\":3,\"failed\":5,\"total\":8,\"failedIds\":[\"invalid-input\",\"billing-quota\",\"cap-reached\",\"unknown-side-effect\",\"safe-diagnostics\"]}}'\nWrite-Output 'Expected baseline exit code: 1'\nWrite-Output 'After repairing learner.mjs: 17 pass, 0 fail, exit code 0'\nWrite-Output 'Reference check: set SOLUTION=reference for one command as shown in the lesson'\n"
+      }
+    },
+    {
+      "id": "offline-instructions",
+      "title": "Run the baseline, make one repair, and verify changed cases",
+      "paragraphs": [
+        "Run the setup, enter the generated directory, and execute the tests. The summary must report the complete 3-pass, 14-fail baseline and its nested 3-pass, 5-fail core result. The process exit code must be 1. The runner then prints all 14 mismatch records, so no case stops collection of later cases.",
+        "Edit learner.mjs only. Make one coherent repair that validates inputs and budgets, distinguishes transient rate errors from quota and spend restrictions, rejects authentication and invalid requests, enforces the total cap, parses Retry-After safely for every eligible 429, 500, and 503 error, reconciles unknown side effects, and allowlists diagnostics. The changed-input-cap case proves that a transient-looking response cannot exceed the cap. Negative cases reject invalid attempts, a zero cap, and a negative Retry-After value. Keep the existing 17 gathered cases unchanged. Independent manual boundary checks should expect a 500 or 503 with retry-after set to \"2\" to return retry with waitSeconds 2 when budget remains, an eligible server error with malformed retry-after to return invalid_retry_after when budget remains, and the same malformed header at the cap to return attempt_cap because the cap check comes first. Diagnostic checks should expect invalid_input for status outside the integer HTTP range 100 through 599, or for non-string code or xRequestId values such as nested objects or arrays; valid scalar diagnostic fields remain allowlisted while secrets and unrelated fields are not copied."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Commands and exact expected summaries",
+        "code": "pwsh -File .\\setup.ps1\nSet-Location .\\openai-triage-offline\nnode .\\run-tests.mjs\n$LASTEXITCODE\n# Expected baseline exit code: 1\n# Expected first output line:\n# {\"passed\":3,\"failed\":14,\"total\":17,\"failedIds\":[\"invalid-input\",\"billing-quota\",\"cap-reached\",\"unknown-side-effect\",\"safe-diagnostics\",\"slow-down\",\"organization-spend\",\"project-spend\",\"organization-usage\",\"server-500\",\"negative-attempt\",\"zero-cap\",\"negative-retry-after\",\"changed-input-cap\"],\"core\":{\"passed\":3,\"failed\":5,\"total\":8,\"failedIds\":[\"invalid-input\",\"billing-quota\",\"cap-reached\",\"unknown-side-effect\",\"safe-diagnostics\"]}}\n\n# Edit learner.mjs only, then run:\nnode .\\run-tests.mjs\n$LASTEXITCODE\n# Expected repaired first line:\n# {\"passed\":17,\"failed\":0,\"total\":17,\"failedIds\":[],\"core\":{\"passed\":8,\"failed\":0,\"total\":8,\"failedIds\":[]}}\n# Expected repaired exit code: 0\n\n$env:SOLUTION = 'reference'\nnode .\\run-tests.mjs\n$LASTEXITCODE\nRemove-Item Env:SOLUTION\n# Expected reference first line is the same 17-pass summary.\n# Expected reference exit code: 0."
+      }
+    },
+    {
+      "id": "evaluation-lifecycle",
+      "title": "Separate local policy tests from real-product evidence",
+      "paragraphs": [
+        "Deterministic fixture replay establishes only that a local function satisfies the authored decision contract for the gathered cases. It does not establish OpenAI payload formats beyond cited facts, SDK behavior, network timing, provider availability, billing state, successful recovery, model quality, or the absence of real side effects. Do not convert the exercise output into a production incident claim.",
+        "An optional real-product workflow requires separately approved credentials, network controls, representative data, privacy review, task-specific graders, a saved baseline, slice thresholds, and controlled telemetry. No such resources are needed for this lesson. OpenAI states that the Evals Platform becomes read-only on 2026-10-31 and shuts down on 2026-11-30. That product deprecation does not deprecate evaluation methodology, so this guide teaches local, versioned evaluation rather than requiring that platform."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Evidence boundaries",
+        "code": "Offline fixture result: local policy-contract evidence only\nLive API result: requires an approved network request and real redacted telemetry\nModel-quality claim: requires representative data, graders, baseline comparison, slices, and review\nRecovery claim: requires actual rollback, reconciliation, post-recovery tests, timestamps, and ownership\nCurrent model names, prices, and SDK syntax: not asserted by this guide"
+      }
     }
   ],
   "sources": [
     {
-      "title": "Evaluation best practices",
-      "url": "https://developers.openai.com/api/docs/guides/evaluation-best-practices",
-      "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
-    },
-    {
       "title": "OpenAI API error codes",
       "url": "https://developers.openai.com/api/docs/guides/error-codes",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Evaluation best practices",
+      "url": "https://developers.openai.com/api/docs/guides/evaluation-best-practices",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "OpenAI API developer quickstart",
       "url": "https://developers.openai.com/api/docs/quickstart",
       "publisher": "OpenAI",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     }
   ]
 }

@@ -2,7 +2,7 @@
   "id": "anthropic-evaluation-error-triage",
   "slug": "anthropic-evaluation-error-triage",
   "title": "Anthropic Evaluation and Error Triage",
-  "summary": "Turn a Claude workflow into measurable tests, preserve request evidence, classify API failures, and release or recover through explicit gates.",
+  "summary": "Turn a Claude workflow into measurable tests, preserve privacy-safe request evidence, classify provider failures, enforce total-attempt limits, and release or recover through explicit gates.",
   "category": "Provider workflows",
   "format": "playbook",
   "audience": [
@@ -17,66 +17,232 @@
   "prerequisites": [
     "A defined Claude workflow",
     "Representative redacted or synthetic cases",
-    "Access to application telemetry without secrets"
+    "Access to application telemetry without secrets",
+    "Node.js 22 and PowerShell 7 for the offline exercise"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "anthropic",
+    "anthropic-api",
     "evaluation",
     "errors",
-    "troubleshooting"
+    "troubleshooting",
+    "reliability"
   ],
   "sections": [
     {
       "id": "build-evaluation",
       "title": "Define success before tuning",
       "paragraphs": [
-        "Write specific success criteria for the real task, then assemble representative, boundary, adversarial, refusal, and regression cases. Prefer deterministic checks for schemas, citations, calculations, prohibited content, and required evidence; use calibrated human or model graders only where judgment is necessary. Keep a holdout set and record the prompt, model, configuration, dataset version, grader, and threshold.",
-        "Compare changes against the current baseline on quality, safety, latency, and cost. Averages can hide severe failures, so inspect slices and worst cases. Promotion requires the agreed threshold with no blocking regression; changing the grader or dataset creates a new baseline."
-      ]
+        "Write task-specific, measurable success criteria before changing a prompt, model, or application. Include representative cases, boundary cases, negative cases, and high-severity regressions. Use automated checks for schemas, required fields, calculations, citations, and prohibited outputs. Use calibrated judgment only where deterministic checks are insufficient. Reserve a holdout set for final comparison rather than tuning. These practices follow Anthropic's evaluation guidance: https://platform.claude.com/docs/en/test-and-evaluate/develop-tests.",
+        "Record the workflow version, model configuration, dataset version, grader, thresholds, and results. Compare baseline and candidate across quality, safety, latency, cost, and operational slices. An overall average is not a sufficient release gate. Inspect severe slices and worst cases separately. If the grader or dataset changes, establish and label a new baseline rather than presenting the result as a clean comparison."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Evaluation record template",
+        "code": "Workflow/version: [name / commit]\nModel/configuration: [configured model / parameters]\nDataset: [version / tuning split / holdout]\nGrader: [automated checks / calibrated judgment]\nThresholds: [quality / safety / latency / cost]\nBaseline versus candidate: [overall and slice metrics]\nWorst case and blocking regressions: [filled evidence]\nDecision: [PROMOTE | HOLD | REVERT]\nApprover and timestamp: [owner / UTC timestamp]"
+      }
     },
     {
       "id": "triage-failure",
       "title": "Classify the failure before acting",
       "paragraphs": [
-        "Separate transport, authentication, permission, validation, rate-limit, overload, model-completion, application-validation, and downstream-side-effect failures. Capture the HTTP status, error type, request_id or request-id header, timestamp, model, attempt, latency, and a privacy-safe input fingerprint. Do not log keys or sensitive request bodies.",
-        "Treat 401 and 403 as credential or authorization problems, 400 and 413 as request problems, 429 as rate or acceleration limits, and 5xx as transient provider or infrastructure failures subject to the provider's current guidance. Retry only transient classes with bounded backoff and jitter."
+        "Separate local input failures, request validation failures, authentication failures, billing failures, permission failures, rate limits, spend caps, provider failures, overload, timeouts, streamed errors, application-validation failures, and uncertain downstream side effects. Record status, provider error type, request identifier, timestamp, configured model, total attempt number, latency, and a privacy-safe input fingerprint. Do not place API keys, authorization headers, prompts, completions, personal data, or payment data in ordinary diagnostics.",
+        "Anthropic documents HTTP 400 for invalid requests, including configured organization or workspace spend limits; 401 for authentication; 402 for billing; 403 for permission; 413 for oversized requests; 429 for rate or acceleration limits and also tier or monthly spend caps; 500 for API errors; 504 for timeouts; and 529 for overload. A spend-cap 429 lacks Retry-After and requires access restoration rather than blind retry. Source: https://platform.claude.com/docs/en/api/errors."
       ],
       "code": {
         "language": "text",
-        "label": "Claude workflow evidence record",
-        "code": "Workflow/version: [NAME / COMMIT]\nModel/configuration: [MODEL / PARAMETERS]\nDataset/grader: [VERSION / METHOD]\nRequired thresholds: [QUALITY / SAFETY / LATENCY / COST]\nObserved results and worst slice: [METRICS]\nFailure class: [TRANSPORT | AUTH | VALIDATION | RATE | OVERLOAD | COMPLETION | APPLICATION | DOWNSTREAM]\nHTTP/error/request ID: [REDACTED EVIDENCE]\nRetry decision and budget: [DO NOT RETRY | ATTEMPT N OF LIMIT]\nRollback target: [LAST VERIFIED VERSION]\nRelease decision/approver: [PROMOTE | HOLD | REVERT / OWNER]"
+        "label": "Redacted diagnostic record",
+        "code": "event_time_utc: 2026-09-20T12:00:00Z\nworkflow_version: checkout-assistant@7f31c2\nmodel: [record configured model; do not invent one]\nstatus: 429\nprovider_error_type: [record observed wire value]\nnormalized_category: RATE_LIMIT\nrequest_id: req_redacted_123\nattempt: 2 of 3 total\nattempt_origin: sdk_retry_1\nlatency_ms: 842\ninput_fingerprint: sha256:example-redacted\nretry_decision: RETRY_WITHIN_BOUND\nresponse_body: NOT_LOGGED\nauthorization: NOT_LOGGED\napi_key: NOT_LOGGED"
+      }
+    },
+    {
+      "id": "worked-incident",
+      "title": "Worked incident: classify, bound, and recover",
+      "paragraphs": [
+        "This filled incident is synthetic and is not evidence from a live Anthropic account. At 12:00 UTC, an operation receives a retryable 429 on its initial provider attempt. The configured SDK policy makes two transient retries, so attempts 2 and 3 exhaust the application cap of three total provider attempts. The operator stops instead of adding an outer retry. A separate 429 has no Retry-After and account evidence identifies a monthly spend cap. The application assigns the synthetic normalized category SPEND_CAP, records the request identifier, stops automatic retries, and routes access restoration to the account owner. SPEND_CAP is an application category, not a claimed Anthropic wire error.type value.",
+        "Recovery evidence is also synthetic: the account owner records access restoration, the operator runs one approved probe under a fresh three-attempt budget, and the probe succeeds on its initial attempt. The redacted post-recovery record contains the timestamp, request identifier, application version, status, and attempt count. Automatic traffic resumes only after the probe, retry-budget review, and unresolved-side-effect count all pass. A 401, 402, or 403 instead requires credential, billing, or authorization repair. A 400 or 413 requires request correction. Source: https://platform.claude.com/docs/en/api/errors."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Synthetic incident timeline and recovery",
+        "code": "ARTIFACT: synthetic worked example, not live Anthropic evidence\n12:00:00 attempt 1/3: status 429, normalized RATE_LIMIT\n12:00:02 attempt 2/3: status 429, SDK retry 1\n12:00:06 attempt 3/3: status 429, SDK retry 2\n12:00:06 action: STOP, total-attempt budget exhausted\n12:03:00 separate event: status 429, no Retry-After, account evidence says monthly cap\n12:03:00 normalized category: SPEND_CAP\n12:03:00 action: STOP_AND_RESTORE_ACCESS\n12:30:00 account-owner record: access restored\n12:31:00 approved probe: success on attempt 1/3\n12:32:00 unresolved side effects: 0 after reconciliation\n12:33:00 decision: RESUME_WITH_MONITORING"
+      }
+    },
+    {
+      "id": "release-evidence",
+      "title": "Read severe slices, not only the average",
+      "paragraphs": [
+        "This report is an illustrative synthetic evaluation, not an Anthropic benchmark or live-product result. The baseline passes 940 of 1,000 overall cases, while the candidate passes 942. The candidate therefore rises from 94.0% to 94.2%. However, the safety-refusal slice falls from 49 of 50 to 41 of 50, or 98.0% to 82.0%. The payment-confirmation slice falls from 97 of 100 to 76 of 100, or 97.0% to 76.0%. These severe regressions are hidden by the overall average.",
+        "The predeclared gate requires overall quality not to fall, every safety-critical slice to reach at least 95%, and no critical slice to regress by more than 2 percentage points. The candidate fails two blocking conditions, so the decision is HOLD_AND_REVERT. Preserve the dataset, holdout, grader version, report, and failed candidate. Restore the last verified workflow version and rerun the unchanged evaluation to produce post-rollback evidence."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Illustrative release report",
+        "code": "ARTIFACT: synthetic offline example, not live evidence\ncases: 1000\n                         baseline       candidate      delta\noverall quality          940/1000 94.0% 942/1000 94.2% +0.2 pp\nsafety refusal            49/50 98.0%    41/50 82.0%  -16.0 pp\npayment confirmation     97/100 97.0%   76/100 76.0%  -21.0 pp\nlatency p95               1200 ms         1250 ms       +50 ms\nblocking gate: safety slices >=95%; critical regression <=2 pp\ndecision: HOLD_AND_REVERT\nreason: severe slice regressions hidden by the overall average\nrollback evidence required: unchanged holdout and blocking slices pass"
+      }
+    },
+    {
+      "id": "retry-privacy-and-side-effects",
+      "title": "Bound retries, protect diagnostics, and reconcile uncertainty",
+      "paragraphs": [
+        "Use an explicit transient allowlist and one total-attempt cap. Count the initial provider call and every SDK attempt in that cap. Anthropic documents that its SDKs retry transient errors twice by default. Therefore, an initial call plus two SDK retries consumes a three-attempt application budget. Do not add an outer loop that creates a fourth attempt. Eligible 429 rate or acceleration limits, 500, 504, and 529 may receive bounded backoff and jitter. Authentication, billing, permission, invalid-request, oversized-request, and spend-cap failures require correction or restored access instead of unchanged retries. Source: https://platform.claude.com/docs/en/api/errors.",
+        "An SSE error can arrive after HTTP 200, so a successful initial status does not prove the stream completed. Preserve the request-id header or error-body request_id for tracing, but omit sensitive bodies. If a timeout or stream interruption leaves a possible charge, message, order, or record update uncertain, mark the outcome UNKNOWN. Query the authoritative downstream system using a transaction or idempotency identifier. Retry only after reconciliation proves the operation was not applied or confirms that repeating it is safe. Source: https://platform.claude.com/docs/en/api/errors."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Provider-specific decision table",
+        "code": "Local missing or unknown fixture input: 0 provider attempts; reject locally\n400 invalid_request or 413 oversized request: 1 attempt consumed; fix request\n401 authentication: 1 attempt consumed; repair credentials\n402 billing: 1 attempt consumed; restore billing\n403 permission: 1 attempt consumed; repair authorization\n429 rate or acceleration limit: bounded retry within total cap\n429 tier or monthly spend cap: stop; restore access; no blind retry\n500 api_error, 504 timeout, 529 overload: bounded retry within total cap\nSSE error after HTTP 200: classify the stream event as a failed provider attempt\nUnknown possible side effect: reconcile authoritative state before retry\nDiagnostic bodies and secrets: do not log"
+      }
+    },
+    {
+      "id": "offline-exercise-overview",
+      "title": "Offline exercise: replay provider attempts and repair one policy",
+      "paragraphs": [
+        "This exercise uses deterministic fixtures and makes no network request. It models provider events, including initial and SDK-originated attempts, a transient recovery, exhausted overload, an SSE error after HTTP 200, authorization and billing stops, a synthetic spend-cap category, request errors, and unknown-side-effect reconciliation. It does not prove model quality, provider availability, pricing, latency, or actual account behavior.",
+        "The deliberately flawed starter really replays and counts fixture events, but its single decision area treats every error as retryable and ignores reconciliation. Only the unchanged success case passes initially. Repair that policy without editing fixtures or tests. The fixed independent suite runs all eight fixture cases plus missing-input and unknown-input checks. Node.js 22 supports ES modules, file-relative import.meta.url handling, promise-based file access, and child_process execution used here: https://nodejs.org/api/esm.html and https://nodejs.org/api/child_process.html."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Exercise contract",
+        "code": "Runtime: Node.js 22\nCommand: node .\\student.mjs <case-name>\nStdout: exactly one compact JSON object for a known case\nExit 0: known case handled, including a deliberate stop\nExit 1: missing input, unknown case, or unreadable fixture\nMaximum provider attempts: 3 total, including initial and SDK attempts\nLocal command validation: 0 provider attempts\nFixtures and test.mjs: fixed independent evaluation artifacts; do not edit\nNetwork and package installation: not used"
+      }
+    },
+    {
+      "id": "offline-exercise-setup",
+      "title": "Create the exercise in a new directory",
+      "paragraphs": [
+        "Run this PowerShell 7 script from the parent directory in one PowerShell session. It refuses an existing TRAINING-TRIAGE path before creating anything and contains no removal, overwrite, or cleanup command. It finishes inside the new exercise directory, so later commands must run from the current directory without another Set-Location. The script uses documented PowerShell commands: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/new-item, https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/test-path, and https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/set-content."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "PowerShell 7 setup, run once from the parent directory",
+        "code": "$ErrorActionPreference = 'Stop'\n$dir = Join-Path (Get-Location) 'TRAINING-TRIAGE'\nif (Test-Path -LiteralPath $dir) { throw \"Refusing existing directory: $dir\" }\nNew-Item -ItemType Directory -Path $dir | Out-Null\nNew-Item -ItemType Directory -Path (Join-Path $dir 'fixtures') | Out-Null\n@'\n{\n  \"valid\": {\n    \"events\": [{\"kind\":\"success\",\"via\":\"initial\"}]\n  },\n  \"invalid\": {\n    \"events\": [{\"kind\":\"error\",\"status\":400,\"type\":\"invalid_request\",\"via\":\"initial\"}]\n  },\n  \"rate\": {\n    \"events\": [\n      {\"kind\":\"error\",\"status\":429,\"type\":\"rate_limit_error\",\"via\":\"initial\"},\n      {\"kind\":\"error\",\"status\":504,\"type\":\"timeout_error\",\"via\":\"sdk_retry_1\",\"sideEffect\":\"unknown\",\"reconciliation\":\"not_applied\"},\n      {\"kind\":\"success\",\"via\":\"sdk_retry_2\"}\n    ]\n  },\n  \"spend-cap\": {\n    \"events\": [{\"kind\":\"error\",\"status\":429,\"type\":\"rate_limit_error\",\"normalizedCategory\":\"spend_cap\",\"retryAfter\":null,\"via\":\"initial\"}]\n  },\n  \"billing\": {\n    \"events\": [{\"kind\":\"error\",\"status\":402,\"type\":\"billing_error\",\"via\":\"initial\"}]\n  },\n  \"permission\": {\n    \"events\": [{\"kind\":\"error\",\"status\":403,\"type\":\"permission_error\",\"via\":\"initial\"}]\n  },\n  \"overload\": {\n    \"events\": [\n      {\"kind\":\"sse_error\",\"httpStatus\":200,\"status\":529,\"type\":\"overloaded_error\",\"via\":\"initial\"},\n      {\"kind\":\"error\",\"status\":529,\"type\":\"overloaded_error\",\"via\":\"sdk_retry_1\"},\n      {\"kind\":\"error\",\"status\":529,\"type\":\"overloaded_error\",\"via\":\"sdk_retry_2\"}\n    ]\n  },\n  \"changed\": {\n    \"events\": [{\"kind\":\"error\",\"status\":413,\"type\":\"request_too_large\",\"via\":\"initial\"}]\n  }\n}\n'@ | Set-Content -Encoding utf8 -NoNewline (Join-Path $dir 'fixtures/cases.json')\n@'\nimport { readFile } from 'node:fs/promises';\n\nconst name = process.argv[2];\nif (!name) {\n  console.error('usage: node student.mjs <case>');\n  process.exit(1);\n}\n\nfunction isRecord(value) {\n  return value !== null && typeof value === 'object' && !Array.isArray(value);\n}\n\nlet cases;\ntry {\n  cases = JSON.parse(await readFile(new URL('./fixtures/cases.json', import.meta.url), 'utf8'));\n  if (!isRecord(cases)) throw new TypeError('invalid fixture store');\n} catch {\n  console.error('fixture error');\n  process.exit(1);\n}\n\nif (!Object.hasOwn(cases, name)) {\n  console.error('unknown case');\n  process.exit(1);\n}\nconst fixture = cases[name];\nif (!isRecord(fixture) || !Array.isArray(fixture.events) || !fixture.events.every(isRecord)) {\n  console.error('fixture error');\n  process.exit(1);\n}\n\nconst MAX_TOTAL_ATTEMPTS = 3;\nlet attempts = 0;\nfor (const event of fixture.events) {\n  if (attempts >= MAX_TOTAL_ATTEMPTS) break;\n  attempts += 1;\n  if (event.kind === 'success') {\n    console.log(JSON.stringify({case:name,class:'success',attempts,action:'accept'}));\n    process.exit(0);\n  }\n  // Deliberate defect: every error is allowed to continue, and unknown\n  // side effects are not reconciled before the next provider attempt.\n}\nconsole.log(JSON.stringify({case:name,class:'retryable',attempts,action:'retry_exhausted'}));\n'@ | Set-Content -Encoding utf8 -NoNewline (Join-Path $dir 'student.mjs')\n@'\nimport { spawnSync } from 'node:child_process';\nimport { fileURLToPath } from 'node:url';\nimport { join } from 'node:path';\n\nconst root = fileURLToPath(new URL('.', import.meta.url));\nconst student = join(root, 'student.mjs');\nconst expected = {\n  valid:{case:'valid',class:'success',attempts:1,action:'accept'},\n  invalid:{case:'invalid',class:'validation',attempts:1,action:'fix_request'},\n  rate:{case:'rate',class:'success',attempts:3,action:'accept',reconciled:true},\n  'spend-cap':{case:'spend-cap',class:'spend_cap',attempts:1,action:'restore_access'},\n  billing:{case:'billing',class:'billing',attempts:1,action:'restore_billing'},\n  permission:{case:'permission',class:'permission',attempts:1,action:'repair_authorization'},\n  overload:{case:'overload',class:'overload',attempts:3,action:'retry_exhausted'},\n  changed:{case:'changed',class:'validation',attempts:1,action:'fix_request'}\n};\n\nfunction run(args) {\n  return spawnSync(process.execPath, [student, ...args], {cwd:root, encoding:'utf8'});\n}\n\nlet passed = 0;\nfor (const name of Object.keys(expected)) {\n  const result = run([name]);\n  let actual;\n  try { actual = JSON.parse(result.stdout); }\n  catch { actual = {parse_error:result.stderr.trim()}; }\n  const ok = result.status === 0 && JSON.stringify(actual) === JSON.stringify(expected[name]);\n  console.log(`${ok?'PASS':'FAIL'} ${name} expected=${JSON.stringify(expected[name])} actual=${JSON.stringify(actual)} exit=${result.status}`);\n  if (ok) passed += 1;\n}\n\nconst missing = run([]);\nconst missingOk = missing.status === 1 && missing.stderr.trim() === 'usage: node student.mjs <case>';\nconsole.log(`CHECK missing-input ${missingOk?'PASS':'FAIL'} exit=${missing.status}`);\nconst unknown = run(['not-a-case']);\nconst unknownOk = unknown.status === 1 && unknown.stderr.trim() === 'unknown case';\nconsole.log(`CHECK unknown-input ${unknownOk?'PASS':'FAIL'} exit=${unknown.status}`);\nconsole.log(`RESULT ${passed}/${Object.keys(expected).length}`);\nprocess.exit(passed === Object.keys(expected).length && missingOk && unknownOk ? 0 : 1);\n'@ | Set-Content -Encoding utf8 -NoNewline (Join-Path $dir 'test.mjs')\n@'\nimport { readFile } from 'node:fs/promises';\n\nconst name = process.argv[2];\nif (!name) {\n  console.error('usage: node reference.mjs <case>');\n  process.exit(1);\n}\n\nfunction isRecord(value) {\n  return value !== null && typeof value === 'object' && !Array.isArray(value);\n}\n\nlet cases;\ntry {\n  cases = JSON.parse(await readFile(new URL('./fixtures/cases.json', import.meta.url), 'utf8'));\n  if (!isRecord(cases)) throw new TypeError('invalid fixture store');\n} catch {\n  console.error('fixture error');\n  process.exit(1);\n}\nif (!Object.hasOwn(cases, name)) {\n  console.error('unknown case');\n  process.exit(1);\n}\nconst fixture = cases[name];\nif (!isRecord(fixture) || !Array.isArray(fixture.events) || !fixture.events.every(isRecord)) {\n  console.error('fixture error');\n  process.exit(1);\n}\n\nconst MAX_TOTAL_ATTEMPTS = 3;\nlet attempts = 0;\nlet reconciled = false;\nlet last;\n\nfor (const event of fixture.events) {\n  if (attempts >= MAX_TOTAL_ATTEMPTS) break;\n  attempts += 1;\n  last = event;\n\n  if (event.kind === 'success') {\n    const output = {case:name,class:'success',attempts,action:'accept'};\n    if (reconciled) output.reconciled = true;\n    console.log(JSON.stringify(output));\n    process.exit(0);\n  }\n\n  if (event.status === 400 || event.status === 413) {\n    console.log(JSON.stringify({case:name,class:'validation',attempts,action:'fix_request'}));\n    process.exit(0);\n  }\n  if (event.status === 401) {\n    console.log(JSON.stringify({case:name,class:'authentication',attempts,action:'repair_credentials'}));\n    process.exit(0);\n  }\n  if (event.status === 402) {\n    console.log(JSON.stringify({case:name,class:'billing',attempts,action:'restore_billing'}));\n    process.exit(0);\n  }\n  if (event.status === 403) {\n    console.log(JSON.stringify({case:name,class:'permission',attempts,action:'repair_authorization'}));\n    process.exit(0);\n  }\n  if (event.status === 429 && event.normalizedCategory === 'spend_cap') {\n    console.log(JSON.stringify({case:name,class:'spend_cap',attempts,action:'restore_access'}));\n    process.exit(0);\n  }\n\n  if (event.sideEffect === 'unknown') {\n    if (event.reconciliation !== 'not_applied') {\n      console.log(JSON.stringify({case:name,class:'unknown_side_effect',attempts,action:'reconcile_before_retry'}));\n      process.exit(0);\n    }\n    reconciled = true;\n  }\n\n  const transient = event.status === 429 || event.status === 500 || event.status === 504 || event.status === 529;\n  if (!transient) {\n    console.log(JSON.stringify({case:name,class:'unknown',attempts,action:'escalate'}));\n    process.exit(0);\n  }\n}\n\nconst finalClass = last?.status === 429 ? 'rate_limit' : last?.status === 529 ? 'overload' : 'transient';\nconsole.log(JSON.stringify({case:name,class:finalClass,attempts,action:'retry_exhausted'}));\n'@ | Set-Content -Encoding utf8 -NoNewline (Join-Path $dir 'reference.mjs')\nSet-Location -LiteralPath $dir\nWrite-Host \"Created exercise and entered $dir\""
+      }
+    },
+    {
+      "id": "offline-exercise-baseline",
+      "title": "Run and interpret the authentic baseline failure",
+      "paragraphs": [
+        "From the current exercise directory, run the fixed suite before editing student.mjs. The exact baseline is RESULT 1/8 with exit code 1. The valid case passes. The 400, synthetic spend cap, 402, 403, three-event overload, and changed 413 cases fail because the starter labels them retryable. The rate case also fails: it reaches success in three counted provider events, but it omits the required reconciled:true evidence after the unknown-side-effect timeout. Both command-validation checks pass with exit code 1 and consume no provider attempts.",
+        "The 400 and 413 fixtures each contain an initial provider event, so their expected attempts value is 1. Zero attempts is reserved for local validation, demonstrated by missing and unknown command input. The baseline count follows directly from the starter and expected objects. It is deterministic expected output, not a claim that a live Anthropic call was executed."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Baseline command and exact expected summary",
+        "code": "node --version\nnode .\\test.mjs\n$baselineExit = $LASTEXITCODE\nWrite-Host \"baseline exit code: $baselineExit\"\n# Exact fixture result: RESULT 1/8\n# Exact test process exit code: 1\n# Exact command checks:\n# CHECK missing-input PASS exit=1\n# CHECK unknown-input PASS exit=1"
+      }
+    },
+    {
+      "id": "offline-exercise-repair",
+      "title": "Repair the bounded decision area",
+      "paragraphs": [
+        "Edit only student.mjs. Replace the generic error continuation with status-aware decisions equivalent to the exercise contract. Stop after 400 or 413 and report validation. Stop after 401, 402, or 403 with the corresponding recovery action. Test normalizedCategory for the fixture's synthetic spend_cap category before treating another 429 as retryable. Allow only 429 rate limits, 500, 504, and 529 to advance within the three-event cap. Treat an sse_error using its provider status even though its httpStatus is 200.",
+        "Before advancing past an event whose sideEffect is unknown, inspect its reconciliation value. Continue only when it is not_applied, and include reconciled:true if a later provider attempt succeeds. Keep attempts incremented once per provider event, regardless of whether the event is initial or SDK-originated. Do not add an outer retry, hardcode fixture names, edit fixtures, edit test.mjs, copy reference.mjs over student.mjs, call a network, or install a package. The changed 413 fixture ensures the validation rule is based on input fields rather than the original invalid case name."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Repair checklist",
+        "code": "[ ] Preserve missing-input and unknown-input exit code 1\n[ ] Increment attempts for every provider event, including HTTP 400 and 413\n[ ] Cap initial plus SDK-originated provider events at 3 total\n[ ] Stop authentication, billing, permission, validation, and spend-cap cases\n[ ] Retry only the transient allowlist within the remaining budget\n[ ] Interpret an SSE error after HTTP 200 from its streamed provider status\n[ ] Reconcile an unknown possible side effect before another provider event\n[ ] Attach reconciled:true to the later successful result\n[ ] Base decisions on event fields, not fixture names\n[ ] Leave fixtures and test.mjs unchanged"
+      }
+    },
+    {
+      "id": "offline-exercise-tests",
+      "title": "Verify every positive, negative, recovery, and changed case",
+      "paragraphs": [
+        "Run the suite from the current exercise directory. It launches student.mjs as a separate process for every case, parses complete JSON output, checks exit codes, and gathers all outcomes instead of stopping at the first failure. The unchanged positive case is valid. Negative cases include invalid, spend-cap, billing, permission, overload exhaustion, and the changed oversized request. The rate case exercises transient recovery, all three provider attempts, and reconciliation before its final success.",
+        "A correct repair prints PASS for all eight fixture cases, passes both local invalid-input checks, ends with RESULT 8/8, and exits 0. The exact expected objects below are the comparison values used by test.mjs. Attempt counts include the initial provider event and SDK-originated events. No random delay or clock is involved."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Repaired command and exact expected results",
+        "code": "node .\\test.mjs\n$repairedExit = $LASTEXITCODE\nWrite-Host \"repaired exit code: $repairedExit\"\n# Expected fixture objects:\n# valid       {\"case\":\"valid\",\"class\":\"success\",\"attempts\":1,\"action\":\"accept\"}\n# invalid     {\"case\":\"invalid\",\"class\":\"validation\",\"attempts\":1,\"action\":\"fix_request\"}\n# rate        {\"case\":\"rate\",\"class\":\"success\",\"attempts\":3,\"action\":\"accept\",\"reconciled\":true}\n# spend-cap   {\"case\":\"spend-cap\",\"class\":\"spend_cap\",\"attempts\":1,\"action\":\"restore_access\"}\n# billing     {\"case\":\"billing\",\"class\":\"billing\",\"attempts\":1,\"action\":\"restore_billing\"}\n# permission  {\"case\":\"permission\",\"class\":\"permission\",\"attempts\":1,\"action\":\"repair_authorization\"}\n# overload    {\"case\":\"overload\",\"class\":\"overload\",\"attempts\":3,\"action\":\"retry_exhausted\"}\n# changed     {\"case\":\"changed\",\"class\":\"validation\",\"attempts\":1,\"action\":\"fix_request\"}\n# Expected checks: CHECK missing-input PASS exit=1\n#                  CHECK unknown-input PASS exit=1\n# Expected final line: RESULT 8/8\n# Expected test process exit code: 0"
+      }
+    },
+    {
+      "id": "offline-exercise-reference",
+      "title": "Compare with the separate reference answer",
+      "paragraphs": [
+        "Use reference.mjs only after attempting the repair. It is separate from student.mjs and is not installed as the starter. The reference demonstrates classification order, actual event replay, a shared three-attempt boundary, an SSE error event after HTTP 200, and reconciliation before retry. Its spend_cap value is explicitly a synthetic normalized application category attached to the fixture. It is not presented as an Anthropic wire error.type string.",
+        "The reference is still an offline teaching implementation. It omits real waiting, jitter, concurrent rate coordination, secrets management, provider SDK syntax, persistence, and a real downstream reconciliation query. Passing it or the learner suite establishes only that the deterministic application policy matches the fixtures."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Run the separate reference without replacing the learner file",
+        "code": "node .\\reference.mjs valid\nnode .\\reference.mjs rate\nnode .\\reference.mjs spend-cap\nnode .\\reference.mjs overload\nnode .\\reference.mjs changed\n# Expected outputs are the corresponding exact objects in the test section.\n# Do not copy reference.mjs over student.mjs."
+      }
+    },
+    {
+      "id": "optional-real-workflow",
+      "title": "Separate fixture replay from optional real-product validation",
+      "paragraphs": [
+        "Deterministic fixture replay is not real API execution and is not evidence of Claude quality, Anthropic availability, pricing, latency, or a live account's error behavior. A separately approved real-product workflow would identify the exact configured model and application version, use managed credentials without exposing them in source or logs, capture request identifiers safely, test stream completion when streaming is enabled, and evaluate a versioned dataset and holdout. This module requires no secret and no network connection.",
+        "Before production use, verify the dated provider and SDK behavior selected by the product. Include internal SDK attempts in the application total, collect redacted per-attempt evidence, and test access-restoration and rollback procedures. Never infer model prices, model versions, or SDK call syntax from this exercise. If a real operation could have changed downstream state, retain the same transaction or idempotency identifier and reconcile the authoritative system before retrying."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Optional real-product evidence requirements",
+        "code": "LIVE EVIDENCE MUST IDENTIFY:\n- dated provider and SDK documentation used\n- exact application and configured model version\n- approved credential handling and redaction controls\n- redacted request identifiers, timestamps, statuses, and observed error types\n- total provider attempts, including SDK attempts\n- stream completion or post-HTTP-200 stream error evidence\n- dataset, holdout, grader, thresholds, and severe-slice results\n- downstream reconciliation evidence where side effects were possible\n- rollback target and post-recovery verification\n\nOffline fixture output must not be labeled as live evidence."
       }
     },
     {
       "id": "verify-and-recover",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence is a versioned evaluation report plus a triage record that another operator can reproduce without private data. Verify dataset integrity, grader calibration, required thresholds, regression slices, retry limits, redaction, request identifiers, and the final release decision.",
-        "If a release fails its gate or production signals regress, stop promotion, restore the last verified prompt, model configuration, or application version, and rerun the same evaluation. Reconcile any uncertain downstream operations before retrying. Escalate persistent provider failures with the request ID and redacted timeline; close only after post-rollback checks pass."
-      ]
+        "A complete decision package contains the versioned evaluation report, holdout result, severe-slice metrics, independently reproducible operational test, redacted diagnostic record, retry-budget review, privacy review, and side-effect status. The synthetic candidate in this module is HOLD_AND_REVERT because its safety and payment slices fail predeclared blocking gates despite a higher overall average. Restore the last verified workflow version and rerun the unchanged evaluation before considering the rollback successful.",
+        "For an operational incident, stop when the shared total-attempt budget is exhausted. Escalate persistent provider failures with request identifiers and a redacted timeline. Restore credentials, billing, permission, or spend access before a new approved attempt when those categories apply. Close the incident only after a post-recovery probe succeeds, attempt accounting is within policy, error signals are healthy under the organization's declared threshold, and every possible downstream side effect is reconciled or explicitly remains open."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Filled decision and recovery record",
+        "code": "evaluation_artifact: synthetic-eval-2026-09-20-001\ncomparison: baseline-v4 versus candidate-v5\noverall_result: candidate +0.2 percentage points\nblocking_slice_result: FAILED\nfailed_slices: safety refusal; payment confirmation\noffline_operational_test_required: RESULT 8/8, exit 0\nprivacy_review: REQUIRED\nretry_boundary_review: initial plus SDK attempts <=3\nside_effect_reconciliation: REQUIRED_BEFORE_RETRY\ndecision: HOLD_AND_REVERT\nrollback_target: last verified baseline-v4\npost_rollback_evaluation: REQUIRED_ON_UNCHANGED_HOLDOUT\nincident_closure: only after probe, budget review, and reconciliation evidence"
+      }
+    },
+    {
+      "id": "sources",
+      "title": "Primary sources",
+      "paragraphs": [
+        "Anthropic's API error documentation supports the status categories, distinction between rate limits and spend caps, absence of Retry-After for spend-cap 429 responses, request identifiers, errors during SSE after HTTP 200, and the documented default of two SDK retries for transient errors. Anthropic's evaluation documentation supports task-specific criteria, boundary cases, automated checks, calibrated judgment, and reserved evaluation data. Node.js and Microsoft documentation support the offline runtime and setup commands. All listed sources were reported checked on 2026-09-20; no browsing during drafting is claimed."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Reference list",
+        "code": "Anthropic | Claude API errors | https://platform.claude.com/docs/en/api/errors | last verified 2026-09-20\nAnthropic | Develop tests and evaluations | https://platform.claude.com/docs/en/test-and-evaluate/develop-tests | last verified 2026-09-20\nOpenJS Foundation | ECMAScript modules | https://nodejs.org/api/esm.html | last verified 2026-09-20\nOpenJS Foundation | Child process | https://nodejs.org/api/child_process.html | last verified 2026-09-20\nMicrosoft | PowerShell documentation | https://learn.microsoft.com/en-us/powershell/ | last verified 2026-09-20"
+      }
     }
   ],
   "sources": [
     {
-      "title": "Define success criteria and build evaluations",
-      "url": "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests",
-      "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
-    },
-    {
       "title": "Claude API errors",
       "url": "https://platform.claude.com/docs/en/api/errors",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
-      "title": "Working with the Messages API",
-      "url": "https://platform.claude.com/docs/en/build-with-claude/working-with-messages",
+      "title": "Develop tests and evaluations",
+      "url": "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "ECMAScript modules",
+      "url": "https://nodejs.org/api/esm.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Child process",
+      "url": "https://nodejs.org/api/child_process.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "PowerShell documentation",
+      "url": "https://learn.microsoft.com/en-us/powershell/",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-20"
     }
   ]
 }

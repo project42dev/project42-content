@@ -606,19 +606,17 @@
     {
       "id": "choose-a-provider",
       "title": "Choose a Provider Deliberately",
-      "summary": "Use requirements and evaluation evidence instead of loyalty or a static leaderboard.",
+      "summary": "Use requirements, hard gates, comparable task evidence, and explicit uncertainty instead of loyalty or a static leaderboard.",
       "level": "intermediate",
       "providers": [
-        "provider-neutral",
-        "anthropic",
-        "openai",
-        "google"
+        "provider-neutral"
       ],
-      "estimatedMinutes": 20,
+      "estimatedMinutes": 35,
       "objectives": [
-        "Create a task-specific provider evaluation.",
-        "Include security, data, cost, and operational requirements.",
-        "Use different model families when independent review matters."
+        "Distinguish a model family from a hosted product, API, and deployment surface.",
+        "Create a task-specific shortlist across provider families without assuming every variant has the same modalities, license, or controls.",
+        "Apply variant, modality, license, hardware, access, and data-control gates before computing weighted scores.",
+        "Record uncertainty, comparable task evidence, independent-review limits, sensitivity results, and fallback triggers."
       ],
       "prerequisites": [
         "anthropic-in-practice",
@@ -628,96 +626,189 @@
       "sections": [
         {
           "id": "decision-criteria",
-          "title": "Start from the work",
+          "title": "Start from the task and its hard gates",
           "paragraphs": [
-            "Evaluate providers against representative tasks, quality rubrics, latency, total cost, context needs, tool support, data controls, deployment requirements, and team operations.",
-            "A provider can be best for one workflow and a poor fit for another."
+            "Begin with the work, not a provider name. Define representative inputs, required outputs, quality rubric, data classification, allowed tools, latency target, budget boundary, deployment constraints, and operating responsibilities. Separate hard gates from preferences. A failed hard gate disqualifies a candidate before ranking, even when its measured task quality is high.",
+            "Keep four layers distinct. An author produces a model family. A particular model identifier or variant has its own capabilities and terms. A host may expose that variant through an API or product. A deployment surface may be a hosted API, managed platform, local runtime, or self-hosted service. Compatibility with an API format can reduce client changes, but it does not establish identical semantics, controls, limits, or policies.",
+            "Classify the task before shortlisting. Relevant categories include language generation, code, vision, audio, embeddings, and reranking. Some workflows combine categories. Do not infer vision, audio, tool use, embeddings, or reranking support from a family name. Verify the exact variant and surface that would run the task.",
+            "Use separate gates for the exact model identifier, required modality, acceptable license and use policy, hardware fit, verified account or regional access, and required data controls. Also gate required context, tools, deployment location, and security controls when applicable. Mark unverified facts UNKNOWN. Under a fail-closed policy, UNKNOWN is not eligible evidence and cannot silently receive a neutral score.",
+            "Build a broad practical shortlist. Include Anthropic, OpenAI, and Google as candidate families, then verify their exact current variants and surfaces in official documentation. Also examine Meta Llama variant cards and licenses, DeepSeek hosted API documentation, Mistral model categories and variant licenses, Qwen language and multimodal variants and deployment tools, and the Microsoft Phi variant cards. Inclusion is a research step, not an endorsement.",
+            "Meta's Llama repository provides variant-specific model cards, weight licenses, and use policies. Accessible weights do not establish a common license or modality for every Llama variant. DeepSeek documents hosted API compatibility with OpenAI and Anthropic formats, but format compatibility does not establish semantic equivalence or identical policies.",
+            "Mistral documents generalist text and multimodal, OCR, audio, code, embedding, and safety families, with open-weight and commercial variants. License must therefore be checked per variant. Qwen documents language and multimodal models, including vision, audio, and tool-use variants, plus local and deployment tools. This does not mean every Qwen variant supports every modality.",
+            "Microsoft's Phi-4-mini-instruct card describes one lightweight variant intended for constrained-compute and latency-bound scenarios. That description cannot be transferred to every Phi model, and downstream evaluation remains necessary. For all eight shortlisted families, record only capabilities, access, terms, and controls verified for the exact candidate surface."
           ]
         },
         {
           "id": "independence",
-          "title": "Independence can improve review",
+          "title": "Use independent review without mistaking agreement for truth",
           "paragraphs": [
-            "For important review, compare independently produced answers from more than one model family and measure where they agree or fail against a human-reviewed rubric. Different families may still share errors; their disagreement is a prompt for investigation, not proof that one answer is correct."
+            "For important review, compare answers from separately selected model families against a human-authored rubric and known-answer checks. Useful checks include exact expected fields, calculations with known results, prohibited claims, citation presence, and seeded edge cases. Family diversity can expose disagreements, but it cannot guarantee independent training data, independent reasoning, or correctness.",
+            "Reviewers often share errors. They may follow the same misleading premise, omit the same minority case, reproduce a common factual error, or reward fluent wording over evidence. Agreement is therefore an observation, not validation. Record shared errors, disagreements, abstentions, and rubric failures. Escalate consequential disagreements and any shared failure on a known-answer check to a qualified human.",
+            "Keep evidence types separate. Documentation establishes a stated capability or policy. An account check establishes whether the intended organization, region, and permissions can use it. A controlled task run establishes observed behavior for that dated configuration. None substitutes for the others, and a product interface result should not be attributed automatically to an API or self-hosted deployment."
           ]
         },
         {
           "id": "three-provider-evidence",
-          "title": "Build a dated three-provider comparison",
+          "title": "Build a broad, dated, requirement-driven comparison",
           "paragraphs": [
-            "For Anthropic, OpenAI, and Google, record the exact product surface, model identifier, account and region availability, tool permissions, data controls, rate limits, and cost from each provider's current official documentation. Check those claims in the account that will run the work; product and API capabilities are not interchangeable.",
-            "Use the same representative task set and scoring rubric for all three. Include quality, refusal and error behavior, latency, total cost, security requirements, and operational fit. Record the test date and distinguish a documented capability from one you observed."
+            "Use independently authored labels for numerical exercises so synthetic scores are not mistaken for vendor benchmarks. Example gates are required vision input, accepted license, hardware fit, verified access, and required data controls. With weights quality 0.50, latency fit 0.20, cost fit 0.20, and operations fit 0.10, a filled synthetic table is: Maple 82/90/80/80 with all gates PASS; Cedar 88/70/60/90 with all gates PASS; Quartz 98/95/90/95 with license FAIL; Fog 100/100/100/100 with access UNKNOWN.",
+            "Apply gates first. Quartz appears strongest numerically but is disqualified by its license gate. Fog fails closed because access is UNKNOWN. Maple scores 82×0.50 + 90×0.20 + 80×0.20 + 80×0.10 = 83. Cedar scores 88×0.50 + 70×0.20 + 60×0.20 + 90×0.10 = 79. Maple ranks first among eligible candidates. These values are synthetic decision practice, not provider measurements.",
+            "A complete evidence row records workflow, family author, exact model identifier, host or product, deployment surface, modalities, source URL and date, license status, hardware status, access check, data controls, task-case results, scoring rubric, observed latency and cost when actually measured, operational notes, and UNKNOWN fields. Never replace an unavailable observation with an estimate presented as fact.",
+            "Perform sensitivity analysis before deciding. If quality weight rises from 0.50 to 0.75 while latency and cost weights fall, recompute every eligible score from the stored inputs. If the winner changes, report that dependence. Also test changed requirements, such as adding an audio gate or requiring self-hosting. A changed gate requires a new eligibility pass, not merely a score adjustment.",
+            "Define fallback and re-evaluation triggers in advance. Examples include loss of verified access, a changed license or use policy, failure of a required data control, material task-quality regression, unacceptable operational incidents, a new modality requirement, or a workload change that invalidates cost or latency evidence. On a trigger, stop relying on stale ranking, rerun gates, repeat representative cases, and preserve the prior decision record.",
+            "The scorer in the accompanying lab is a decision aid for synthetic, normalized inputs. It does not evaluate a model, discover a license, measure security, or prove output correctness. Comparable task-output samples still require a rubric and human-reviewed answer key. Numerical precision cannot repair weak evidence or an incorrectly defined requirement."
           ]
+        },
+        {
+          "id": "lab-entry",
+          "title": "Enter the provider-choice lab",
+          "paragraphs": [
+            "Practice the gate-first decision process in the offline lab: [Choose a Provider Deliberately lab](https://github.com/project42dev/project42-content/tree/main/training/providers-in-practice/choose-a-provider/lab). From the repository root, enter the exact working directory `training/providers-in-practice/choose-a-provider/lab`. The lab uses Node 22, the repository checkout, and Node built-ins only. No dependency installation is needed.",
+            "The learner baseline is intentionally defective. Run the learner evaluator and tests before changing anything. The evaluator exits 1 and 4 of 6 tests pass, with 2 failing. This is an expected nonzero result, not a reason to stop the exercise. The failure demonstrates why hard-gate eligibility must be applied before metric scoring and sorting.",
+            "Repair only `src/learner.js` by adding `.filter(candidate => gateById.get(candidate.id).eligible)` before the existing `unknownMetrics` filter. Leave tests and fixtures unchanged. The gate filter applies fail-closed handling: a required gate with `FAIL` or `UNKNOWN` makes a candidate ineligible before ranking.",
+            "Verify the repair with the learner evaluator and test runner. The repaired learner should pass 6 of 6 tests, and the evaluator should exit 0. Then run the separate reference engine and sample grader. The reference comparison is evidence for the synthetic exercise, not a learner repair and not a model benchmark.",
+            "The supplied synthetic reference evidence is Maple 83 and Cedar 79. Quartz is excluded because its license gate is `FAIL`; Fog is excluded because access is `UNKNOWN`; Alder is unscored because quality is `UNKNOWN`. The raw JSON inputs and human-authored task-output answers are in `fixtures/case-results.json`. The sample grader reports computed totals of 100 and 15 pass. Explain why eligibility is decided before scoring, how UNKNOWN differs from a numeric metric, and how changed metrics or requirements could change the decision.",
+            "Use the lab alongside the module's broader provider-choice practice. A real provider decision still requires exact variant and deployment-surface checks, comparable task cases, a human-reviewed rubric, dated evidence, sensitivity analysis, fallback triggers, and explicit uncertainty. The lab's labels and scores are synthetic practice data, not claims about provider performance."
+          ],
+          "code": {
+            "language": "powershell",
+            "label": "Run the lab from the repository root with PowerShell 7",
+            "code": "# Run from the repository root. Node 22 is required.\nnode --version\nSet-Location training/providers-in-practice/choose-a-provider/lab\n\n# The baseline evaluator is expected to exit 1. Continue so the remaining commands run.\nnode src/cli.js --engine=learner\nnode tests/run-tests.mjs\n\n# After repairing src/learner.js, rerun these commands. The learner evaluator and tests should exit 0.\nnode src/cli.js --engine=learner\nnode tests/run-tests.mjs\n\n# Keep the reference comparison separate from the learner repair.\nnode src/cli.js --engine=reference\nnode src/grade-samples.js"
+          }
         }
       ],
       "activity": {
         "id": "activity-three-provider-decision",
-        "title": "Defend a provider choice with comparable evidence",
+        "title": "Defend a broad provider choice with comparable evidence",
         "instructions": [
-          "Choose one real workflow and define success, data classification, allowed tools, latency, budget, and a scored quality rubric before comparing providers.",
-          "Use current official Anthropic, OpenAI, and Google documentation to identify a suitable surface and model for each. Record the exact source URL and date, and mark account or region access that you have not verified as unknown.",
-          "Run the same representative cases where access permits, record observed outcomes and costs separately from documented claims, and explain the chosen provider and a fallback.",
-          "For an important review case, compare two model families against the human rubric; document shared errors and disagreements without treating agreement as validation."
+          "Enter the public lab at https://github.com/project42dev/project42-content/tree/main/training/providers-in-practice/choose-a-provider/lab from the repository root by changing directory to training/providers-in-practice/choose-a-provider/lab. Use Node 22; do not run npm install and do not edit tests or fixtures. First run `node src/cli.js --engine=learner` and `node tests/run-tests.mjs`, recording the expected baseline of exit 1 with 4/6 tests passing and 2 failing. In `src/learner.js`, add `.filter(candidate => gateById.get(candidate.id).eligible)` before the existing `unknownMetrics` filter. Rerun the learner commands and confirm 6/6 tests pass and the evaluator exits 0. Separately run `node src/cli.js --engine=reference` and `node src/grade-samples.js`; preserve the synthetic reference evidence Maple 83 and Cedar 79, Quartz excluded for license FAIL, Fog excluded for access UNKNOWN, Alder unscored for quality UNKNOWN, and the sample-grader totals of 100 and 15 pass. Reflect on why hard gates precede scoring, why UNKNOWN is not eligibility, and why the reference implementation is not the learner repair.",
+          "Choose one real workflow. Define success, representative cases, known-answer checks, data classification, required modalities, allowed tools, latency target, budget boundary, deployment constraints, and a scored quality rubric before researching candidates.",
+          "Create a shortlist that considers Anthropic, OpenAI, Google, Meta Llama, DeepSeek, Mistral, Qwen, and Microsoft Phi. A family may be removed only with a recorded requirement-based reason. For candidates retained, identify the exact variant, host or product, and deployment surface.",
+          "Record separate PASS, FAIL, or UNKNOWN gates for required modality, exact-variant license or use policy, hardware fit, verified access, and required data controls. Add workflow-specific gates as needed. Disqualify FAIL and UNKNOWN before weighted ranking.",
+          "Where access permits, run the same representative cases and record observed outcomes separately from documented claims. Do not invent prices, benchmark values, licenses, or access. Use UNKNOWN when evidence is unavailable and state what check would resolve it.",
+          "Complete a weighted comparison among eligible candidates, show the arithmetic, and run at least one changed-weight or changed-requirement sensitivity scenario. Define a fallback plus dated re-evaluation triggers.",
+          "For an important review case, compare two model families against a human rubric and known-answer checks. Record disagreements and shared errors without treating agreement as proof."
         ],
         "evidence": [
-          "A dated three-provider decision table with source links, access checks, common test cases, scores, and unknowns.",
-          "A decision rationale and independent-review comparison that identify limitations and a fallback."
+          "A dated decision table covering the broad shortlist, with exact variants and surfaces, source links, separate hard gates, account checks, common task cases, scores, and explicit UNKNOWN values.",
+          "A worked eligible-candidate score, at least one high-scoring disqualification, and evidence that gates were applied before ranking.",
+          "An independent-review record containing the human rubric, known-answer checks, disagreements, shared errors, and escalation decisions.",
+          "A sensitivity result, selected fallback, and concrete re-evaluation triggers."
         ],
-        "reflectionPrompt": "Which provider claim changed when you checked the actual account or the same test case?"
+        "reflectionPrompt": "Which gate, unknown, shared reviewer error, or sensitivity change most affected the decision, and what evidence would justify revisiting it?"
       },
       "knowledgeCheck": {
         "passPercent": 80,
         "questions": [
           {
             "id": "q-provider-1",
-            "prompt": "What is the strongest provider-selection method?",
+            "prompt": "A synthetic candidate has the highest quality score but its required license gate is FAIL. What should the decision process do?",
             "choices": [
-              "A general leaderboard alone",
-              "Task-specific evaluation plus operational requirements",
-              "Whichever provider was selected first"
+              "Rank it first because quality outweighs policy",
+              "Disqualify it before weighted ranking",
+              "Replace the failed gate with a zero preference score"
             ],
             "answerIndex": 1,
-            "explanation": "Representative tasks and operational constraints measure fit for the actual workflow."
+            "explanation": "A hard gate represents a non-negotiable requirement. Scoring first could let strong preferences conceal an unacceptable license."
           },
           {
             "id": "q-provider-2",
-            "prompt": "Why use a different model family for important review?",
+            "prompt": "A family supports vision in one documented variant. What can you conclude about another variant in the same family?",
             "choices": [
-              "To guarantee correctness",
-              "To reduce correlated blind spots",
-              "To avoid writing tests"
+              "It supports vision automatically",
+              "It supports every modality offered by the family",
+              "Nothing about vision until the exact variant and surface are verified"
+            ],
+            "answerIndex": 2,
+            "explanation": "Capabilities attach to exact variants and surfaces. A family label alone does not establish modality support."
+          },
+          {
+            "id": "q-provider-3",
+            "prompt": "Two different model families agree on an answer that fails a seeded known-answer check. What is the best response?",
+            "choices": [
+              "Accept the agreement as independent proof",
+              "Escalate the shared failure and investigate it",
+              "Remove the known-answer check"
             ],
             "answerIndex": 1,
-            "explanation": "Different families can offer another perspective, but shared errors are possible and the result still needs objective checks."
+            "explanation": "Different families can share errors. The objective failed check is stronger evidence than agreement."
+          },
+          {
+            "id": "q-provider-4",
+            "prompt": "Required regional account access has not been checked. Under fail-closed handling, how should it be recorded?",
+            "choices": [
+              "PASS because documentation lists the product",
+              "UNKNOWN and ineligible until verified",
+              "A neutral weighted score"
+            ],
+            "answerIndex": 1,
+            "explanation": "Documentation does not prove access in the intended account and region. Fail-closed handling keeps the candidate out of ranking until the uncertainty is resolved."
+          },
+          {
+            "id": "q-provider-5",
+            "prompt": "A higher quality weight changes the winning eligible candidate. What does this show?",
+            "choices": [
+              "The original arithmetic was invalid",
+              "The decision depends on stakeholder priorities and should report that sensitivity",
+              "The new winner is universally best"
+            ],
+            "answerIndex": 1,
+            "explanation": "A winner that changes with reasonable weights is preference-sensitive. Reporting that dependency supports a more honest decision."
           }
         ]
       },
       "sources": [
         {
-          "title": "Artificial Intelligence Risk Management Framework",
-          "url": "https://www.nist.gov/itl/ai-risk-management-framework",
-          "publisher": "NIST",
-          "lastVerified": "2026-07-23"
+          "title": "Llama Models",
+          "url": "https://github.com/meta-llama/llama-models",
+          "publisher": "Meta",
+          "lastVerified": "2026-09-20"
+        },
+        {
+          "title": "DeepSeek API Docs",
+          "url": "https://api-docs.deepseek.com/",
+          "publisher": "DeepSeek",
+          "lastVerified": "2026-09-20"
+        },
+        {
+          "title": "Models",
+          "url": "https://docs.mistral.ai/models",
+          "publisher": "Mistral AI",
+          "lastVerified": "2026-09-20"
+        },
+        {
+          "title": "Qwen Documentation",
+          "url": "https://qwen.readthedocs.io/en/latest/",
+          "publisher": "Alibaba Cloud",
+          "lastVerified": "2026-09-20"
+        },
+        {
+          "title": "Phi-4-mini-instruct Model Card",
+          "url": "https://huggingface.co/microsoft/Phi-4-mini-instruct",
+          "publisher": "Microsoft",
+          "lastVerified": "2026-09-20"
         },
         {
           "title": "Claude models overview",
           "url": "https://platform.claude.com/docs/en/models/overview",
           "publisher": "Anthropic",
-          "lastVerified": "2026-09-18"
+          "lastVerified": "2026-09-20"
         },
         {
           "title": "OpenAI models documentation",
           "url": "https://platform.openai.com/docs/models",
           "publisher": "OpenAI",
-          "lastVerified": "2026-09-18"
+          "lastVerified": "2026-09-20"
         },
         {
           "title": "Gemini API models",
           "url": "https://ai.google.dev/gemini-api/docs/models",
           "publisher": "Google",
-          "lastVerified": "2026-09-18"
+          "lastVerified": "2026-09-20"
         }
-      ]
+      ],
+      "lastVerified": "2026-09-20",
+      "reviewCadenceDays": 30
     },
     {
       "id": "prepare-agent-work",
