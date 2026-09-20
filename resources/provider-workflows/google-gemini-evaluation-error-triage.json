@@ -2,7 +2,7 @@
   "id": "google-gemini-evaluation-error-triage",
   "slug": "google-gemini-evaluation-error-triage",
   "title": "Google Gemini Evaluation and Error Triage",
-  "summary": "Build representative Gemini evaluation datasets, preserve interaction evidence, classify API failures, and release or recover through explicit gates.",
+  "summary": "Evaluate Gemini workflow changes across overall and slice metrics, classify provider errors, bound total attempts, reconcile uncertain side effects, and verify release or recovery decisions with privacy-safe evidence.",
   "category": "Provider workflows",
   "format": "playbook",
   "audience": [
@@ -21,7 +21,7 @@
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "google",
     "gemini",
@@ -31,32 +31,171 @@
   "sections": [
     {
       "id": "build-evaluation",
-      "title": "Build evidence from logs and datasets",
+      "title": "Build evaluation evidence before changing the workflow",
       "paragraphs": [
-        "Define measurable success and failure criteria before changing a prompt, model, or API version. Build representative, boundary, adversarial, blocked, and regression cases from redacted or synthetic data. When Gemini logging is approved and available, curate challenge and evaluation sets from production-shaped cases; do not opt into sharing or retain sensitive data without explicit authority.",
-        "Version the prompt, model, API version, parameters, dataset, grader, and thresholds. Prefer deterministic checks for schemas, calculations, citations, prohibited output, and required evidence. Calibrate human or model graders against examples for judgment tasks. Compare candidates with the baseline across quality, safety, latency, and cost, including worst-case slices."
-      ]
-    },
-    {
-      "id": "triage-failure",
-      "title": "Classify the failure before acting",
-      "paragraphs": [
-        "Separate connection, authentication, permission, invalid request, resource exhaustion, unavailable service, interaction status, application validation, and downstream-side-effect failures. Capture HTTP status, error status and message, interaction ID when present, timestamp, model, API version, attempt, latency, and a privacy-safe input fingerprint. Never log the API key or sensitive body.",
-        "Do not retry 400 or 403 failures unchanged. Retry only classified transient 408, 429, and 5xx failures using bounded exponential backoff and jitter; account for SDK automatic retries when setting the total attempt budget. Preserve application operation identity so retries cannot duplicate side effects."
+        "Define measurable success and failure criteria before changing a prompt, model, API version, tool, or surrounding application. Build representative, boundary, adversarial, blocked, and regression cases from authorized redacted or synthetic data. Version the workflow, dataset, grader, thresholds, and configuration so another reviewer can reproduce the comparison.",
+        "Compare the baseline and candidate on quality, safety, latency, cost, deterministic contracts, and operational behavior. Report important slices separately because an overall average can hide a severe regression. Prefer deterministic checks for schemas, calculations, required evidence, prohibited output, and retry behavior. Calibrate judgment-based graders against reviewed examples.",
+        "Do not convert missing evidence into a favorable result. Mark an unavailable metric UNKNOWN and state what measurement would establish it. A deterministic fixture replay can test application logic, but it cannot establish live model quality, provider latency, availability, or price."
       ],
       "code": {
         "language": "text",
-        "label": "Gemini workflow evidence record",
-        "code": "Workflow/version: [NAME / COMMIT]\nModel/API/configuration: [MODEL / VERSION / PARAMETERS]\nDataset/grader: [VERSION / METHOD]\nRequired thresholds: [QUALITY / SAFETY / LATENCY / COST]\nObserved results and worst slice: [METRICS]\nFailure class: [CONNECTION | AUTH | INVALID | EXHAUSTED | UNAVAILABLE | INTERACTION | APPLICATION | DOWNSTREAM]\nHTTP/error/interaction ID: [REDACTED EVIDENCE]\nRetry decision and total budget: [DO NOT RETRY | ATTEMPT N OF LIMIT]\nRollback target: [LAST VERIFIED VERSION]\nRelease decision/approver: [PROMOTE | HOLD | REVERT / OWNER]"
+        "label": "Evaluation evidence record",
+        "code": "Workflow/version: [NAME / COMMIT]\nModel/API/configuration: [MODEL / VERSION / PARAMETERS]\nDataset/grader: [VERSION / METHOD / AUTHORITY]\nSample and slice counts: [COUNTS]\nRequired thresholds: [QUALITY / SAFETY / LATENCY / COST]\nObserved overall and slice results: [METRICS / UNKNOWN]\nOperational checks: [SCHEMA / RETRY / SIDE EFFECT / DIAGNOSTICS]\nRollback target: [LAST VERIFIED VERSION]\nDecision and owner: [PROMOTE | HOLD | REVERT / OWNER]"
+      }
+    },
+    {
+      "id": "worked-evaluation",
+      "title": "Worked evaluation: a severe regression hidden by the average",
+      "paragraphs": [
+        "This is a synthetic worked example, not evidence from a live Gemini deployment. A support-classification candidate and baseline are evaluated on the same 1,000-case fixture. The high-risk slice contains 100 of those cases. Gates require overall quality of at least 90%, safety of at least 99%, high-risk quality of at least 95%, p95 latency no more than 1,200 ms, and cost per case no more than 1.00 synthetic credit.",
+        "The candidate improves overall quality from 92% to 93%, but high-risk quality falls from 98% to 71%. It also misses the safety and latency gates. The average therefore hides a severe slice regression. The filled release decision is HOLD. The rollback target is the verified baseline, and the investigation owner is the synthetic workflow team.",
+        "Here, p95 latency is the 95th-percentile response time, meaning 95% of measured requests completed at or below that value. Slice metrics analyze a defined subset, such as high-risk cases, rather than combining every case into one average. The synthetic credits are exercise units and are not Gemini prices."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Synthetic baseline and candidate evidence",
+        "code": "Fixture: support-eval-v7, 1,000 synthetic cases\nHigh-risk slice: 100 cases\nMetric                  Baseline       Candidate       Gate           Result\nOverall quality         92%            93%             >= 90%         PASS\nSafety                  99.2%          98.7%           >= 99%         FAIL\nHigh-risk quality       98%            71%             >= 95%         FAIL\np95 latency             980 ms         1,260 ms        <= 1,200 ms    FAIL\nCost per case           0.82 credits   0.96 credits    <= 1.00        PASS\nContract suite          PASS           PASS            PASS           PASS\nRetry-boundary suite    PASS           PASS            PASS           PASS\nDecision: HOLD candidate\nRollback target: verified baseline workflow\nInvestigation: high-risk failures, safety failures, and latency regression"
+      }
+    },
+    {
+      "id": "triage-failure",
+      "title": "Classify the provider failure before acting",
+      "paragraphs": [
+        "Separate connection, authentication, permission, invalid-request, billing or quota, rate-limit, provider, application-validation, and downstream-side-effect failures. Record the HTTP status, redacted error information, interaction identifier when available, timestamp, workflow version, latency, attempt number, total limit, and a privacy-safe fingerprint. Never record an API key, authorization header, or sensitive body in routine diagnostics.",
+        "Google's Gemini API troubleshooting guidance says not to retry unchanged requests for 400 invalid-request, 402 billing or quota, or 403 permission or authentication conditions. It identifies 408 timeouts, 429 rate limits, and 5xx server failures as transient classes for bounded exponential backoff with jitter. Exponential backoff increases the delay between attempts, while jitter adds randomness to reduce synchronized retry bursts.",
+        "Gemini SDKs can perform automatic retries. Count the initial request, SDK attempts, and application retries against one explicit total budget. Do not assume a universal SDK attempt count or jitter formula because those details depend on the selected client and version. Confirm the applicable SDK configuration before deploying a real workflow. Source: https://ai.google.dev/gemini-api/docs/troubleshooting"
+      ],
+      "code": {
+        "language": "text",
+        "label": "Gemini-oriented decision table",
+        "code": "400 invalid request: stop; repair and validate the request\n402 billing or quota: stop; verify billing or quota\n403 permission or authentication: stop; verify authority and configuration\n408 timeout: retry only if safe and within the total budget\n429 rate limit: bounded exponential backoff plus jitter\n5xx provider failure: bounded exponential backoff plus jitter\nOther status: classify explicitly; do not assume it is transient\nUnknown side effect: reconcile before success or retry\nTotal attempts: initial + SDK attempts + application retries"
+      }
+    },
+    {
+      "id": "retry-boundaries",
+      "title": "Bound retries and reconcile unknown side effects",
+      "paragraphs": [
+        "A retry decision has three independent questions: Is the failure transient? Does the total attempt budget have capacity? Can repeating the operation duplicate an external side effect? A transient status does not make a retry safe when a ticket, charge, message, or other downstream operation may already exist.",
+        "An idempotency key is an operation identifier used under a supporting downstream contract to recognize repeated requests and avoid duplication. If the side-effect state is unknown, query or reconcile downstream state before retrying. Even an HTTP 200 must not be called recovered when the application has explicit evidence that the relevant side effect remains unknown. Success requires reconciliation or proof that no such side effect occurred.",
+        "Suppose the total limit is three. If the initial request consumes attempt 1 and an SDK retry consumes attempt 2, only one attempt remains for an application retry. When the limit is reached, return an exhausted outcome and escalate, defer, or queue the work rather than beginning another retry loop."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Bounded decision pseudocode",
+        "code": "totalAttempts = attempts already consumed by initial, SDK, and application calls\nfor each provider result:\n  count the real provider attempt\n  if sideEffectState == unknown: return reconcile_required\n  if status == 200: return recovered\n  if status in [400, 402, 403]: return stopped\n  if status not in [408, 429, 500..599]: return failed\n  if totalAttempts >= limit: return exhausted\n  wait with bounded exponential backoff and jitter\nreturn exhausted"
+      }
+    },
+    {
+      "id": "worked-triage",
+      "title": "Worked incident: classify, account, reconcile, and recover",
+      "paragraphs": [
+        "This incident is synthetic. A workflow has a total limit of three provider attempts. The initial request returns 429 and consumes attempt 1. An automatic SDK retry returns 503 and consumes attempt 2. The application then has capacity for only one retry. Its retry returns 200 and consumes attempt 3. The operation is marked recovered only after the response contract and smoke check pass.",
+        "A separate operation returns 200, but its diagnostic state says a downstream ticket may have been created without a confirmed identifier. The operator does not claim recovery and does not submit another ticket. The operator queries the ticket system using the operation's idempotency key, finds the existing ticket, and records reconciliation evidence. Only then is the operation marked recovered.",
+        "The status sequence, attempt sources, retry limit, redacted interaction identifiers, reconciliation result, and post-recovery checks are retained. Raw prompts, customer identifiers, response bodies, credentials, and authorization headers are omitted. The record below is filled synthetic evidence, not a production incident."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Redacted synthetic diagnostic record",
+        "code": "incidentId: INC-synthetic-017\nworkflowVersion: support-router@a13f9c2\nprovider: Google Gemini API\nstatusSequence: [429, 503, 200]\nattemptSources: [initial, sdk, application]\ntotalAttemptsObserved: 3\ntotalAttemptLimit: 3\ninteractionIds: [redacted-1, redacted-2, redacted-3]\nretryClass: transient rate and server failures\nbackoff: bounded exponential plus jitter\ninputFingerprint: sha256:synthetic-redacted-example\napiKey: omitted\nsensitiveBody: omitted\nresponseContractCheck: PASS\nsmokeCheck: PASS\nseparateUnknownSideEffect: reconciled by idempotency key\nreconciliationEvidence: existing ticket TICKET-redacted found\nrecoveryDecision: RECOVERED\nreleaseDecision: no release change"
+      }
+    },
+    {
+      "id": "privacy-and-logging",
+      "title": "Apply privacy, logging, retention, and sharing controls",
+      "paragraphs": [
+        "Google's logs and datasets documentation states that paid tiers enable storage. Interactions use store=true by default, while GenerateContent uses store=false by default. Project-level and request-level settings can alter behavior. Defaults are not authorization to retain data. Confirm the actual API method, project configuration, request setting, data authority, and approved purpose before storing content. Source: https://ai.google.dev/gemini-api/docs/logs-datasets",
+        "Google's logs policy distinguishes developer logs from abuse-monitoring logs. It describes selectable developer-log retention periods of 7, 14, 28, or 55 days, with 55 days as the maximum listed default-log period, while dataset logs have no fixed retention. Datasets and feedback can be shared for training when an authorized party permits it, and dataset sharing has an opt-out. Source: https://ai.google.dev/gemini-api/docs/logs-policy",
+        "These settings do not authorize collecting learner or customer content. Apply data minimization, redaction, access control, purpose limitation, and documented authority. The offline exercise below makes no network request, enables no Gemini logging, creates no Gemini dataset, and opts into no sharing."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Privacy-safe diagnostic boundary",
+        "code": "Keep when authorized:\n  timestamp, status, error class, redacted interaction ID\n  attempt source and total count, latency, workflow version\n  privacy-safe fingerprint, reconciliation result\nOmit:\n  API key, authorization header, raw prompt, sensitive response\n  customer identifiers not required for the incident\nBefore retention:\n  confirm authority, purpose, access, retention, and sharing choice"
+      }
+    },
+    {
+      "id": "release-gates",
+      "title": "Turn evaluation and triage evidence into a release decision",
+      "paragraphs": [
+        "Write gates before reviewing candidate results. Require overall and slice-level quality and safety, latency and cost limits, deterministic contract checks, bounded retry behavior, side-effect reconciliation, and privacy-safe diagnostics. A candidate that improves the mean but fails a severe slice is not promotable.",
+        "A release record should separate measurements from interpretation. Include sample counts, slice definitions, grader version, uncertainty where appropriate, failed-case fingerprints, rollback target, decision owner, and approval time. Mark unmeasured metrics UNKNOWN and identify the approved test or observation needed to establish them.",
+        "For the worked comparison in this guide, the candidate fails three gates, so the decision is HOLD rather than PROMOTE. The team keeps or restores the verified baseline, investigates the failed high-risk examples, and repeats the same versioned evaluation before reconsidering release."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Release gate record",
+        "code": "Candidate: [VERSION]\nDataset and authority: [VERSION / AUTHORITY]\nOverall quality and safety: [PASS | FAIL | UNKNOWN]\nWorst-case slices: [PASS | FAIL | UNKNOWN]\nLatency and cost: [PASS | FAIL | UNKNOWN]\nContract checks: [PASS | FAIL | UNKNOWN]\nRetry and recovery checks: [PASS | FAIL | UNKNOWN]\nPrivacy review: [PASS | FAIL | UNKNOWN]\nRollback target: [VERIFIED VERSION]\nDecision: PROMOTE | HOLD | REVERT\nOwner and timestamp: [OWNER / UTC TIME]\nRedacted evidence: [LINKS OR FINGERPRINTS]"
       }
     },
     {
       "id": "verify-and-recover",
-      "title": "Expected evidence and verification",
+      "title": "Rollback and verify recovery with the same gates",
       "paragraphs": [
-        "Expected evidence is a versioned evaluation report plus a privacy-safe triage record another operator can reproduce. Verify dataset authority, logging consent and retention, grader calibration, thresholds, regression slices, total retry budget, redaction, interaction identifiers, and the final release decision.",
-        "If a gate fails or production regresses, halt promotion and restore the last verified prompt, model, API version, or application release. Reconcile uncertain downstream operations before retrying, then repeat the same evaluation and smoke checks. Escalate persistent provider failures with interaction and error evidence; close only after recovery verification passes."
-      ]
+        "If a gate fails or production regresses, stop promotion or traffic expansion and restore the last verified prompt, model, API version, configuration, or application release. Reconcile uncertain downstream operations before retrying them. Record the rollback owner, target, time, and reason.",
+        "Recovery is not established by one HTTP 200. Rerun the failed slice, safety suite, deterministic contract suite, and an approved smoke set. Confirm that the total-attempt boundary was respected and no downstream operation was duplicated. Compare the post-recovery result with the verified baseline.",
+        "Close the incident only when the operational symptom is gone and the applicable evaluation gates pass. Escalate persistent provider failures with redacted statuses, interaction identifiers when available, attempt accounting, and recovery evidence. If a required metric remains unavailable, record UNKNOWN rather than declaring recovery complete."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Filled synthetic post-recovery evidence",
+        "code": "Recovery timestamp: 2026-09-20T21:30:00Z\nRollback target: verified baseline support-router@a13f9c2\nFailed high-risk slice rerun: 98%, PASS against 95% gate\nSafety suite: 99.2%, PASS against 99% gate\nContract suite: PASS\nSmoke suite: PASS\nDuplicate-side-effect check: PASS after ticket reconciliation\nTotal attempts observed: 3 of 3\nPrivacy review: PASS, sensitive bodies omitted\nClosure owner: synthetic workflow team\nClosure decision: CLOSED for exercise incident"
+      }
+    },
+    {
+      "id": "offline-exercise",
+      "title": "Offline exercise setup: repair one decision function",
+      "paragraphs": [
+        "This exercise requires Node.js 22 and PowerShell 7. Run the setup from a parent directory. It creates a new directory only, refuses an existing path, and contains no deletion or overwrite command for an existing exercise directory. It makes no network request and uses no API key or Gemini SDK.",
+        "The fixture events represent real provider attempts already consumed by the initial call, an SDK retry, or an application retry. The total maxAttempts value applies across all of them. The eight main cases cover invalid request, rate recovery, billing, permission, server recovery, an unknown side effect attached to HTTP 200, an attempt cap, and an empty event list.",
+        "The starter has a correct CLI parsing and structural-validation wrapper but a deliberately flawed decide function. Make one bounded repair inside that function only. Do not replace the starter with the reference before observing the baseline. The independent tests embed their own expected outcomes and gather every check before returning an exit code."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "PowerShell 7 setup.ps1",
+        "code": "param([string]$Path = \"gemini-triage-exercise\")\n$ErrorActionPreference = \"Stop\"\nif (Test-Path -LiteralPath $Path) { throw \"Refusing to use existing directory: $Path\" }\nNew-Item -ItemType Directory -Path $Path | Out-Null\n@'\n[\n  {\"name\":\"invalid\",\"events\":[{\"status\":400,\"attemptSource\":\"initial\"}],\"maxAttempts\":3},\n  {\"name\":\"rate-recovery\",\"events\":[{\"status\":429,\"attemptSource\":\"initial\"},{\"status\":429,\"attemptSource\":\"sdk\"},{\"status\":200,\"attemptSource\":\"application\"}],\"maxAttempts\":4},\n  {\"name\":\"billing\",\"events\":[{\"status\":402,\"attemptSource\":\"initial\"}],\"maxAttempts\":3},\n  {\"name\":\"permission\",\"events\":[{\"status\":403,\"attemptSource\":\"initial\"}],\"maxAttempts\":3},\n  {\"name\":\"server-recovery\",\"events\":[{\"status\":503,\"attemptSource\":\"initial\"},{\"status\":200,\"attemptSource\":\"sdk\"}],\"maxAttempts\":3},\n  {\"name\":\"unknown-side-effect\",\"events\":[{\"status\":200,\"sideEffect\":\"unknown\",\"attemptSource\":\"initial\"},{\"status\":200,\"sideEffect\":\"reconciled\",\"attemptSource\":\"application\"}],\"maxAttempts\":3},\n  {\"name\":\"attempt-cap\",\"events\":[{\"status\":429,\"attemptSource\":\"initial\"},{\"status\":429,\"attemptSource\":\"sdk\"},{\"status\":429,\"attemptSource\":\"application\"},{\"status\":200,\"attemptSource\":\"application\"}],\"maxAttempts\":3},\n  {\"name\":\"bad-fixture\",\"events\":[],\"maxAttempts\":3}\n]\n'@ | Set-Content -LiteralPath (Join-Path $Path \"fixtures.json\") -Encoding utf8\n@'\n[{\"name\":\"rate-recovery\",\"events\":[{\"status\":429},{\"status\":200}],\"maxAttempts\":4}]\n'@ | Set-Content -LiteralPath (Join-Path $Path \"changed-test.json\") -Encoding utf8\n'not JSON' | Set-Content -LiteralPath (Join-Path $Path \"malformed.json\") -Encoding utf8\n'{\"name\":\"not-an-array\"}' | Set-Content -LiteralPath (Join-Path $Path \"top-level-object.json\") -Encoding utf8\n'[null]' | Set-Content -LiteralPath (Join-Path $Path \"null-record.json\") -Encoding utf8\n'[{\"name\":\"null-event\",\"events\":[null],\"maxAttempts\":2}]' | Set-Content -LiteralPath (Join-Path $Path \"null-event.json\") -Encoding utf8\n'[{\"name\":\"fraction\",\"events\":[{\"status\":429.5}],\"maxAttempts\":2}]' | Set-Content -LiteralPath (Join-Path $Path \"bad-status-fraction.json\") -Encoding utf8\n'[{\"name\":\"range\",\"events\":[{\"status\":99}],\"maxAttempts\":2}]' | Set-Content -LiteralPath (Join-Path $Path \"bad-status-range.json\") -Encoding utf8\n'[{\"name\":\"max\",\"events\":[{\"status\":429}],\"maxAttempts\":0}]' | Set-Content -LiteralPath (Join-Path $Path \"bad-max.json\") -Encoding utf8\n@'\nimport fs from \"node:fs\";\nfunction invalid() { console.error(\"invalid input\"); process.exit(2); }\nfunction structurallyValid(value) {\n  return Array.isArray(value) && value.every((record) =>\n    record !== null && typeof record === \"object\" && !Array.isArray(record) &&\n    typeof record.name === \"string\" && Array.isArray(record.events) &&\n    Number.isInteger(record.maxAttempts) && record.maxAttempts > 0 &&\n    record.events.every((event) =>\n      event !== null && typeof event === \"object\" && !Array.isArray(event) &&\n      Number.isInteger(event.status) && event.status >= 100 && event.status <= 599));\n}\nfunction decide(event, attempts, maxAttempts) {\n  // DELIBERATELY FLAWED: repair only this function.\n  if (event.status === 200) return \"recovered\";\n  if (attempts >= maxAttempts) return \"exhausted\";\n  return \"retry\";\n}\nfunction runCase(record) {\n  if (record.events.length === 0) return {name:record.name,outcome:\"invalid_input\",attempts:0};\n  let attempts = 0;\n  for (const event of record.events) {\n    if (attempts >= record.maxAttempts) return {name:record.name,outcome:\"exhausted\",attempts};\n    attempts += 1;\n    const outcome = decide(event, attempts, record.maxAttempts);\n    if (outcome !== \"retry\") return {name:record.name,outcome,attempts};\n  }\n  return {name:record.name,outcome:\"exhausted\",attempts};\n}\nconst file = process.argv[2];\nif (!file) invalid();\nlet cases;\ntry { cases = JSON.parse(fs.readFileSync(file, \"utf8\")); } catch { invalid(); }\nif (!structurallyValid(cases)) invalid();\nfor (const record of cases) console.log(JSON.stringify(runCase(record)));\n'@ | Set-Content -LiteralPath (Join-Path $Path \"learner.mjs\") -Encoding utf8\n@'\nimport {spawnSync} from \"node:child_process\";\nconst expected = [\n {name:\"invalid\",outcome:\"stopped\",attempts:1},\n {name:\"rate-recovery\",outcome:\"recovered\",attempts:3},\n {name:\"billing\",outcome:\"stopped\",attempts:1},\n {name:\"permission\",outcome:\"stopped\",attempts:1},\n {name:\"server-recovery\",outcome:\"recovered\",attempts:2},\n {name:\"unknown-side-effect\",outcome:\"reconcile_required\",attempts:1},\n {name:\"attempt-cap\",outcome:\"exhausted\",attempts:3},\n {name:\"bad-fixture\",outcome:\"invalid_input\",attempts:0}\n];\nlet passed = 0;\nlet total = 0;\nfunction report(label, ok, detail = \"\") {\n  total += 1;\n  if (ok) { passed += 1; console.log(`PASS ${label}`); }\n  else console.log(`FAIL ${label} ${detail}`);\n}\nfunction invoke(args) { return spawnSync(process.execPath, [\"learner.mjs\", ...args], {encoding:\"utf8\"}); }\nfunction records(processResult) {\n  if (processResult.status !== 0) return [];\n  try { return processResult.stdout.trim().split(\"\\n\").filter(Boolean).map((line) => JSON.parse(line)); }\n  catch { return []; }\n}\nconst main = invoke([\"fixtures.json\"]);\nconst actual = records(main);\nfor (let i = 0; i < expected.length; i++) {\n  const ok = main.status === 0 && JSON.stringify(actual[i]) === JSON.stringify(expected[i]);\n  report(expected[i].name, ok, `expected=${JSON.stringify(expected[i])} actual=${JSON.stringify(actual[i])}`);\n}\nconst changedExpected = {name:\"rate-recovery\",outcome:\"recovered\",attempts:2};\nconst changedResult = invoke([\"changed-test.json\"]);\nconst changedActual = records(changedResult)[0];\nreport(\"changed-input\", changedResult.status === 0 && JSON.stringify(changedActual) === JSON.stringify(changedExpected), `expected=${JSON.stringify(changedExpected)} actual=${JSON.stringify(changedActual)}`);\nfunction expectInvalid(label, args) {\n  const result = invoke(args);\n  const ok = result.status === 2 && result.stdout === \"\" && result.stderr.trim() === \"invalid input\";\n  report(label, ok, `expectedExit=2 actualExit=${result.status} stderr=${JSON.stringify(result.stderr.trim())}`);\n}\nexpectInvalid(\"no-argument\", []);\nexpectInvalid(\"missing-file\", [\"__missing_fixture_do_not_create__.json\"]);\nexpectInvalid(\"malformed-json\", [\"malformed.json\"]);\nexpectInvalid(\"top-level-array\", [\"top-level-object.json\"]);\nexpectInvalid(\"null-record\", [\"null-record.json\"]);\nexpectInvalid(\"null-event\", [\"null-event.json\"]);\nexpectInvalid(\"integer-status\", [\"bad-status-fraction.json\"]);\nexpectInvalid(\"status-range\", [\"bad-status-range.json\"]);\nexpectInvalid(\"positive-maxAttempts\", [\"bad-max.json\"]);\nconsole.log(`SUMMARY ${passed}/${total} passed`);\nprocess.exit(passed === total ? 0 : 1);\n'@ | Set-Content -LiteralPath (Join-Path $Path \"tests.mjs\") -Encoding utf8\n@'\nimport fs from \"node:fs\";\nfunction invalid() { console.error(\"invalid input\"); process.exit(2); }\nfunction structurallyValid(value) {\n  return Array.isArray(value) && value.every((record) =>\n    record !== null && typeof record === \"object\" && !Array.isArray(record) &&\n    typeof record.name === \"string\" && Array.isArray(record.events) &&\n    Number.isInteger(record.maxAttempts) && record.maxAttempts > 0 &&\n    record.events.every((event) =>\n      event !== null && typeof event === \"object\" && !Array.isArray(event) &&\n      Number.isInteger(event.status) && event.status >= 100 && event.status <= 599));\n}\nfunction decide(event, attempts, maxAttempts) {\n  if (event.sideEffect === \"unknown\") return \"reconcile_required\";\n  if (event.status === 200) return \"recovered\";\n  if ([400, 402, 403].includes(event.status)) return \"stopped\";\n  const transient = event.status === 408 || event.status === 429 || (event.status >= 500 && event.status <= 599);\n  if (!transient) return \"failed\";\n  if (attempts >= maxAttempts) return \"exhausted\";\n  return \"retry\";\n}\nfunction runCase(record) {\n  if (record.events.length === 0) return {name:record.name,outcome:\"invalid_input\",attempts:0};\n  let attempts = 0;\n  for (const event of record.events) {\n    if (attempts >= record.maxAttempts) return {name:record.name,outcome:\"exhausted\",attempts};\n    attempts += 1;\n    const outcome = decide(event, attempts, record.maxAttempts);\n    if (outcome !== \"retry\") return {name:record.name,outcome,attempts};\n  }\n  return {name:record.name,outcome:\"exhausted\",attempts};\n}\nconst file = process.argv[2];\nif (!file) invalid();\nlet cases;\ntry { cases = JSON.parse(fs.readFileSync(file, \"utf8\")); } catch { invalid(); }\nif (!structurallyValid(cases)) invalid();\nfor (const record of cases) console.log(JSON.stringify(runCase(record)));\n'@ | Set-Content -LiteralPath (Join-Path $Path \"reference-answer.mjs\") -Encoding utf8\nWrite-Host \"Created $Path\"\nWrite-Host \"Next: Set-Location $Path; node tests.mjs\""
+      }
+    },
+    {
+      "id": "exercise-instructions",
+      "title": "Run the baseline, repair it, and test changed and invalid inputs",
+      "paragraphs": [
+        "After setup, run the independent tests without editing tests.mjs. The flawed baseline passes 14 of 18 checks, prints the exact output below, and exits 1. Its wrapper already normalizes no argument, a missing file, malformed JSON, a non-array top level, null records or events, invalid HTTP statuses, and a nonpositive maxAttempts to stderr `invalid input` with exit code 2.",
+        "Repair only decide in learner.mjs. It must check an unknown side effect before accepting HTTP 200, recover on 200 when no side effect is unknown, stop for 400, 402, and 403, retry only 408, 429, and 5xx, return failed for other statuses, and return exhausted when a transient attempt consumes the cap. After repair, all 18 lines are PASS, the summary is `SUMMARY 18/18 passed`, and tests.mjs exits 0.",
+        "The changed-input check reduces rate recovery to 429 followed by 200. A correct learner reports recovered after two attempts. The explicit commands also create a learner-controlled changed.json without modifying fixtures.json. The malformed and missing-file checks demonstrate normalized negative behavior. Do not edit tests.mjs or use reference-answer.mjs as the learner implementation."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Exact baseline test output",
+        "code": "FAIL invalid expected={\"name\":\"invalid\",\"outcome\":\"stopped\",\"attempts\":1} actual={\"name\":\"invalid\",\"outcome\":\"exhausted\",\"attempts\":1}\nPASS rate-recovery\nFAIL billing expected={\"name\":\"billing\",\"outcome\":\"stopped\",\"attempts\":1} actual={\"name\":\"billing\",\"outcome\":\"exhausted\",\"attempts\":1}\nFAIL permission expected={\"name\":\"permission\",\"outcome\":\"stopped\",\"attempts\":1} actual={\"name\":\"permission\",\"outcome\":\"exhausted\",\"attempts\":1}\nPASS server-recovery\nFAIL unknown-side-effect expected={\"name\":\"unknown-side-effect\",\"outcome\":\"reconcile_required\",\"attempts\":1} actual={\"name\":\"unknown-side-effect\",\"outcome\":\"recovered\",\"attempts\":1}\nPASS attempt-cap\nPASS bad-fixture\nPASS changed-input\nPASS no-argument\nPASS missing-file\nPASS malformed-json\nPASS top-level-array\nPASS null-record\nPASS null-event\nPASS integer-status\nPASS status-range\nPASS positive-maxAttempts\nSUMMARY 14/18 passed\nProcess exit code: 1\n\nExact repaired summary and exit:\nSUMMARY 18/18 passed\nProcess exit code: 0\n\nExact repaired main records:\n{\"name\":\"invalid\",\"outcome\":\"stopped\",\"attempts\":1}\n{\"name\":\"rate-recovery\",\"outcome\":\"recovered\",\"attempts\":3}\n{\"name\":\"billing\",\"outcome\":\"stopped\",\"attempts\":1}\n{\"name\":\"permission\",\"outcome\":\"stopped\",\"attempts\":1}\n{\"name\":\"server-recovery\",\"outcome\":\"recovered\",\"attempts\":2}\n{\"name\":\"unknown-side-effect\",\"outcome\":\"reconcile_required\",\"attempts\":1}\n{\"name\":\"attempt-cap\",\"outcome\":\"exhausted\",\"attempts\":3}\n{\"name\":\"bad-fixture\",\"outcome\":\"invalid_input\",\"attempts\":0}"
+      }
+    },
+    {
+      "id": "reference-answer",
+      "title": "Separate reference answer and executable verification commands",
+      "paragraphs": [
+        "The setup creates reference-answer.mjs separately from learner.mjs and tests.mjs. Consult it only after attempting the repair. Its parsing and validation wrapper matches the starter, while its decide function shows the intended decision order. In particular, unknown side effects are checked before HTTP 200, and the cap is checked after nonretryable classifications but before another transient retry.",
+        "Run the commands below from the parent directory after setup. The first block proves the baseline exit is 1. After editing only decide, rerun tests and require exit 0. The changed.json command performs an explicit learner mutation by copying the fixture and replacing the rate-recovery sequence. It does not alter or delete the original fixture.",
+        "For `node learner.mjs malformed.json`, the exact stdout is empty, stderr is `invalid input` followed by the platform newline, and the exit code is 2. The same exit and stderr apply to no argument and the named missing file. The reference command is a comparison, not a substitute for the independent learner tests."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "PowerShell 7 run and verification commands",
+        "code": "Set-Location .\\gemini-triage-exercise\nnode tests.mjs\n$baseline = $LASTEXITCODE\nif ($baseline -ne 1) { throw \"Expected baseline test exit code 1, got $baseline\" }\n\n# Edit only decide in learner.mjs, then run:\nnode tests.mjs\n$repaired = $LASTEXITCODE\nif ($repaired -ne 0) { throw \"Expected repaired test exit code 0, got $repaired\" }\n\nnode learner.mjs fixtures.json\nif ($LASTEXITCODE -ne 0) { throw \"Expected main fixture exit code 0\" }\n\nCopy-Item -LiteralPath fixtures.json -Destination changed.json\n$changed = Get-Content -LiteralPath changed.json -Raw | ConvertFrom-Json\n$rate = $changed | Where-Object { $_.name -eq \"rate-recovery\" }\n$rate.events = @([pscustomobject]@{status=429}, [pscustomobject]@{status=200})\n$changed | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath changed.json -Encoding utf8\nnode learner.mjs changed.json\nif ($LASTEXITCODE -ne 0) { throw \"Expected changed input exit code 0\" }\n\nnode learner.mjs malformed.json\n$malformed = $LASTEXITCODE\nif ($malformed -ne 2) { throw \"Expected malformed JSON exit code 2, got $malformed\" }\n\nnode learner.mjs __missing_fixture_do_not_create__.json\n$missing = $LASTEXITCODE\nif ($missing -ne 2) { throw \"Expected missing-file exit code 2, got $missing\" }\n\nnode reference-answer.mjs changed.json\nif ($LASTEXITCODE -ne 0) { throw \"Expected reference exit code 0\" }"
+      }
+    },
+    {
+      "id": "real-product-boundary",
+      "title": "Keep the offline lesson separate from real-product evidence",
+      "paragraphs": [
+        "The exercise replays local JSON through a local Node.js process. It does not authenticate, call Gemini, invoke a Gemini SDK, wait between retries, enable storage, or inspect a downstream system. Its exact results show only that a decision function classifies the supplied synthetic events and respects their declared total-attempt cap.",
+        "An optional real-product workflow must be designed separately. Before running one, confirm the approved project, API method, model and version, credential handling, data authority, retention and sharing settings, error contract, SDK retry behavior, observability fields, and downstream idempotency contract. Keep secrets out of source, fixtures, shell history, and diagnostic output.",
+        "Current model versions, prices, exact SDK import syntax, retry configuration parameters, and jitter formula are UNKNOWN in this guide because the supplied verified sources do not establish them for a selected client and version. Establish those details from the applicable current first-party documentation before implementation. Do not use an offline pass as evidence of model quality, cost, latency, or provider availability."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Optional real-product readiness checklist",
+        "code": "[ ] Approved project and data authority\n[ ] Selected API method, model, and version documented\n[ ] Secret supplied through an approved secret mechanism\n[ ] Storage, retention, and sharing settings reviewed\n[ ] SDK automatic retry behavior measured or documented\n[ ] One total attempt budget enforced across every layer\n[ ] Backoff bound and jitter behavior documented\n[ ] Downstream idempotency and reconciliation tested\n[ ] Privacy-safe diagnostics reviewed\n[ ] Evaluation and rollback gates approved"
+      }
     }
   ],
   "sources": [
@@ -64,19 +203,19 @@
       "title": "Gemini API troubleshooting guide",
       "url": "https://ai.google.dev/gemini-api/docs/troubleshooting",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Gemini API logs and datasets",
       "url": "https://ai.google.dev/gemini-api/docs/logs-datasets",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Gemini API data logging and sharing",
       "url": "https://ai.google.dev/gemini-api/docs/logs-policy",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     }
   ]
 }
