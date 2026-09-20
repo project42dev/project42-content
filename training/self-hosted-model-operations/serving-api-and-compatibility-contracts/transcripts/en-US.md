@@ -1,6 +1,6 @@
 # Expose a Model Service without Hiding Its Contract
 
-Package: `serving-api-and-compatibility-contracts-class` 1.1.2
+Package: `serving-api-and-compatibility-contracts-class` 1.1.3
 
 > This is the canonical text equivalent of an AI-assisted virtual-instructor
 > class. It remains usable without synthesized audio, video, animation, or a
@@ -102,6 +102,8 @@ Sources:
 
 Checkpoint. The port responds and the alias is p42-qwen3-06b, but the model hash was not recorded. Is the service ready for the conformance run? State the evidence you still need and the routing decision.
 
+Expected learner action: Checkpoint. The port responds and the alias is p42-qwen3-06b, but the model hash was not recorded. Is the service ready for the conformance run? State the evidence you still need and the routing decision.
+
 Sources:
 
 - <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
@@ -149,6 +151,8 @@ Sources:
 
 Checkpoint. A client deadline expires after the server has accepted a request. The client then reconnects successfully. What can you claim, what must remain unknown, and what evidence should you collect before calling this recovery?
 
+Expected learner action: Checkpoint. A client deadline expires after the server has accepted a request. The client then reconnects successfully. What can you claim, what must remain unknown, and what evidence should you collect before calling this recovery?
+
 Sources:
 
 - <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
@@ -181,6 +185,8 @@ Sources:
 ## Checkpoint: Serving Practical Compare Two Adapters Checkpoint
 
 Checkpoint. Candidate B uses different wire names but preserves all four semantic fields. Candidate C accepts the request but drops explanation and reports a matching model alias. Which candidate can pass the offline gate, and why does the other candidate remain HOLD? Include the deployment-authorization boundary.
+
+Expected learner action: Checkpoint. Candidate B uses different wire names but preserves all four semantic fields. Candidate C accepts the request but drops explanation and reports a matching model alias. Which candidate can pass the offline gate, and why does the other candidate remain HOLD? Include the deployment-authorization boundary.
 
 Sources:
 
@@ -215,6 +221,8 @@ Sources:
 
 Checkpoint. A request has category account_recovery and confidential set to integer 1. Should the ChangedAdapter escalate it? Name the validation result and the reason, then state what a valid changed request would produce.
 
+Expected learner action: Checkpoint. A request has category account_recovery and confidential set to integer 1. Should the ChangedAdapter escalate it? Name the validation result and the reason, then state what a valid changed request would produce.
+
 Sources:
 
 - <https://docs.python.org/3/library/unittest.html>
@@ -244,6 +252,8 @@ Sources:
 ## Checkpoint: Serving Practical Rehearse Owned Recovery Checkpoint
 
 Checkpoint. Port 11842 is occupied by a process with a different executable path, while the recorded service PID is gone. What should the stop operation do, and what evidence is needed before retrying recovery?
+
+Expected learner action: Checkpoint. Port 11842 is occupied by a process with a different executable path, while the recorded service PID is gone. What should the stop operation do, and what evidence is needed before retrying recovery?
 
 Sources:
 
