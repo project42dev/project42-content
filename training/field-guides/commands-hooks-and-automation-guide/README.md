@@ -10,7 +10,7 @@ From the content repository root, run the first command exactly as shown:
 cd training/field-guides/commands-hooks-and-automation-guide
 ```
 
-The trusted operating directory for these examples is `training/field-guides/commands-hooks-and-automation-guide`. The checker accepts an explicit relative JSON input path inside that directory. Its logical artifact contract has one fixed approved path, `training/field-guides/commands-hooks-and-automation-guide/README.md`, in `APPROVED_PATHS`. That logical `scope.paths` value is metadata inside the JSON artifact. It is not the same as the actual input path, such as `fixtures/positive.json`.
+The trusted operating directory for these examples is `training/field-guides/commands-hooks-and-automation-guide`. The checker accepts an explicit relative JSON input path inside that directory. Its logical artifact contract has one fixed approved path, `training/field-guides/commands-hooks-and-automation-guide/README.md`, in `APPROVED_PATHS`. That logical `scope.paths` value is metadata inside the JSON artifact. It is not the same as the actual input path, such as `fixtures/positive.json` or `fixtures/learner-repair.json`.
 
 The path, symlink, size, encoding, and file-type checks are prechecks. On supporting Unix systems, `O_NOFOLLOW` provides a best-effort additional open check, but it is not available on Windows. These checks do not provide a race-proof sandbox against concurrent filesystem mutation. Run the lab in a trusted local directory and do not claim that it prevents races or all concurrent filesystem changes.
 
@@ -41,6 +41,8 @@ Expected stderr: empty. Expected exit code: `0`.
 
 ## Changed learner exercise
 
+First observe the unchanged negative fixture:
+
 ```sh
 node check.mjs fixtures/changed-invalid.json
 ```
@@ -55,7 +57,29 @@ FAIL: $.expected.decision must equal "accept"
 
 Expected exit code: `1`.
 
-Repair only `expected.decision`, changing `review` to `accept`. The complete changed fixture is `fixtures/changed-invalid.json`. The complete solution is `fixtures/solution.json`. Rerun the changed fixture after editing it. The solution and positive fixture should both pass the unchanged checker.
+Do not edit `fixtures/changed-invalid.json`. The test suite uses it as the original negative fixture and checks that it still fails. Create a new learner file, `fixtures/learner-repair.json`, with this Node.js 22 command:
+
+```sh
+node --input-type=module -e "import { copyFileSync, constants } from 'node:fs'; copyFileSync('fixtures/changed-invalid.json', 'fixtures/learner-repair.json', constants.COPYFILE_EXCL)"
+```
+
+This uses `fs.copyFileSync()` and `fs.constants.COPYFILE_EXCL`. The copy operation is the learner's setup write. `COPYFILE_EXCL` makes the operation fail if `fixtures/learner-repair.json` already exists, so the command does not overwrite an existing target. The command uses relative paths and does not depend on a shell-specific `cp` or `Copy-Item` command.
+
+Edit only `fixtures/learner-repair.json`, changing `expected.decision` from `review` to `accept`. Then validate the copy:
+
+```sh
+node check.mjs fixtures/learner-repair.json
+```
+
+Expected stdout:
+
+```text
+PASS: task artifact satisfies the bounded read-only contract
+```
+
+Expected stderr: empty. Expected exit code: `0`.
+
+The checker is a separate read-only step. It reads the explicitly supplied relative JSON file and does not create or modify the learner file, the original fixture, the schema, the checker, or the tests. The complete changed fixture is `fixtures/changed-invalid.json`. The complete solution is `fixtures/solution.json`. Do not change the filename, add an unknown field, weaken check.mjs, or bypass the check.
 
 The cause is the nonterminal `review` value in an exact terminal field. Renaming the fixture, adding a field, weakening the checker, or bypassing it does not repair that cause.
 
@@ -112,6 +136,8 @@ Repository owners separately decide whether exit code 1 blocks merging. Do not u
 
 ## Learner verification
 
+After the learner copy passes, run the unchanged full suite:
+
 ```sh
 node tests/run-tests.mjs
 ```
@@ -124,7 +150,7 @@ PASS: 11 tests
 
 Expected stderr: empty. Expected exit code: `0`.
 
-The process-level suite checks the Node major version, exact output and exit codes, malformed and adversarial inputs, adapter validation, unchanged fixture hashes, and absence of a shell-metacharacter sentinel. It runs without dependencies, network access, credentials, or an AI client.
+The process-level suite checks the Node major version, exact output and exit codes, malformed and adversarial inputs, adapter validation, unchanged fixture hashes, and absence of a shell-metacharacter sentinel. It runs without dependencies, network access, credentials, or an AI client. Because `fixtures/changed-invalid.json` remains unchanged, its expected negative assertion and the fixture-hash checks continue to pass after the learner repair.
 
 ## Filled operational contract
 
