@@ -38,3 +38,9 @@ Text alternative: Accountability remains with people and organizations that choo
 Show both completed rows at once. Mark the release decision in text and do not use color alone.
 
 Text alternative: The low-consequence drafting task uses approved facts and review. The high-consequence denial task lacks sufficient evidence, appeal, and safe authority, so automation is rejected.
+
+## worked-case-dossier-narration
+
+Display all four labelled case cards and their text fields at once. No animation or timed reveal is required.
+
+Text alternative: A static text list presents the four case cards and, for each, its input, objective, capability, affected people, consequence, permissions, verification, and stop condition.

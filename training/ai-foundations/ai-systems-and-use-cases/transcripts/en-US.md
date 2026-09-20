@@ -1,6 +1,6 @@
 # AI Systems and Useful Work
 
-Package: `ai-systems-and-use-cases-class` 1.0.0
+Package: `ai-systems-and-use-cases-class` 1.1.0
 
 > This is the canonical text equivalent of an AI-assisted virtual-instructor
 > class. It remains usable without synthesized audio, video, animation, or a
@@ -99,6 +99,87 @@ Sources:
 
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Narration: Worked Case Dossier Narration
+
+Introduce the dossier as a completed example. The library system creates a private announcement draft from a supplied brief, and the librarian checks every factual field before publication. The food-pantry system suggests a slot or missing field, but staff review every suggestion and the system cannot deny service or contact an applicant. The pothole system ranks reports for inspection, while an inspector retains approval authority for dispatch. The greenhouse system proposes an irrigation schedule, but a worker reviews it and can use a manual procedure. Notice that the cases do not need one of each mode. The modes follow evidence, permissions, reversibility, and consequences. A ranking method does not automatically justify automation, and a useful draft does not automatically justify publication.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Worked Case Trace Narration
+
+Trace the food-pantry case slowly. The scan and appointment data are inputs. Extraction and classification are model capabilities. The application places a suggestion in a staff queue. That queue, its permissions, review procedure, and logs are part of the complete system. A suggestion is not a fact and is not a decision. Staff compare it with the original form, correct it, and decide what happens next. The pantry organization remains accountable. NIST's AI Risk Management Framework describes AI systems as sociotechnical systems, so judge data, tools, people, controls, and the model together. NIST's Generative AI Profile is a risk-management companion, not a capability catalog. Sources are https://doi.org/10.6028/NIST.AI.100-1 and https://doi.org/10.6028/NIST.AI.600-1. Ask learners to notice the boundary between proposing a result and taking action. Here the system may propose a staff task, but it may not deny service, alter the applicant record, or send a message. A correction and appeal path make accountability usable.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Learner Prompt: Worked Case Trace Prompt
+
+Practice pause: point to the exact step where the model produces an output, the step where the application presents it, and the step where an accountable person makes the decision. Then name one correction the applicant could request.
+
+## Pause: Worked Case Trace Pause
+
+## Narration: Onramp Exercise Narration
+
+Now pause for the supplied onramp. Do not choose your own tasks yet. Use the food-pantry case and write one offline record. Include a concrete objective, the actual scan and appointment artifacts, a capability, affected people, consequence of error, permissions, reversibility, monitoring, release mode, verification, stop condition, owner, and correction or appeal path. Choose no AI if that is the most justified baseline. Otherwise justify the selected mode from the case facts. This is a conceptual exercise. No Python, deployment lab, or runnable code is needed. The purpose is to practice reasoning about a complete system.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Learner Prompt: Onramp Exercise Prompt
+
+Practice pause: complete the food-pantry record now. Before continuing, check that your stop condition is observable, your verification names what staff compare, and your release mode reflects what the system is actually permitted to do.
+
+## Pause: Onramp Exercise Pause
+
+## Narration: Changed Input Case Narration
+
+Next, work independently on the changed school-maintenance case before reading the key. The system receives a photograph, room number, equipment ID, and description. It may propose a hazard flag, category, and work-order draft, but it cannot declare a room safe, close a work order, or send a final message. The important facts are the physical consequence of a missed hazard, the supervisor's approval, the ability to correct a draft, and incomplete evidence from blurry photographs, missing IDs, and unevaluated lighting conditions. Write the release mode, verification, stop condition, owner, and remedy. Do not choose an answer merely because the model sounds confident. No AI remains available if the district does not find a demonstrated benefit or cannot justify safe review and data handling.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Learner Prompt: Changed Input Case Prompt
+
+Practice pause: make your independent choice before opening the hints or key. Explain what the system may do, what it may not do, what evidence would cause a manual handoff, and why no AI might or might not be the best baseline.
+
+## Pause: Changed Input Case Pause
+
+## Narration: Changed Input Hints Narration
+
+Offer the hints one at a time. First, distinguish a possible hazard flag from a declaration that a room is safe. Second, treat a blurry image or missing identifier as incomplete evidence, not as permission to guess. Third, name the maintenance supervisor as accountable owner and provide a way to correct the location, identity, hazard label, or status. Fourth, keep the permission boundary at a separate proposed work order and require physical inspection before final action. These hints support reasoning, but they do not force adoption of AI. A manual route can be the right answer when the expected benefit has not been demonstrated.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Changed Input Key Narration
+
+Give the worked key only after the independent attempt. Assistance with review is justified by the case as written: the supervisor inspects the item and approves the final work order. Automation with monitoring is not justified because a missed hazard can injure someone and the evidence is incomplete. Verification compares the image, room, identifier, and description with the physical item. The stop condition routes cases to manual handling when the image is blurry, the location is uncertain, fields conflict, or inspection shows unreliable categorization. No AI is also valid if the district finds no demonstrated benefit, prefers a manual baseline, or cannot provide justified review and data controls. Limited automation could become valid after documented evaluation, approval gates, and safe handling of incomplete inputs. The answer is conditional reasoning, not memorizing a mode.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Narration: Triage Rubric Narration
+
+Close with the rubric. A strong record has a specific outcome, fitting capability, actual inputs or artifacts, affected people, consequence, release mode, permissions, reversibility, monitoring, verification, stop or rollback condition, accountable owner, and remedy. Weak records say accurate without naming a test, call the model the whole system, give automation no permission boundary, or mention human involvement without naming what the person checks. Now choose four tasks from your own context. Consider text, vision, audio, ranking, recommendation, forecasting, or pattern detection. Provider names do not establish current features, ranking, price, or benefit. For every task, compare AI with a manual or no-AI baseline and adopt AI only when the complete system has a demonstrated, justified benefit.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Learner Prompt: Triage Rubric Prompt
+
+Practice pause: for each of your four tasks, underline the consequence, circle the accountable owner, and draw an arrow from the verification step to the stop or rollback condition. Then write one sentence explaining why your selected mode is better justified than no AI, or why no AI is the appropriate baseline.
+
+## Pause: Triage Rubric Pause
 
 ## Transition: Activity Transition
 
