@@ -132,6 +132,8 @@ Sources:
 
 Practice pause: point to the exact step where the model produces an output, the step where the application presents it, and the step where an accountable person makes the decision. Then name one correction the applicant could request.
 
+Learner action: Practice pause: point to the exact step where the model produces an output, the step where the application presents it, and the step where an accountable person makes the decision. Then name one correction the applicant could request.
+
 ## Pause: Worked Case Trace Pause
 
 ## Narration: Onramp Exercise Narration
@@ -146,6 +148,8 @@ Sources:
 
 Practice pause: complete the food-pantry record now. Before continuing, check that your stop condition is observable, your verification names what staff compare, and your release mode reflects what the system is actually permitted to do.
 
+Learner action: Practice pause: complete the food-pantry record now. Before continuing, check that your stop condition is observable, your verification names what staff compare, and your release mode reflects what the system is actually permitted to do.
+
 ## Pause: Onramp Exercise Pause
 
 ## Narration: Changed Input Case Narration
@@ -159,6 +163,8 @@ Sources:
 ## Learner Prompt: Changed Input Case Prompt
 
 Practice pause: make your independent choice before opening the hints or key. Explain what the system may do, what it may not do, what evidence would cause a manual handoff, and why no AI might or might not be the best baseline.
+
+Learner action: Practice pause: make your independent choice before opening the hints or key. Explain what the system may do, what it may not do, what evidence would cause a manual handoff, and why no AI might or might not be the best baseline.
 
 ## Pause: Changed Input Case Pause
 
@@ -189,6 +195,8 @@ Sources:
 ## Learner Prompt: Triage Rubric Prompt
 
 Practice pause: for each of your four tasks, underline the consequence, circle the accountable owner, and draw an arrow from the verification step to the stop or rollback condition. Then write one sentence explaining why your selected mode is better justified than no AI, or why no AI is the appropriate baseline.
+
+Learner action: Practice pause: for each of your four tasks, underline the consequence, circle the accountable owner, and draw an arrow from the verification step to the stop or rollback condition. Then write one sentence explaining why your selected mode is better justified than no AI, or why no AI is the appropriate baseline.
 
 ## Pause: Triage Rubric Pause
 
