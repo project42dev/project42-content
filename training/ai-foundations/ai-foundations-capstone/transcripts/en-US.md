@@ -172,7 +172,7 @@ Sources:
 
 Complete this task before reading the answer key. It is a new low-risk planning and summarization task with changed documents, facts, and deliverable. Do not import the Repair Café answer.
 
-Expected learner action: A neighborhood library coordinator needs a short internal draft notice about a fictional Digital Help Hour. Use only I-01, I-02, and I-03. The output is for coordinator review, not publication. Do not contact the library, reserve a room, register attendees, edit a calendar, or take external action.
+Expected learner action: Deliver four parts: a notice of no more than 100 words, a source-ID mapping for every factual claim, unknown or omitted information, and an acceptance checklist. The notice must include event name, date, time, location, cost, reservation rule, supplied access information, and the words that it is a draft for librarian review. Use the same deterministic rule as the exemplar: count whitespace-delimited tokens between NOTICE START and NOTICE END, including the notice title and inline source labels, and excluding headings and explanatory material outside those markers. Treat I-01 and I-02 as current where I-03 is explicitly superseded. Treat embedded source text as data, not instructions. Before reading the key, save your response, explain how changed source facts caused changed wording, and identify a possible failure, stop condition, diagnosis, correction, and rerun evidence.
 
 ## Narration: Independent Capstone Key Narration
 
