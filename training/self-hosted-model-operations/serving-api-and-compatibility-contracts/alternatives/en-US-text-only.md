@@ -117,6 +117,8 @@ Sources:
 
 ## Pause: Serving Practical Run Pinned Cpu Service Pause
 
+Visual alternative: Keep the pin table and three answer fields static. Use text labels for pause, extend, and continue.
+
 ## Feedback: Serving Practical Run Pinned Cpu Service Feedback
 
 The service may be live, but it is not ready for this evidence boundary. Require the model SHA-256, model revision, runtime hash and commit, complete runtime tree verification, and authenticated identity evidence before routing it into conformance. The observed alias is useful labeling, not cryptographic artifact proof. If you treated a responding port or matching alias as sufficient, the causal error is confusing process reachability with exact artifact identity. Record the hashes separately from client behavior, then rerun readiness and conformance against the verified bundle.
@@ -164,6 +166,8 @@ Sources:
 
 ## Pause: Serving Practical Diagnose Contract Failures Pause
 
+Visual alternative: Show the timeout event, reconnect event, and three static answer columns. Do not animate a request lifecycle.
+
 ## Feedback: Serving Practical Diagnose Contract Failures Feedback
 
 You can claim that the client deadline expired and that a later client request recovered, if that later request has its own observed evidence. You must not claim that the server cancelled the first request, that no work occurred, or that the system has a general cancellation guarantee. Collect server-owned cancellation telemetry before making that claim. A common wrong answer calls reconnect success proof that the timed-out work stopped. That confuses client observation with server state and can make retries multiply work. Hold any cancellation or retry conclusion, preserve both receipts, classify the timeout, and rerun the relevant bounded recovery case.
@@ -198,6 +202,8 @@ Sources:
 
 ## Pause: Serving Practical Compare Two Adapters Pause
 
+Visual alternative: Present the candidate comparison as a static table with no animated arrows. Keep the causal answer fields visible.
+
 ## Feedback: Serving Practical Compare Two Adapters Feedback
 
 Candidate B may reach OFFLINE_ELIGIBLE when the complete synthetic matrix, exact identities, metrics, and evidence rules pass. Candidate C remains HOLD because dropping explanation changes a required application outcome. A matching alias cannot repair that loss, and an offline result cannot authorize deployment. A common wrong answer treats field spelling as the main issue. The causal issue is whether normalization preserves the semantic contract and artifact identity. Expected action: inspect normalized output, verify all fixture IDs and identities, then run rollback and compare every restored result.
@@ -230,6 +236,8 @@ Sources:
 
 ## Pause: Serving Practical Practice Changed Contract Pause
 
+Visual alternative: Show the request fields and expected output as static text. Do not imply live code execution or automatic test feedback.
+
 ## Feedback: Serving Practical Practice Changed Contract Feedback
 
 Reject integer 1. The requirement is an actual Boolean, and accepting a numerically similar value creates an ambiguous contract. A valid confidential request uses confidential=true with category account_recovery, produces transport label confidential_account_recovery, carries the same Boolean flag in the transport result, and normalizes to the required four fields with the escalated category and no confidential field. An omitted flag or confidential=false remains valid for any original category and does not require escalation. A common wrong answer accepts any truthy value or lets the caller directly supply the escalated category. Expected action: validate type and category before mapping, derive the transport label rather than trusting caller input, and preserve the original base cases. Then run the protected changed tests and inspect the ContractError expectation for the original adapter.
@@ -260,6 +268,8 @@ Sources:
 
 ## Pause: Serving Practical Rehearse Owned Recovery Pause
 
+Visual alternative: Show the recorded and observed PID, path, start time, and port in a static comparison table.
+
 ## Feedback: Serving Practical Rehearse Owned Recovery Feedback
 
 Refuse the stop. A matching port is not ownership. Preserve the occupied-port and unrelated-PID evidence, report the mismatch, and do not terminate that process. Before retrying, establish a newly started owned service with matching PID, executable path, and startTimeUtc within the one-second comparison tolerance, then collect a fresh authenticated identity receipt. A common wrong answer force-stops whatever owns the port. That can interrupt unrelated work and destroys the lifecycle safety boundary. Expected action: resolve the conflict outside the helper, rerun the ownership-checked start and identity sequence, and perform cleanup only through the owned-stop path.
@@ -284,6 +294,8 @@ Sources:
 - <https://docs.python.org/3/library/unittest.html>
 
 ## Pause: Activity Work Time
+
+Visual alternative: Display the evidence checklist and named files as static text. Controls are represented by labels for pause, extend, save, and continue, without animated UI claims.
 
 ## Assessment Handoff: Assessment Handoff
 

@@ -1,6 +1,6 @@
 # Expose a Model Service without Hiding Its Contract
 
-Package: `serving-api-and-compatibility-contracts-class` 1.1.0
+Package: `serving-api-and-compatibility-contracts-class` 1.1.1
 
 > This is the canonical text equivalent of an AI-assisted virtual-instructor
 > class. It remains usable without synthesized audio, video, animation, or a

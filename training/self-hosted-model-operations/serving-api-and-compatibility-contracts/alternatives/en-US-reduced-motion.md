@@ -39,6 +39,42 @@ Show the baseline, candidate, gates, canary, stop, and rollback states as number
 
 Text alternative: A bounded canary compares exact identities and stops on contract, quality, security, latency, capacity, or observability regression while preserving rollback.
 
+## serving-practical-run-pinned-cpu-service-pause
+
+Keep the pin table and three answer fields static. Use text labels for pause, extend, and continue.
+
+Text alternative: Keep the pin table and three answer fields static. Use text labels for pause, extend, and continue.
+
+## serving-practical-diagnose-contract-failures-pause
+
+Show the timeout event, reconnect event, and three static answer columns. Do not animate a request lifecycle.
+
+Text alternative: Show the timeout event, reconnect event, and three static answer columns. Do not animate a request lifecycle.
+
+## serving-practical-compare-two-adapters-pause
+
+Present the candidate comparison as a static table with no animated arrows. Keep the causal answer fields visible.
+
+Text alternative: Present the candidate comparison as a static table with no animated arrows. Keep the causal answer fields visible.
+
+## serving-practical-practice-changed-contract-pause
+
+Show the request fields and expected output as static text. Do not imply live code execution or automatic test feedback.
+
+Text alternative: Show the request fields and expected output as static text. Do not imply live code execution or automatic test feedback.
+
+## serving-practical-rehearse-owned-recovery-pause
+
+Show the recorded and observed PID, path, start time, and port in a static comparison table.
+
+Text alternative: Show the recorded and observed PID, path, start time, and port in a static comparison table.
+
+## activity-work-time
+
+Display the evidence checklist and named files as static text. Controls are represented by labels for pause, extend, save, and continue, without animated UI claims.
+
+Text alternative: Display the evidence checklist and named files as static text. Controls are represented by labels for pause, extend, save, and continue, without animated UI claims.
+
 # Reduced-motion practical equivalent
 
 All activities can be completed from static text, tables, transcript, and learner-entered notes. No animated server diagram, live dashboard, automatic test result, or imagined control is required. Use the named module and assets, but do not reproduce command blocks. Keep exact 64-character hashes in static tables or learner records, not in spoken narration.
