@@ -112,6 +112,54 @@ Sources:
 - <https://developers.openai.com/api/docs/guides/prompt-engineering>
 - <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
 
+## Narration: Worked Evidence Set Narration
+
+We will now walk through the complete record. The question asks about laser-cutter use on Wednesday, 2026-09-23. The date is an explicit exercise assumption, and it falls within the validity periods stated for Sources A and B. Source A is included because its exact excerpt gives general building hours for registered members. Its metadata bounds that claim from 2026-08-15 through 2026-12-31 and limits its scope to general building access. Source B is included because its exact excerpt gives the equipment-specific conditions. Its metadata bounds that claim from 2026-08-20 through 2026-12-31. Source C is not silently discarded. We retain it to show a conflict, but reject it as the controlling schedule because its validity ended on 2026-01-15 and its scope was temporary. Source D is not a policy rule at all. It is untrusted text embedded in evidence. The completed prompt makes the boundary explicit, and the authored answer uses cautious language. It says that equipment use requires the conditions stated by Source B, but it does not claim that staff are present on the scenario date. Look at the claim map rather than trusting the answer's tone. Each supported claim has an exact excerpt and a validity bound. Each gap says what no excerpt establishes. That is the central habit: a source can support one part of an answer without proving the entire answer.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Narration: Changed Input Practice Narration
+
+Complete this packet before reading the hint, key, or feedback. It is a separate test of whether the evidence set still supports the answer after necessary information changes. The changed scenario date remains Wednesday, 2026-09-23. Source B, which supplied every laser-cutter-specific rule, has been removed. Use only the changed packet. Identify the evidence error that would occur if you repeated the original equipment conditions. A useful answer may be shorter because the changed evidence no longer supports the same claims. This packet is intentionally independent. Copy it into a separate response area if useful. Do not consult the later feedback section until you have recorded your answer, source map, and gaps.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Learner Prompt: Changed Input Practice Prompt
+
+Give a changed answer. Identify one evidence error that would occur if you repeated the original laser-cutter conditions. Map supported claims to excerpts and state every material gap.
+
+Learner action: Complete the changed-input response before viewing the hint or key, cite Source A only for supported general hours, identify the missing equipment evidence, report Source C as obsolete, reject the embedded command, and list the material gaps.
+
+## Pause: Changed Input Practice Pause
+
+## Narration: Changed Input Feedback Narration
+
+After the independent attempt, use the hint and authored reference key to review the change. The key does not describe a live model result. It specifies what the supplied evidence supports and what it leaves open. Source A supports general Wednesday building access for registered members from 10:00 a.m. to 8:00 p.m. Source C reports a different Wednesday interval, but its validity ended before the scenario date and its scope was temporary. Nothing in the changed packet supplies the laser-cutter rule. Therefore, repeating orientation, staffed-hours, or approval conditions would import claims from a removed source. A human reviewer can mark that as an evidence error. The reviewer can also check whether the learner rejected the embedded command and listed the material gaps. This review is deterministic only in the limited sense that the reviewer can compare written claims with known excerpts and source availability. It is not a claim that an automated semantic validator exists, and it is not a measurement of unobserved model behavior. The lesson ends by transferring the method to another permitted question: define the date, qualify each source, map each claim, and revise the answer when evidence changes.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
+## Narration: Changed Input Reflection Narration
+
+Now transfer the method beyond the fictional dossier. Choose a new factual question whose answer could change over time, and use only permitted material. Record each source’s identity, review or validity date, scope, supported claim, limitation, permission, and conflicts. Separate authorized instructions from quoted evidence, then map every important claim to an exact passage. Ask which source seemed relevant but did not prove the needed claim. Remove one necessary source and revise the answer, marking the resulting gap. Do not carry a condition forward from memory. A human reviewer should check each claim against the source, scope, and validity.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/prompt-engineering>
+- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
+- <https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence>
+
 ## Transition: Activity Transition
 
 Open the evidence-set activity. Choose a factual question that can change over time. Select two or three permitted sources. For each, record publisher, review date, supported claims, scope, limitations, permission, and conflicts. Construct a prompt that visibly separates authorized instructions from source excerpts and requires claim-to-source mapping. Then remove one necessary source and confirm that the expected result identifies the evidence gap rather than inventing an answer. Save the evidence template, prompt, supported claim, limitation, and intentional gap.
