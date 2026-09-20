@@ -2,7 +2,7 @@
   "id": "google-gemini-interactions-api-request",
   "slug": "google-gemini-interactions-api-request",
   "title": "Google Gemini Interactions API Request Workflow",
-  "summary": "Send a bounded Gemini Interactions API request with environment-based credentials and model configuration, typed response inspection, and recoverable failure handling.",
+  "summary": "Send bounded Gemini Interactions API requests with environment credentials, an offline learner journey, response-extraction tests, safe recovery, and an optional real REST request.",
   "category": "Provider workflows",
   "format": "playbook",
   "audience": [
@@ -14,47 +14,185 @@
     "google"
   ],
   "prerequisites": [
-    "Node.js 20 or later",
-    "A Gemini API key stored outside source control",
-    "An approved Gemini model ID and API version"
+    "Node.js 22 or later",
+    "PowerShell 7 for the setup script",
+    "A Gemini API key stored outside source control for the optional live exercise",
+    "An approved Gemini model ID for the optional live exercise"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "google",
     "gemini",
     "interactions-api",
-    "javascript"
+    "javascript",
+    "rest",
+    "testing"
   ],
   "sections": [
+    {
+      "id": "overview",
+      "title": "What you will learn",
+      "paragraphs": [
+        "You will build a small boundary around the Gemini Interactions API. The main lab is fully offline, uses synthetic fixtures, and requires no network or credential. You will run a deliberately flawed extractor, observe one bounded failure, repair only the learner file, and rerun independent immutable tests.",
+        "The raw REST response is not an SDK convenience object. The documented response has a status field and steps array. Generated text appears in a step with type model_output, inside a content array whose text parts have type text and a string text field. This lesson does not use an obsolete outputs[] shape.",
+        "The documented lifecycle states are in_progress, requires_action, completed, failed, cancelled, and incomplete. The lab treats only completed as eligible for answer extraction. A synthetic application-policy refusal and an HTTP error wrapper are tested separately because neither is an additional documented interaction lifecycle state."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Learner journey",
+        "code": "1. Create a new offline lab directory.\n2. Run immutable tests against the flawed learner function.\n3. Observe one failed mixed-text case and exit code 1.\n4. Repair learner.mjs without changing tests or fixtures.\n5. Obtain 17 passes and exit code 0.\n6. Run an independent changed-input assessment.\n7. Optionally transfer the boundary to a real bounded REST request."
+      }
+    },
     {
       "id": "prepare-request",
       "title": "Prepare the request boundary",
       "paragraphs": [
-        "Set GEMINI_API_KEY in the process environment or an approved secret manager, PROJECT42_GEMINI_MODEL to a reviewed model ID, and PROJECT42_GEMINI_API_VERSION to v1 or v1beta. Prefer v1 for generally available behavior and select v1beta only when a reviewed feature requires it. Never print, commit, or send the key as model input.",
-        "Choose state behavior deliberately. Interactions are stored by default for server-managed continuation; use store: false and preserve the required history when your retention policy calls for stateless operation. Define the purpose, permitted input, timeout, retention, expected response, and validation rule before calling."
-      ]
+        "The documented REST request is POST https://generativelanguage.googleapis.com/v1beta/interactions. Authentication uses the x-goog-api-key header, with the value loaded from an environment variable. The JSON body requires model and input. Never put the key in input, source code, fixture data, command history, or diagnostic output.",
+        "The optional example sets store to false. The documented default is true, while store:false disallows background processing and later use of previous_interaction_id. This setting does not establish a universal zero-retention promise. If you use previous_interaction_id in another design, resend tools, system_instruction, and generation_config because the identifier carries conversation history only.",
+        "The approved model list is an internal Project42 dependency and is UNKNOWN from the supplied public sources. Set PROJECT42_GEMINI_MODEL only to an identifier reviewed for your project. No model availability, pricing, quota, or quality claim is made here."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "PowerShell 7 environment setup for the optional request",
+        "code": "$env:GEMINI_API_KEY = Read-Host -Prompt 'API key for this PowerShell process' -MaskInput\n$env:PROJECT42_GEMINI_MODEL = Read-Host -Prompt 'Approved Gemini model ID'\n# Run only after saving the later example as live-request.mjs.\nnode .\\live-request.mjs\n# Remove the temporary variables when finished.\nRemove-Item Env:GEMINI_API_KEY -ErrorAction SilentlyContinue\nRemove-Item Env:PROJECT42_GEMINI_MODEL -ErrorAction SilentlyContinue"
+      }
     },
     {
-      "id": "send-request",
-      "title": "Send a minimal interaction",
+      "id": "worked-example",
+      "title": "Worked task, request, response, and extraction",
       "paragraphs": [
-        "This dependency-free Node.js example uses environment-only credentials and permits only the documented v1 and v1beta API versions. Replace the bracketed input at runtime with approved, non-secret content."
+        "This filled example is synthetic teaching data, not a live receipt. The task asks for a short summary. The request contains the required model and input fields, the documented endpoint and header, and an explicit store choice. The response follows the documented status, steps, model_output, content, and text structure.",
+        "The synthetic_nontext part is independently authored test data, not a claimed provider content enum. A typed extractor ignores it and joins both text parts with one real newline. It must first confirm that status is completed. Inner text must not override an in_progress, requires_action, failed, cancelled, or incomplete outer state."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Synthetic worked example",
+        "code": "{\n  \"task\": \"Summarize a synthetic deployment note in two lines.\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"url\": \"https://generativelanguage.googleapis.com/v1beta/interactions\",\n    \"headers\": {\n      \"content-type\": \"application/json\",\n      \"x-goog-api-key\": \"<environment value, never printed>\"\n    },\n    \"body\": {\n      \"model\": \"<approved-model-id>\",\n      \"input\": \"Summarize: Validation passed. Deployment remains paused.\",\n      \"store\": false\n    }\n  },\n  \"response\": {\n    \"status\": \"completed\",\n    \"steps\": [\n      {\n        \"type\": \"model_output\",\n        \"content\": [\n          { \"type\": \"text\", \"text\": \"Validation passed.\" },\n          { \"type\": \"synthetic_nontext\", \"value\": \"ignored teaching part\" },\n          { \"type\": \"text\", \"text\": \"Deployment remains paused.\" }\n        ]\n      }\n    ]\n  },\n  \"extractedResult\": {\n    \"ok\": true,\n    \"text\": \"Validation passed.\\nDeployment remains paused.\"\n  }\n}"
+      }
+    },
+    {
+      "id": "offline-setup",
+      "title": "Create the complete offline lab",
+      "paragraphs": [
+        "Save this script as setup.ps1 and run it from a disposable parent directory. It refuses an existing gemini-interactions-lab directory, so it cannot silently overwrite prior work. It creates synthetic fixtures, a flawed learner implementation, an independent reference implementation, independent tests, a changed-input assessment, and a safe ESM diagnostic.",
+        "The tests import only learner.mjs and fixtures.mjs. They do not import or invoke the reference. Each learner exception is captured as a failed case, and every fixture still runs. Fixtures intentionally include malformed inputs, so the test harness does not reject them before the learner boundary sees them. The fixture, reference, test, assessment, and diagnostic files are marked read-only; learner.mjs remains editable."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "setup.ps1",
+        "code": "$ErrorActionPreference = 'Stop'\n$dir = Join-Path (Get-Location) 'gemini-interactions-lab'\nif (Test-Path -LiteralPath $dir) {\n  throw \"Refusing existing directory: $dir\"\n}\nNew-Item -ItemType Directory -Path $dir | Out-Null\n\n@'\nexport const fixtures = [\n  { name: 'completed-empty', envelope: { httpStatus: 200, body: { status: 'completed', steps: [{ type: 'model_output', content: [] }] } }, expected: { ok: false, reason: 'no_text' } },\n  { name: 'completed-nontext', envelope: { httpStatus: 200, body: { status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'synthetic_nontext', value: 'ignored' }] }] } }, expected: { ok: false, reason: 'no_text' } },\n  { name: 'completed-mixed', envelope: { httpStatus: 200, body: { status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'first' }, { type: 'synthetic_nontext', value: 'ignored' }, { type: 'text', text: 'second' }] }] } }, expected: { ok: true, text: 'first\\nsecond' } },\n  { name: 'steps-null', envelope: { httpStatus: 200, body: { status: 'completed', steps: null } }, expected: { ok: false, reason: 'invalid_shape' } },\n  { name: 'step-null', envelope: { httpStatus: 200, body: { status: 'completed', steps: [null] } }, expected: { ok: false, reason: 'invalid_shape' } },\n  { name: 'content-null', envelope: { httpStatus: 200, body: { status: 'completed', steps: [{ type: 'model_output', content: null }] } }, expected: { ok: false, reason: 'invalid_shape' } },\n  { name: 'part-null', envelope: { httpStatus: 200, body: { status: 'completed', steps: [{ type: 'model_output', content: [null] }] } }, expected: { ok: false, reason: 'invalid_shape' } },\n  { name: 'in-progress', envelope: { httpStatus: 200, body: { status: 'in_progress', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'partial' }] }] } }, expected: { ok: false, reason: 'pending' } },\n  { name: 'requires-action', envelope: { httpStatus: 200, body: { status: 'requires_action', steps: [] } }, expected: { ok: false, reason: 'requires_action' } },\n  { name: 'failed', envelope: { httpStatus: 200, body: { status: 'failed', steps: [] } }, expected: { ok: false, reason: 'terminal_nonanswer' } },\n  { name: 'cancelled', envelope: { httpStatus: 200, body: { status: 'cancelled', steps: [] } }, expected: { ok: false, reason: 'terminal_nonanswer' } },\n  { name: 'incomplete', envelope: { httpStatus: 200, body: { status: 'incomplete', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'partial' }] }] } }, expected: { ok: false, reason: 'terminal_nonanswer' } },\n  { name: 'synthetic-application-refusal', envelope: { httpStatus: 200, applicationPolicy: 'refused', body: { status: 'completed', steps: [] } }, expected: { ok: false, reason: 'application_refusal' } },\n  { name: 'http-error', envelope: { httpStatus: 400, body: { error: { status: 'SYNTHETIC_ERROR', message: 'synthetic only' } } }, expected: { ok: false, reason: 'http_error' } },\n  { name: 'invalid-lifecycle-status', envelope: { httpStatus: 200, body: { status: 'synthetic_unknown', steps: [] } }, expected: { ok: false, reason: 'invalid_status' } },\n  { name: 'http-status-noninteger', envelope: { httpStatus: 200.5, body: { status: 'completed', steps: [] } }, expected: { ok: false, reason: 'invalid_http_status' } },\n  { name: 'http-status-out-of-range', envelope: { httpStatus: 99, body: { status: 'completed', steps: [] } }, expected: { ok: false, reason: 'invalid_http_status' } }\n];\n'@ | Set-Content -LiteralPath (Join-Path $dir 'fixtures.mjs') -Encoding utf8\n\n@'\nconst lifecycle = new Set(['in_progress', 'requires_action', 'completed', 'failed', 'cancelled', 'incomplete']);\n\nexport function extractInteraction(envelope) {\n  if (!envelope || typeof envelope !== 'object') return { ok: false, reason: 'invalid_shape' };\n  if (!Number.isInteger(envelope.httpStatus) || envelope.httpStatus < 100 || envelope.httpStatus > 599) return { ok: false, reason: 'invalid_http_status' };\n  if (envelope.applicationPolicy === 'refused') return { ok: false, reason: 'application_refusal' };\n  if (envelope.httpStatus < 200 || envelope.httpStatus > 299) return { ok: false, reason: 'http_error' };\n  const body = envelope.body;\n  if (!body || typeof body !== 'object') return { ok: false, reason: 'invalid_shape' };\n  if (!lifecycle.has(body.status)) return { ok: false, reason: 'invalid_status' };\n  if (body.status === 'in_progress') return { ok: false, reason: 'pending' };\n  if (body.status === 'requires_action') return { ok: false, reason: 'requires_action' };\n  if (body.status !== 'completed') return { ok: false, reason: 'terminal_nonanswer' };\n  if (!Array.isArray(body.steps)) return { ok: false, reason: 'invalid_shape' };\n  let firstText;\n  for (const step of body.steps) {\n    if (!step || typeof step !== 'object') return { ok: false, reason: 'invalid_shape' };\n    if (step.type !== 'model_output') continue;\n    if (!Array.isArray(step.content)) return { ok: false, reason: 'invalid_shape' };\n    for (const part of step.content) {\n      if (!part || typeof part !== 'object') return { ok: false, reason: 'invalid_shape' };\n      if (part.type === 'text' && typeof part.text === 'string' && firstText === undefined) firstText = part.text;\n    }\n  }\n  return firstText === undefined ? { ok: false, reason: 'no_text' } : { ok: true, text: firstText };\n}\n'@ | Set-Content -LiteralPath (Join-Path $dir 'learner.mjs') -Encoding utf8\n\n@'\nconst lifecycle = new Set(['in_progress', 'requires_action', 'completed', 'failed', 'cancelled', 'incomplete']);\n\nexport function extractInteractionReference(envelope) {\n  if (!envelope || typeof envelope !== 'object') return { ok: false, reason: 'invalid_shape' };\n  if (!Number.isInteger(envelope.httpStatus) || envelope.httpStatus < 100 || envelope.httpStatus > 599) return { ok: false, reason: 'invalid_http_status' };\n  if (envelope.applicationPolicy === 'refused') return { ok: false, reason: 'application_refusal' };\n  if (envelope.httpStatus < 200 || envelope.httpStatus > 299) return { ok: false, reason: 'http_error' };\n  const body = envelope.body;\n  if (!body || typeof body !== 'object') return { ok: false, reason: 'invalid_shape' };\n  if (!lifecycle.has(body.status)) return { ok: false, reason: 'invalid_status' };\n  if (body.status === 'in_progress') return { ok: false, reason: 'pending' };\n  if (body.status === 'requires_action') return { ok: false, reason: 'requires_action' };\n  if (body.status !== 'completed') return { ok: false, reason: 'terminal_nonanswer' };\n  if (!Array.isArray(body.steps)) return { ok: false, reason: 'invalid_shape' };\n  const texts = [];\n  for (const step of body.steps) {\n    if (!step || typeof step !== 'object') return { ok: false, reason: 'invalid_shape' };\n    if (step.type !== 'model_output') continue;\n    if (!Array.isArray(step.content)) return { ok: false, reason: 'invalid_shape' };\n    for (const part of step.content) {\n      if (!part || typeof part !== 'object') return { ok: false, reason: 'invalid_shape' };\n      if (part.type === 'text' && typeof part.text === 'string') texts.push(part.text);\n    }\n  }\n  return texts.length === 0 ? { ok: false, reason: 'no_text' } : { ok: true, text: texts.join('\\n') };\n}\n'@ | Set-Content -LiteralPath (Join-Path $dir 'reference.mjs') -Encoding utf8\n\n@'\nimport { isDeepStrictEqual } from 'node:util';\nimport { fixtures } from './fixtures.mjs';\nimport { extractInteraction } from './learner.mjs';\n\nlet passed = 0;\nlet failed = 0;\nfor (const fixture of fixtures) {\n  let actual;\n  try {\n    actual = extractInteraction(fixture.envelope);\n  } catch (error) {\n    actual = { threw: true, name: error?.name ?? 'UnknownError' };\n  }\n  if (isDeepStrictEqual(actual, fixture.expected)) {\n    console.log(`PASS ${fixture.name}`);\n    passed++;\n  } else {\n    console.log(`FAIL ${fixture.name}: expected ${JSON.stringify(fixture.expected)}, got ${JSON.stringify(actual)}`);\n    failed++;\n  }\n}\nconsole.log(`${passed} passed, ${failed} failed`);\nprocess.exitCode = failed === 0 ? 0 : 1;\n'@ | Set-Content -LiteralPath (Join-Path $dir 'tests.mjs') -Encoding utf8\n\n@'\nimport { isDeepStrictEqual } from 'node:util';\nimport { extractInteraction } from './learner.mjs';\n\nconst changedInput = {\n  httpStatus: 200,\n  body: {\n    status: 'completed',\n    steps: [\n      { type: 'model_output', content: [{ type: 'synthetic_nontext', value: 'ignored' }, { type: 'text', text: 'alpha' }] },\n      { type: 'model_output', content: [{ type: 'text', text: 'omega' }] }\n    ]\n  }\n};\nconst expected = { ok: true, text: 'alpha\\nomega' };\nlet actual;\ntry {\n  actual = extractInteraction(changedInput);\n} catch (error) {\n  actual = { threw: true, name: error?.name ?? 'UnknownError' };\n}\nif (isDeepStrictEqual(actual, expected)) {\n  console.log('PASS changed-input');\n  console.log('1 passed, 0 failed');\n} else {\n  console.log(`FAIL changed-input: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);\n  console.log('0 passed, 1 failed');\n  process.exitCode = 1;\n}\n'@ | Set-Content -LiteralPath (Join-Path $dir 'assessment.mjs') -Encoding utf8\n\n@'\nconsole.log(JSON.stringify({ lab: 'offline', data: 'synthetic', networkRequired: false, credentialRequired: false }));\n'@ | Set-Content -LiteralPath (Join-Path $dir 'diagnostic.mjs') -Encoding utf8\n\nforeach ($name in @('fixtures.mjs', 'reference.mjs', 'tests.mjs', 'assessment.mjs', 'diagnostic.mjs')) {\n  (Get-Item -LiteralPath (Join-Path $dir $name)).IsReadOnly = $true\n}\nWrite-Output \"Created $dir\"\n"
+      }
+    },
+    {
+      "id": "offline-contract",
+      "title": "Understand the offline output contract",
+      "paragraphs": [
+        "Every implementation returns one tagged object. Success is {ok:true,text:string}. A rejected boundary returns {ok:false,reason:string}. This keeps pending work, tool action, terminal non-answers, malformed shapes, application policy, and HTTP failure distinct from valid answer text.",
+        "The known lifecycle enum is validated exactly against the six documented values. HTTP status is a separate wrapper field in this independently authored test boundary and must be an integer from 100 through 599. The synthetic error.status value is deliberately not validated because the supplied evidence does not establish its exhaustive enum.",
+        "The starter and reference implement the same output contract. The starter has one bounded extraction defect: it retains only the first text part. The reference is available for study but is never imported by tests and must not replace the learner implementation."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Reason tags used by the lab",
+        "code": "pending                 interaction status is in_progress\nrequires_action         interaction status is requires_action\nterminal_nonanswer      status is failed, cancelled, or incomplete\napplication_refusal     synthetic application-policy boundary only\nhttp_error              valid non-2xx HTTP wrapper\ninvalid_http_status     HTTP wrapper is noninteger or outside 100..599\ninvalid_status          lifecycle value is outside the documented enum\ninvalid_shape           required object or array structure is malformed\nno_text                 completed interaction has no typed text part"
+      }
+    },
+    {
+      "id": "offline-exercise",
+      "title": "Run the deliberate starter failure",
+      "paragraphs": [
+        "Run these commands from the directory containing setup.ps1. The setup output path depends on your working directory, but its final line has the shown form. The test output itself is deterministic. All 17 cases run, the mixed-text case fails, the summary reports one failure, and Node exits with code 1.",
+        "The starter passes status, HTTP, malformed-array, null-item, refusal, and error boundaries. Its only defect is bounded extraction: it stores the first text part instead of every text part. This makes the repair focused and prevents unrelated test-harness defects from obscuring the lesson."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Exact baseline commands, test output, and exit code",
+        "code": "Commands:\npwsh -File .\\setup.ps1\nSet-Location .\\gemini-interactions-lab\nnode .\\tests.mjs\n\nTest output:\nPASS completed-empty\nPASS completed-nontext\nFAIL completed-mixed: expected {\"ok\":true,\"text\":\"first\\nsecond\"}, got {\"ok\":true,\"text\":\"first\"}\nPASS steps-null\nPASS step-null\nPASS content-null\nPASS part-null\nPASS in-progress\nPASS requires-action\nPASS failed\nPASS cancelled\nPASS incomplete\nPASS synthetic-application-refusal\nPASS http-error\nPASS invalid-lifecycle-status\nPASS http-status-noninteger\nPASS http-status-out-of-range\n16 passed, 1 failed\n\nExit code: 1"
+      }
+    },
+    {
+      "id": "repair",
+      "title": "Make one meaningful bounded repair",
+      "paragraphs": [
+        "Edit learner.mjs only. Replace its contents with the implementation below. The meaningful change is the texts array: every valid text part from every model_output step is collected in wire order, then joined with a real newline. Status and shape checks remain at the boundary.",
+        "Do not edit fixtures.mjs, tests.mjs, reference.mjs, or assessment.mjs. The setup marks those files read-only to protect the exercise. The tests continue to compare the learner result directly with explicit expected objects and gather every case even if the learner throws."
       ],
       "code": {
         "language": "javascript",
-        "label": "gemini-interaction-request.mjs",
-        "code": "const apiKey = process.env.GEMINI_API_KEY;\nconst model = process.env.PROJECT42_GEMINI_MODEL;\nconst apiVersion = process.env.PROJECT42_GEMINI_API_VERSION ?? \"v1\";\nif (!apiKey || !model) throw new Error(\"Missing GEMINI_API_KEY or PROJECT42_GEMINI_MODEL\");\nif (!new Set([\"v1\", \"v1beta\"]).has(apiVersion)) throw new Error(\"Unsupported Gemini API version\");\n\nconst response = await fetch(`https://generativelanguage.googleapis.com/${apiVersion}/interactions`, {\n  method: \"POST\",\n  headers: { \"content-type\": \"application/json\", \"x-goog-api-key\": apiKey },\n  body: JSON.stringify({ model, input: \"[INPUT_TEXT]\", store: false }),\n  signal: AbortSignal.timeout(30_000),\n});\nconst body = await response.json();\nif (!response.ok) throw new Error(`Gemini request failed (${response.status}, ${body.error?.status ?? \"unknown\"})`);\nconst text = body.steps\n  ?.flatMap((step) => step.type === \"model_output\" ? step.content ?? [] : [])\n  .find((part) => part.type === \"text\")?.text;\nif (body.status !== \"completed\" || typeof text !== \"string\") throw new Error(\"Unexpected interaction shape\");\nconsole.log({ interactionId: body.id, usage: body.usage, text });"
+        "label": "Repaired learner.mjs",
+        "code": "const lifecycle = new Set(['in_progress', 'requires_action', 'completed', 'failed', 'cancelled', 'incomplete']);\n\nexport function extractInteraction(envelope) {\n  if (!envelope || typeof envelope !== 'object') return { ok: false, reason: 'invalid_shape' };\n  if (!Number.isInteger(envelope.httpStatus) || envelope.httpStatus < 100 || envelope.httpStatus > 599) return { ok: false, reason: 'invalid_http_status' };\n  if (envelope.applicationPolicy === 'refused') return { ok: false, reason: 'application_refusal' };\n  if (envelope.httpStatus < 200 || envelope.httpStatus > 299) return { ok: false, reason: 'http_error' };\n  const body = envelope.body;\n  if (!body || typeof body !== 'object') return { ok: false, reason: 'invalid_shape' };\n  if (!lifecycle.has(body.status)) return { ok: false, reason: 'invalid_status' };\n  if (body.status === 'in_progress') return { ok: false, reason: 'pending' };\n  if (body.status === 'requires_action') return { ok: false, reason: 'requires_action' };\n  if (body.status !== 'completed') return { ok: false, reason: 'terminal_nonanswer' };\n  if (!Array.isArray(body.steps)) return { ok: false, reason: 'invalid_shape' };\n  const texts = [];\n  for (const step of body.steps) {\n    if (!step || typeof step !== 'object') return { ok: false, reason: 'invalid_shape' };\n    if (step.type !== 'model_output') continue;\n    if (!Array.isArray(step.content)) return { ok: false, reason: 'invalid_shape' };\n    for (const part of step.content) {\n      if (!part || typeof part !== 'object') return { ok: false, reason: 'invalid_shape' };\n      if (part.type === 'text' && typeof part.text === 'string') texts.push(part.text);\n    }\n  }\n  return texts.length === 0 ? { ok: false, reason: 'no_text' } : { ok: true, text: texts.join('\\n') };\n}\n"
       }
     },
     {
       "id": "verify-and-recover",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence is an HTTP success with an interaction ID, completed status, typed steps, a text model_output block, and usage. Verify status, step and content types, retained-state policy, length, citations when required, and application rules before displaying or storing output. Record the interaction ID, API version, model, latency, usage, and redacted result—not the key or sensitive input.",
-        "Correct authentication, permission, version, and invalid-request failures instead of retrying unchanged. Retry only classified transient 408, 429, and 5xx failures with bounded exponential backoff and jitter. This read-only example has no external side effect, so rollback means discarding the unaccepted interaction and restoring the last verified application state. Reconcile and compensate before retrying any downstream mutation."
-      ]
+        "Run the unchanged tests after saving learner.mjs. The exact result is 17 passes and exit code 0. This demonstrates only that the learner function satisfies the local synthetic contract. It is not evidence of a live request, provider availability, or model quality.",
+        "Recover according to category. Do not retry malformed shapes, invalid lifecycle values, requires_action work, application refusals, or terminal states as though they were transport failures. Correct or escalate an HTTP 4xx according to reviewed policy. A timeout, 408, 429, or 5xx can be considered for a bounded retry policy, but this lesson does not prescribe retries or claim an exhaustive error.status enum. Reconcile downstream side effects before retrying any mutating workflow."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Exact repaired command, output, and exit code",
+        "code": "Command:\nnode .\\tests.mjs\n\nOutput:\nPASS completed-empty\nPASS completed-nontext\nPASS completed-mixed\nPASS steps-null\nPASS step-null\nPASS content-null\nPASS part-null\nPASS in-progress\nPASS requires-action\nPASS failed\nPASS cancelled\nPASS incomplete\nPASS synthetic-application-refusal\nPASS http-error\nPASS invalid-lifecycle-status\nPASS http-status-noninteger\nPASS http-status-out-of-range\n17 passed, 0 failed\n\nExit code: 0"
+      }
+    },
+    {
+      "id": "changed-input-assessment",
+      "title": "Changed-input assessment with answer and reasoning",
+      "paragraphs": [
+        "Do not edit the immutable fixtures. Instead, run node assessment.mjs after the repair. Its independent input contains two model_output steps, a synthetic nontext part, and one text part in each step. Predict the result before running it.",
+        "The answer is {ok:true,text:'alpha\\nomega'}. The application first validates HTTP and lifecycle state, then walks model_output steps in order, ignores the synthetic nontext part, retains both string text values, and inserts one real newline. The starter would return only alpha, so this changed input independently tests transfer of the repair.",
+        "The exact assessment output is one pass with exit code 0. If it fails, compare learner.mjs with the output contract rather than weakening the assessment. A useful transfer rule is: trust inner answer text only after validating the outer transport, lifecycle, and structural boundaries."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Changed-input command, explained answer, exact output, and exit code",
+        "code": "Command:\nnode .\\assessment.mjs\n\nExpected result object:\n{ ok: true, text: \"alpha\\nomega\" }\n\nWhy:\n1. HTTP 200 is a valid successful wrapper.\n2. completed is the only lifecycle state eligible for extraction.\n3. Both model_output arrays are traversed in order.\n4. The synthetic nontext part is ignored.\n5. alpha and omega are joined by one newline.\n\nOutput:\nPASS changed-input\n1 passed, 0 failed\n\nExit code: 0"
+      }
+    },
+    {
+      "id": "send-request",
+      "title": "Send an optional bounded real interaction",
+      "paragraphs": [
+        "This optional Node.js 22 script uses built-in fetch and AbortSignal.timeout(). It requires an environment credential and approved model, sends a bounded non-secret input, and makes no request unless you run it. The core lab does not depend on this file or network access.",
+        "The handler separates transport failure, non-2xx HTTP failure, malformed JSON, unknown lifecycle status, pending work, required action, terminal non-answer, malformed arrays, and completed text. Diagnostics contain only event categories, integer HTTP status, elapsed time, or documented lifecycle status. They never print the key, headers, input, raw error body, interaction identifier, or raw response.",
+        "A completed request prints model text because displaying the requested answer is the purpose of the optional exercise. Use only the provided non-sensitive prompt unless your organization's data policy authorizes other input. An HTTP success proves neither factual correctness nor model quality."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "live-request.mjs",
+        "code": "const apiKey = process.env.GEMINI_API_KEY;\nconst model = process.env.PROJECT42_GEMINI_MODEL;\nif (!apiKey || !model) {\n  console.error(JSON.stringify({ event: 'configuration_failure', missingCredentialOrModel: true }));\n  process.exit(2);\n}\n\nconst lifecycle = new Set(['in_progress', 'requires_action', 'completed', 'failed', 'cancelled', 'incomplete']);\nconst started = Date.now();\nlet response;\ntry {\n  response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {\n    method: 'POST',\n    headers: {\n      'content-type': 'application/json',\n      'x-goog-api-key': apiKey\n    },\n    body: JSON.stringify({\n      model,\n      input: 'Return one short sentence explaining why input validation matters.',\n      store: false\n    }),\n    signal: AbortSignal.timeout(30000)\n  });\n} catch (error) {\n  console.error(JSON.stringify({ event: 'transport_failure', errorName: error?.name ?? 'UnknownError', elapsedMs: Date.now() - started }));\n  process.exit(3);\n}\n\nconst httpStatus = response.status;\nlet body;\ntry {\n  body = await response.json();\n} catch {\n  console.error(JSON.stringify({ event: 'invalid_json', httpStatus, elapsedMs: Date.now() - started }));\n  process.exit(4);\n}\n\nif (!response.ok) {\n  console.error(JSON.stringify({ event: 'http_failure', httpStatus, elapsedMs: Date.now() - started }));\n  process.exit(5);\n}\nif (!body || typeof body !== 'object' || !lifecycle.has(body.status)) {\n  console.error(JSON.stringify({ event: 'invalid_lifecycle_or_shape', httpStatus, elapsedMs: Date.now() - started }));\n  process.exit(6);\n}\nif (body.status === 'in_progress') {\n  console.error(JSON.stringify({ event: 'pending', httpStatus, lifecycleStatus: body.status, elapsedMs: Date.now() - started }));\n  process.exit(7);\n}\nif (body.status === 'requires_action') {\n  console.error(JSON.stringify({ event: 'requires_action', httpStatus, lifecycleStatus: body.status, elapsedMs: Date.now() - started }));\n  process.exit(8);\n}\nif (body.status !== 'completed') {\n  console.error(JSON.stringify({ event: 'terminal_nonanswer', httpStatus, lifecycleStatus: body.status, elapsedMs: Date.now() - started }));\n  process.exit(9);\n}\nif (!Array.isArray(body.steps)) {\n  console.error(JSON.stringify({ event: 'invalid_steps_shape', httpStatus, elapsedMs: Date.now() - started }));\n  process.exit(10);\n}\n\nconst texts = [];\nfor (const step of body.steps) {\n  if (!step || typeof step !== 'object') {\n    console.error(JSON.stringify({ event: 'invalid_step_shape', httpStatus, elapsedMs: Date.now() - started }));\n    process.exit(11);\n  }\n  if (step.type !== 'model_output') continue;\n  if (!Array.isArray(step.content)) {\n    console.error(JSON.stringify({ event: 'invalid_content_shape', httpStatus, elapsedMs: Date.now() - started }));\n    process.exit(12);\n  }\n  for (const part of step.content) {\n    if (!part || typeof part !== 'object') {\n      console.error(JSON.stringify({ event: 'invalid_part_shape', httpStatus, elapsedMs: Date.now() - started }));\n      process.exit(13);\n    }\n    if (part.type === 'text' && typeof part.text === 'string') texts.push(part.text);\n  }\n}\nif (texts.length === 0) {\n  console.error(JSON.stringify({ event: 'completed_without_text', httpStatus, elapsedMs: Date.now() - started }));\n  process.exit(14);\n}\nconsole.error(JSON.stringify({ event: 'completed', httpStatus, elapsedMs: Date.now() - started }));\nconsole.log(texts.join('\\n'));\n"
+      }
+    },
+    {
+      "id": "privacy-and-evidence",
+      "title": "Separate privacy settings from evidence claims",
+      "paragraphs": [
+        "Fixture correctness, live execution, and model quality are different claims. The offline tests establish only how local synthetic inputs are classified. A real HTTP response would establish execution for that request. Model quality requires a separate evaluation with defined criteria. Passing fixtures cannot establish either live execution or answer quality.",
+        "The optional script emits safe live diagnostic metadata but does not label it synthetic. The fixtures and worked response are explicitly synthetic. Do not publish a command transcript as a live receipt unless it was actually produced, reviewed, and redacted. This resource includes no fabricated live output.",
+        "Keep credentials outside source control and logs. Do not print the x-goog-api-key value, complete headers, sensitive prompts, raw provider errors, or unreviewed responses. store:false changes documented interaction features but does not independently prove universal zero retention."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Evidence boundaries",
+        "code": "Offline evidence supplied:\n  synthetic fixture coverage\n  explicit expected objects\n  deterministic local commands and expected test results\n\nNot supplied:\n  a live request receipt\n  an approved-model list\n  provider refusal wire examples\n  exhaustive error.status values\n  model quality, price, quota, or availability evidence"
+      }
+    },
+    {
+      "id": "sources",
+      "title": "Sources and version boundary",
+      "paragraphs": [
+        "Google's getting-started documentation supports the endpoint, x-goog-api-key authentication, required model and input fields, and raw status, steps, model_output, content, and text response structure. The Interactions overview supports the June 2026 general-availability statement, store behavior, previous_interaction_id limitations, and continued support for the original generateContent API.",
+        "Google's Interactions API reference supports the six lifecycle states used by the lab. Node.js documentation supports built-in fetch and AbortSignal.timeout() in the Node.js 22 environment. All sources were checked on 2026-09-20. Synthetic fixtures and examples are independently authored and are not provider wire receipts.",
+        "The exact provider error.status enum and documented wire behavior for application-policy refusals remain UNKNOWN from the supplied evidence. A complete first-party error schema and a first-party refusal example would establish them. The lab therefore keeps HTTP errors and a clearly labeled synthetic application refusal outside the interaction lifecycle enum."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Maintenance rule",
+        "code": "Before changing the live boundary:\n1. Recheck the dated first-party sources.\n2. Confirm the Project42 approved model list.\n3. Keep lifecycle state, HTTP failure, and application policy separate.\n4. Update fixtures only when the expected local contract changes.\n5. Never convert synthetic examples into claims of live execution."
+      }
     }
   ],
   "sources": [
@@ -62,19 +200,25 @@
       "title": "Getting started with the Gemini API",
       "url": "https://ai.google.dev/gemini-api/docs/get-started",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
-      "title": "Gemini API versions explained",
-      "url": "https://ai.google.dev/gemini-api/docs/api-versions",
+      "title": "Interactions API overview",
+      "url": "https://ai.google.dev/gemini-api/docs/interactions-overview",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
-      "title": "Using Gemini API keys",
-      "url": "https://ai.google.dev/gemini-api/docs/api-key",
+      "title": "Interactions API reference",
+      "url": "https://ai.google.dev/api/interactions-api",
       "publisher": "Google",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Fetch API",
+      "url": "https://nodejs.org/api/globals.html#fetch",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
     }
   ]
 }

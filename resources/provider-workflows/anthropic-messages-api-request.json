@@ -14,13 +14,13 @@
     "anthropic"
   ],
   "prerequisites": [
-    "Node.js 20 or later",
+    "Node.js 22 or later",
     "An Anthropic API key stored outside source control",
     "An approved Claude model ID"
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "anthropic",
     "messages-api",
@@ -29,32 +29,171 @@
   ],
   "sections": [
     {
+      "id": "orientation",
+      "title": "What you will learn",
+      "paragraphs": [
+        "You will prepare an Anthropic Messages API request, interpret typed response blocks, repair a flawed extraction function, and apply the same acceptance rule to an optional real request. The core lab is completely offline and requires no API key, model ID, package installation, or network connection.",
+        "The offline fixtures are synthetic teaching data. A passing lab demonstrates behavior against those fixtures only. It does not prove authentication, model availability, endpoint availability, pricing, latency, safety, or answer quality.",
+        "The optional transfer uses raw REST and Node.js 22 built-in fetch so the lesson does not depend on an unverified SDK or package version."
+      ],
+      "code": {
+        "language": "text",
+        "label": "learner-journey.txt",
+        "code": "prepare request -> run flawed parser -> observe bounded failure -> repair parser -> pass immutable tests -> assess changed input -> optionally send real request"
+      }
+    },
+    {
       "id": "prepare-request",
       "title": "Prepare the request boundary",
       "paragraphs": [
-        "Set ANTHROPIC_API_KEY in the process environment or an approved secret manager and set PROJECT42_ANTHROPIC_MODEL to a reviewed model ID. Do not print, commit, paste into source, or send the key as model input. Decide the request purpose, permitted input, maximum output, timeout, retention, and expected response before calling the API.",
-        "The Messages API is stateless: your application owns conversation history and must send the intended turns on every request. Minimize retained content, separate trusted instructions from user data, and treat model text as untrusted until application checks pass."
-      ]
-    },
-    {
-      "id": "send-request",
-      "title": "Send a minimal request",
-      "paragraphs": [
-        "This dependency-free Node.js example uses the required API version header and environment-only credentials. Replace the bracketed input at runtime; do not replace it with a secret."
+        "The documented operation is POST https://api.anthropic.com/v1/messages. Required JSON fields are model, max_tokens, and messages. system is an optional top-level field, not a message role. max_tokens is a generation ceiling, not a promised response length. Source: Anthropic Create a Message, verified 2026-09-20.",
+        "Each message has a role and content. Content can be an array of typed blocks such as {type:\"text\",text:\"...\"}. Code must inspect block types rather than assume content[0] is text. The API is stateless, so an application sends the relevant conversation turns on each request. Source: Anthropic Working with the Messages API, verified 2026-09-20.",
+        "For a real request, read ANTHROPIC_API_KEY and PROJECT42_ANTHROPIC_MODEL from process.env. The lesson does not provide a model ID because approved availability was not established. Never place the credential in source code, prompts, fixtures, command output, or version control."
       ],
       "code": {
         "language": "javascript",
-        "label": "messages-request.mjs",
-        "code": "const apiKey = process.env.ANTHROPIC_API_KEY;\nconst model = process.env.PROJECT42_ANTHROPIC_MODEL;\nif (!apiKey || !model) throw new Error(\"Missing ANTHROPIC_API_KEY or PROJECT42_ANTHROPIC_MODEL\");\n\nconst response = await fetch(\"https://api.anthropic.com/v1/messages\", {\n  method: \"POST\",\n  headers: {\n    \"content-type\": \"application/json\",\n    \"x-api-key\": apiKey,\n    \"anthropic-version\": \"2023-06-01\",\n  },\n  body: JSON.stringify({\n    model,\n    max_tokens: 300,\n    messages: [{ role: \"user\", content: \"[INPUT_TEXT]\" }],\n  }),\n  signal: AbortSignal.timeout(30_000),\n});\nconst requestId = response.headers.get(\"request-id\");\nconst body = await response.json();\nif (!response.ok) throw new Error(`Anthropic request failed (${response.status}, request ${requestId ?? \"unknown\"})`);\nconst text = body.content?.find((block) => block.type === \"text\")?.text;\nif (body.stop_reason !== \"end_turn\" || typeof text !== \"string\") throw new Error(\"Unexpected completion shape\");\nconsole.log({ requestId, text });"
+        "label": "request-body.example.mjs",
+        "code": "const requestBody = {\n  model: process.env.PROJECT42_ANTHROPIC_MODEL,\n  max_tokens: 300,\n  system: \"Answer briefly and clearly.\",\n  messages: [\n    {\n      role: \"user\",\n      content: [{ type: \"text\", text: \"Why use a bounded timeout?\" }]\n    }\n  ]\n};"
+      }
+    },
+    {
+      "id": "wire-contract",
+      "title": "Understand the provider wire contract",
+      "paragraphs": [
+        "Send content-type: application/json, x-api-key: <key>, and anthropic-version: 2023-06-01. A successful message body includes id, type:\"message\", role:\"assistant\", content, stop_reason, and usage. Anthropic responses also include a request-id header for diagnostics. Source: Anthropic Create a Message, verified 2026-09-20.",
+        "end_turn is a normal completion example. max_tokens indicates truncation, while tool_use indicates that tool handling is pending. This lesson accepts only end_turn as a complete text-only result. It maps max_tokens to incomplete, tool_use to pending_tool, a typed refusal block to refused, and every other stop value to invalid_stop_reason. This is an explicit application policy, not a claim that the documented stop_reason enum is exhaustive.",
+        "The response content is a typed array. The application aggregates every string-valued text block in array order. It ignores unknown non-text blocks, rejects a response containing any typed refusal block even if text is also present, and never checks a fictional body.refusal boolean."
+      ],
+      "code": {
+        "language": "text",
+        "label": "worked-wire-example.txt",
+        "code": "TASK\nWhy use a bounded timeout?\n\nREQUEST BODY\n{\n  \"model\": \"${PROJECT42_ANTHROPIC_MODEL}\",\n  \"max_tokens\": 300,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [{\"type\":\"text\",\"text\":\"Why use a bounded timeout?\"}]\n    }\n  ]\n}\n\nSYNTHETIC SUCCESS BODY\n{\n  \"id\": \"msg_synthetic_001\",\n  \"type\": \"message\",\n  \"role\": \"assistant\",\n  \"content\": [\n    {\"type\":\"text\",\"text\":\"A bounded timeout prevents a request \"},\n    {\"type\":\"text\",\"text\":\"from waiting indefinitely.\"}\n  ],\n  \"stop_reason\": \"end_turn\",\n  \"usage\": {\"input_tokens\":18,\"output_tokens\":11}\n}\n\nAPPLICATION RESULT\n{\n  \"ok\": true,\n  \"text\": \"A bounded timeout prevents a request from waiting indefinitely.\",\n  \"stopReason\": \"end_turn\"\n}"
+      }
+    },
+    {
+      "id": "acceptance-policy",
+      "title": "Define one acceptance rule",
+      "paragraphs": [
+        "Validate the boundary in a fixed order. First require a finite integer HTTP status from 100 through 599. Then reject statuses outside 200 through 299. Require body.content to be an array. Reject any typed refusal block. Reject max_tokens as incomplete and tool_use as pending_tool. Accept only end_turn, aggregate all string text blocks in order, and reject an empty aggregate.",
+        "Checking refusal before accepting text matters because a response can contain multiple typed blocks. Checking completion before returning text prevents partial or tool-pending output from being mistaken for a finished text-only answer.",
+        "The tests and optional live program use this same rule. Unknown stop values are safely rejected rather than guessed. The complete provider stop-reason enum and complete content-block schema were not established by the supplied evidence."
+      ],
+      "code": {
+        "language": "text",
+        "label": "acceptance-order.txt",
+        "code": "1. finite integer status in 100..599\n2. successful status in 200..299\n3. body.content is an array\n4. no typed refusal block\n5. max_tokens -> incomplete\n6. tool_use -> pending_tool\n7. only end_turn completes this text-only workflow\n8. concatenate all string text blocks in array order\n9. require nonempty aggregate text"
+      }
+    },
+    {
+      "id": "send-request",
+      "title": "Send a bounded request safely",
+      "paragraphs": [
+        "Node.js 22 provides built-in fetch and AbortSignal.timeout(ms). The timeout signal bounds how long the operation may wait. response.status is an integer HTTP status and response.ok identifies statuses from 200 through 299. Source: Node.js Fetch API documentation, verified 2026-09-20.",
+        "The optional live program created by the setup script sends the documented headers and body with a 30,000 millisecond timeout. It parses JSON defensively, applies the same extractMessage rule used by the lab, and prints only status, request ID, stop reason, block count, or a safe rejection category. It never prints the key, prompt, model output, or provider error body.",
+        "A timeout limits waiting, but it does not prove that a remote operation had no effect. This lesson performs only a message-generation request and does not attach application side effects."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "bounded-fetch-core.mjs",
+        "code": "const response = await fetch(\"https://api.anthropic.com/v1/messages\", {\n  method: \"POST\",\n  headers: {\n    \"content-type\": \"application/json\",\n    \"x-api-key\": process.env.ANTHROPIC_API_KEY,\n    \"anthropic-version\": \"2023-06-01\"\n  },\n  body: JSON.stringify(requestBody),\n  signal: AbortSignal.timeout(30_000)\n});"
+      }
+    },
+    {
+      "id": "offline-setup",
+      "title": "Create the complete offline lab",
+      "paragraphs": [
+        "Save this block as setup.ps1 and run it with PowerShell 7 from a directory where you may create files. It refuses an existing messages-api-offline-lab directory, then writes every required file. No file must be copied manually and no network operation occurs.",
+        "The generated learner.mjs is deliberately flawed. fixtures.mjs is deeply frozen. tests.mjs imports only learner.mjs and gathers every check even when earlier checks fail. reference.mjs remains separate and is never imported by the tests."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "setup.ps1",
+        "code": "$ErrorActionPreference = 'Stop'\n$dir = Join-Path (Get-Location) 'messages-api-offline-lab'\nif (Test-Path -LiteralPath $dir) { throw \"Refusing existing directory: $dir\" }\nNew-Item -ItemType Directory -Path $dir | Out-Null\n\n@'\nfunction deepFreeze(value) {\n  if (value && typeof value === \"object\" && !Object.isFrozen(value)) {\n    Object.freeze(value);\n    for (const item of Object.values(value)) deepFreeze(item);\n  }\n  return value;\n}\n\nexport const fixtures = deepFreeze({\n  mixed: { status: 200, body: { content: [{ type: \"text\", text: \"first\" }, { type: \"synthetic_nontext\" }, { type: \"text\", text: \"second\" }], stop_reason: \"end_turn\" } },\n  textOnly: { status: 200, body: { content: [{ type: \"text\", text: \"answer\" }], stop_reason: \"end_turn\" } },\n  empty: { status: 200, body: { content: [], stop_reason: \"end_turn\" } },\n  nontext: { status: 200, body: { content: [{ type: \"synthetic_nontext\" }], stop_reason: \"end_turn\" } },\n  emptyText: { status: 200, body: { content: [{ type: \"text\", text: \"\" }], stop_reason: \"end_turn\" } },\n  nullContent: { status: 200, body: { content: null, stop_reason: \"end_turn\" } },\n  objectContent: { status: 200, body: { content: {}, stop_reason: \"end_turn\" } },\n  missingContent: { status: 200, body: { stop_reason: \"end_turn\" } },\n  malformedItems: { status: 200, body: { content: [null, \"bad\", { text: \"missing type\" }, { type: \"text\", text: 42 }], stop_reason: \"end_turn\" } },\n  malformedThenText: { status: 200, body: { content: [null, { type: \"text\", text: \"kept\" }], stop_reason: \"end_turn\" } },\n  incomplete: { status: 200, body: { content: [{ type: \"text\", text: \"partial\" }], stop_reason: \"max_tokens\" } },\n  pendingTool: { status: 200, body: { content: [{ type: \"text\", text: \"not final\" }], stop_reason: \"tool_use\" } },\n  refusedMixed: { status: 200, body: { content: [{ type: \"text\", text: \"unsafe to accept\" }, { type: \"refusal\", refusal: \"Synthetic refusal\" }], stop_reason: \"end_turn\" } },\n  refusedOnly: { status: 200, body: { content: [{ type: \"refusal\", refusal: \"Synthetic refusal\" }], stop_reason: \"end_turn\" } },\n  error401: { status: 401, body: { type: \"error\" } },\n  statusString: { status: \"200\", body: { content: [{ type: \"text\", text: \"answer\" }], stop_reason: \"end_turn\" } },\n  statusLow: { status: 99, body: { content: [{ type: \"text\", text: \"answer\" }], stop_reason: \"end_turn\" } },\n  statusHigh: { status: 600, body: { content: [{ type: \"text\", text: \"answer\" }], stop_reason: \"end_turn\" } },\n  statusFraction: { status: 200.5, body: { content: [{ type: \"text\", text: \"answer\" }], stop_reason: \"end_turn\" } },\n  unknownStop: { status: 200, body: { content: [{ type: \"text\", text: \"answer\" }], stop_reason: \"synthetic_unknown\" } },\n  nullStop: { status: 200, body: { content: [{ type: \"text\", text: \"answer\" }], stop_reason: null } }\n});\n'@ | Set-Content -LiteralPath (Join-Path $dir 'fixtures.mjs') -Encoding utf8\n\n@'\nexport function extractMessage(response) {\n  const text = response.body.content\n    .filter((block) => block?.type === \"text\")\n    .map((block) => block.text)\n    .join(\"\");\n  return { ok: true, text, stopReason: response.body.stop_reason };\n}\n'@ | Set-Content -LiteralPath (Join-Path $dir 'learner.mjs') -Encoding utf8\n\n@'\nfunction extract(response) {\n  if (!response || !Number.isFinite(response.status) || !Number.isInteger(response.status) || response.status < 100 || response.status > 599) return { ok: false, reason: \"invalid_status\" };\n  if (response.status < 200 || response.status > 299) return { ok: false, reason: \"http_error\", status: response.status };\n  const body = response.body;\n  if (!body || !Array.isArray(body.content)) return { ok: false, reason: \"invalid_content\" };\n  if (body.content.some((item) => item && typeof item === \"object\" && item.type === \"refusal\")) return { ok: false, reason: \"refused\" };\n  if (body.stop_reason === \"max_tokens\") return { ok: false, reason: \"incomplete\" };\n  if (body.stop_reason === \"tool_use\") return { ok: false, reason: \"pending_tool\" };\n  if (body.stop_reason !== \"end_turn\") return { ok: false, reason: \"invalid_stop_reason\" };\n  const text = body.content\n    .filter((item) => item && typeof item === \"object\" && item.type === \"text\" && typeof item.text === \"string\")\n    .map((item) => item.text)\n    .join(\"\");\n  return text.length > 0 ? { ok: true, text, stopReason: body.stop_reason } : { ok: false, reason: \"no_text_block\" };\n}\n\nexport function extractMessageReference(response) {\n  return extract(response);\n}\n'@ | Set-Content -LiteralPath (Join-Path $dir 'reference.mjs') -Encoding utf8\n\n@'\nexport function extractMessage(response) {\n  if (!response || !Number.isFinite(response.status) || !Number.isInteger(response.status) || response.status < 100 || response.status > 599) return { ok: false, reason: \"invalid_status\" };\n  if (response.status < 200 || response.status > 299) return { ok: false, reason: \"http_error\", status: response.status };\n  const body = response.body;\n  if (!body || !Array.isArray(body.content)) return { ok: false, reason: \"invalid_content\" };\n  if (body.content.some((item) => item && typeof item === \"object\" && item.type === \"refusal\")) return { ok: false, reason: \"refused\" };\n  if (body.stop_reason === \"max_tokens\") return { ok: false, reason: \"incomplete\" };\n  if (body.stop_reason === \"tool_use\") return { ok: false, reason: \"pending_tool\" };\n  if (body.stop_reason !== \"end_turn\") return { ok: false, reason: \"invalid_stop_reason\" };\n  const text = body.content\n    .filter((item) => item && typeof item === \"object\" && item.type === \"text\" && typeof item.text === \"string\")\n    .map((item) => item.text)\n    .join(\"\");\n  return text.length > 0 ? { ok: true, text, stopReason: body.stop_reason } : { ok: false, reason: \"no_text_block\" };\n}\n'@ | Set-Content -LiteralPath (Join-Path $dir 'repaired-learner.mjs') -Encoding utf8\n\n@'\nimport assert from \"node:assert/strict\";\nimport { fixtures as f } from \"./fixtures.mjs\";\nimport { extractMessage } from \"./learner.mjs\";\n\nconst groups = [\n  [\"aggregate_text\", (check) => {\n    check(() => extractMessage(f.mixed), { ok: true, text: \"firstsecond\", stopReason: \"end_turn\" });\n    check(() => extractMessage(f.textOnly), { ok: true, text: \"answer\", stopReason: \"end_turn\" });\n  }],\n  [\"missing_text\", (check) => {\n    check(() => extractMessage(f.empty), { ok: false, reason: \"no_text_block\" });\n    check(() => extractMessage(f.nontext), { ok: false, reason: \"no_text_block\" });\n    check(() => extractMessage(f.emptyText), { ok: false, reason: \"no_text_block\" });\n  }],\n  [\"invalid_content\", (check) => {\n    check(() => extractMessage(f.nullContent), { ok: false, reason: \"invalid_content\" });\n    check(() => extractMessage(f.objectContent), { ok: false, reason: \"invalid_content\" });\n    check(() => extractMessage(f.missingContent), { ok: false, reason: \"invalid_content\" });\n  }],\n  [\"malformed_items\", (check) => {\n    check(() => extractMessage(f.malformedItems), { ok: false, reason: \"no_text_block\" });\n    check(() => extractMessage(f.malformedThenText), { ok: true, text: \"kept\", stopReason: \"end_turn\" });\n  }],\n  [\"incomplete_or_pending\", (check) => {\n    check(() => extractMessage(f.incomplete), { ok: false, reason: \"incomplete\" });\n    check(() => extractMessage(f.pendingTool), { ok: false, reason: \"pending_tool\" });\n  }],\n  [\"typed_refusal\", (check) => {\n    check(() => extractMessage(f.refusedMixed), { ok: false, reason: \"refused\" });\n    check(() => extractMessage(f.refusedOnly), { ok: false, reason: \"refused\" });\n  }],\n  [\"http_status\", (check) => {\n    check(() => extractMessage(f.error401), { ok: false, reason: \"http_error\", status: 401 });\n    check(() => extractMessage(f.statusString), { ok: false, reason: \"invalid_status\" });\n    check(() => extractMessage(f.statusLow), { ok: false, reason: \"invalid_status\" });\n    check(() => extractMessage(f.statusHigh), { ok: false, reason: \"invalid_status\" });\n    check(() => extractMessage(f.statusFraction), { ok: false, reason: \"invalid_status\" });\n  }],\n  [\"stop_policy\", (check) => {\n    check(() => extractMessage(f.unknownStop), { ok: false, reason: \"invalid_stop_reason\" });\n    check(() => extractMessage(f.nullStop), { ok: false, reason: \"invalid_stop_reason\" });\n  }]\n];\n\nlet passed = 0;\nlet failed = 0;\nlet checks = 0;\nlet failedChecks = 0;\nconst failedGroups = [];\nfor (const [name, run] of groups) {\n  let groupFailures = 0;\n  const check = (operation, expected) => {\n    checks += 1;\n    try {\n      assert.deepEqual(operation(), expected);\n    } catch {\n      groupFailures += 1;\n      failedChecks += 1;\n    }\n  };\n  run(check);\n  if (groupFailures === 0) passed += 1;\n  else {\n    failed += 1;\n    failedGroups.push(name);\n  }\n}\nconsole.log(JSON.stringify({ passed, failed, checks, failedChecks, groups: failedGroups }));\nif (failed > 0) process.exitCode = 1;\n'@ | Set-Content -LiteralPath (Join-Path $dir 'tests.mjs') -Encoding utf8\n\n@'\nimport { extractMessage } from \"./learner.mjs\";\n\nconst changed = {\n  status: 200,\n  body: {\n    content: [\n      { type: \"text\", text: \"alpha\" },\n      { type: \"synthetic_nontext\" },\n      { type: \"text\", text: \"omega\" }\n    ],\n    stop_reason: \"end_turn\"\n  }\n};\nconsole.log(JSON.stringify(extractMessage(changed)));\n'@ | Set-Content -LiteralPath (Join-Path $dir 'changed-input.mjs') -Encoding utf8\n\n@'\nimport { extractMessage } from \"./learner.mjs\";\n\nconst apiKey = process.env.ANTHROPIC_API_KEY;\nconst model = process.env.PROJECT42_ANTHROPIC_MODEL;\nif (!apiKey || !model) {\n  console.log(JSON.stringify({ ok: false, reason: \"missing_environment\" }));\n  process.exit(1);\n}\n\ntry {\n  const response = await fetch(\"https://api.anthropic.com/v1/messages\", {\n    method: \"POST\",\n    headers: {\n      \"content-type\": \"application/json\",\n      \"x-api-key\": apiKey,\n      \"anthropic-version\": \"2023-06-01\"\n    },\n    body: JSON.stringify({\n      model,\n      max_tokens: 300,\n      messages: [{ role: \"user\", content: [{ type: \"text\", text: \"Why use a bounded timeout?\" }] }]\n    }),\n    signal: AbortSignal.timeout(30_000)\n  });\n\n  const requestId = response.headers.get(\"request-id\") ?? \"unknown\";\n  let body = null;\n  try { body = await response.json(); } catch {}\n  const result = extractMessage({ status: response.status, body });\n  if (!result.ok) {\n    console.log(JSON.stringify({ ok: false, status: response.status, requestId, reason: result.reason }));\n    process.exitCode = 1;\n  } else {\n    const textBlocks = body.content.filter((item) => item && item.type === \"text\" && typeof item.text === \"string\").length;\n    console.log(JSON.stringify({ ok: true, status: response.status, requestId, stopReason: result.stopReason, textBlocks }));\n  }\n} catch (error) {\n  const reason = error && error.name === \"TimeoutError\" ? \"timeout\" : \"request_failed\";\n  console.log(JSON.stringify({ ok: false, reason }));\n  process.exitCode = 1;\n}\n'@ | Set-Content -LiteralPath (Join-Path $dir 'messages-request.mjs') -Encoding utf8\n\nWrite-Output 'Created messages-api-offline-lab'"
+      }
+    },
+    {
+      "id": "offline-exercise",
+      "title": "Inspect the deliberate starter failure",
+      "paragraphs": [
+        "Run the setup, enter the new directory, and execute the immutable tests. The starter aggregates text in the success cases, but it trusts unvalidated status and content, accepts empty text, ignores typed refusals, and treats incomplete, tool-pending, and unknown stops as complete.",
+        "The test runner catches each assertion or learner exception, so one failure cannot prevent later cases from running. It executes 21 checks across eight named groups. This gather-all behavior makes the result more informative than aborting at the first assertion.",
+        "The baseline is deliberately bounded: it terminates after the finite local test set, prints one synthetic summary line, and exits with code 1. It makes no network request."
+      ],
+      "code": {
+        "language": "text",
+        "label": "baseline-command-and-result.txt",
+        "code": "COMMANDS\npwsh -File .\\setup.ps1\nSet-Location .\\messages-api-offline-lab\nnode .\\tests.mjs\n\nSETUP STDOUT\nCreated messages-api-offline-lab\n\nBASELINE TEST STDOUT\n{\"passed\":1,\"failed\":7,\"checks\":21,\"failedChecks\":18,\"groups\":[\"missing_text\",\"invalid_content\",\"malformed_items\",\"incomplete_or_pending\",\"typed_refusal\",\"http_status\",\"stop_policy\"]}\n\nBASELINE TEST EXIT CODE\n1"
+      }
+    },
+    {
+      "id": "repair-implementation",
+      "title": "Make the meaningful learner repair",
+      "paragraphs": [
+        "Replace only learner.mjs with repaired-learner.mjs. Do not modify fixtures.mjs or tests.mjs, and do not redirect the tests to reference.mjs. The repaired learner function remains the implementation under test.",
+        "The repair validates a finite integer status from 100 through 599, distinguishes HTTP errors from malformed status, validates the content array, recognizes typed refusals, classifies incomplete and pending-tool responses, enforces the end_turn application policy, and concatenates every valid text block in order.",
+        "reference.mjs contains an independently named reference function for comparison. Its existence does not satisfy the exercise because tests.mjs never imports it."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "apply-repair.ps1",
+        "code": "Copy-Item -LiteralPath .\\repaired-learner.mjs -Destination .\\learner.mjs -Force\nnode .\\tests.mjs\nif ($LASTEXITCODE -ne 0) { throw \"Repaired tests failed with exit code $LASTEXITCODE\" }"
       }
     },
     {
       "id": "verify-and-recover",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected output is an HTTP success containing a message object, a text content block, usage, an acceptable stop_reason, and a request-id header. Verify the status, content block types, stop reason, length, and application-specific rules before displaying or storing output. Log the request ID, model, latency, token counts, and redacted outcome—not the key or sensitive prompt content.",
-        "On authentication or validation errors, correct configuration rather than retrying. Retry only classified transient failures with bounded exponential backoff and jitter; honor rate limits and keep the original operation identifier. Because this read-only example has no external side effect, rollback means discarding the unaccepted response and restoring the last verified application state. If downstream side effects were added, require idempotency and explicit compensation before enabling them."
-      ]
+        "After the repair, the exact stdout is {\"passed\":8,\"failed\":0,\"checks\":21,\"failedChecks\":0,\"groups\":[]} and the exit code is 0. This establishes that learner.mjs passes all supplied synthetic cases. It is not fabricated live evidence and does not establish provider or model behavior.",
+        "For invalid credentials or request validation, correct configuration rather than blindly retrying. For a classified transient condition, use a bounded retry policy with backoff and jitter and respect provider limits. The precise provider error-body schema was not established by the supplied evidence, so the example does not inspect undocumented error fields.",
+        "Treat request-id as diagnostic metadata. It is not evidence that an answer is correct. If a response is incomplete, refused, tool-pending, malformed, or an HTTP error, discard it as a completed text answer and preserve the last verified application state."
+      ],
+      "code": {
+        "language": "text",
+        "label": "repaired-command-and-result.txt",
+        "code": "COMMAND\nnode .\\tests.mjs\n\nREPAIRED STDOUT\n{\"passed\":8,\"failed\":0,\"checks\":21,\"failedChecks\":0,\"groups\":[]}\n\nREPAIRED EXIT CODE\n0"
+      }
+    },
+    {
+      "id": "changed-input-assessment",
+      "title": "Assess a changed input",
+      "paragraphs": [
+        "The generated changed-input.mjs does not import or modify the immutable fixtures. It supplies three blocks: text \"alpha\", an unknown synthetic non-text block, and text \"omega\". Predict the result before running it.",
+        "Answer: {\"ok\":true,\"text\":\"alphaomega\",\"stopReason\":\"end_turn\"}. The status is a valid successful integer, content is an array, no refusal is present, and end_turn satisfies the lesson's complete text-only policy. Unknown non-text blocks are ignored, while all string text blocks are concatenated in their original order.",
+        "A first-match implementation returning only \"alpha\" is incorrect. If a refusal block were added anywhere in the array, the answer would instead be {\"ok\":false,\"reason\":\"refused\"}, even if both text blocks remained."
+      ],
+      "code": {
+        "language": "text",
+        "label": "changed-input-command-and-result.txt",
+        "code": "COMMAND\nnode .\\changed-input.mjs\n\nEXPECTED STDOUT\n{\"ok\":true,\"text\":\"alphaomega\",\"stopReason\":\"end_turn\"}\n\nEXPECTED EXIT CODE\n0"
+      }
+    },
+    {
+      "id": "optional-live-request",
+      "title": "Optionally transfer the rule to a real request",
+      "paragraphs": [
+        "This step is optional and is not required for the offline assessment. It requires a valid Anthropic credential, an approved model ID, and network access. Availability, latency, response content, and exit status are UNKNOWN until an operator runs it. No live result is claimed here.",
+        "Set the two environment variables only in the current process or through an approved secret manager. The generated program sends POST /v1/messages with the documented headers, a 300-token ceiling, and a 30-second timeout. It imports the repaired learner implementation, so live and offline response acceptance follow the same rule.",
+        "The program prints only safe diagnostic metadata. It deliberately omits credentials, model ID, prompt, generated text, and error-body content. A successful status still does not establish factual answer quality."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "optional-live-run.ps1",
+        "code": "$ErrorActionPreference = 'Stop'\nif (-not $env:ANTHROPIC_API_KEY) { throw 'Set ANTHROPIC_API_KEY in the process environment.' }\nif (-not $env:PROJECT42_ANTHROPIC_MODEL) { throw 'Set PROJECT42_ANTHROPIC_MODEL to an approved model ID.' }\nnode .\\messages-request.mjs\n$code = $LASTEXITCODE\nRemove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue\nRemove-Item Env:PROJECT42_ANTHROPIC_MODEL -ErrorAction SilentlyContinue\nexit $code"
+      }
+    },
+    {
+      "id": "source-boundaries",
+      "title": "Separate fixture correctness from live claims",
+      "paragraphs": [
+        "Fixture correctness means the synthetic objects represent the intended test categories and are immutable during the run. Test success means the learner function produced the specified result for those objects. Neither statement proves that the fixtures exhaust every provider response shape.",
+        "A live HTTP success means one request received a 200-through-299 response at that time. It does not prove the generated answer is accurate, safe, complete for another application, or available from another model or account. A request ID helps provider support correlate a request but is not a quality certificate.",
+        "No price, approved model identifier, exhaustive stop_reason enum, complete block schema, or live receipt is supplied. Consult the dated first-party references when production behavior depends on details outside the verified contract taught here."
+      ],
+      "code": {
+        "language": "text",
+        "label": "evidence-boundaries.txt",
+        "code": "offline pass != live API execution\nlive HTTP success != answer-quality proof\nrequest-id != permission to expose secrets\nsynthetic usage values != pricing evidence"
+      }
     }
   ],
   "sources": [
@@ -62,19 +201,31 @@
       "title": "Get started with Claude",
       "url": "https://platform.claude.com/docs/en/get-started",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Create a Message",
       "url": "https://platform.claude.com/docs/en/api/messages/create",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Working with the Messages API",
       "url": "https://platform.claude.com/docs/en/build-with-claude/working-with-messages",
       "publisher": "Anthropic",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Fetch API",
+      "url": "https://nodejs.org/api/globals.html#fetch",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "process.env",
+      "url": "https://nodejs.org/api/process.html#process_env",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
