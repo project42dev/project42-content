@@ -33,29 +33,121 @@
       "id": "establish-baseline",
       "title": "Establish a clean, supported baseline",
       "paragraphs": [
-        "Install Git using the current instructions for the actual operating system, then confirm the executable, version, identity settings, and repository root. Install an AI coding tool only from its publisher's documented channel and check its current platform and runtime requirements instead of copying a version number from an old guide.",
-        "Keep repositories in an intentional workspace path. Read the repository instructions before starting, inspect the branch and worktree, and identify generated directories, secret files, deployment targets, and paths that are out of scope."
-      ]
+        "This walkthrough uses PowerShell 7 and Git in a NEW, empty local practice directory. It does not use a remote, credentials, network access, global Git configuration, an AI coding tool, or an installation command. Git is a distributed version control system. PowerShell 7 is a cross-platform task automation shell. Sources: https://git-scm.com/book/en/v2/Getting-Started-Installing-Git and https://learn.microsoft.com/en-us/powershell/scripting/install/install-powershell-on-windows?view=powershell-7.6.",
+        "Before changing anything, confirm that Git and PowerShell are already installed. The commands below are checks only. If either check fails, stop. Use the official Git installation guide at https://git-scm.com/book/en/v2/Getting-Started-Installing-Git and the official PowerShell installation guide at https://learn.microsoft.com/en-us/powershell/scripting/install/install-powershell-on-windows?view=powershell-7.6. This resource does not guess an operating-system-specific installation command or claim that an installation was tested.",
+        "The practice directory is deliberately new. The first command stops if the exact directory already exists, so an existing directory cannot be silently reused. The exercise creates only the files named below. Do not run these commands in a work repository.",
+        "A Git commit identity is metadata recorded in commits. It is not authentication or authorization. Authentication identifies a person or service to an external system, while authorization determines what that identity may do there. This exercise uses a fictional repository-local identity only if a commit is created. It does not configure a global identity and does not grant access to any provider.",
+        "Run these commands in order from a PowerShell 7 session. The executable blocks contain commands only, not claimed output."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Preflight and create the new local practice directory",
+        "code": "$ErrorActionPreference = 'Stop'\nfunction Invoke-NativeChecked {\n    param(\n        [Parameter(Mandatory = $true)][string]$FilePath,\n        [Parameter(ValueFromRemainingArguments = $true)][string[]]$ArgumentList\n    )\n    & $FilePath @ArgumentList\n    $ExitCode = $LASTEXITCODE\n    if ($ExitCode -ne 0) { throw \"Native command failed with exit code ${ExitCode}: $FilePath $($ArgumentList -join ' ')\" }\n}\nfunction Invoke-GitChecked {\n    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)\n    & git @Arguments\n    $ExitCode = $LASTEXITCODE\n    if ($ExitCode -ne 0) { throw \"Git command failed with exit code ${ExitCode}: git $($Arguments -join ' ')\" }\n}\nfunction Invoke-GitCheckIgnore {\n    param(\n        [Parameter(Mandatory = $true)][string[]]$Arguments,\n        [int]$ExpectedExitCode = 0\n    )\n    & git check-ignore @Arguments\n    $ExitCode = $LASTEXITCODE\n    if ($ExitCode -ne $ExpectedExitCode) { throw \"git check-ignore returned unexpected exit code $ExitCode; expected $ExpectedExitCode.\" }\n}\nif ($null -eq $PSVersionTable -or $PSVersionTable.PSVersion.Major -lt 7) { throw 'This exercise requires a running PowerShell session with major version 7 or later.' }\nif (-not (Get-Command git -CommandType Application -ErrorAction SilentlyContinue)) { throw 'Git is not available. Stop and use the official Git installation documentation.' }\nif (-not (Get-Command pwsh -CommandType Application -ErrorAction SilentlyContinue)) { throw 'The pwsh executable is not available. Stop and use the official PowerShell installation documentation.' }\nInvoke-NativeChecked -FilePath 'git' -ArgumentList @('--version')\nInvoke-NativeChecked -FilePath 'pwsh' -ArgumentList @('--version')\n$Practice = Join-Path $HOME 'Project42-GitPractice-20260920'\nif (Test-Path -LiteralPath $Practice) { throw \"The practice directory already exists: $Practice. Choose a genuinely new empty directory instead.\" }\nNew-Item -ItemType Directory -Path $Practice | Out-Null\nSet-Location -LiteralPath $Practice\nInvoke-GitChecked -Arguments @('init')"
+      }
     },
     {
       "id": "create-task-boundary",
       "title": "Create the task boundary before the agent changes files",
       "paragraphs": [
-        "Give the agent one observable outcome, explicit writable paths, allowed tools and network access, required checks, stop conditions, and a recovery point. Authentication proves identity; it does not grant permission to change every file or external system the tool can reach.",
-        "Do not paste secrets into prompts, source files, examples, logs, or commits. Use the product's supported credential mechanism and keep local secret files ignored. Review new dependencies, commands, and files rather than accepting silent expansion of the task."
+        "The task boundary below is complete for this walkthrough. It permits local reads and writes only inside the new practice directory. It forbids remotes, credentials, network access, global configuration, installation mutations, changes to the protected unrelated file, and broad staging.",
+        "Task: Create and verify one local Git practice repository, record a clean baseline, make one tiny exercise-owned edit to app.ps1, demonstrate staged versus unstaged and untracked visibility, and restore only the exercise-owned change.",
+        "Scope: The new local directory Project42-GitPractice-20260920 under the current user's home directory; the repository created there by git init; the current local branch; writable exercise paths app.ps1, README.md, .gitignore, secret.local.txt, and scratch.txt. The repository has no remote.",
+        "Permissions: Read and write only within the new practice directory; run Git and PowerShell commands locally; no network; no credentials; no global Git configuration; no installation or deployment changes; do not edit protected-notes.txt.",
+        "Baseline: Git and PowerShell 7 pass their version checks; Git root is the new practice directory; the current branch is reported by Git rather than assumed; the initial status is empty after the baseline commit; repository-local identity is the fictional name Project42 Practice and email project42-practice@example.invalid.",
+        "Protected data: secret.local.txt is a harmless fake-secret training file and must remain local; do not use real secrets, personal data, tokens, passwords, or provider credentials. protected-notes.txt is unrelated tracked content and must not be edited or included in the exercise change.",
+        "Expected changes: .gitignore ignores secret.local.txt; the baseline commit contains README.md, app.ps1, .gitignore, and protected-notes.txt; the exercise-owned change is one added comment in app.ps1; scratch.txt is an untracked exercise file; no remote, credential, global configuration, or protected-file change exists.",
+        "Stop conditions: The practice directory already exists; a command would leave the directory; a command requests a secret; a remote, network operation, installation, deployment, or global configuration change appears; protected-notes.txt changes; a command has an unknown side effect; or an expected invariant fails.",
+        "Verification: Record the repository root, branch, status, tracked file list, ignore result, complete unstaged and staged diffs, and the final status. Review the exact diff before any commit. The boundary result is that only app.ps1 is the intended exercise change and secret.local.txt remains untracked and ignored.",
+        "Recovery: Do not use reset --hard, git clean -fd, or directory deletion. Unstage app.ps1 if necessary, restore app.ps1 from HEAD, and remove only the exercise-created scratch.txt after checking its exact path. Preserve the verification evidence and leave protected-notes.txt and baseline files unchanged.",
+        "The original task-card fields are intentionally retained as concrete fields rather than as a fill-in template. The boundary makes a coding tool's allowed file scope narrower than the permissions of the account running it."
       ],
       "code": {
-        "language": "text",
-        "label": "Workspace bootstrap card",
-        "code": "Task: [ONE OBSERVABLE OUTCOME]\nScope: [REPOSITORY, BRANCH, AND WRITABLE PATHS]\nPermissions: [READ, WRITE, COMMAND, NETWORK, AND EXTERNAL-SYSTEM LIMITS]\nBaseline: [GIT ROOT, BRANCH, STATUS, TOOL SOURCE, AND RUNTIME CHECK]\nProtected data: [SECRET FILES, PERSONAL DATA, AND EXCLUDED PATHS]\nExpected changes: [FILES OR BEHAVIOR]\nStop conditions: [SCOPE CONFLICT, SECRET REQUEST, UNKNOWN SIDE EFFECT, OR FAILED INVARIANT]\nVerification: [DIFF REVIEW, TESTS, AND USER-BOUNDARY RESULT]\nRecovery: [CHECKPOINT, FILE RESTORE, DEPENDENCY ROLLBACK, AND EVIDENCE TO KEEP]"
+        "language": "powershell",
+        "label": "Create exact baseline files and a repository-local exercise identity",
+        "code": "$ErrorActionPreference = 'Stop'\nSet-Content -LiteralPath .gitignore -Value 'secret.local.txt'\nSet-Content -LiteralPath README.md -Value \"# Project42 Git Practice`n`nThis repository is a local practice workspace.`n\" -NoNewline\nSet-Content -LiteralPath app.ps1 -Value 'Write-Output \"Practice workspace ready\"'\nSet-Content -LiteralPath secret.local.txt -Value 'FAKE_SECRET_FOR_TRAINING_ONLY=not-a-real-secret' -NoNewline\nSet-Content -LiteralPath protected-notes.txt -Value \"Unrelated protected note.`nDo not edit this file during the exercise.`n\" -NoNewline\nInvoke-GitChecked -Arguments @('config', '--local', 'user.name', 'Project42 Practice')\nInvoke-GitChecked -Arguments @('config', '--local', 'user.email', 'project42-practice@example.invalid')\nInvoke-GitChecked -Arguments @('add', '.gitignore', 'README.md', 'app.ps1', 'protected-notes.txt')\nInvoke-GitChecked -Arguments @('commit', '-m', 'Create local practice baseline')\nInvoke-GitChecked -Arguments @('status', '--short')"
       }
     },
     {
       "id": "verify-bootstrap",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence includes the tool's official installation source, supported-environment check, repository root, initial branch and worktree status, applicable instruction files, protected paths, task card, and a secret-safe verification log. Verify with a read-only orientation pass before allowing edits.",
-        "After the task, inspect the complete diff and untracked files, run the repository's documented checks, and test the observable result. If setup modified the wrong profile, repository, dependency set, or credential path, stop the tool, preserve useful diagnostics, restore only the affected configuration from the recorded baseline, and verify the clean state before retrying."
+        "The expected result of the preflight is that Git and PowerShell report installed versions. The exact version strings are environment-dependent and must be read from the learner's terminal. This walkthrough does not claim to have observed a client version or a deployment result.",
+        "After git init, `git rev-parse --show-toplevel` should identify the new practice directory. `git branch --show-current` reports the current branch, whose name may depend on the local Git configuration. Do not treat a particular default branch name as required.",
+        "After the baseline commands, `git status --short` should produce no status entries. The baseline should contain four tracked files: .gitignore, README.md, app.ps1, and protected-notes.txt. The local secret file should exist on disk but should not appear in status because the pattern in .gitignore matches it. `.gitignore` affects untracked files. A file that is already tracked is not ignored automatically. Sources: https://git-scm.com/docs/gitignore and https://git-scm.com/docs/git-status.",
+        "Run this read-only orientation and evidence pass. `git diff` compares working-tree content with the index, while `git diff --staged` compares the index with HEAD. `git add <path>` stages the named path, not every path. Sources: https://git-scm.com/docs/git-diff and https://git-scm.com/docs/git-add."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Read-only baseline evidence",
+        "code": "Get-Location\nInvoke-GitChecked -Arguments @('rev-parse', '--show-toplevel')\nInvoke-GitChecked -Arguments @('branch', '--show-current')\nInvoke-GitChecked -Arguments @('status', '--short')\nInvoke-GitChecked -Arguments @('ls-files')\nInvoke-GitChecked -Arguments @('check-ignore', '-v', '--', 'secret.local.txt')\nInvoke-GitChecked -Arguments @('diff')\nInvoke-GitChecked -Arguments @('diff', '--staged')"
+      }
+    },
+    {
+      "id": "run-controlled-exercise",
+      "title": "Make one tiny change and observe three Git states",
+      "paragraphs": [
+        "The next commands make exactly two exercise-owned filesystem changes: one comment appended to app.ps1 and one new scratch.txt file. The comment is intentionally harmless. The scratch file is intentionally untracked. protected-notes.txt is not opened for writing.",
+        "First inspect the working tree. The expected semantic result is that status reports app.ps1 as modified and scratch.txt as untracked. secret.local.txt remains absent from status because it is ignored. `git diff` should show only the added app.ps1 comment, and `git diff --staged` should show no staged change.",
+        "Then stage only app.ps1 by naming that path. After staging, status should show app.ps1 as staged and scratch.txt as untracked. `git diff --staged` should show the app.ps1 comment, while `git diff` should be empty. This is why broad commands such as `git add .` are not used.",
+        "The following command sequence is a verification exercise, not a request to commit the tiny edit. The baseline commit already supplies a recovery point."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Create and inspect the controlled exercise change",
+        "code": "$ErrorActionPreference = 'Stop'\nAdd-Content -LiteralPath app.ps1 -Value '# Tiny learner edit: reviewed local exercise change.'\nSet-Content -LiteralPath scratch.txt -Value 'Temporary exercise file; not part of the baseline.' -NoNewline\nInvoke-GitChecked -Arguments @('status', '--short')\nInvoke-GitChecked -Arguments @('diff')\nInvoke-GitChecked -Arguments @('diff', '--staged')\nInvoke-GitChecked -Arguments @('add', 'app.ps1')\nInvoke-GitChecked -Arguments @('status', '--short')\nInvoke-GitChecked -Arguments @('diff')\nInvoke-GitChecked -Arguments @('diff', '--staged')"
+      }
+    },
+    {
+      "id": "inspect-files-and-secrets",
+      "title": "Check file scope without exposing secrets",
+      "paragraphs": [
+        "The fake-secret file is deliberately harmless, but treat it as if it were sensitive. Do not print its contents into a log, prompt, issue, commit message, or chat. Its expected verification is its path and ignore status, not its contents.",
+        "A protected file can be present in the repository and still be outside the task scope. The fact that Git can read or stage a file does not authorize changing it. Check the protected file's tracked status and compare the complete diff to the task card.",
+        "The commands below do not display secret.local.txt contents. They verify the protected path, the ignored path, and the complete current status and diffs."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Secret-safe scope evidence",
+        "code": "Invoke-GitChecked -Arguments @('ls-files', '--error-unmatch', '--', 'protected-notes.txt')\nInvoke-GitChecked -Arguments @('check-ignore', '-v', '--', 'secret.local.txt')\nInvoke-GitChecked -Arguments @('status', '--short')\nInvoke-GitChecked -Arguments @('diff', '--name-only')\nInvoke-GitChecked -Arguments @('diff', '--staged', '--name-only')\nInvoke-GitChecked -Arguments @('diff', '--', 'app.ps1')\nInvoke-GitChecked -Arguments @('diff', '--staged', '--', 'app.ps1')"
+      }
+    },
+    {
+      "id": "changed-input-diagnosis",
+      "title": "Changed-input exercise: diagnose a tracked-file ignore misconception",
+      "paragraphs": [
+        "Changed input: suppose a learner decides that the unrelated protected file must be excluded and appends its name to .gitignore. The learner expects protected-notes.txt to disappear from Git because its name now matches an ignore pattern.",
+        "Do not edit protected-notes.txt. Run the commands below to reproduce the diagnosis. They change only .gitignore, which is an exercise-owned diagnostic change. The expected status contains a modified .gitignore entry. protected-notes.txt still appears in `git ls-files`, and Git does not report it as an ignored untracked file because it is already tracked.",
+        "The causal answer is: `.gitignore` controls whether matching untracked paths are normally considered for tracking. It does not automatically remove a path from the index. A tracked file remains tracked even when a new ignore pattern matches it. To stop tracking a file while retaining its local copy, the documented operation is `git rm --cached <file>`, but that is a scope-changing operation and is not appropriate for this protected file in this exercise. Sources: https://git-scm.com/docs/gitignore and https://git-scm.com/docs/git-rm.",
+        "Causal rubric: full credit requires all three links in the explanation: protected-notes.txt was already tracked; adding an ignore pattern does not remove an indexed path; and `git rm --cached` would change tracking while keeping the local copy, but must not be used here because the file is protected. Partial credit is identifying that the file is tracked without explaining the index. No credit is claiming that an ignore pattern erases a tracked file or protects it from edits.",
+        "Recover this diagnostic input by removing only the appended pattern from .gitignore. Do not restore or delete the protected file."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Reproduce the changed-input diagnosis",
+        "code": "$ErrorActionPreference = 'Stop'\nAdd-Content -LiteralPath .gitignore -Value 'protected-notes.txt'\nInvoke-GitChecked -Arguments @('status', '--short')\nInvoke-GitChecked -Arguments @('ls-files', '--error-unmatch', '--', 'protected-notes.txt')\nInvoke-GitCheckIgnore -Arguments @('--no-index', '--', 'protected-notes.txt') -ExpectedExitCode 0\nInvoke-GitChecked -Arguments @('diff', '--', '.gitignore')"
+      }
+    },
+    {
+      "id": "recover-and-confirm",
+      "title": "Recover only the exercise-owned changes",
+      "paragraphs": [
+        "Recovery must be narrow. First remove the diagnostic line from .gitignore by restoring that baseline file, unstage app.ps1 without discarding its work, restore app.ps1 from HEAD, and remove scratch.txt only after confirming its exact path. These operations do not use reset --hard, git clean -fd, or directory deletion.",
+        "The final expected result is a clean status with no entries. The baseline files remain present, protected-notes.txt remains tracked and unchanged, secret.local.txt remains on disk and ignored, and no remote or credential has been created. `git log --oneline` should show the local baseline commit. Source: https://git-scm.com/docs/git-log.",
+        "If any expected result differs, stop rather than guessing. Preserve the terminal evidence, identify which invariant failed, and do not retry in a different directory until the boundary and baseline are understood. This resource does not claim that any AI tool was installed, launched, connected, or tested."
+      ],
+      "code": {
+        "language": "powershell",
+        "label": "Narrow recovery and final verification",
+        "code": "Invoke-GitChecked -Arguments @('restore', '--source=HEAD', '--', '.gitignore')\nInvoke-GitChecked -Arguments @('restore', '--staged', '--', 'app.ps1')\nInvoke-GitChecked -Arguments @('restore', '--source=HEAD', '--', 'app.ps1')\n$Scratch = Join-Path (Get-Location) 'scratch.txt'\nif (Test-Path -LiteralPath $Scratch) { Remove-Item -LiteralPath $Scratch -Force }\nInvoke-GitChecked -Arguments @('status', '--short')\nInvoke-GitChecked -Arguments @('diff')\nInvoke-GitChecked -Arguments @('diff', '--staged')\nInvoke-GitChecked -Arguments @('ls-files')\nInvoke-GitChecked -Arguments @('check-ignore', '-v', '--', 'secret.local.txt')\nInvoke-GitChecked -Arguments @('log', '--oneline')"
+      }
+    },
+    {
+      "id": "operational-limits",
+      "title": "Completion limits and safe next steps",
+      "paragraphs": [
+        "Completion means that the learner can reproduce the local baseline, identify staged, unstaged, untracked, ignored, and tracked paths, diagnose the tracked-file ignore misconception, and recover the exercise-owned changes. It does not mean that Git or PowerShell was installed during the exercise, that an AI coding assistant was installed or launched, that credentials were configured, that a remote was contacted, or that a deployment was performed.",
+        "For a real repository, read its instructions, inspect its branch and worktree, identify generated directories and secret paths, and agree on writable paths before allowing an assistant to edit. Use the product publisher's documented credential mechanism when authentication is actually needed. Never paste real secrets into prompts, source files, examples, logs, or commits.",
+        "The original operational fields remain applicable to future tasks: Task, Scope, Permissions, Baseline, Protected data, Expected changes, Stop conditions, Verification, and Recovery. A future task should replace this concrete practice boundary with one that names its actual repository, allowed paths, checks, external-system limits, and recovery evidence."
       ]
     }
   ],
@@ -77,6 +169,54 @@
       "url": "https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files",
       "publisher": "GitHub",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "git-status",
+      "url": "https://git-scm.com/docs/git-status",
+      "publisher": "Git",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "git-add pathspecs",
+      "url": "https://git-scm.com/docs/git-add",
+      "publisher": "Git",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "git-diff",
+      "url": "https://git-scm.com/docs/git-diff",
+      "publisher": "Git",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "gitignore",
+      "url": "https://git-scm.com/docs/gitignore",
+      "publisher": "Git",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "git-rm",
+      "url": "https://git-scm.com/docs/git-rm",
+      "publisher": "Git",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "git-commit",
+      "url": "https://git-scm.com/docs/git-commit",
+      "publisher": "Git",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "git-log",
+      "url": "https://git-scm.com/docs/git-log",
+      "publisher": "Git",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Installing PowerShell on Windows",
+      "url": "https://learn.microsoft.com/en-us/powershell/scripting/install/install-powershell-on-windows?view=powershell-7.6",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
