@@ -2,7 +2,7 @@
   "id": "container-on-prem-model-service-runbook",
   "slug": "container-on-prem-model-service-runbook",
   "title": "Container and On-Premises Model Service Runbook",
-  "summary": "Operate a shared containerized model service with pinned artifacts, explicit host and cluster boundaries, measured capacity, and reversible releases.",
+  "summary": "Operate a fictional shared containerized model service with pinned artifact identities, explicit host and cluster boundaries, measured capacity, bounded admission, and reversible whole-unit releases.",
   "category": "Self-hosted model operations",
   "format": "playbook",
   "audience": [
@@ -21,42 +21,252 @@
   ],
   "owner": "project42-editorial",
   "reviewCadenceDays": 60,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-20",
   "tags": [
     "self-hosted",
-    "containers",
     "on-premises",
+    "containers",
     "kubernetes",
-    "model-serving"
+    "model-serving",
+    "capacity",
+    "rollback"
   ],
   "sections": [
     {
       "id": "construct-serving-unit",
       "title": "Construct one verifiable serving unit",
       "paragraphs": [
-        "Treat the release as a complete unit: model and tokenizer digests, license and provenance decision, immutable image, runtime and driver compatibility, templates and adapters, gateway contract, identity and authorization policy, network and egress rules, secret references, resource requests and limits, storage, telemetry, evaluation set, load profile, rollout and rollback policy, and runbook. A model tag or container image alone cannot reproduce service behavior.",
+        "Treat a release as one unit rather than as an image tag. The unit includes model and tokenizer identities, provenance and license review, immutable image, runtime and driver records, adapters, configuration, gateway contract, identity and authorization policy, network and egress policy, secret references, resource requests and limits, storage, telemetry, evaluation set, load profile, rollout and rollback policy, and this runbook.",
+        "The packet is fictional training data. Every digest, rate, latency, throughput result, revision, and compatibility statement marked synthetic was invented for this exercise. It does not establish that the named model works with the named runtime, image, accelerator, tokenizer, license, driver, or cluster. It is synthetic-only and must be independently verified.",
         "Separate serving and management paths. Grant deployment, secret, cluster, and model-administration authority only to named roles. Run the workload with the minimum operating-system and container privileges, constrain host mounts and device access, protect the runtime or orchestrator control plane, and keep secrets and learner content out of images, manifests, logs, and screenshots."
-      ]
+      ],
+      "code": {
+        "language": "json",
+        "label": "Complete fictional shared-service release packet",
+        "code": "{\n  \"packetId\": \"ssms-2026-09-20-r17\",\n  \"service\": \"shared-text-generation\",\n  \"environment\": \"fictional-on-prem-training-lab\",\n  \"status\": \"qualifying-for-review-only\",\n  \"artifactIdentity\": {\n    \"modelName\": \"Qwen2.5-7B-Instruct-label-only\",\n    \"modelDigest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n    \"tokenizerName\": \"Qwen2.5-7B-Instruct-tokenizer-label-only\",\n    \"tokenizerDigest\": \"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\n    \"image\": \"registry.invalid.example/fictional/llm-runtime@sha256:3333333333333333333333333333333333333333333333333333333333333333\",\n    \"configDigest\": \"sha256:4444444444444444444444444444444444444444444444444444444444444444\",\n    \"adapterDigest\": \"sha256:5555555555555555555555555555555555555555555555555555555555555555\",\n    \"dependencyManifestDigest\": \"sha256:6666666666666666666666666666666666666666666666666666666666666666\",\n    \"evaluationSetDigest\": \"sha256:7777777777777777777777777777777777777777777777777777777777777777\"\n  },\n  \"provenanceAndLicense\": {\n    \"provenanceRecord\": \"synthetic-record-ssms-r17\",\n    \"licenseDisposition\": \"review-required; no compatibility or license conclusion is made\",\n    \"revision\": \"synthetic-revision-r17\"\n  },\n  \"runtime\": {\n    \"runtimeImageLabel\": \"fictional-runtime-0.9.0\",\n    \"driverLabel\": \"fictional-driver-550.1\",\n    \"compatibilityEvidence\": \"synthetic-only; independently verify before use\"\n  },\n  \"boundaries\": {\n    \"host\": \"dedicated worker hosts; no host filesystem mount\",\n    \"container\": \"non-root UID 10001; read-only root filesystem; temporary writable volume only\",\n    \"controlPlane\": \"operator identity may reconcile one namespace; no workload access to the container runtime socket\",\n    \"namespaces\": [\"pid\", \"network\", \"mount\", \"ipc\", \"uts\"],\n    \"capabilities\": \"drop all; add only NET_BIND_SERVICE if the listener requires it\",\n    \"devices\": \"no device access in the packet; accelerator mapping requires separate approval\",\n    \"ingress\": \"gateway identity required; service account and management endpoints are not ingress targets\",\n    \"egress\": \"deny by default; allow only approved artifact and telemetry destinations\",\n    \"secrets\": \"external secret reference; never place secret values in image, manifest, logs, or evidence\"\n  },\n  \"capacity\": {\n    \"replicas\": 2,\n    \"cpuRequest\": \"4\",\n    \"cpuLimit\": \"8\",\n    \"memoryRequestGi\": 32,\n    \"memoryLimitGi\": 48,\n    \"gpusPerReplica\": 1,\n    \"capacityGpu\": 4,\n    \"availableGPU\": 4,\n    \"contextTokens\": 4096,\n    \"maxOutputTokens\": 512,\n    \"perReplicaConcurrency\": 4,\n    \"queuePerReplica\": 8,\n    \"requestRatePerSecond\": 1.5,\n    \"deadlineMs\": 30000,\n    \"retryCount\": 0,\n    \"derivedReplicaConcurrency\": 8,\n    \"derivedQueueBound\": 16,\n    \"requiredGPU\": 2,\n    \"measurements\": {\n      \"warmupSeconds\": 90,\n      \"syntheticMedianTokensPerSecond\": 42.0,\n      \"syntheticP95FirstTokenMs\": 780,\n      \"syntheticP95TotalLatencyMs\": 12400,\n      \"syntheticErrorRate\": 0.01\n    },\n    \"measurementNotice\": \"All rates, latencies, and error measurements are synthetic and are not benchmark results.\"\n  },\n  \"failureDomains\": [\"request\", \"pod\", \"worker-host\", \"network-gateway\", \"artifact-storage\", \"control-plane\", \"telemetry\"],\n  \"rollout\": {\n    \"strategy\": \"RollingUpdate\",\n    \"maxUnavailable\": 0,\n    \"maxSurge\": 1,\n    \"readiness\": \"artifact identity, health, and representative smoke response must pass\",\n    \"liveness\": \"restart only after the liveness failure policy is met\",\n    \"canary\": \"synthetic 10 percent for 15 minutes; no production approval implied\"\n  },\n  \"rollback\": {\n    \"knownGoodPacket\": \"ssms-2026-09-20-r16\",\n    \"method\": \"stop new traffic, drain with deadline, reconcile effects, restore the complete known-good packet, then recheck identity and postconditions\",\n    \"inflightWork\": \"UNKNOWN until request ledger and gateway cancellation evidence are reconciled\",\n    \"externalArtifactsAndStorage\": \"restore separately; deployment rollback alone does not restore them\"\n  },\n  \"evidence\": {\n    \"artifactDigests\": true,\n    \"provenanceLicenseReview\": true,\n    \"leastPrivilegeTest\": true,\n    \"networkPolicyTest\": true,\n    \"representativeEvaluation\": true,\n    \"gatewayLoadTest\": true,\n    \"queueOverloadTest\": true,\n    \"instanceLossTest\": true,\n    \"drainTest\": true,\n    \"artifactRetention\": true,\n    \"telemetryAndAlerts\": true,\n    \"rollbackRehearsal\": true\n  },\n  \"owners\": {\n    \"service\": \"fictional-service-owner\",\n    \"host\": \"fictional-host-owner\",\n    \"cluster\": \"fictional-cluster-owner\",\n    \"network\": \"fictional-network-owner\",\n    \"incident\": \"fictional-incident-owner\"\n  },\n  \"stopConditions\": [\"artifact or policy drift\", \"management interface exposed\", \"critical evaluation failure\", \"unbounded queue\", \"capacity below declared requirement\", \"drain failure\", \"failed whole-unit restoration\"]\n}"
+      }
+    },
+    {
+      "id": "release-contract",
+      "title": "Container and on-premises release record",
+      "paragraphs": [
+        "Treat a release as one unit rather than as an image tag. The unit includes model and tokenizer identities, provenance and license review, immutable image, runtime and driver records, adapters, configuration, gateway contract, identity and authorization policy, network and egress policy, secret references, resource requests and limits, storage, telemetry, evaluation set, load profile, rollout and rollback policy, and this runbook.",
+        "The packet is fictional training data. Every digest, rate, latency, throughput result, revision, and compatibility statement marked synthetic was invented for this exercise. It does not establish that the named model works with the named runtime, image, accelerator, tokenizer, license, driver, or cluster. It is synthetic-only and must be independently verified."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Container and on-premises release record",
+        "code": "Task: shared-text-generation\n\nScope: {\n  \"environment\": \"fictional-on-prem-training-lab\",\n  \"boundaries\": {\n    \"host\": \"dedicated worker hosts; no host filesystem mount\",\n    \"container\": \"non-root UID 10001; read-only root filesystem; temporary writable volume only\",\n    \"controlPlane\": \"operator identity may reconcile one namespace; no workload access to the container runtime socket\",\n    \"namespaces\": [\n      \"pid\",\n      \"network\",\n      \"mount\",\n      \"ipc\",\n      \"uts\"\n    ],\n    \"capabilities\": \"drop all; add only NET_BIND_SERVICE if the listener requires it\",\n    \"devices\": \"no device access in the packet; accelerator mapping requires separate approval\",\n    \"ingress\": \"gateway identity required; service account and management endpoints are not ingress targets\",\n    \"egress\": \"deny by default; allow only approved artifact and telemetry destinations\",\n    \"secrets\": \"external secret reference; never place secret values in image, manifest, logs, or evidence\"\n  }\n}\n\nPermissions: {\n  \"license\": {\n    \"provenanceRecord\": \"synthetic-record-ssms-r17\",\n    \"licenseDisposition\": \"review-required; no compatibility or license conclusion is made\",\n    \"revision\": \"synthetic-revision-r17\"\n  },\n  \"controlPlane\": \"operator identity may reconcile one namespace; no workload access to the container runtime socket\",\n  \"ingress\": \"gateway identity required; service account and management endpoints are not ingress targets\",\n  \"secrets\": \"external secret reference; never place secret values in image, manifest, logs, or evidence\"\n}\n\nExact build: {\n  \"modelName\": \"Qwen2.5-7B-Instruct-label-only\",\n  \"modelDigest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n  \"tokenizerName\": \"Qwen2.5-7B-Instruct-tokenizer-label-only\",\n  \"tokenizerDigest\": \"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\n  \"image\": \"registry.invalid.example/fictional/llm-runtime@sha256:3333333333333333333333333333333333333333333333333333333333333333\",\n  \"configDigest\": \"sha256:4444444444444444444444444444444444444444444444444444444444444444\",\n  \"adapterDigest\": \"sha256:5555555555555555555555555555555555555555555555555555555555555555\",\n  \"dependencyManifestDigest\": \"sha256:6666666666666666666666666666666666666666666666666666666666666666\",\n  \"evaluationSetDigest\": \"sha256:7777777777777777777777777777777777777777777777777777777777777777\",\n  \"runtime\": {\n    \"runtimeImageLabel\": \"fictional-runtime-0.9.0\",\n    \"driverLabel\": \"fictional-driver-550.1\",\n    \"compatibilityEvidence\": \"synthetic-only; independently verify before use\"\n  }\n}\n\nVerification: {\n  \"artifactDigests\": true,\n  \"provenanceLicenseReview\": true,\n  \"leastPrivilegeTest\": true,\n  \"networkPolicyTest\": true,\n  \"representativeEvaluation\": true,\n  \"gatewayLoadTest\": true,\n  \"queueOverloadTest\": true,\n  \"instanceLossTest\": true,\n  \"drainTest\": true,\n  \"artifactRetention\": true,\n  \"telemetryAndAlerts\": true,\n  \"rollbackRehearsal\": true\n}\n\nStop conditions: [\n  \"artifact or policy drift\",\n  \"management interface exposed\",\n  \"critical evaluation failure\",\n  \"unbounded queue\",\n  \"capacity below declared requirement\",\n  \"drain failure\",\n  \"failed whole-unit restoration\"\n]\n\nRecovery: {\n  \"knownGoodPacket\": \"ssms-2026-09-20-r16\",\n  \"method\": \"stop new traffic, drain with deadline, reconcile effects, restore the complete known-good packet, then recheck identity and postconditions\",\n  \"inflightWork\": \"UNKNOWN until request ledger and gateway cancellation evidence are reconciled\",\n  \"externalArtifactsAndStorage\": \"restore separately; deployment rollback alone does not restore them\"\n}"
+      }
+    },
+    {
+      "id": "host-container-control-plane-boundaries",
+      "title": "Enforce host, container, and control-plane boundaries",
+      "paragraphs": [
+        "The host boundary is the worker operating system, devices, kernel, local storage, and container runtime. The container boundary is the process filesystem, namespaces, credentials, capabilities, devices, and resource controls. The control-plane boundary is the orchestrator API, admission path, scheduler, secret system, registry, and deployment reconciler. A container boundary is not a promise that a compromised kernel, runtime, host, or control plane is harmless.",
+        "Docker documents namespaces, capabilities, and container security controls. Use a non-root workload identity, read-only root filesystem, no runtime socket, no broad host mounts, and no unneeded device access. Test the actual host and runtime configuration instead of inferring security from a manifest. Source: Docker Engine security, https://docs.docker.com/engine/security/.",
+        "Kubernetes requests influence scheduling and limits provide resource enforcement behavior for pod containers. They do not prove model throughput or safe queue behavior. Source: Kubernetes resource management, https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Boundary review checklist",
+        "code": "HOST: record host, kernel, runtime, device, storage, and owner evidence.\nCONTAINER: verify non-root UID, read-only root filesystem, no runtime socket, no broad host mount, and only approved devices.\nNAMESPACES: verify PID, network, mount, IPC, and UTS isolation where the runtime supports them.\nCAPABILITIES: drop all; add only a documented required capability.\nCONTROL PLANE: restrict reconciliation identity and keep management ingress separate.\nNETWORK: deny unapproved ingress and egress; record negative-test evidence without secrets.\nRESULT: UNKNOWN unless the actual configuration and tests are evidenced."
+      }
     },
     {
       "id": "operate-bounded-capacity",
       "title": "Operate within measured capacity and failure domains",
       "paragraphs": [
-        "Declare context, output, body, concurrency, rate, queue, deadline, retry, accelerator, memory, storage, and cost boundaries. Exercise load through the real gateway and serving path, including warm-up, long requests, cancellation, overload, dependency loss, instance loss, and telemetry loss. Resource requests and limits are scheduling and isolation inputs; they are not proof of model throughput or safe queue behavior.",
-        "Use bounded admission and backpressure before saturation. Scale only on signals that explain the bottleneck, and verify the full replica lifecycle: artifact identity, readiness, traffic eligibility, drain, termination, and replacement. Keep at least one compatible known-good release manifest and prove that its artifacts and dependencies remain available."
+        "This runbook uses a fictional release packet and a fictional recovery packet. They are teaching fixtures, not records of an actual deployment. Declare context length, maximum output, body size, integer replica count, integer whole-device GPUs per replica, integer total GPU capacity, integer currently available GPU capacity, integer per-replica concurrency, integer queue size, request rate, deadline, retry policy, CPU and memory requests and limits, storage, and cost boundary.",
+        "In this whole-device exercise, capacityGpu means the declared observed whole-device GPU capacity. It must equal observed.capacityGpu. availableGPU means the declared currently available subset of that whole-device capacity. It must equal observed.availableGPU and must satisfy availableGPU <= capacityGpu.",
+        "The admission invariant is requiredGPU = replicas * gpusPerReplica, with requiredGPU <= availableGPU. Admission must reject or shed work before the queue exceeds its bound. totalConcurrency = replicas * perReplicaConcurrency and queueBound = replicas * queuePerReplica. Each declared and derived integer must be safe and bounded by 1000000.",
+        "A passing packet has status QUALIFY_FOR_REVIEW. This status means that the packet's evidence and declared capacity checks passed for human review. It is not deployment authorization, security certification, model compatibility, licensing approval, or a throughput guarantee.",
+        "CPU and memory limits constrain resources but do not guarantee throughput. See Docker's resource constraints documentation: https://docs.docker.com/engine/containers/resource_constraints/. Kubernetes Deployments use maxUnavailable and maxSurge during RollingUpdate, while readiness and liveness probes affect traffic eligibility and restarts: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/. A green pod does not establish a healthy gateway, artifact store, queue, control plane, or telemetry system. Measure through the real gateway after warm-up, including long requests, cancellation, overload, dependency loss, instance loss, telemetry loss, and replacement.",
+        "The supplied runtime evidence reports 31 of 32 cases passing. Its contradictory-available-over-capacity case used replicas=100, gpusPerReplica=1, capacityGpu=1, and availableGPU=100, with matching observed values. The prior validator incorrectly qualified that packet. The repaired validator rejects it before qualification."
       ],
       "code": {
         "language": "text",
-        "label": "Container and on-premises release record",
-        "code": "Task: [SHARED MODEL-SERVICE WORKLOAD]\nScope: [HOSTS/CLUSTER, USERS, DATA, NETWORKS, STORAGE, TOOLS, AND SERVICE OBJECTIVES]\nPermissions: [MODEL/LICENSE, IMAGE REGISTRY, DEPLOY, CLUSTER, SECRET, NETWORK, AND RELEASE AUTHORITY]\nExact build: [MODEL/TOKENIZER DIGESTS, IMAGE DIGEST, RUNTIME/DRIVER, ADAPTER, POLICY, CONFIG, AND EVAL VERSION]\nIsolation: [USER, CAPABILITIES, MOUNTS, DEVICES, NAMESPACES, INGRESS, EGRESS, AND MANAGEMENT PATH]\nCapacity: [REQUEST/LIMIT, CONTEXT, OUTPUT, CONCURRENCY, RATE, QUEUE, DEADLINE, AND FAILURE DOMAIN]\nVerification: [PROVENANCE, IDENTITY, NEGATIVE ACCESS, REPRESENTATIVE EVAL, LOAD, INSTANCE LOSS, DRAIN, AND RESTORE]\nStop conditions: [ARTIFACT/POLICY DRIFT, CONTROL-PLANE EXPOSURE, CRITICAL EVAL FAILURE, UNBOUNDED QUEUE, SATURATION, OR FAILED ROLLBACK]\nRecovery: [STOP ROUTING, DRAIN/CANCEL, RECONCILE EFFECTS, RESTORE COMPLETE KNOWN-GOOD UNIT, VERIFY POSTCONDITIONS]"
+        "label": "Admission and capacity rules",
+        "code": "1. Reject malformed JSON, a missing filename, wrong types, non-finite values, fractions, zero, negative values, and unsafe integers above 1000000.\n2. Require positive safe integers for replicas, gpusPerReplica, capacityGpu, availableGPU, and perReplicaConcurrency. Permit queuePerReplica to be zero, but require it to be a safe bounded integer.\n3. Require evidence.artifactDigests === true, evidence.capacity === true, and evidence.drain === true.\n4. Require observed.capacityGpu and observed.availableGPU to be safe positive integers matching their declared fields.\n5. Require availableGPU <= capacityGpu. This is the repaired whole-device subset invariant.\n6. Require observed.drainComplete === true.\n7. Compute requiredGPU = replicas * gpusPerReplica and require it to be a safe bounded integer no greater than availableGPU.\n8. Compute totalConcurrency = replicas * perReplicaConcurrency and queueBound = replicas * queuePerReplica. Require both to be safe bounded integers.\n9. Admit only when every check passes.\n10. Report QUALIFY_FOR_REVIEW only. Never describe that status as authorization, certification, deployment proof, or a throughput guarantee."
+      }
+    },
+    {
+      "id": "offline-evidence-exercise",
+      "title": "Run the strict offline evidence and capacity exercise",
+      "paragraphs": [
+        "This offline validator evaluates an evidence packet only. It never certifies security, a cluster, a host, a model, a license, or an actual deployment. It fails closed on malformed JSON and reports a parser message. Node.js CommonJS supports require-based modules and the node shebang. fs.readFileSync(path, 'utf8') reads the named file synchronously. Sources: https://nodejs.org/docs/latest-v22.x/api/modules.html and https://nodejs.org/docs/latest-v22.x/api/fs.html#fsreadfilesyncpath-options, checked 2026-09-20.",
+        "Number.isSafeInteger tests safe integers. This script additionally applies the explicit nonnegative and maximum bounds, with positiveInteger used where zero is not meaningful. JSON.parse raises an error for malformed JSON, which the script catches. Source: https://nodejs.org/docs/latest-v22.x/api/number.html#numberissafeintegervalue and https://nodejs.org/docs/latest-v22.x/api/util.html#jsonparse, checked 2026-09-20.",
+        "The new availableGPU <= capacityGpu check is deliberately separate from requiredGPU <= availableGPU. Both are necessary: the first keeps the declared available subset inside total whole-device capacity, and the second checks demand against that subset."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "Node.js 22 CommonJS validator.cjs",
+        "code": "#!/usr/bin/env node\n'use strict';\nconst fs = require('node:fs');\nconst file = process.argv[2];\nconst fail = reasons => ({ status: 'BLOCKED', reasons });\nif (!file) { console.log(JSON.stringify(fail(['usage:missing-input-filename']))); process.exit(0); }\nlet input;\ntry { input = JSON.parse(fs.readFileSync(file, 'utf8')); }\ncatch (error) { console.log(JSON.stringify(fail(['malformed-json:' + error.message]))); process.exit(0); }\nconst MAX = 1000000;\nconst integer = x => Number.isSafeInteger(x) && x >= 0 && x <= MAX;\nconst positiveInteger = x => integer(x) && x > 0;\nconst object = x => x !== null && typeof x === 'object' && !Array.isArray(x);\nconst reasons = [];\nif (!object(input)) reasons.push('wrong-type:input');\nif (object(input)) {\n  if (!positiveInteger(input.replicas)) reasons.push('invalid:replicas');\n  if (!positiveInteger(input.gpusPerReplica)) reasons.push('invalid:gpusPerReplica');\n  if (!positiveInteger(input.capacityGpu)) reasons.push('invalid:capacityGpu');\n  if (!positiveInteger(input.availableGPU)) reasons.push('invalid:availableGPU');\n  if (!positiveInteger(input.perReplicaConcurrency)) reasons.push('invalid:perReplicaConcurrency');\n  if (!integer(input.queuePerReplica)) reasons.push('invalid:queuePerReplica');\n  if (!object(input.evidence)) reasons.push('wrong-type:evidence');\n  else for (const key of ['artifactDigests', 'capacity', 'drain']) if (input.evidence[key] !== true) reasons.push('missing-evidence:' + key);\n  if (!object(input.observed)) reasons.push('wrong-type:observed');\n  else {\n    if (!positiveInteger(input.observed.capacityGpu)) reasons.push('invalid:observed.capacityGpu');\n    else if (input.observed.capacityGpu !== input.capacityGpu) reasons.push('changed:capacity');\n    if (!positiveInteger(input.observed.availableGPU)) reasons.push('invalid:observed.availableGPU');\n    else if (input.observed.availableGPU !== input.availableGPU) reasons.push('changed:availableGPU');\n    if (input.observed.drainComplete !== true) reasons.push('failed:drain');\n  }\n  if (integer(input.capacityGpu) && integer(input.availableGPU) && input.availableGPU > input.capacityGpu) reasons.push('invalid:availableGPU-over-capacity');\n  if (!reasons.length) {\n    const requiredGPU = input.replicas * input.gpusPerReplica;\n    const totalConcurrency = input.replicas * input.perReplicaConcurrency;\n    const queueBound = input.replicas * input.queuePerReplica;\n    if (!Number.isSafeInteger(requiredGPU) || requiredGPU > MAX) reasons.push('invalid:derived-requiredGPU');\n    else if (requiredGPU > input.availableGPU) reasons.push('insufficient:GPU');\n    if (!Number.isSafeInteger(totalConcurrency) || totalConcurrency > MAX) reasons.push('invalid:derived-totalConcurrency');\n    if (!Number.isSafeInteger(queueBound) || queueBound > MAX) reasons.push('invalid:derived-queueBound');\n    if (!reasons.length) console.log(JSON.stringify({ status: 'QUALIFY_FOR_REVIEW', derived: { requiredGPU, totalConcurrency, queueBound } }));\n  }\n}\nif (reasons.length) console.log(JSON.stringify(fail(reasons)));"
+      }
+    },
+    {
+      "id": "offline-exercise-inputs",
+      "title": "Copyable exercise inputs",
+      "paragraphs": [
+        "Run each complete JSON document separately. Do not combine the documents. Save them as positive.json, missing.json, and changed.json. The validator reads the filename from argv and uses fs.readFileSync, so no shell input-redirection syntax is required and the command works cross-platform with Node.js 22."
+      ],
+      "code": {
+        "language": "json",
+        "label": "positive.json",
+        "code": "{\n  \"replicas\": 2,\n  \"gpusPerReplica\": 1,\n  \"capacityGpu\": 4,\n  \"availableGPU\": 4,\n  \"perReplicaConcurrency\": 4,\n  \"queuePerReplica\": 8,\n  \"evidence\": {\"artifactDigests\": true, \"capacity\": true, \"drain\": true},\n  \"observed\": {\"capacityGpu\": 4, \"availableGPU\": 4, \"drainComplete\": true}\n}"
+      }
+    },
+    {
+      "id": "offline-exercise-missing-input",
+      "title": "Missing-evidence input",
+      "paragraphs": [
+        "This is a complete standalone JSON document. The false capacity evidence must block review even though the numeric fields and observed values otherwise pass."
+      ],
+      "code": {
+        "language": "json",
+        "label": "missing.json",
+        "code": "{\n  \"replicas\": 2,\n  \"gpusPerReplica\": 1,\n  \"capacityGpu\": 4,\n  \"availableGPU\": 4,\n  \"perReplicaConcurrency\": 4,\n  \"queuePerReplica\": 8,\n  \"evidence\": {\"artifactDigests\": true, \"capacity\": false, \"drain\": true},\n  \"observed\": {\"capacityGpu\": 4, \"availableGPU\": 4, \"drainComplete\": true}\n}"
+      }
+    },
+    {
+      "id": "offline-exercise-changed-input",
+      "title": "Changed-capacity and failed-drain input",
+      "paragraphs": [
+        "This is a complete standalone JSON document. It represents a real changed-input exercise: observed capacity is 3 rather than the declared 4, and drain completion is false."
+      ],
+      "code": {
+        "language": "json",
+        "label": "changed.json",
+        "code": "{\n  \"replicas\": 2,\n  \"gpusPerReplica\": 1,\n  \"capacityGpu\": 4,\n  \"availableGPU\": 4,\n  \"perReplicaConcurrency\": 4,\n  \"queuePerReplica\": 8,\n  \"evidence\": {\"artifactDigests\": true, \"capacity\": true, \"drain\": true},\n  \"observed\": {\"capacityGpu\": 3, \"availableGPU\": 4, \"drainComplete\": false}\n}"
+      }
+    },
+    {
+      "id": "offline-exercise-additional-inputs",
+      "title": "fractional-concurrency.json",
+      "paragraphs": [
+        "Save each JSON document as its own file. Do not combine them. These are complete standalone inputs, not patch fragments. The first two demonstrate fractional values. The third demonstrates inadequate available capacity. The fourth is the repaired negative case: availableGPU is greater than capacityGpu, while observed values match their declarations, so the new subset invariant is exercised directly."
+      ],
+      "code": {
+        "language": "json",
+        "label": "fractional-concurrency.json",
+        "code": "{\n  \"replicas\": 2,\n  \"gpusPerReplica\": 1,\n  \"capacityGpu\": 4,\n  \"availableGPU\": 4,\n  \"perReplicaConcurrency\": 0.5,\n  \"queuePerReplica\": 8,\n  \"evidence\": {\n    \"artifactDigests\": true,\n    \"capacity\": true,\n    \"drain\": true\n  },\n  \"observed\": {\n    \"capacityGpu\": 4,\n    \"availableGPU\": 4,\n    \"drainComplete\": true\n  }\n}"
+      }
+    },
+    {
+      "id": "offline-exercise-additional-inputs-2",
+      "title": "fractional-queue.json",
+      "paragraphs": [
+        "Save each JSON document as its own file. Do not combine them. These are complete standalone inputs, not patch fragments. The first two demonstrate fractional values. The third demonstrates inadequate available capacity. The fourth is the repaired negative case: availableGPU is greater than capacityGpu, while observed values match their declarations, so the new subset invariant is exercised directly."
+      ],
+      "code": {
+        "language": "json",
+        "label": "fractional-queue.json",
+        "code": "{\n  \"replicas\": 2,\n  \"gpusPerReplica\": 1,\n  \"capacityGpu\": 4,\n  \"availableGPU\": 4,\n  \"perReplicaConcurrency\": 4,\n  \"queuePerReplica\": 0.5,\n  \"evidence\": {\n    \"artifactDigests\": true,\n    \"capacity\": true,\n    \"drain\": true\n  },\n  \"observed\": {\n    \"capacityGpu\": 4,\n    \"availableGPU\": 4,\n    \"drainComplete\": true\n  }\n}"
+      }
+    },
+    {
+      "id": "offline-exercise-additional-inputs-3",
+      "title": "inadequate-capacity.json",
+      "paragraphs": [
+        "Save each JSON document as its own file. Do not combine them. These are complete standalone inputs, not patch fragments. The first two demonstrate fractional values. The third demonstrates inadequate available capacity. The fourth is the repaired negative case: availableGPU is greater than capacityGpu, while observed values match their declarations, so the new subset invariant is exercised directly."
+      ],
+      "code": {
+        "language": "json",
+        "label": "inadequate-capacity.json",
+        "code": "{\n  \"replicas\": 100,\n  \"gpusPerReplica\": 1,\n  \"capacityGpu\": 1,\n  \"availableGPU\": 1,\n  \"perReplicaConcurrency\": 4,\n  \"queuePerReplica\": 8,\n  \"evidence\": {\n    \"artifactDigests\": true,\n    \"capacity\": true,\n    \"drain\": true\n  },\n  \"observed\": {\n    \"capacityGpu\": 1,\n    \"availableGPU\": 1,\n    \"drainComplete\": true\n  }\n}"
+      }
+    },
+    {
+      "id": "offline-exercise-additional-inputs-4",
+      "title": "overavailablecapacity.json",
+      "paragraphs": [
+        "Save each JSON document as its own file. Do not combine them. These are complete standalone inputs, not patch fragments. The first two demonstrate fractional values. The third demonstrates inadequate available capacity. The fourth is the repaired negative case: availableGPU is greater than capacityGpu, while observed values match their declarations, so the new subset invariant is exercised directly."
+      ],
+      "code": {
+        "language": "json",
+        "label": "overavailablecapacity.json",
+        "code": "{\n  \"replicas\": 100,\n  \"gpusPerReplica\": 1,\n  \"capacityGpu\": 1,\n  \"availableGPU\": 100,\n  \"perReplicaConcurrency\": 4,\n  \"queuePerReplica\": 8,\n  \"evidence\": {\n    \"artifactDigests\": true,\n    \"capacity\": true,\n    \"drain\": true\n  },\n  \"observed\": {\n    \"capacityGpu\": 1,\n    \"availableGPU\": 100,\n    \"drainComplete\": true\n  }\n}"
+      }
+    },
+    {
+      "id": "offline-exercise-command-and-output",
+      "title": "Commands, exact outputs, boundary tests, and worked solution",
+      "paragraphs": [
+        "Run commands separately. Do not use shell redirection. Node.js CommonJS modules use require() and module.exports, and fs.readFileSync reads a named file synchronously. Sources: Node.js 22 modules, OpenJS Foundation, https://nodejs.org/docs/latest-v22.x/api/modules.html, verified 2026-09-20; Node.js 22 fs.readFileSync, OpenJS Foundation, https://nodejs.org/docs/latest-v22.x/api/fs.html#fsreadfilesyncpath-options, verified 2026-09-20.",
+        "The supplied positive, missing, and changed examples are evidence-only exercises. A positive result is QUALIFY_FOR_REVIEW, not approval. The validator does not authorize a deployment and does not establish external security.",
+        "The boundary tests repair known V1 failures. perReplicaConcurrency 0.5 is rejected, queuePerReplica 0.5 is rejected, and 100 replicas on 1 GPU is rejected when gpusPerReplica is 1 because requiredGPU is 100 and availableGPU is 1. CPU millicores and separately designed fractional-GPU models are outside this whole-device validator, not universally prohibited."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Commands",
+        "code": "node validator.cjs positive.json\nnode validator.cjs missing.json\nnode validator.cjs changed.json\nnode validator.cjs fractional-concurrency.json\nnode validator.cjs fractional-queue.json\nnode validator.cjs inadequate-capacity.json\nnode validator.cjs overavailablecapacity.json"
+      }
+    },
+    {
+      "id": "offline-exercise-expected-output",
+      "title": "Exact expected outputs",
+      "paragraphs": [
+        "The following outputs are exact for the three required inputs. The positive result includes requiredGPU as an additional derived invariant."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Expected output",
+        "code": "positive.json\n{\"status\":\"QUALIFY_FOR_REVIEW\",\"derived\":{\"requiredGPU\":2,\"totalConcurrency\":8,\"queueBound\":16}}\n\nmissing.json\n{\"status\":\"BLOCKED\",\"reasons\":[\"missing-evidence:capacity\"]}\n\nchanged.json\n{\"status\":\"BLOCKED\",\"reasons\":[\"changed:capacity\",\"failed:drain\"]}\n\nfractional-concurrency.json\n{\"status\":\"BLOCKED\",\"reasons\":[\"invalid:perReplicaConcurrency\"]}\n\nfractional-queue.json\n{\"status\":\"BLOCKED\",\"reasons\":[\"invalid:queuePerReplica\"]}\n\ninadequate-capacity.json\n{\"status\":\"BLOCKED\",\"reasons\":[\"insufficient:GPU\"]}\n\noveravailablecapacity.json\n{\"status\":\"BLOCKED\",\"reasons\":[\"invalid:availableGPU-over-capacity\"]}"
+      }
+    },
+    {
+      "id": "offline-exercise-worked-solution",
+      "title": "Worked solution and failure interpretation",
+      "paragraphs": [
+        "Positive: replicas is 2 and gpusPerReplica is 1, so requiredGPU is 2. capacityGpu and availableGPU are both 4, and availableGPU <= capacityGpu. Therefore demand fits the available subset. totalConcurrency is 2 times 4, or 8. queueBound is 2 times 8, or 16. Evidence is complete and drainComplete is true, so the packet is QUALIFY_FOR_REVIEW.",
+        "Missing: evidence.capacity is false, so the packet is BLOCKED with missing-evidence:capacity. Each named evidence field must be exactly true.",
+        "Changed: observed.capacityGpu is 3 while capacityGpu is 4, producing changed:capacity. drainComplete is false, producing failed:drain. Both reasons are retained.",
+        "Fractional-concurrency and fractional-queue are rejected as invalid declared integers. Inadequate-capacity has requiredGPU=100 and availableGPU=1, so it is BLOCKED with insufficient:GPU. Overavailablecapacity has matching observed values, but availableGPU=100 exceeds capacityGpu=1, so it is BLOCKED with invalid:availableGPU-over-capacity before demand can qualify.",
+        "Malformed JSON fails closed with a malformed-json reason. Missing filenames fail with usage:missing-input-filename. Wrong types, non-finite JSON values, fractions, zero where a positive integer is required, negative values, unsafe integers, unavailable GPU capacity, and oversized derived totals block qualification."
+      ]
+    },
+    {
+      "id": "release-and-recovery-procedure",
+      "title": "Release, diagnosis, rollback, and reconciliation",
+      "paragraphs": [
+        "Before release, compare every model, tokenizer, image, configuration, adapter, dependency, policy, and evaluation identity with the approved packet. Confirm artifact retention, requests and limits, queue and deadline bounds, gateway authorization, egress policy, secret references, telemetry, and owner escalation. Start a canary only after readiness checks pass, then observe errors, latency, queue depth, resource pressure, artifact identity, and authorization failures.",
+        "Diagnostic sequence: record time, release identity, request IDs, and scope without secrets; check gateway authorization and route selection; check readiness, liveness, restarts, and scheduling; compare artifact and configuration digests; inspect queue, active requests, deadlines, and cancellations; inspect CPU, memory, accelerator, storage, and network pressure; test an approved synthetic request; check artifact, secret, control-plane, and telemetry health; stop traffic when a stop condition is met; preserve evidence and escalate.",
+        "For rollback, stop new traffic, bound the drain, and record completed, failed, and UNKNOWN requests. Reconcile external effects using idempotency keys and the owning system procedure. Restore the complete known-good serving unit, not only a Deployment revision. Verify identity, policy, authorization, evaluation, capacity, telemetry, and user-visible postconditions. Kubernetes describes pod termination and graceful shutdown, but deployment rollback does not restore external artifacts, persistent data, downstream effects, or prove in-flight cancellation. Source: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Release and recovery checklist",
+        "code": "BEFORE: compare all identities, policies, dependencies, evidence, owners, and stop conditions.\nRELEASE: verify readiness, route only authorized traffic, observe bounded queue and resource signals.\nDIAGNOSE: preserve secret-free evidence; distinguish request, pod, host, gateway, storage, control-plane, and telemetry failures.\nROLLBACK: stop traffic; drain to a deadline; classify requests; restore the whole known-good packet.\nRECONCILE: separately restore or reconcile artifacts, storage, databases, notifications, billing, and downstream effects.\nCLOSE: mark UNKNOWN where systems disagree; reopen until postconditions and evidence agree."
       }
     },
     {
       "id": "verify-container-service",
       "title": "Expected evidence and verification",
       "paragraphs": [
-        "Expected evidence includes the complete release manifest, signatures or digests, provenance and license disposition, runtime compatibility, least-privilege and network tests, secret-source evidence, representative evaluation and load results, queue and overload behavior, replica and failure-domain behavior, telemetry and alerts, backup or artifact-retention proof, rollback rehearsal, owners, and review date.",
-        "Stop new traffic when artifacts or policy drift, a management interface becomes exposed, a critical evaluation or security case fails, queues lose their bound, the service saturates outside its decision, or the known-good release cannot be restored. Preserve secret-free evidence, contain the narrow boundary, reconcile in-flight and external effects, restore the full compatible unit, and verify identity, authorization, quality, capacity, telemetry, and user-visible postconditions."
+        "A complete evidence packet contains the filled release packet, artifact digests and provenance record, license review decision, runtime and driver records, least-privilege tests, ingress and egress tests, secret-source evidence, representative evaluation results, gateway load results, bounded queue and overload results, replica and failure-domain results, telemetry and alerts, artifact-retention evidence, rollback rehearsal, owners, and review date.",
+        "Stop traffic when artifact or policy identity drifts, a management interface is reachable through serving ingress, a critical evaluation or security case fails, queue bounds are lost, capacity falls below the declared requirement, telemetry cannot support safe operation, the known-good unit cannot be restored, or drain and external-effect reconciliation are incomplete. If evidence is absent, report UNKNOWN rather than infer success.",
+        "This runbook is an educational control and evidence exercise. It makes no claim of actual deployment, security certification, host hardening, cluster certification, model compatibility, license compatibility, or production performance. Synthetic identities and measurements must be replaced with independently collected evidence before any real change is considered."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Final review decision",
+        "code": "QUALIFY_FOR_REVIEW only when the packet is mechanically valid, evidence is present and boolean true, declared and observed capacity match, GPU allocation is available, derived totals are finite and bounded, and drain is complete.\nBLOCKED when any required condition fails.\nUNKNOWN when the evidence needed to decide is absent or contradictory.\nNo result authorizes deployment or certifies security, compatibility, licensing, or performance."
+      }
+    },
+    {
+      "id": "offline-exercise-command-and-rubric",
+      "title": "Commands, exact outputs, changed-input exercise, and worked solution",
+      "paragraphs": [
+        "Run each command separately from the directory containing validator.cjs and the named JSON file. Do not use shell redirection. The positive, missing, and changed outputs remain unchanged. No execution result is claimed here. The output strings below are expected outputs for the supplied validator and inputs.",
+        "The changed-input exercise is intentionally copyable. Start with positive.json, make one specified edit at a time, save under the stated filename, run the command, and compare the complete output with the rubric. A learner must not edit observed values to hide a mismatch. Matching observed values are required for the overavailable-capacity negative test.",
+        "A pass means QUALIFY_FOR_REVIEW only. Boolean evidence is a gate, not proof of external security. The exercise does not establish actual deployment, security certification, model compatibility, latency, throughput, or license status.",
+        "1. Copy positive.json to changed-available.json. Change only declared availableGPU from 4 to 3. Keep observed.availableGPU at 4. Expected: {\"status\":\"BLOCKED\",\"reasons\":[\"changed:availableGPU\"]}. This tests a declaration-versus-observation mismatch.",
+        "2. Copy positive.json to changed-capacity.json. Change only observed.capacityGpu from 4 to 3. Expected: {\"status\":\"BLOCKED\",\"reasons\":[\"changed:capacity\"]}. This tests a whole-device capacity mismatch.",
+        "3. Copy positive.json to changed-drain.json. Change only observed.drainComplete from true to false. Expected: {\"status\":\"BLOCKED\",\"reasons\":[\"failed:drain\"]}. This tests incomplete draining.",
+        "4. Copy positive.json to changed-evidence.json. Change only evidence.artifactDigests from true to false. Expected: {\"status\":\"BLOCKED\",\"reasons\":[\"missing-evidence:artifactDigests\"]}. This tests the evidence gate.",
+        "5. Copy positive.json to changed-demand.json. Change only replicas from 2 to 5. Expected: {\"status\":\"BLOCKED\",\"reasons\":[\"insufficient:GPU\"]}, because requiredGPU becomes 5 while availableGPU remains 4.",
+        "6. Run overavailablecapacity.json without edits. Expected: {\"status\":\"BLOCKED\",\"reasons\":[\"invalid:availableGPU-over-capacity\"]}. This is the repaired regression case: availableGPU=100 is not a valid subset of capacityGpu=1.",
+        "7. For every rubric item, check that the output is BLOCKED when specified, that no QUALIFY_FOR_REVIEW result is accepted for a negative case, and that the reason identifies the changed or violated invariant. A parser-message suffix for malformed JSON is variable and should be checked by its malformed-json prefix."
       ]
     }
   ],
@@ -65,31 +275,49 @@
       "title": "Docker Engine security",
       "url": "https://docs.docker.com/engine/security/",
       "publisher": "Docker",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Docker resource constraints",
       "url": "https://docs.docker.com/engine/containers/resource_constraints/",
       "publisher": "Docker",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Kubernetes Deployments",
       "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
       "publisher": "Kubernetes",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "Kubernetes resource management for Pods and containers",
       "url": "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
       "publisher": "Kubernetes",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Kubernetes Pod lifecycle and termination",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination",
+      "publisher": "Kubernetes",
+      "lastVerified": "2026-09-20"
     },
     {
       "title": "KServe generative inference runtime overview",
       "url": "https://kserve.github.io/website/docs/model-serving/generative-inference/overview",
       "publisher": "KServe",
-      "lastVerified": "2026-09-13"
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Node.js 22 modules documentation",
+      "url": "https://nodejs.org/docs/latest-v22.x/api/modules.html",
+      "publisher": "OpenJS Foundation",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Node.js 22 fs.readFileSync documentation",
+      "url": "https://nodejs.org/docs/latest-v22.x/api/fs.html#fsreadfilesyncpath-options",
+      "publisher": "OpenJS Foundation",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
