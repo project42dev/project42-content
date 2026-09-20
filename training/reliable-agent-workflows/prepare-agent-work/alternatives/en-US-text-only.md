@@ -95,6 +95,10 @@ If correct: You distinguished policy permission, action capacity, and exact appr
 
 If retrying: Find the first controller check that fails. Approval cannot replace policy, budget cannot add permission, and stale authorization cannot act on a new revision.
 
+## Checkpoint: Prediction Evidence Checkpoint
+
+Learner action: Compare all three recorded predictions with the actual fixture results, mark each as correct or revise it, and identify the first failed control for every case. Continue only after the learner has accounted for all three terminal outcomes and confirmed that each pre-effect block has zero effects.
+
 ## Demonstration: Unknown Outcome Recovery
 
 Run node controller.js --scenario uncertain --recover. The write fixture creates a receipt but reports an unknown result. The original terminal remains FAILED_WITH_RECOVERY_EVIDENCE. Recovery looks up the operation key before considering a retry, finds one effect, and reports retryPerformed=false. This avoids a duplicate write. The ledger is bounded to thirty-two in-memory records and disappears when the process exits. It is not durable idempotency, distributed concurrency control, production security, or compliance evidence.
