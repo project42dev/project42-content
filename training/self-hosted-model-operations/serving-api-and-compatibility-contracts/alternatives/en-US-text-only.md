@@ -111,11 +111,15 @@ Sources:
 
 Checkpoint. The port responds and the alias is p42-qwen3-06b, but the model hash was not recorded. Is the service ready for the conformance run? State the evidence you still need and the routing decision.
 
+Learner action: Checkpoint. The port responds and the alias is p42-qwen3-06b, but the model hash was not recorded. Is the service ready for the conformance run? State the evidence you still need and the routing decision.
+
 Sources:
 
 - <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
 
 ## Pause: Serving Practical Run Pinned Cpu Service Pause
+
+Visual alternative: Keep the pin table and three answer fields static. Use text labels for pause, extend, and continue.
 
 ## Feedback: Serving Practical Run Pinned Cpu Service Feedback
 
@@ -158,11 +162,15 @@ Sources:
 
 Checkpoint. A client deadline expires after the server has accepted a request. The client then reconnects successfully. What can you claim, what must remain unknown, and what evidence should you collect before calling this recovery?
 
+Learner action: Checkpoint. A client deadline expires after the server has accepted a request. The client then reconnects successfully. What can you claim, what must remain unknown, and what evidence should you collect before calling this recovery?
+
 Sources:
 
 - <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
 
 ## Pause: Serving Practical Diagnose Contract Failures Pause
+
+Visual alternative: Show the timeout event, reconnect event, and three static answer columns. Do not animate a request lifecycle.
 
 ## Feedback: Serving Practical Diagnose Contract Failures Feedback
 
@@ -191,12 +199,16 @@ Sources:
 
 Checkpoint. Candidate B uses different wire names but preserves all four semantic fields. Candidate C accepts the request but drops explanation and reports a matching model alias. Which candidate can pass the offline gate, and why does the other candidate remain HOLD? Include the deployment-authorization boundary.
 
+Learner action: Checkpoint. Candidate B uses different wire names but preserves all four semantic fields. Candidate C accepts the request but drops explanation and reports a matching model alias. Which candidate can pass the offline gate, and why does the other candidate remain HOLD? Include the deployment-authorization boundary.
+
 Sources:
 
 - <https://docs.python.org/3/library/unittest.html>
 - <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
 
 ## Pause: Serving Practical Compare Two Adapters Pause
+
+Visual alternative: Present the candidate comparison as a static table with no animated arrows. Keep the causal answer fields visible.
 
 ## Feedback: Serving Practical Compare Two Adapters Feedback
 
@@ -224,11 +236,15 @@ Sources:
 
 Checkpoint. A request has category account_recovery and confidential set to integer 1. Should the ChangedAdapter escalate it? Name the validation result and the reason, then state what a valid changed request would produce.
 
+Learner action: Checkpoint. A request has category account_recovery and confidential set to integer 1. Should the ChangedAdapter escalate it? Name the validation result and the reason, then state what a valid changed request would produce.
+
 Sources:
 
 - <https://docs.python.org/3/library/unittest.html>
 
 ## Pause: Serving Practical Practice Changed Contract Pause
+
+Visual alternative: Show the request fields and expected output as static text. Do not imply live code execution or automatic test feedback.
 
 ## Feedback: Serving Practical Practice Changed Contract Feedback
 
@@ -254,11 +270,15 @@ Sources:
 
 Checkpoint. Port 11842 is occupied by a process with a different executable path, while the recorded service PID is gone. What should the stop operation do, and what evidence is needed before retrying recovery?
 
+Learner action: Checkpoint. Port 11842 is occupied by a process with a different executable path, while the recorded service PID is gone. What should the stop operation do, and what evidence is needed before retrying recovery?
+
 Sources:
 
 - <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
 
 ## Pause: Serving Practical Rehearse Owned Recovery Pause
+
+Visual alternative: Show the recorded and observed PID, path, start time, and port in a static comparison table.
 
 ## Feedback: Serving Practical Rehearse Owned Recovery Feedback
 
@@ -285,22 +305,56 @@ Sources:
 
 ## Pause: Activity Work Time
 
-## Assessment Handoff: Assessment Handoff
+Visual alternative: Display the evidence checklist and named files as static text. Controls are represented by labels for pause, extend, save, and continue, without animated UI claims.
 
-Submit when your evidence shows exact artifact identity, a bounded live observation record, causal diagnosis with unknown boundaries, both fictional adapter mappings, the changed-task result, and an ownership-checked recovery rehearsal. The graded changed task must show that the protected harness substituted your ChangedAdapter, that the original adapter's expected rejection is reported as ContractError, and that original base cases remain intact. Include the mutation exercise evidence: an unchanged copy of conformance.py and tests, removal of only the exact missing-DONE guard in the practice copy, the expected failure, restoration, and all eight tests passing. Include the changed-port result, fresh receipt, ownership evidence, and cleanup. Do not convert OFFLINE_ELIGIBLE into deployment authorization. Do not claim server-side cancellation, production security, multiuser authentication, gateway rate limits, or benchmark performance unless separate evidence exists.
+# Reduced-motion practical equivalent
 
-Learner action: Review the evidence bundle, correct unsupported claims, and choose Begin knowledge check only after the practical work is complete.
+All activities can be completed from static text, tables, transcript, and learner-entered notes. No animated server diagram, live dashboard, automatic test result, or imagined control is required. Use the named module and assets, but do not reproduce command blocks. Keep exact 64-character hashes in static tables or learner records, not in spoken narration.
 
-Sources:
+## Static field mapping and evidence table
 
-- <https://docs.python.org/3/library/unittest.html>
-- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+| Exercise stage | Inputs or evidence | Learner action | Boundary to preserve |
+|---|---|---|---|
+| Pinned setup | Runtime archive and model names, hashes, revisions, complete DLL tree | Compare recorded values and mark ready only after exact evidence | Alias and open port do not prove artifact identity |
+| Live client | Nine named observations plus separate missing-key 401 | Record observed result and limitation | One qualifying run is not a benchmark |
+| Timeout | Client deadline and later request receipt | Separate client fact, server unknown, and recovery evidence | Timeout does not prove cancellation |
+| Lifecycle | PID, executable path, startTimeUtc, port, and caller-held key | Stop only an owned process within one-second start tolerance | Refuse unrelated PID or path |
+| Adapter matrix | Six rows, three fixtures, two fictional adapters | Compare normalized semantic outcomes | Wire differences are acceptable only when behavior is preserved |
+| Changed task | Actual Boolean, account-recovery category, derived label | Implement and test ChangedAdapter | Original adapter rejection is ContractError, not model failure |
+| Mutation task | Practice copies and unchanged canonical tests | Remove one guard, observe failure, restore, run all eight | Never edit canonical tests |
+| Rollback | Prior immutable-style reference and every original fixture | Restore and rerun all fixtures | `OFFLINE_ELIGIBLE` is never deployment authorization |
 
-## Closing: Class Closing
+## Static checkpoints
 
-Carry the boundary forward: exact identity precedes readiness, client observations do not prove server cancellation, compatibility is only the tested subset, changed contracts require changed tests, and recovery must prove ownership before stopping anything. Your practical evidence should make both the successful behavior and the unknown behavior visible. Keep the adapter portable, the cutover reversible, and synthetic offline eligibility separate from deployment authorization.
+### Checkpoint 1: readiness
+A port responds and the alias matches, but the model hash is absent. **Answer after attempting:** live may be supported; readiness and routing are held until model and runtime hashes, revisions, complete-tree verification, and authenticated identity evidence exist.
 
-# Practical serving lab: text-only equivalent
+### Checkpoint 2: timeout
+A client deadline expires and a later request succeeds. **Answer after attempting:** the deadline and later receipt are observations. Server cancellation and absence of first-request work remain unknown. Obtain server-owned cancellation evidence before claiming cancellation.
+
+### Checkpoint 3: adapters
+B changes wire fields but preserves all four semantic fields. C drops explanation and reports a matching alias. **Answer after attempting:** B can be `OFFLINE_ELIGIBLE` only within complete synthetic gates. C is `HOLD` because a required outcome was lost. Neither authorizes deployment.
+
+### Checkpoint 4: ownership
+A different executable owns the expected port and the recorded PID is gone. **Answer after attempting:** refuse to stop. Preserve evidence, resolve the conflict outside the helper, create a newly owned service, obtain a fresh receipt, and retry ownership-checked recovery.
+
+## Learner work sequence
+
+1. Verify Windows x64, PowerShell 7.6.6 or later, .NET 10.0.12, Python 3.13.9, pinned assets, hashes, revisions, and full runtime tree.
+2. Start the loopback service on 11842, collect identity and client v5 evidence, and record every unknown boundary.
+3. Run lifecycle negatives and the start, identity, stop, restart, identity, stop sequence.
+4. Run both fictional adapters over the same three fixtures and inspect normalized results, six matrix rows, exact identities, metrics, evidence label, and rollback rerun.
+5. Create the new practice folder, perform the exact missing-`DONE` mutation and restoration, then implement ChangedAdapter and pass the protected changed tests. The original adapter's expected ContractError is a passing contract-test result, not a substitute for passing the changed implementation.
+6. Exercise port 11901 and retain fresh receipt and ownership evidence.
+7. Submit the evidence table and debrief, including that TLS, multiuser authentication, gateway rate limits, production audit, and server-side cancellation are outside observed scope.
+
+## Expected evidence and answers
+
+The live receipt should retain the nine named observations, with server-side cancellation marked not observed. The adapter exercise should produce six matrix rows, three fixtures, six adapter runs, HOLD for the flawed candidate, OFFLINE_ELIGIBLE for the corrected candidate when all synthetic gates pass, and rollback with rerun count three. The changed task must show actual Boolean validation, derived confidential account-recovery transport labeling, four-field normalized output without a confidential field, original base-case preservation, and the original adapter's expected ContractError. The mutation exercise must show expected failure after removing only the exact guard and all eight tests after restoration.
+
+**Sources:** [pinned llama.cpp server documentation](https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md), [Qwen3 model page](https://huggingface.co/Qwen/Qwen3-0.6B), [Python unittest](https://docs.python.org/3/library/unittest.html), [Python deepcopy](https://docs.python.org/3/library/copy.html), and [Python isfinite](https://docs.python.org/3/library/math.html#math.isfinite).
+
+Learner action: # Practical serving lab: text-only equivalent
 
 Use the named module `modules/self-hosted-model-operations/lab/serving-contract/`. Do not copy or retype command blocks from this supplement. Select the module's documented setup, client v5, lifecycle, conformance, adapter, and changed-task entry points.
 
@@ -385,3 +439,18 @@ A different executable owns the expected port and the recorded service PID is go
 Submit artifact identity, live observation table, causal diagnoses, adapter matrix and output, changed-task test evidence, mutation exercise evidence, changed-port result, fresh receipt, ownership proof, cleanup result, rollback rerun, and unknown boundaries. State explicitly that this is one qualifying run and not a benchmark. State explicitly that server-side cancellation was not observed and that synthetic eligibility is not deployment authorization.
 
 **Sources:** [pinned llama.cpp server documentation](https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md), [Qwen3 model page](https://huggingface.co/Qwen/Qwen3-0.6B), [Python unittest](https://docs.python.org/3/library/unittest.html), [Python deepcopy](https://docs.python.org/3/library/copy.html), and [Python isfinite](https://docs.python.org/3/library/math.html#math.isfinite). The original class sources remain context for its five core sections and cutover acceptance.
+
+## Assessment Handoff: Assessment Handoff
+
+Submit when your evidence shows exact artifact identity, a bounded live observation record, causal diagnosis with unknown boundaries, both fictional adapter mappings, the changed-task result, and an ownership-checked recovery rehearsal. The graded changed task must show that the protected harness substituted your ChangedAdapter, that the original adapter's expected rejection is reported as ContractError, and that original base cases remain intact. Include the mutation exercise evidence: an unchanged copy of conformance.py and tests, removal of only the exact missing-DONE guard in the practice copy, the expected failure, restoration, and all eight tests passing. Include the changed-port result, fresh receipt, ownership evidence, and cleanup. Do not convert OFFLINE_ELIGIBLE into deployment authorization. Do not claim server-side cancellation, production security, multiuser authentication, gateway rate limits, or benchmark performance unless separate evidence exists.
+
+Learner action: Review the evidence bundle, correct unsupported claims, and choose Begin knowledge check only after the practical work is complete.
+
+Sources:
+
+- <https://docs.python.org/3/library/unittest.html>
+- <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
+
+## Closing: Class Closing
+
+Carry the boundary forward: exact identity precedes readiness, client observations do not prove server cancellation, compatibility is only the tested subset, changed contracts require changed tests, and recovery must prove ownership before stopping anything. Your practical evidence should make both the successful behavior and the unknown behavior visible. Keep the adapter portable, the cutover reversible, and synthetic offline eligibility separate from deployment authorization.

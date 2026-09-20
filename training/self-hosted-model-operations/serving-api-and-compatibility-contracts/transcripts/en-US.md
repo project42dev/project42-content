@@ -1,6 +1,6 @@
 # Expose a Model Service without Hiding Its Contract
 
-Package: `serving-api-and-compatibility-contracts-class` 1.1.0
+Package: `serving-api-and-compatibility-contracts-class` 1.1.3
 
 > This is the canonical text equivalent of an AI-assisted virtual-instructor
 > class. It remains usable without synthesized audio, video, animation, or a
@@ -102,6 +102,8 @@ Sources:
 
 Checkpoint. The port responds and the alias is p42-qwen3-06b, but the model hash was not recorded. Is the service ready for the conformance run? State the evidence you still need and the routing decision.
 
+Expected learner action: Checkpoint. The port responds and the alias is p42-qwen3-06b, but the model hash was not recorded. Is the service ready for the conformance run? State the evidence you still need and the routing decision.
+
 Sources:
 
 - <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
@@ -149,6 +151,8 @@ Sources:
 
 Checkpoint. A client deadline expires after the server has accepted a request. The client then reconnects successfully. What can you claim, what must remain unknown, and what evidence should you collect before calling this recovery?
 
+Expected learner action: Checkpoint. A client deadline expires after the server has accepted a request. The client then reconnects successfully. What can you claim, what must remain unknown, and what evidence should you collect before calling this recovery?
+
 Sources:
 
 - <https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md>
@@ -181,6 +185,8 @@ Sources:
 ## Checkpoint: Serving Practical Compare Two Adapters Checkpoint
 
 Checkpoint. Candidate B uses different wire names but preserves all four semantic fields. Candidate C accepts the request but drops explanation and reports a matching model alias. Which candidate can pass the offline gate, and why does the other candidate remain HOLD? Include the deployment-authorization boundary.
+
+Expected learner action: Checkpoint. Candidate B uses different wire names but preserves all four semantic fields. Candidate C accepts the request but drops explanation and reports a matching model alias. Which candidate can pass the offline gate, and why does the other candidate remain HOLD? Include the deployment-authorization boundary.
 
 Sources:
 
@@ -215,6 +221,8 @@ Sources:
 
 Checkpoint. A request has category account_recovery and confidential set to integer 1. Should the ChangedAdapter escalate it? Name the validation result and the reason, then state what a valid changed request would produce.
 
+Expected learner action: Checkpoint. A request has category account_recovery and confidential set to integer 1. Should the ChangedAdapter escalate it? Name the validation result and the reason, then state what a valid changed request would produce.
+
 Sources:
 
 - <https://docs.python.org/3/library/unittest.html>
@@ -244,6 +252,8 @@ Sources:
 ## Checkpoint: Serving Practical Rehearse Owned Recovery Checkpoint
 
 Checkpoint. Port 11842 is occupied by a process with a different executable path, while the recorded service PID is gone. What should the stop operation do, and what evidence is needed before retrying recovery?
+
+Expected learner action: Checkpoint. Port 11842 is occupied by a process with a different executable path, while the recorded service PID is gone. What should the stop operation do, and what evidence is needed before retrying recovery?
 
 Sources:
 
@@ -275,6 +285,92 @@ Sources:
 - <https://docs.python.org/3/library/unittest.html>
 
 ## Pause: Activity Work Time
+
+Expected learner action: # Practical serving lab: text-only equivalent
+
+Use the named module `modules/self-hosted-model-operations/lab/serving-contract/`. Do not copy or retype command blocks from this supplement. Select the module's documented setup, client v5, lifecycle, conformance, adapter, and changed-task entry points.
+
+## 1. Run the pinned CPU service
+
+Work on Windows x64 with PowerShell 7.6.6 or later, .NET 10.0.12, and Python 3.13.9. Other PowerShell versions are not independently qualified. Verify these named assets and their evidence separately:
+
+| Field | Required value or boundary |
+|---|---|
+| Runtime | `llama-b10964-bin-win-cpu-x64.zip`, 18,427,629 bytes, commit `b29c606e28a01b1bc8c1351026a0fa6e616bf6c4`, SHA-256 `917f39c076402c421224824607397af20f53625a60defc20e8dd22446bf4c5d7` |
+| Model | `Qwen3-0.6B-Q8_0.gguf`, 639,446,688 bytes, revision `23749fefcc72300e3a2ad315e1317431b06b590a`, SHA-256 `9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031` |
+| Service | Windows x64 loopback, port `11842`, alias `p42-qwen3-06b` |
+| Setup boundary | Complete runtime DLL tree, controlled workspace, no temporary directory, cache and actual HTTPS download paths verified |
+
+Have the caller commands generate one lifecycle API secret, retain that same key across Start, client, and Stop for the owned lifecycle, and remove it after owned stop in nested cleanup. Setup does not generate this secret.
+
+### Checkpoint A
+A port response and expected alias are present, but the model hash is absent. Mark the service live or ready, list missing evidence, and choose a routing action.
+
+**Pause:** spend 60 seconds or extend as needed.
+
+**Answer:** It may be live, but hold readiness and routing. Collect the model and runtime hashes, revisions, complete-tree verification, and authenticated identity evidence. An alias is not cryptographic artifact proof.
+
+## 2. Collect live conformance
+
+Run the client and record the nine named observations: health, wrong-key rejection, alias, bounded completion, stream with `DONE` and text, early disconnect, recovery, client timeout, and overload sample. This is one observed run; server-side cancellation remains unknown. Keep setup and restart ownership evidence as an independent evidence class. Record missing-key 401 separately. The 30-second ordinary budget, 30-second stream bound, deliberate 50-millisecond timeout, and 12-second overload sample are test conditions, not performance guarantees. Nondeterministic generation and timing are never guaranteed. Four sampled concurrent outcomes do not prove queue, capacity, gateway, or rate-limit behavior. Early disconnect does not prove server-side cancellation.
+
+Use this evidence table:
+
+| Observation | Record | Do not claim |
+|---|---|---|
+| Health | status and endpoint result | authentication success |
+| Wrong key | authenticated 401 | universal auth coverage |
+| Stream | terminal `DONE` and text | every streaming edge case |
+| Disconnect | client closure point | server cancellation |
+| Timeout | client deadline expiry | no server work |
+| Overload | sampled outcomes | capacity or rate-limit guarantee |
+
+## 3. Diagnose contract failures
+
+For each failure, identify the first violated contract, preserve the receipt, choose hold or repair, and rerun the smallest affected gate. A wrong revision is an identity and readiness failure. An occupied port is a lifecycle failure. An unrelated PID is an ownership safety failure. The qualified lifecycle negatives are existing-file preservation, corrupted archive, occupied port, and unrelated-PID refusal. The positive sequence is caller-generated key, start, same-key identity, owned stop, restart, same-key identity, and owned stop. Setup does not own secret generation.
+
+### Checkpoint B
+A client deadline expires, then a later request succeeds. State the observed facts, the unknown fact, and the evidence needed before claiming recovery.
+
+**Pause:** spend 75 seconds or extend as needed.
+
+**Answer:** The client deadline expired. A later request may have succeeded if it has its own receipt. Server cancellation and whether the first request continued are unknown. Server-owned cancellation telemetry and bounded recovery evidence are needed.
+
+## 4. Compare two fictional adapters
+
+Use the adapter exercise's three semantic fixtures with both fictional adapters. Preserve exactly `requestId`, `category`, `explanation`, and `modelArtifactId`. Adapter A maps to `ticket_id`, `kind`, `reason`, and `artifact`. Adapter B maps to `id`, `label`, `description`, and `model_id`, trimming explanation. Require six matrix rows and label required, transformed, rejected, and unavailable behavior. Reject unknown fields, unsupported tools, malformed values, mutated caller input, duplicate fixture IDs, missing or incorrect identities, Boolean metrics, nonfinite metrics, negative metrics, overflow, incomplete coverage, and consequential regressions.
+
+The expected fixed result lines are `MATRIX_ROWS=6`, `FIXTURES=3 ADAPTER_RUNS=6 PASS`, `FLAWED_CANDIDATE=HOLD`, `CORRECTED_CANDIDATE=OFFLINE_ELIGIBLE`, and `ROLLBACK=OFFLINE_ELIGIBLE RERUN=3`. The JSON result must retain `deploymentAuthorization: false` and scope `offline synthetic fictional adapters`. Do not call this real-server compatibility or deployment approval.
+
+### Checkpoint C
+Candidate B changes wire names but preserves all four semantic fields. Candidate C drops `explanation` but reports a matching alias. Classify both.
+
+**Pause:** spend 60 seconds or extend as needed.
+
+**Answer:** B may be `OFFLINE_ELIGIBLE` within the synthetic scope if every gate passes. C is `HOLD` because dropping a required user-visible field changes behavior. Neither result authorizes deployment.
+
+## 5. Practice the changed contract
+
+Copy `conformance.py` and the unchanged tests into a new practice folder. Remove only the exact missing-`DONE` guard in the practice copy, run it to observe the expected failure, restore the guard, and obtain all eight tests passing. Do not edit canonical files.
+
+Implement `ChangedAdapter.map_request` and `normalize_response`. Accept `confidential` only when it is an actual Boolean. Permit true only with category `account_recovery`. Derive transport label `confidential_account_recovery`; require the response to carry the same flag and escalated label. Normalize to four fields with escalated category and no confidential field. Reject unknown fields, caller-supplied escalated category, wrong IDs or artifacts, missing escalation, and malformed values. The protected harness substitutes the learner class. The original adapter should fail the changed case with `ContractError`, which is the expected passing contract-test result, not a model-capability result. The learner's ChangedAdapter must pass the protected changed tests, not merely observe the original adapter's rejection. Run the separate answer after attempting the task. Preserve original base cases.
+
+## 6. Rehearse owned recovery
+
+Exercise changed port `11901`. The old port `11842` should yield `ConnectionRefused`; another error is not proof. Obtain a fresh receipt, verify PID, executable path, and startTimeUtc within one second, run client start and stop with the caller-generated key held consistently, and clean up only the owned process. Retain the full cutover matrix, safety, latency, and observability gates. Loopback does not implement TLS, multiuser authentication, gateway rate limits, or production audit.
+
+### Checkpoint D
+A different executable owns the expected port and the recorded service PID is gone. The stop operation must refuse. Preserve the evidence, resolve the conflict outside the helper, establish a newly owned service, collect a fresh receipt, and retry the safe sequence.
+
+**Pause:** spend 60 seconds or extend as needed.
+
+**Answer:** Never stop by port alone. A matching PID, path, and start time are required. Refusal protects unrelated work.
+
+## Evidence and debrief
+
+Submit artifact identity, live observation table, causal diagnoses, adapter matrix and output, changed-task test evidence, mutation exercise evidence, changed-port result, fresh receipt, ownership proof, cleanup result, rollback rerun, and unknown boundaries. State explicitly that this is one qualifying run and not a benchmark. State explicitly that server-side cancellation was not observed and that synthetic eligibility is not deployment authorization.
+
+**Sources:** [pinned llama.cpp server documentation](https://github.com/ggml-org/llama.cpp/blob/b29c606e28a01b1bc8c1351026a0fa6e616bf6c4/tools/server/README.md), [Qwen3 model page](https://huggingface.co/Qwen/Qwen3-0.6B), [Python unittest](https://docs.python.org/3/library/unittest.html), [Python deepcopy](https://docs.python.org/3/library/copy.html), and [Python isfinite](https://docs.python.org/3/library/math.html#math.isfinite). The original class sources remain context for its five core sections and cutover acceptance.
 
 ## Assessment Handoff: Assessment Handoff
 
