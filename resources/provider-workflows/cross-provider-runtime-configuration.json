@@ -2,7 +2,7 @@
   "id": "cross-provider-runtime-configuration",
   "slug": "cross-provider-runtime-configuration",
   "title": "Cross-Provider Runtime Configuration Contract",
-  "summary": "Separate application intent from Anthropic, OpenAI, and Google credentials, models, API versions, state, capabilities, and operational limits without pretending their APIs are equivalent.",
+  "summary": "This supplement preserves the existing provider-neutral contract and its Anthropic, OpenAI, and Google scope while broadening the lesson with hosted Mistral chat completions and Ollama native local chat. It supplies a complete synthetic ticket-classification configuration, strict runnable validation, provider-specific request construction, protected and changed-input tests, safe file creation, fallback authorization, and causal repair feedback. All model labels and receipts are explicitly fictitious offline fixtures. Actual model availability, installation, account approval, policy approval, locality, no-egress status, performance, costs, and live outcomes remain UNKNOWN.",
   "category": "Provider workflows",
   "format": "template",
   "audience": [
@@ -59,6 +59,140 @@
         "Expected evidence is a reviewed contract plus provider-specific startup and smoke-test results. Verify missing-secret failures, model and API allowlists, capability probes, schema handling, tool authorization, state and retention behavior, timeouts, retry budgets, redaction, and provider-attributed metrics. Test every configured fallback with synthetic data.",
         "On invalid configuration, stop before serving traffic. Rollback by restoring the last verified configuration fingerprint and provider adapter, then rerun startup, smoke, and policy checks. If a provider becomes unavailable, use a pre-approved fallback only when its capability and data-policy gates pass; otherwise return a clear unavailable state and preserve the incident evidence."
       ]
+    },
+    {
+      "id": "completed-fictional-case",
+      "title": "Completed case: non-sensitive ticket classification",
+      "paragraphs": [
+        "The fictional application classifies synthetic support tickets into billing, access, bug, or other, with priority 1 through 5 and a nonempty application-owned trace identifier. The application owns this output schema, domain validation, trace contract, retention behavior, redaction, and unavailable-state behavior. Provider adapters only translate requests and responses.",
+        "The primary adapter uses Mistral hosted chat completions. Ollama native local chat is configured but disabled as a fallback. The Qwen-family label is fictitious and does not assert that a model is installed, local, capable, or approved. A learner may replace it only after updating the explicit allowlist and obtaining dated operator evidence.",
+        "The configuration contains only a secret environment-variable name. SYNTHETIC resolver values used by the tests are not credentials. The capability receipts are review evidence strings, not deployment gates or proof of runtime capability."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Synthetic offline configuration represented by BASE in reference.py",
+        "code": "{\n  \"version\": \"ticket-classification-v3\",\n  \"application\": \"support-ticket-classifier\",\n  \"data_policy\": {\n    \"classification\": \"non-sensitive\",\n    \"region\": \"operator-approved-region\",\n    \"retention_owner\": \"application\",\n    \"retention\": \"trace metadata only; ticket text excluded from durable logs\"\n  },\n  \"primary\": \"mistral-hosted\",\n  \"fallback\": {\n    \"enabled\": false,\n    \"target\": null,\n    \"approval_id\": null,\n    \"reason\": \"Fallback is disabled for initial deployment\"\n  },\n  \"limits\": {\n    \"timeout_seconds\": 12,\n    \"max_retries\": 1,\n    \"overall_budget_seconds\": 24\n  },\n  \"providers\": [\n    {\n      \"id\": \"mistral-hosted\",\n      \"provider\": \"mistral\",\n      \"interface\": \"chat-completions\",\n      \"endpoint\": \"https://api.mistral.ai/v1/chat/completions\",\n      \"model\": \"mistral-hosted-fictitious-fixture\",\n      \"secret_env\": \"MISTRAL_API_KEY\",\n      \"allow_redirects\": false,\n      \"capability_receipt\": \"SYNTHETIC_FIXTURE_NOT_RUNTIME_EVIDENCE\",\n      \"capability_receipt_version\": \"SYNTHETIC-1\",\n      \"data_policy_evidence\": \"SYNTHETIC_NON_SENSITIVE_POLICY_FIXTURE\"\n    },\n    {\n      \"id\": \"ollama-local-synthetic\",\n      \"provider\": \"ollama\",\n      \"interface\": \"native-local-chat\",\n      \"endpoint\": \"http://127.0.0.1:11434/api/chat\",\n      \"model\": \"qwen-family-local-fictitious-fixture\",\n      \"secret_env\": null,\n      \"allow_redirects\": false,\n      \"capability_receipt\": \"SYNTHETIC_FIXTURE_NOT_OPERATOR_EVIDENCE\",\n      \"capability_receipt_version\": \"SYNTHETIC-1\",\n      \"data_policy_evidence\": \"UNKNOWN_REQUIRES_LOCALITY_AND_NO_EGRESS_EVIDENCE\"\n    }\n  ]\n}"
+      }
+    },
+    {
+      "id": "field-reasoning-and-correction",
+      "title": "Field-by-field reasoning, permission boundaries, and a flawed case",
+      "paragraphs": [
+        "version identifies the application contract, not a provider API version. application identifies the owning service. data_policy records classification, region, retention owner, and retention rule. primary must match one provider identity. limits bound each attempt, retries, and the overall execution.",
+        "Each provider entry has a unique id and an explicitly allowlisted provider, interface, endpoint, and fictitious model tuple. secret_env is either the required environment-variable name or null for this native-local fixture. allow_redirects must be exactly false. Exact endpoints plus URL checks reject query strings, fragments, and user information that could expose credentials.",
+        "capability_receipt and data_policy_evidence are review records. Static validation proves only structure and fixture-allowlist membership. It does not prove provider approval, runtime availability, policy compliance, local weights, or blocked egress.",
+        "Flawed case: a developer combines a Qwen-family model string with the Mistral endpoint, embeds a key, follows redirects, silently retries through localhost, and accepts any JSON object. Correction: reject mixed tuples, resolve secrets only at the approved boundary, disable redirects, preserve provider-specific shapes, validate application fields, and return unavailable when no approved path remains.",
+        "Application ownership covers input classification, output validation, trace identifiers, retention, redaction, retry decisions, and fallback authorization. The adapter owns protocol translation. The secret resolver owns credential values. Operators and governance owners supply actual approvals, availability checks, capability evidence, locality evidence, and no-egress evidence."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Concrete failure and scoped recovery",
+        "code": "Failure: hosted primary is unavailable.\nScoped recovery: do not alter the model string or silently switch interfaces. Preserve the incident reason and return unavailable while fallback is disabled.\nApproved extension: enable one distinct allowlisted fallback only after its decision-level capability evidence, data-policy evidence, approval ID, and total budget validate.\nRestricted data gate: require dated evidence of local model installation and no egress. Localhost and a model-name string are insufficient."
+      }
+    },
+    {
+      "id": "provider-interface-distinctions",
+      "title": "Mistral and Ollama are different interfaces",
+      "paragraphs": [
+        "Mistral documents POST /v1/chat/completions with required model and messages containing role and content. Streaming defaults to false. Responses contain choices and usage, and response_format can request a JSON schema. Models and token limits are model-specific, so deployment must select an actually available model from the models API. Source checked 2026-09-20: https://docs.mistral.ai/api/endpoint/chat",
+        "Ollama documents native POST /api/chat with model and messages. Native streaming defaults to true, so this lesson sets stream to false. Responses expose message.content, done, done_reason, duration fields in nanoseconds, and evaluation counts. These are not Mistral choices or hosted usage fields. Source checked 2026-09-20: https://docs.ollama.com/api/chat",
+        "Ollama documents no authentication for its local API and bearer authentication for cloud access. A signed-in local runtime can invoke cloud models, so localhost does not establish offline execution. Native, cloud, and compatibility interfaces must remain distinct. Sources checked 2026-09-20: https://docs.ollama.com/api/authentication and https://docs.ollama.com/api/introduction"
+      ],
+      "code": {
+        "language": "python",
+        "label": "Documented response-shape distinction",
+        "code": "def parse_mistral_response(response):\n    return response[\"choices\"][0][\"message\"][\"content\"]\n\n\ndef parse_ollama_response(response):\n    if response.get(\"done\") is not True:\n        raise ValueError(\"incomplete Ollama response\")\n    return response[\"message\"][\"content\"]"
+      }
+    },
+    {
+      "id": "reference-implementation",
+      "title": "Complete stdlib reference implementation",
+      "paragraphs": [
+        "Save this complete code as reference.py. It makes no network request. json.loads rejects malformed JSON, explicit type checks reject bool-as-int, math.isfinite rejects NaN and infinity, urlparse exposes unsafe URL components, re.fullmatch validates secret names, deepcopy prevents mutation, and os.O_EXCL prevents overwrite.",
+        "The original validator permits only the four-field disabled fallback. The internal allow_fallback switch supports the changed requirement without weakening validate_config. Provider tuple scalar types and fallback target types are checked before hash lookups."
+      ],
+      "code": {
+        "language": "python",
+        "label": "reference.py",
+        "code": "import copy\nimport hashlib\nimport json\nimport math\nimport os\nimport re\nfrom urllib.parse import urlparse\n\nNAME = re.compile(r\"^[A-Z][A-Z0-9_]{1,127}$\")\nALLOWED = {\n    (\"mistral\", \"chat-completions\", \"https://api.mistral.ai/v1/chat/completions\", \"mistral-hosted-fictitious-fixture\"): \"MISTRAL_API_KEY\",\n    (\"ollama\", \"native-local-chat\", \"http://127.0.0.1:11434/api/chat\", \"qwen-family-local-fictitious-fixture\"): None,\n}\nOUTPUT_SCHEMA = {\n    \"type\": \"object\",\n    \"properties\": {\n        \"category\": {\"type\": \"string\", \"enum\": [\"billing\", \"access\", \"bug\", \"other\"]},\n        \"priority\": {\"type\": \"integer\", \"minimum\": 1, \"maximum\": 5},\n        \"trace_id\": {\"type\": \"string\"},\n    },\n    \"required\": [\"category\", \"priority\", \"trace_id\"],\n    \"additionalProperties\": False,\n}\nBASE = {\n    \"version\": \"ticket-classification-v3\",\n    \"application\": \"support-ticket-classifier\",\n    \"data_policy\": {\n        \"classification\": \"non-sensitive\", \"region\": \"operator-approved-region\",\n        \"retention_owner\": \"application\", \"retention\": \"trace metadata only\"\n    },\n    \"primary\": \"mistral-hosted\",\n    \"fallback\": {\"enabled\": False, \"target\": None, \"approval_id\": None, \"reason\": \"disabled\"},\n    \"limits\": {\"timeout_seconds\": 12, \"max_retries\": 1, \"overall_budget_seconds\": 24},\n    \"providers\": [\n        {\n            \"id\": \"mistral-hosted\", \"provider\": \"mistral\", \"interface\": \"chat-completions\",\n            \"endpoint\": \"https://api.mistral.ai/v1/chat/completions\",\n            \"model\": \"mistral-hosted-fictitious-fixture\", \"secret_env\": \"MISTRAL_API_KEY\",\n            \"allow_redirects\": False, \"capability_receipt\": \"SYNTHETIC\",\n            \"capability_receipt_version\": \"SYNTHETIC-1\", \"data_policy_evidence\": \"SYNTHETIC\"\n        },\n        {\n            \"id\": \"ollama-local-synthetic\", \"provider\": \"ollama\", \"interface\": \"native-local-chat\",\n            \"endpoint\": \"http://127.0.0.1:11434/api/chat\",\n            \"model\": \"qwen-family-local-fictitious-fixture\", \"secret_env\": None,\n            \"allow_redirects\": False, \"capability_receipt\": \"SYNTHETIC_NOT_OPERATOR_EVIDENCE\",\n            \"capability_receipt_version\": \"SYNTHETIC-1\",\n            \"data_policy_evidence\": \"UNKNOWN_REQUIRES_LOCALITY_AND_NO_EGRESS_EVIDENCE\"\n        },\n    ],\n}\nSECRETS = {\"MISTRAL_API_KEY\": \"SYNTHETIC_RESOLVER_VALUE_A\"}\n\n\ndef json_value(value):\n    if value is None or isinstance(value, (str, bool, int)):\n        return\n    if isinstance(value, float):\n        if not math.isfinite(value):\n            raise ValueError(\"non-finite number\")\n        return\n    if isinstance(value, list):\n        for item in value:\n            json_value(item)\n        return\n    if isinstance(value, dict):\n        for key, item in value.items():\n            if not isinstance(key, str):\n                raise TypeError(\"non-string JSON key\")\n            json_value(item)\n        return\n    raise TypeError(\"unsupported JSON value\")\n\n\ndef _validate(config, secrets, allow_fallback=False):\n    json_value(config)\n    if not isinstance(config, dict) or not isinstance(secrets, dict):\n        raise TypeError(\"config and resolver must be objects\")\n    top = {\"version\", \"application\", \"data_policy\", \"primary\", \"fallback\", \"limits\", \"providers\"}\n    if set(config) != top:\n        raise ValueError(\"wrong top-level fields\")\n    for key in (\"version\", \"application\"):\n        if not isinstance(config[key], str) or not config[key].strip():\n            raise ValueError(\"blank application identity\")\n\n    policy = config[\"data_policy\"]\n    policy_fields = {\"classification\", \"region\", \"retention_owner\", \"retention\"}\n    if not isinstance(policy, dict) or set(policy) != policy_fields:\n        raise ValueError(\"invalid data policy\")\n    if any(not isinstance(policy[k], str) or not policy[k].strip() for k in policy_fields):\n        raise ValueError(\"blank data-policy value\")\n\n    limits = config[\"limits\"]\n    limit_fields = {\"timeout_seconds\", \"max_retries\", \"overall_budget_seconds\"}\n    if not isinstance(limits, dict) or set(limits) != limit_fields:\n        raise ValueError(\"invalid limits\")\n    for key in limit_fields:\n        if isinstance(limits[key], bool) or not isinstance(limits[key], int) or limits[key] < 0:\n            raise ValueError(\"limits must be nonnegative integers\")\n    if limits[\"timeout_seconds\"] == 0:\n        raise ValueError(\"timeout must be positive\")\n    if limits[\"timeout_seconds\"] * (limits[\"max_retries\"] + 1) > limits[\"overall_budget_seconds\"]:\n        raise ValueError(\"primary attempt budget exceeded\")\n\n    providers = config[\"providers\"]\n    provider_fields = {\n        \"id\", \"provider\", \"interface\", \"endpoint\", \"model\", \"secret_env\", \"allow_redirects\",\n        \"capability_receipt\", \"capability_receipt_version\", \"data_policy_evidence\"\n    }\n    if not isinstance(providers, list) or not providers:\n        raise ValueError(\"nonempty providers list required\")\n    ids = set()\n    for provider in providers:\n        if not isinstance(provider, dict) or set(provider) != provider_fields:\n            raise ValueError(\"invalid provider fields\")\n        if not isinstance(provider[\"id\"], str) or not provider[\"id\"].strip() or provider[\"id\"] in ids:\n            raise ValueError(\"missing or duplicate provider identity\")\n        ids.add(provider[\"id\"])\n        tuple_names = (\"provider\", \"interface\", \"endpoint\", \"model\")\n        if any(not isinstance(provider[k], str) or not provider[k].strip() for k in tuple_names):\n            raise ValueError(\"provider tuple fields must be nonempty strings\")\n        tuple_key = tuple(provider[k] for k in tuple_names)\n        if tuple_key not in ALLOWED:\n            raise ValueError(\"unsupported provider tuple\")\n        parsed = urlparse(provider[\"endpoint\"])\n        if (parsed.scheme not in {\"http\", \"https\"} or not parsed.hostname or parsed.username or\n                parsed.password or parsed.query or parsed.fragment):\n            raise ValueError(\"unsafe endpoint\")\n        if provider[\"allow_redirects\"] is not False:\n            raise ValueError(\"redirects must be disabled\")\n        expected_env = ALLOWED[tuple_key]\n        if provider[\"secret_env\"] != expected_env:\n            raise ValueError(\"wrong secret environment name\")\n        if expected_env is not None:\n            value = secrets.get(expected_env)\n            if not NAME.fullmatch(expected_env) or not isinstance(value, str) or not value:\n                raise ValueError(\"missing secret resolver input\")\n        for key in (\"capability_receipt\", \"capability_receipt_version\", \"data_policy_evidence\"):\n            if not isinstance(provider[key], str) or not provider[key].strip():\n                raise ValueError(\"blank evidence\")\n\n    by_id = {provider[\"id\"]: provider for provider in providers}\n    if not isinstance(config[\"primary\"], str) or config[\"primary\"] not in by_id:\n        raise ValueError(\"invalid primary\")\n\n    fallback = config[\"fallback\"]\n    base_fields = {\"enabled\", \"target\", \"approval_id\", \"reason\"}\n    extended_fields = base_fields | {\"fallback_capability_evidence\", \"fallback_data_policy_evidence\"}\n    if not isinstance(fallback, dict):\n        raise ValueError(\"fallback must be an object\")\n    fallback_fields = set(fallback)\n    if not allow_fallback and fallback_fields != base_fields:\n        raise ValueError(\"original fallback requires four fields\")\n    if allow_fallback and fallback_fields != base_fields and fallback_fields != extended_fields:\n        raise ValueError(\"invalid fallback fields\")\n    if not isinstance(fallback[\"enabled\"], bool):\n        raise ValueError(\"fallback enabled must be boolean\")\n    if not isinstance(fallback[\"reason\"], str) or not fallback[\"reason\"].strip():\n        raise ValueError(\"invalid fallback reason\")\n    if not fallback[\"enabled\"]:\n        if fallback_fields != base_fields:\n            raise ValueError(\"disabled fallback cannot carry approval evidence\")\n        if fallback[\"target\"] is not None or fallback[\"approval_id\"] is not None:\n            raise ValueError(\"disabled fallback target and approval must be null\")\n    else:\n        if not allow_fallback or fallback_fields != extended_fields:\n            raise ValueError(\"enabled fallback is not allowed by this validator\")\n        target = fallback[\"target\"]\n        if not isinstance(target, str) or target not in by_id or target == config[\"primary\"]:\n            raise ValueError(\"invalid fallback target\")\n        if not isinstance(fallback[\"approval_id\"], str) or not fallback[\"approval_id\"].strip():\n            raise ValueError(\"missing fallback approval\")\n        for key in (\"fallback_capability_evidence\", \"fallback_data_policy_evidence\"):\n            if not isinstance(fallback[key], str) or not fallback[key].strip():\n                raise ValueError(\"missing fallback evidence\")\n    return copy.deepcopy(config)\n\n\ndef validate_config(config, secrets):\n    return _validate(config, secrets, allow_fallback=False)\n\n\ndef build_request(config, messages, secrets):\n    checked = validate_config(config, secrets)\n    if not isinstance(messages, list) or not messages:\n        raise ValueError(\"nonempty messages list required\")\n    for message in messages:\n        if not isinstance(message, dict) or set(message) != {\"role\", \"content\"}:\n            raise ValueError(\"invalid message fields\")\n        if message[\"role\"] not in {\"system\", \"user\", \"assistant\"}:\n            raise ValueError(\"invalid message role\")\n        if not isinstance(message[\"content\"], str) or not message[\"content\"].strip():\n            raise ValueError(\"invalid message content\")\n    provider = next(p for p in checked[\"providers\"] if p[\"id\"] == checked[\"primary\"])\n    body = {\"model\": provider[\"model\"], \"messages\": copy.deepcopy(messages), \"stream\": False}\n    if provider[\"provider\"] == \"mistral\":\n        body[\"response_format\"] = {\n            \"type\": \"json_schema\", \"json_schema\": {\"name\": \"ticket\", \"schema\": OUTPUT_SCHEMA}\n        }\n    else:\n        body[\"format\"] = OUTPUT_SCHEMA\n    return {\n        \"endpoint\": provider[\"endpoint\"], \"interface\": provider[\"interface\"],\n        \"auth_env\": provider[\"secret_env\"], \"allow_redirects\": False, \"body\": body\n    }\n\n\ndef validate_output(text):\n    value = json.loads(text)\n    if not isinstance(value, dict) or set(value) != {\"category\", \"priority\", \"trace_id\"}:\n        raise ValueError(\"wrong output fields\")\n    if value[\"category\"] not in {\"billing\", \"access\", \"bug\", \"other\"}:\n        raise ValueError(\"invalid category\")\n    if isinstance(value[\"priority\"], bool) or not isinstance(value[\"priority\"], int):\n        raise ValueError(\"priority must be an integer\")\n    if not 1 <= value[\"priority\"] <= 5:\n        raise ValueError(\"priority outside domain\")\n    if not isinstance(value[\"trace_id\"], str) or not value[\"trace_id\"].strip():\n        raise ValueError(\"invalid trace\")\n    return copy.deepcopy(value)\n\n\ndef safe_fingerprint(config, secrets):\n    checked = validate_config(config, secrets)\n    redacted = copy.deepcopy(checked)\n    for provider in redacted[\"providers\"]:\n        if provider[\"secret_env\"] is not None:\n            provider[\"secret_env\"] = \"SECRET_REF\"\n    payload = json.dumps(redacted, sort_keys=True, separators=(\",\", \":\"))\n    return hashlib.sha256(payload.encode(\"utf-8\")).hexdigest()\n\n\ndef create_new_config(path, config, secrets):\n    checked = validate_config(config, secrets)\n    serialized = json.dumps(checked, sort_keys=True, separators=(\",\", \":\"))\n    if not isinstance(path, (str, bytes, os.PathLike)):\n        raise TypeError(\"path must be path-like\")\n    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)\n    try:\n        with os.fdopen(fd, \"w\", encoding=\"utf-8\") as handle:\n            handle.write(serialized)\n    except Exception:\n        try:\n            os.close(fd)\n        except OSError:\n            pass\n        raise"
+      }
+    },
+    {
+      "id": "original-protected-tests",
+      "title": "Seven original protected tests",
+      "paragraphs": [
+        "Save this file as test_reference.py beside reference.py. These seven tests cover valid input without mutation, mixed tuples, secret and URL rejection, strict scalar handling, duplicate identities, secret-free request construction, output validation, and fingerprint independence from resolver values."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_reference.py",
+        "code": "import copy\nimport math\nimport unittest\nfrom reference import BASE, SECRETS, build_request, safe_fingerprint, validate_config, validate_output\n\n\nclass Protected(unittest.TestCase):\n    def test_valid_and_no_mutation(self):\n        before = copy.deepcopy(BASE)\n        validate_config(BASE, SECRETS)\n        self.assertEqual(BASE, before)\n\n    def test_bad_tuple(self):\n        config = copy.deepcopy(BASE)\n        config[\"providers\"][0][\"endpoint\"] = \"http://127.0.0.1:11434/api/chat\"\n        with self.assertRaises(ValueError):\n            validate_config(config, SECRETS)\n\n    def test_secret_and_url_rejections(self):\n        config = copy.deepcopy(BASE)\n        config[\"providers\"][0][\"secret_env\"] = \"bad-name\"\n        with self.assertRaises(ValueError):\n            validate_config(config, SECRETS)\n        config = copy.deepcopy(BASE)\n        config[\"providers\"][0][\"endpoint\"] = \"https://user:pass@api.mistral.ai/v1/chat/completions\"\n        with self.assertRaises(ValueError):\n            validate_config(config, SECRETS)\n\n    def test_strict_values(self):\n        config = copy.deepcopy(BASE)\n        config[\"limits\"][\"max_retries\"] = True\n        with self.assertRaises(ValueError):\n            validate_config(config, SECRETS)\n        config = copy.deepcopy(BASE)\n        config[\"limits\"][\"timeout_seconds\"] = math.nan\n        with self.assertRaises(ValueError):\n            validate_config(config, SECRETS)\n        config = copy.deepcopy(BASE)\n        config[\"providers\"].append(copy.deepcopy(config[\"providers\"][0]))\n        with self.assertRaises(ValueError):\n            validate_config(config, SECRETS)\n\n    def test_request_has_no_secret(self):\n        request = build_request(\n            BASE,\n            [{\"role\": \"user\", \"content\": \"Synthetic ticket: invoice is wrong\"}],\n            SECRETS,\n        )\n        self.assertEqual(request[\"interface\"], \"chat-completions\")\n        self.assertNotIn(\"SYNTHETIC_RESOLVER_VALUE_A\", repr(request))\n        self.assertIs(request[\"allow_redirects\"], False)\n        self.assertIs(request[\"body\"][\"stream\"], False)\n\n    def test_output(self):\n        result = validate_output('{\"category\":\"billing\",\"priority\":2,\"trace_id\":\"t-1\"}')\n        self.assertEqual(result[\"priority\"], 2)\n        with self.assertRaises((ValueError, TypeError)):\n            validate_output('{\"category\":\"billing\",\"priority\":true,\"trace_id\":\"t-1\"}')\n\n    def test_fingerprint_secret_independence(self):\n        altered = {\"MISTRAL_API_KEY\": \"SYNTHETIC_RESOLVER_VALUE_B\"}\n        self.assertEqual(safe_fingerprint(BASE, SECRETS), safe_fingerprint(BASE, altered))\n        changed = copy.deepcopy(BASE)\n        changed[\"version\"] = \"ticket-classification-v4\"\n        self.assertNotEqual(safe_fingerprint(BASE, SECRETS), safe_fingerprint(changed, SECRETS))\n        self.assertNotIn(\"SYNTHETIC_RESOLVER_VALUE_A\", safe_fingerprint(BASE, SECRETS))\n\n\nif __name__ == \"__main__\":\n    unittest.main()"
+      }
+    },
+    {
+      "id": "hardening-and-write-tests",
+      "title": "Additional malformed-input and no-overwrite tests",
+      "paragraphs": [
+        "Save this file as test_hardening.py. It separately tests malformed provider tuple scalars, an unhashable fallback target, disabled six-field evidence bypass, missing resolver input, all-path preflight before file creation, and preservation of existing bytes.",
+        "The first writer test supplies invalid configuration and confirms no path is created. The second confirms O_EXCL refuses an existing destination without changing its bytes. The writer performs validation and serialization before os.open, so every deterministic preflight finishes before any filesystem write."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_hardening.py",
+        "code": "import copy\nimport os\nimport tempfile\nimport unittest\nfrom reference import BASE, SECRETS, _validate, create_new_config, validate_config\n\n\nclass Hardening(unittest.TestCase):\n    def test_malformed_provider_tuple_scalar(self):\n        config = copy.deepcopy(BASE)\n        config[\"providers\"][0][\"model\"] = [\"not\", \"hashable\"]\n        with self.assertRaises((TypeError, ValueError)):\n            validate_config(config, SECRETS)\n\n    def test_malformed_fallback_target(self):\n        config = copy.deepcopy(BASE)\n        config[\"fallback\"] = {\n            \"enabled\": True, \"target\": [\"not\", \"hashable\"], \"approval_id\": \"APPROVED-1\",\n            \"reason\": \"synthetic outage\", \"fallback_capability_evidence\": \"synthetic evidence\",\n            \"fallback_data_policy_evidence\": \"synthetic evidence\"\n        }\n        with self.assertRaises(ValueError):\n            _validate(config, SECRETS, allow_fallback=True)\n\n    def test_disabled_six_field_evidence_bypass(self):\n        config = copy.deepcopy(BASE)\n        config[\"fallback\"][\"fallback_capability_evidence\"] = \"synthetic evidence\"\n        config[\"fallback\"][\"fallback_data_policy_evidence\"] = \"synthetic evidence\"\n        with self.assertRaises(ValueError):\n            _validate(config, SECRETS, allow_fallback=True)\n\n    def test_missing_resolver_input(self):\n        with self.assertRaises(ValueError):\n            validate_config(BASE, {})\n\n    def test_failed_preflight_creates_no_file(self):\n        config = copy.deepcopy(BASE)\n        config[\"limits\"][\"max_retries\"] = True\n        with tempfile.TemporaryDirectory() as directory:\n            path = os.path.join(directory, \"config.json\")\n            with self.assertRaises(ValueError):\n                create_new_config(path, config, SECRETS)\n            self.assertFalse(os.path.exists(path))\n\n    def test_refusal_preserves_existing_bytes(self):\n        with tempfile.TemporaryDirectory() as directory:\n            path = os.path.join(directory, \"config.json\")\n            original = b\"existing protected bytes\"\n            with open(path, \"wb\") as handle:\n                handle.write(original)\n            with self.assertRaises(FileExistsError):\n                create_new_config(path, BASE, SECRETS)\n            with open(path, \"rb\") as handle:\n                self.assertEqual(handle.read(), original)\n\n\nif __name__ == \"__main__\":\n    unittest.main()"
+      }
+    },
+    {
+      "id": "independent-changed-task",
+      "title": "Independent task: authorize one evidenced fallback",
+      "paragraphs": [
+        "Changed requirement: permit the synthetic Ollama entry as a fallback only when a nonblank approval identifier, decision-level capability evidence, and decision-level data-policy evidence are present. The target must be a distinct validated provider. Its provider record must still carry its own capability and data-policy evidence.",
+        "Worst-case accounting includes max_retries + 1 primary attempts plus one fallback attempt. The accepted case is 8 * (1 + 2) = 24 seconds: one configured retry produces two primary attempts, then one fallback attempt. The rejected case is 12 * 3 = 36, which exceeds an overall budget of 20.",
+        "These five tests retain the original validator check. If validate_config_with_approved_fallback is replaced with the original validate_config, test_extended_accepts_changed_input fails while the original suite remains unchanged."
+      ],
+      "code": {
+        "language": "python",
+        "label": "test_changed.py",
+        "code": "import copy\nimport unittest\nfrom answer import validate_config_with_approved_fallback\nfrom reference import BASE, SECRETS, validate_config\n\nCHANGED = copy.deepcopy(BASE)\nCHANGED[\"limits\"] = {\"timeout_seconds\": 8, \"max_retries\": 1, \"overall_budget_seconds\": 24}\nCHANGED[\"fallback\"] = {\n    \"enabled\": True,\n    \"target\": \"ollama-local-synthetic\",\n    \"approval_id\": \"FALLBACK-APPROVAL-001\",\n    \"reason\": \"synthetic primary outage\",\n    \"fallback_capability_evidence\": \"reviewed synthetic capability receipt\",\n    \"fallback_data_policy_evidence\": \"reviewed non-sensitive policy receipt\",\n}\n\n\nclass Changed(unittest.TestCase):\n    def test_original_rejects_changed_input(self):\n        with self.assertRaises(ValueError):\n            validate_config(CHANGED, SECRETS)\n\n    def test_extended_accepts_changed_input(self):\n        result = validate_config_with_approved_fallback(CHANGED, SECRETS)\n        self.assertEqual(result[\"fallback\"][\"target\"], \"ollama-local-synthetic\")\n\n    def test_missing_evidence_fails(self):\n        config = copy.deepcopy(CHANGED)\n        del config[\"fallback\"][\"fallback_capability_evidence\"]\n        with self.assertRaises(ValueError):\n            validate_config_with_approved_fallback(config, SECRETS)\n\n    def test_budget_failure_is_causal(self):\n        config = copy.deepcopy(CHANGED)\n        config[\"limits\"] = {\"timeout_seconds\": 12, \"max_retries\": 1, \"overall_budget_seconds\": 20}\n        with self.assertRaises(ValueError):\n            validate_config_with_approved_fallback(config, SECRETS)\n\n    def test_same_provider_fails(self):\n        config = copy.deepcopy(CHANGED)\n        config[\"fallback\"][\"target\"] = \"mistral-hosted\"\n        with self.assertRaises(ValueError):\n            validate_config_with_approved_fallback(config, SECRETS)\n\n\nif __name__ == \"__main__\":\n    unittest.main()"
+      }
+    },
+    {
+      "id": "complete-changed-answer",
+      "title": "Complete answer after the changed task",
+      "paragraphs": [
+        "Save this as answer.py. The extended helper is called directly on the changed input. It validates provider records, the six-field enabled fallback, target identity, approval, and evidence before the wrapper applies the combined attempt budget. It does not normalize the fallback before validation.",
+        "The returned deep copy prevents callers from using the result to mutate the validated input. The function still cannot establish that the evidence strings are genuine deployment approvals."
+      ],
+      "code": {
+        "language": "python",
+        "label": "answer.py",
+        "code": "import copy\nfrom reference import _validate\n\n\ndef validate_config_with_approved_fallback(config, secrets):\n    checked = _validate(config, secrets, allow_fallback=True)\n    fallback = checked[\"fallback\"]\n    if not fallback[\"enabled\"]:\n        return copy.deepcopy(checked)\n    limits = checked[\"limits\"]\n    attempts = limits[\"max_retries\"] + 2\n    worst_case_seconds = limits[\"timeout_seconds\"] * attempts\n    if worst_case_seconds > limits[\"overall_budget_seconds\"]:\n        raise ValueError(\"primary plus fallback exceeds total budget\")\n    return copy.deepcopy(checked)"
+      }
+    },
+    {
+      "id": "execution-and-causal-feedback",
+      "title": "Run everything and interpret the repair",
+      "paragraphs": [
+        "Use Python 3 in an empty directory. Save reference.py, test_reference.py, test_hardening.py, answer.py, and test_changed.py, then run the commands below. Expected deterministic offline results are 7 original tests, 6 hardening tests, and 5 changed tests passing. These expected results are not live provider outcomes.",
+        "The prior faulty expression attempted to construct a set containing base_fields and extended_fields, which are themselves mutable sets. Python therefore raised TypeError: unhashable type: 'set' on valid input before request building and fingerprinting could complete. The repair compares fallback_fields directly with base_fields and extended_fields. It preserves the intended four-field original contract and six-field enabled extension.",
+        "The recovery is scoped rather than permissive. Scalar guards run before provider tuple lookup, and a string guard runs before fallback target lookup. Disabled fallbacks cannot smuggle six-field evidence through the extended helper. Missing resolver input fails without returning or printing the value.",
+        "The changed-input failure is causal: 8 * 3 equals the accepted budget of 24, while 12 * 3 equals 36 and exceeds 20. Replacing the extended callable with the original validator causes the acceptance test to fail because the original intentionally rejects six fallback fields."
+      ],
+      "code": {
+        "language": "bash",
+        "label": "Setup, execution, and expected results",
+        "code": "mkdir runtime-contract-v3\ncd runtime-contract-v3\n# Save the five supplied files here.\npython -m unittest -v test_reference.py\npython -m unittest -v test_hardening.py\npython -m unittest -v test_changed.py\n# Expected offline fixture results:\n# Ran 7 tests ... OK\n# Ran 6 tests ... OK\n# Ran 5 tests ... OK"
+      }
+    },
+    {
+      "id": "live-gate-and-authoritative-sources",
+      "title": "Optional live smoke gate, limitations, and sources",
+      "paragraphs": [
+        "No live request is part of this exercise. Before an optional Mistral smoke test, an operator must select an actually available and approved model from the models API and set an approved secret resolver. Before Ollama use, the operator must verify installation, the exact selected model, native local serving, and no-egress controls. Use synthetic ticket text only and configure the HTTP client not to follow redirects.",
+        "Record dated startup and smoke evidence for the exact provider, interface, endpoint, and model. Check schema handling, redaction, timeout behavior, and unavailable-state behavior. A static model or capability receipt does not replace account, policy, data-handling, or deployment approval. Until observed, availability, approvals, installation, locality, no egress, performance, costs, and live outcomes are UNKNOWN.",
+        "Python mechanisms used here are documented at https://docs.python.org/3/library/json.html, https://docs.python.org/3/library/math.html#math.isfinite, https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlparse, https://docs.python.org/3/library/re.html, https://docs.python.org/3/library/copy.html#copy.deepcopy, and https://docs.python.org/3/library/os.html#os.O_EXCL. These documentation sources were checked in the supplied research on 2026-09-20.",
+        "The existing provider-neutral lesson continues to cover distinct Anthropic, OpenAI, and Google adapters rather than claiming equivalent APIs. Official starting points checked in the supplied research on 2026-09-20 are https://platform.claude.com/docs/en/get-started, https://developers.openai.com/api/docs/quickstart, and https://ai.google.dev/gemini-api/docs/api-key. Mistral and Ollama add choices without removing those original boundaries."
+      ]
     }
   ],
   "sources": [
@@ -79,6 +213,66 @@
       "url": "https://ai.google.dev/gemini-api/docs/api-key",
       "publisher": "Google",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Chat completion API",
+      "url": "https://docs.mistral.ai/api/endpoint/chat",
+      "publisher": "Mistral AI",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Generate a chat message",
+      "url": "https://docs.ollama.com/api/chat",
+      "publisher": "Ollama",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "API authentication",
+      "url": "https://docs.ollama.com/api/authentication",
+      "publisher": "Ollama",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "API introduction",
+      "url": "https://docs.ollama.com/api/introduction",
+      "publisher": "Ollama",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Python json library reference",
+      "url": "https://docs.python.org/3/library/json.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Python math library reference",
+      "url": "https://docs.python.org/3/library/math.html#math.isfinite",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Python urllib.parse library reference",
+      "url": "https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlparse",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Python re library reference",
+      "url": "https://docs.python.org/3/library/re.html",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Python copy library reference",
+      "url": "https://docs.python.org/3/library/copy.html#copy.deepcopy",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-20"
+    },
+    {
+      "title": "Python os library reference",
+      "url": "https://docs.python.org/3/library/os.html#os.O_EXCL",
+      "publisher": "Python Software Foundation",
+      "lastVerified": "2026-09-20"
     }
   ]
 }
