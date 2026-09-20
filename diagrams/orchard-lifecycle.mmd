@@ -1,20 +1,17 @@
 flowchart TD
     accTitle: The Orchard content lifecycle
-    accDescr: Scheduled discovery, scheduled currency inspection, and content requests feed a shared proposal queue. Gate 1 authorizes authoring. Failed review returns work for correction. Gate 2 binds approval to an exact artifact. Publication, platform release, site deployment, and live verification are separate steps that can each hold until their evidence is complete.
+    accDescr: Scheduled discovery, scheduled currency inspection, and content requests feed a shared proposal queue. Gate 1 authorizes authoring. Failed review returns work for correction. Gate 2 binds approval to an exact reviewed revision. Publication, platform release, site deployment, and live verification remain separate evidence-bearing steps.
 
-    subgraph INTAKE["Three intake paths, one proposal queue"]
-        discovery["Discovery: monthly on the 1st"] --> queue["Shared proposal queue"]
-        currency["Currency: monthly on the 15th"] --> queue
-        request["Labeled content request"] --> queue
-    end
-
+    discovery["Discovery: monthly on the 1st"] --> queue["Shared proposal queue"]
+    currency["Currency: monthly on the 15th"] --> queue
+    request["Labeled content request"] --> queue
     queue --> gate1{"Gate 1: approve the proposal?"}
     gate1 -->|no| stop1["No authoring authority"]
     gate1 -->|yes| tracker["Link the work item"]
     tracker --> author["Research and author the artifact"]
     author --> review{"Factual and assessment review pass?"}
     review -->|no| rework["Correct the draft with review findings"]
-    rework --> author
+    rework -->|correct and resubmit| author
     review -->|yes| gate2{"Gate 2: approve this exact artifact?"}
     gate2 -->|no| rework
     gate2 -->|yes| pull["Open a content pull request"]
@@ -22,9 +19,8 @@ flowchart TD
     merge --> release["Release the platform content package"]
     release --> deploy["Update the learner site package pin"]
     deploy --> verify["Verify the lesson is live"]
-
     hold["Any failed check holds the item with its reason"]
-    review -.-> hold
-    merge -.-> hold
-    release -.-> hold
-    verify -.-> hold
+    review -.->|failed review holds| hold
+    merge -.->|failed merge check holds| hold
+    release -.->|failed release check holds| hold
+    verify -.->|failed live check holds| hold
