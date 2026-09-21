@@ -3,38 +3,104 @@
 Present every visual as a complete static composition. Do not make completion
 depend on animation timing, autoplay, or pointer gestures.
 
-## token-units-explanation
+## welcome
 
-Display all illustrative splits simultaneously as numbered text rows and mark them as examples rather than animated tokenization.
+Show the complete title card without animation.
 
-Text alternative: The same human sentence can be represented as words, word pieces, punctuation, and spaces. Exact token boundaries depend on the tokenizer.
+Text alternative: Context, Tokens, and Modalities lesson title with learning goals and a fictional-evidence notice.
 
-## token-budget-demonstration
+## tokens-explained
 
-Show the completed budget table at once and identify the discussed row with a visible text marker.
+Present all examples simultaneously without animated splitting.
 
-Text alternative: The budget counts instructions, history, documents, tool definitions, retrieved evidence, and output reserve. Duplicates and irrelevant material are removed before authoritative evidence.
+Text alternative: Illustrative token forms include a short word, word piece, punctuation, space, and code fragment. Boundaries vary.
 
-## context-working-set-explanation
+## context-working-set
 
-Present the container and external record as a complete static diagram with text labels and no animated filling.
+Show both areas side by side without movement.
 
-Text alternative: Instructions, history, evidence, tools, results, and output occupy a bounded working set. Durable facts remain in a controlled external record.
+Text alternative: The context window is a bounded working set. Durable information is stored separately in a controlled external record.
 
-## selection-and-structure-explanation
+## select-and-label-context
 
-Show every manifest section simultaneously and use focus plus a text heading to identify the current section.
+Show the complete table without animated row insertion.
 
-Text alternative: The context manifest labels each input by role and trust. Durable approvals and state stay outside the model context in controlled records.
+Text alternative: Context inventory template for documenting each candidate input and the reason for inclusion or exclusion.
 
-## modality-checks-explanation
+## modality-quality-checks-narration
 
-Present the full table statically. Use a row label and focus border instead of animated modality changes.
+Show the complete table without animation, waveform motion, video, or flashing.
 
-Text alternative: Text, image, audio, video, and documents have different failure modes. Each row preserves the original, checks quality, and provides an accessible alternative.
+Text alternative: Different modalities have different failure modes. Provide accessible alternatives and verify important claims against original artifacts.
 
-## multimodal-verification-demonstration
+## modality-quality-checks
 
-Display all five numbered steps at once and mark uncertainty using both text and an icon.
+Show the complete table without animation, waveform motion, video, or flashing.
 
-Text alternative: The workflow inspects the complete image, creates and verifies a text transcription, marks unreadable content, transforms only verified text, and compares the checklist with the original.
+Text alternative: Different modalities have different failure modes. Provide accessible alternatives and verify important claims against original artifacts.
+
+## worked-evidence-dossier
+
+Show all rows in a fixed table with text labels.
+
+Text alternative: Fictional dossier: P-01 is authoritative; N-01, S-01, and readable I-01 are supporting; U-01 is untrusted; N-00 is superseded; R-01 is irrelevant.
+
+## worked-context-inventory
+
+Show the inventory and durable-record list as static text.
+
+Text alternative: Completed context inventory with source decisions and a separate list of facts requiring controlled external storage.
+
+## complete-compact-packet-narration
+
+Show every packet block in a fixed layout.
+
+Text alternative: Complete compact context packet retaining the objective, source boundaries, safety-critical evidence, uncertainty, verification, and durable-record actions.
+
+## complete-compact-packet
+
+Show every packet block in a fixed layout.
+
+Text alternative: Complete compact context packet retaining the objective, source boundaries, safety-critical evidence, uncertainty, verification, and durable-record actions.
+
+## synthetic-budget-demonstration
+
+Show all equations together without animated counters or moving bars.
+
+Text alternative: Synthetic budget arithmetic: 830 included versus 800 allowed is 30 over. The 485-unit revision leaves 315 units. All values are assumed exercise units.
+
+## changed-input-prompt
+
+Show the entire task without countdown animation or automatic answer-key opening.
+
+Text alternative: Independent task: remove P-01 or reduce the limit to 1,000 assumed units, then explain consequences, verification, uncertainty, and durable records.
+
+## changed-input-work-pause
+
+Use a static textual time notice instead of an animated countdown.
+
+Text alternative: Silent 75-second work period for the changed-input task with a learner-controlled continue option.
+
+## changed-input-explained-feedback
+
+Present both paths simultaneously without animated reveals or scoring effects.
+
+Text alternative: Feedback: without P-01 the complete policy is unknown. With a 1,000-unit limit, 600 units are available, the original is 230 over, and a 425-unit packet leaves 175.
+
+## activity-handoff
+
+Display all requirements without animated checkmarks or automatic opening.
+
+Text alternative: Activity handoff for activity-context-budget with the required learner evidence.
+
+## knowledge-check-handoff
+
+Show the handoff card without animated completion effects or automatic navigation.
+
+Text alternative: Knowledge-check handoff for five questions about tokens, context, evidence selection, durable records, and multimodal verification.
+
+## closing
+
+Show the closing card without animation or automatic navigation.
+
+Text alternative: Lesson complete: keep context relevant, labeled, accessible, and temporary, and verify important claims against sources.

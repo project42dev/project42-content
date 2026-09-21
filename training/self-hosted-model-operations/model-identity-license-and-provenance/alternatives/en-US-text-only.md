@@ -110,6 +110,38 @@ Sources:
 
 ## Pause: Activity Work Time
 
+## Narration: Provider Evidence Method Lab Narration
+
+For Meta Llama, DeepSeek, Mistral, Qwen, Phi, NVIDIA Nemotron, and Z.ai GLM, begin with the publisher and exact repository rather than a family nickname. Pin an immutable revision and record exact weight, tokenizer, configuration, template, adapter, and quantization files. Record the declared architecture with its source, plus the exact runtime name, version, hardware architecture, and deployment shape actually proposed. For every family, retrieve controlling terms and notices from the pinned publisher source, then trace base and derivative links. Label each claim direct, inferred, unknown, or contradictory. This method does not assert a current license, architecture, permission, benchmark, price, or Open Source AI status for any listed family. Those conclusions require evidence for the exact selected artifact and revision.
+
+Sources:
+
+- <https://opensource.org/ai/open-source-ai-definition>
+
+## Narration: Worked Example Lab Narration
+
+With as-of date 2026-09-20, the decision dated 2026-09-20 has not reached its 30-day expiry. Completeness is 12 of 12, or 100 percent, and the fictional disposition is approve-isolated-evaluation. This does not grant rights, validate a vendor license, prove training lineage, measure model quality, or authorize production.
+
+Sources:
+
+- <https://opensource.org/ai/open-source-ai-definition>
+
+## Narration: Lab Entry Lab Narration
+
+The starter has one bounded defect in decide: after preserving explicit rejection, it approves evidence problems instead of holding. Validation, proposal-to-matrix binding, calendar expiry, artifact containment, and independent tests are already complete. Edit only src/evaluate.mjs. The test runner gathers all cases and treats exceptions as failures. Attempt the repair before consulting the separate reference.
+
+Sources:
+
+- <https://opensource.org/ai/open-source-ai-definition>
+
+## Narration: Learner Variation Lab Narration
+
+Evaluate changeduse.json after the worked example. Its bytes still match, but external API distribution is unknown, so the correct disposition is hold-for-evidence. Independent mutation tests also change proposed use, distribution, or users without changing the matrix. Correct validation rejects each stale matrix because every proposedValue must equal dossier.proposed[row.dimension]. The test suite also checks positive before expiry, on expiry, after expiry, invalid dates, digest and lineage gaps, explicit prohibition, traversal outside artifacts, and a symlink canary when the platform permits it. Repair only the decision priority: direct prohibition rejects; otherwise any missing check or problem holds; only a complete, unexpired, exact isolated-evaluation scope approves.
+
+Sources:
+
+- <https://opensource.org/ai/open-source-ai-definition>
+
 ## Assessment Handoff: Assessment Handoff
 
 Begin the knowledge check when you can identify the complete deployment tuple, limit access claims to evidence, choose controlling terms, preserve lineage gaps, route consequential ambiguity, and recognize re-review triggers. The check begins only when you select Begin knowledge check.
