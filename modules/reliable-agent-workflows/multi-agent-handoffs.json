@@ -8,7 +8,7 @@
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 50,
+  "estimatedMinutes": 100,
   "objectives": [
     "Define when delegation or full control transfer is justified.",
     "Create a versioned handoff packet with intent, evidence, authority, budgets, and return conditions.",
@@ -24,7 +24,9 @@
       "title": "Distinguish a bounded subtask from a transfer of control",
       "paragraphs": [
         "Delegation keeps the parent agent responsible for the final result. The specialist returns a typed artifact that the parent validates and synthesizes. A handoff transfers active control so the specialist continues the interaction under its own instructions.",
-        "Choose deliberately. Use delegation for research, classification, review, or generation that should remain behind a coordinator. Use a handoff when a specialist must own the next user-facing phase and the user can understand that transition."
+        "Choose deliberately. Use delegation for research, classification, review, or generation that should remain behind a coordinator. Use a handoff when a specialist must own the next user-facing phase and the user can understand that transition.",
+        "A framework feature that invokes another agent does not itself determine authorization, safe context, budgets, idempotency, or whether a side effect may be repeated. Those are application guarantees that must be enforced outside model output.",
+        "Checkpoint: if the parent must approve and synthesize the specialist artifact, call the operation delegation. If the specialist becomes the active user-facing role, record an explicit handoff."
       ]
     },
     {
@@ -32,7 +34,10 @@
       "title": "Transfer a contract, not a conversation dump",
       "paragraphs": [
         "A handoff packet should name the run and parent, user goal, reason for routing, accepted facts with provenance, unresolved questions, completed actions and idempotency keys, current artifacts, allowed tools, denied actions, budget, success criteria, and return or escalation conditions.",
-        "Version the packet schema and bind it to a specific recipient role. The receiving agent validates required fields and can reject an incomplete, stale, misrouted, or over-privileged transfer."
+        "Version the packet schema and bind it to a specific recipient role. The receiving application validates required fields and can reject an incomplete, stale, misrouted, or over-privileged transfer.",
+        "The compact packet below remains the portable core. The lab extends it with filtered context, trace identity, completed side effects, recursion depth, transfer cost, an event type, and an explicit receiver decision.",
+        "The JSON Schema documents structural requirements. The shared runtime validator enforces the same types plus semantic rules that JSON Schema cannot conveniently express, including equality between duplicated top-level and receiver-consumed facts and artifacts.",
+        "Validation fails closed. Whitespace-only identifiers, nonstring actions, null constraints, null return conditions, unknown events, absent policy bounds, malformed side-effect records, and inconsistent duplicate data do not activate a receiver."
       ],
       "code": {
         "language": "json",
@@ -44,8 +49,13 @@
       "id": "filter-and-reauthorize",
       "title": "Minimize context and re-evaluate authority",
       "paragraphs": [
-        "Do not forward the full conversation, hidden chain of thought, unrelated personal data, secrets, or every prior tool result. Select only what the specialist needs, preserve source labels, and clearly separate instructions from untrusted material.",
-        "Permissions do not automatically flow downhill. Resolve the recipient's identity and tenant, issue scoped credentials where needed, and require fresh approval if the specialist proposes a target or side effect outside the original grant."
+        "Do not forward the full conversation, hidden chain of thought, unrelated personal data, secrets, or every prior tool result. Select only what the specialist needs, preserve source labels, and separate trusted application instructions from untrusted data.",
+        "Permissions do not automatically flow downhill. Resolve the recipient identity, apply the recipient role policy, and require fresh approval if a proposed side effect falls outside the original grant.",
+        "Effective authority is requested actions intersected with recipient-allowed actions, minus explicitly denied actions. If the request is [read, publish], recipient policy is [read, comment], and denied actions are [publish, delete], the result is [read].",
+        "Checking only that an action is not denied is insufficient. An action must also be affirmatively allowed for the resolved recipient. The sender's requested list is input, not an authorization source.",
+        "Do not conceal the defect by denying everything. The independent variation requests [comment, delete]. A correct implementation preserves comment while removing delete.",
+        "The receiver consumes context.facts and context.artifacts, so those fields receive full type and provenance validation. They must also equal their top-level copies. Checking only top-level facts would permit an unproven fact to reach the receiver.",
+        "Checkpoint: identify all three sets used by the authority calculation and explain why the sender controls only the requested set."
       ],
       "callout": "A handoff can narrow authority; it must never silently widen it."
     },
@@ -53,16 +63,113 @@
       "id": "accept-return-and-escalate",
       "title": "Make both sides acknowledge the transfer",
       "paragraphs": [
-        "The receiver should accept or reject the packet with a reason. On acceptance, record the active agent and transfer time. On return, provide a typed outcome, changed artifacts, evidence, tool actions, remaining uncertainty, and the requested next decision.",
-        "Bound recursive delegation, repeated bounce-backs, and revision loops. If no eligible recipient accepts, required evidence is unavailable, or permissions conflict, escalate with the packet and failure history rather than guessing."
+        "The receiver should accept or reject the packet with a reason. On acceptance, record the active agent. On return, provide a typed outcome, changed artifacts, evidence, tool actions, remaining uncertainty, and the requested next decision.",
+        "Bound recursive delegation, repeated bounce-backs, and revision loops. If no eligible recipient accepts, evidence is unavailable, or permissions conflict, escalate with the packet and failure history rather than guessing.",
+        "A transition consumes budget before receiver work begins. With three incoming turns and a transition cost of one, 3 minus 1 equals 2 work turns. Negative remaining budget is rejected. Zero remaining work turns returns a nonactive paused result instead of claiming that the receiver became active.",
+        "An ambiguous timeout is not evidence that a side effect failed. Preserve the completed-side-effect ledger and idempotency key, set mayRepeatSideEffects to false, and escalate for human review or a separately verified status lookup.",
+        "Return, rejection, pause, and escalation are distinct. A specialist that completed accepted work returns a typed result. A malformed or misrouted packet is rejected. A valid packet with no work turn is paused. An ambiguous timeout or explicit receiver rejection escalates without activating the proposed recipient.",
+        "Checkpoint: ask whether a packet with one incoming turn and a transfer cost of one can activate the specialist. It cannot because no receiver work turn remains."
       ]
     },
     {
       "id": "provider-mappings-and-tests",
       "title": "Map framework features without losing the portable contract",
       "paragraphs": [
-        "OpenAI's Agents SDK represents handoffs as tools and supports typed handoff input and history filtering. Google ADK supports agent-team and workflow structures. Anthropic describes orchestrator-worker and evaluator-optimizer patterns. These examples solve related problems but do not promise identical lifecycle or guardrail behavior.",
-        "Test the product contract independently of the framework: right recipient, minimal context, unchanged authority, trace continuity, bounded recursion, deterministic failure, and verified return artifact. Then add adapter tests for each selected provider implementation."
+        "OpenAI's Agents SDK documents handoffs represented as tools, typed handoff input, and history filtering. Google ADK documents workflow-agent structures. Anthropic describes orchestrator-worker and evaluator-optimizer patterns. These are related orchestration mechanisms, not identical authorization or lifecycle guarantees.",
+        "Test the application contract independently of the framework: recipient identity, minimal validated context, authority intersection, trace continuity, bounded recursion, deterministic failure, and verified return artifacts. Then add adapter tests for each selected integration.",
+        "SDK handoff transport is not application authorization. Typed input and history filtering can transport or reduce data, but the application must still enforce recipient policy, budgets, idempotency, acceptance, and escalation.",
+        "The offline lab does not call OpenAI, Google, Anthropic, or any model endpoint. Its fixtures test deterministic application policy only. A live integration requires authentication, serialization, provider-error, cancellation, streaming, and observed-tool-result tests.",
+        "Fixture completedSideEffects values are supplied data. They are not proof that an external action ran or that a provider approved it.",
+        "Checkpoint: name one guarantee supplied by an SDK adapter and one application guarantee that remains independently testable."
+      ]
+    },
+    {
+      "id": "handoff-invariants",
+      "title": "State and validate the invariants before activation",
+      "paragraphs": [
+        "The shared validator checks packet and policy objects before either learner or reference authorization logic runs. A null policy returns invalid_policy rather than throwing. Policy bounds maxDepth and maxTurns are mandatory nonnegative or positive integers, so deleting them cannot turn depth 999 into an accepted transition.",
+        "Identifiers and action names are trimmed, nonempty strings. Arrays contain values of the documented type. Events are restricted to normal and ambiguous-timeout. Receiver decisions are restricted to accept and reject, and a rejection requires a nonempty reason.",
+        "Context keys must be a subset of policy.contextAllowlist and the packet schema allowlist. Context facts carry nonempty claim and sourceRef values. Context artifacts are strings. Context facts and artifacts must exactly match their top-level duplicates, preventing the receiver from consuming data that passed a weaker check elsewhere.",
+        "For every accepted transition, preserve the original goal, constraints, completed-side-effect ledger, and trace identity. The application copies these values into the transition result instead of asking a model to reconstruct them.",
+        "Visual cue: picture two gates. The validation gate checks structure, provenance, consistency, recipient, event, depth, and budget. The authorization gate calculates the action intersection. Only then may activation occur.",
+        "Checkpoint: explain why shared validation leaves exactly one learner defect. Starter and reference receive the same validated input; only their effectiveActions calculation differs."
+      ]
+    },
+    {
+      "id": "worked-handoff-example",
+      "title": "Work through one accepted transfer",
+      "paragraphs": [
+        "Triage receives the goal Review four claims and constraint Do not publish. It has recorded save-draft-7 as completed. The packet targets curriculum-reviewer, carries trace-authority, requests read and publish, and has three turns.",
+        "First, validate packet and policy types. The recipient equals policy.expectedRecipient. Required identifiers are nonblank. The event is normal. Top-level and context facts and artifacts match, and every receiver-consumed fact has provenance.",
+        "Second, validate the context boundary. Its keys are goal, constraints, traceId, completedSideEffects, facts, and artifacts, all of which appear in the policy allowlist. No untrustedInstruction field reaches the receiver.",
+        "Third, calculate authority: [read, publish] intersect [read, comment] gives [read]. Removing denied [publish, delete] still gives [read].",
+        "Fourth, calculate budget: 3 incoming turns minus 1 transition turn equals 2 remaining receiver turns. Depth 1 does not exceed maxDepth 2.",
+        "The receiver decision is accept, so the result is status accepted, activeAgent curriculum-reviewer, effectiveActions [read], remainingTurns 2, and traceId trace-authority. Goal, constraints, and completed side effects are copied unchanged. No publication or external approval occurred.",
+        "Visual cue: use columns labeled Packet, Policy, and Result. Draw read through both gates, stop publish at the policy gate, and show two receiver work turns.",
+        "Checkpoint: if the result contains publish, the causal defect is that sender-requested authority was copied rather than intersected with recipient policy."
+      ]
+    },
+    {
+      "id": "eight-scenario-traces",
+      "title": "Interpret eight complete fixture traces",
+      "paragraphs": [
+        "correct-transfer is accepted with read and comment. Its result preserves the goal, constraints, completed-side-effect ledger, and trace ID. wrong-recipient is rejected with recipient_mismatch before activation. missing-provenance is rejected because both packet and consumed context contain a fact without sourceRef.",
+        "excessive-permission is accepted only after [read, publish] is narrowed to [read]. It exposes the deliberate starter defect. poisoned-context is rejected because untrustedInstruction is outside the context allowlist; the validator never interprets that text.",
+        "timeout returns escalate with reason ambiguous_timeout, next human, and mayRepeatSideEffects false while preserving the ledger. recursive-bounce is rejected because depth 3 exceeds maxDepth 2. rejected-handoff escalates to a human because the receiver explicitly returns reject with evidence_scope_unclear.",
+        "These traces demonstrate acceptance, rejection, containment, recursion bounds, and human escalation. They do not simulate model quality, network timing, credential issuance, provider approval, or external side effects.",
+        "Visual cue: group accepted traces in green, rejected traces in red, and escalated traces in amber. Show activeAgent only in the accepted group.",
+        "Checkpoint: only correct-transfer and excessive-permission activate the specialist among these eight fixtures."
+      ]
+    },
+    {
+      "id": "node22-repair-lab",
+      "title": "Repair one authority-boundary defect offline",
+      "paragraphs": [
+        "Open the repository entry at /training/reliable-agent-workflows/multi-agent-handoffs/lab/README.md. From the repository root run node training/reliable-agent-workflows/multi-agent-handoffs/lab/tests/run-tests.mjs. The lab uses Node.js 22 native ECMAScript modules and standard-library APIs only, with no dependency installation, endpoint, API key, or approval.",
+        "The starter has exactly one deliberate defect in src/handoff.mjs: it copies packet.allowedActions. Replace that expression with a filter that retains actions found in policy.recipientAllowed and not found in packet.deniedActions. Do not edit shared validation, fixtures, tests, or reference code.",
+        "The suite contains the preserved ten cases plus twelve boundary cases. Before repair, exact stdout reports REFERENCE 22/22 and LEARNER 20/22, followed by the two authority failures and RESULT FAIL; exit code is 1. After repair it reports REFERENCE 22/22, LEARNER 22/22, and RESULT PASS; exit code is 0.",
+        "Independent boundary tests reject an unproven receiver-context fact, null constraint, null return condition, unknown event, absent policy bounds with depth 999, null policy, whitespace identifier, nonstring action, mismatched facts, mismatched artifacts, and negative budget. A zero-work-turn packet pauses without activation.",
+        "The changed valid packet requests comment and delete. It must remain accepted with comment only, so a deny-all patch fails causally.",
+        "Visual cue: highlight the single DELIBERATE DEFECT line and draw requested actions and recipient policy into an intersection symbol, followed by subtraction of denied actions.",
+        "Checkpoint: after repair, explain why excessive-permission and changed-authority-input pass while malformed and inconsistent packets still fail closed."
+      ]
+    },
+    {
+      "id": "recovery-and-variation",
+      "title": "Recover safely and explain changed-input feedback",
+      "paragraphs": [
+        "If an edit causes a syntax error or unrelated failures, copy src/handoff.starter.mjs back to src/handoff.mjs and rerun the root-relative command. After an honest attempt, compare the learner file with reference/handoff.mjs. Do not replace or edit the test driver.",
+        "For the changed variation, requested [comment, delete] intersected with recipient policy [read, comment] equals [comment]. Removing denied [publish, delete] leaves [comment].",
+        "Returning [comment, delete] means the sender widened authority. Returning [] means valid comment work was unnecessarily removed. The expected [comment] distinguishes the intended intersection from both faulty strategies.",
+        "A zero remaining budget is different from negative budget. Zero produces status paused, activeAgent null, and next parent-or-human because the transition is valid but no receiver turn is available. Negative remaining budget is rejected as budget_exhausted.",
+        "Recovery after an ambiguous runtime timeout is also different from local code recovery. Preserve the idempotency ledger and escalate without replaying the side effect.",
+        "Visual cue: split recovery into local-code recovery and runtime recovery. The first restores a file; the second preserves operational evidence and avoids replay.",
+        "Checkpoint: the learner may edit only training/reliable-agent-workflows/multi-agent-handoffs/lab/src/handoff.mjs."
+      ]
+    },
+    {
+      "id": "ecosystem-transfer",
+      "title": "Transfer the contract across model families and runtimes",
+      "paragraphs": [
+        "Keep model family, runtime, API, agent adapter, and application policy as separate layers. Meta Llama, Qwen, DeepSeek, Mistral, and Microsoft Phi identify model families or associated projects. A local runtime or hosted API determines inference transport, while an agent framework may add tool or routing abstractions.",
+        "Do not infer a common native handoff capability from a model-family name. Place the validator and authorization policy in application code unless a separately verified system enforces the same contract.",
+        "For OpenAI Agents SDK, map typed handoff input and history filtering to the packet while retaining application authorization tests. For Google ADK, map it to the selected workflow structure. For Anthropic-oriented orchestrator-worker designs, preserve typed acceptance and return behavior while distinguishing delegation from user-facing transfer.",
+        "For Llama, Qwen, DeepSeek, Mistral, or Phi deployments, write an adapter for the actual runtime or API in use. Test serialization, role mapping, authentication, errors, cancellation, and observed tool results separately from fixture policy.",
+        "Visual cue: draw layers labeled Model family, Runtime or API, Agent adapter, and Application handoff policy. Place permission intersection and idempotency in the application layer.",
+        "Checkpoint: changing model families must not change the expected permission-intersection result."
+      ]
+    },
+    {
+      "id": "activity-rubric",
+      "title": "Evaluate evidence rather than presentation",
+      "paragraphs": [
+        "A complete submission defines triage, specialist, reviewer, and human roles and states why each may receive control. It includes the versioned packet, policy, acceptance response, return result, rejection result, paused result, and escalation result.",
+        "Full credit requires all eight named scenario traces, recipient validation, context allowlisting, provenance on receiver-consumed facts, duplicate-data consistency, permission intersection, budget arithmetic, maximum recursion, event whitelisting, policy bounds, and fail-closed malformed input.",
+        "Accepted traces must visibly preserve goal, constraints, completed side effects, and trace identity. Timeout must prohibit replay. Explicit receiver rejection must escalate rather than loop. Zero remaining budget must not activate the receiver.",
+        "The repair earns credit only when unchanged tests exit 0 and changed-authority-input retains comment while removing delete. A deny-all patch, fixture edit, skipped test, fake execution claim, or copied output without a passing run is insufficient.",
+        "Separate fixture claims from live-system claims. The learner may report deterministic local results actually observed. The learner may not report provider approval, model behavior, or external action completion because the lab performs none.",
+        "Visual cue: use a checklist grouped into contract, eight traces, repair, boundary tests, and fixture-versus-live limits.",
+        "Checkpoint: require one concrete artifact or trace for every rubric claim."
       ]
     }
   ],
@@ -71,120 +178,361 @@
     "title": "Create and break a multi-agent handoff",
     "instructions": [
       "Define triage, specialist, reviewer, and human roles for one workflow, including the exact reasons each may receive control.",
-      "Create the handoff packet schema, context filter, permission mapping, acceptance response, and return result.",
+      "Create the handoff packet schema, context filter, permission mapping, acceptance response, return result, paused result, and escalation result.",
       "Run scenarios for a correct transfer, wrong recipient, missing provenance, excessive permission, poisoned context, timeout, recursive bounce, and rejected handoff.",
-      "Prove that the original goal, user constraints, completed side effects, and trace ID survive every accepted transition."
+      "Prove that the original goal, user constraints, completed side effects, and trace ID survive every accepted transition.",
+      "Run the starter tests from the repository root and record exact stdout and exit code without claiming live provider execution.",
+      "Repair only src/handoff.mjs so effective authority is requested actions intersected with recipient policy and minus denied actions.",
+      "Rerun immutable tests and explain why [comment, delete] becomes [comment], why zero budget pauses, and why negative budget rejects.",
+      "For each rejected, paused, returned, or escalated result, identify whether the next action is packet repair, parent return, status verification, or human escalation."
     ],
     "evidence": [
       "A versioned handoff and return contract with recipient validation, context filtering, authority, budgets, and escalation.",
-      "Eight scenario traces showing acceptance, rejection, containment, bounded retry, and human escalation."
+      "Eight scenario traces showing acceptance, rejection, containment, bounded recursion, and human escalation.",
+      "Starter and repaired test output with exact exit codes plus the single authority repair.",
+      "A changed-input answer showing [comment, delete] intersect [read, comment] minus denied actions equals [comment].",
+      "Boundary-test evidence for consumed-context provenance, duplicate consistency, policy bounds, event whitelist, zero budget, and malformed input.",
+      "A fixture-versus-live statement identifying provider behavior that remains untested."
     ],
     "reflectionPrompt": "What information was safe and useful for the parent but unnecessary or risky for the specialist?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 1500,
+    "estimatedSeconds": 85,
     "cues": [
       {
-        "id": "cue-handoff-mode",
+        "id": "cue-handoff-mode-1",
         "kind": "narration",
         "sectionId": "delegate-or-transfer",
-        "text": "Choose delegation when a parent retains responsibility and handoff when a specialist must own the next phase."
+        "text": "Choose delegation when a parent retains\nresponsibility and handoff when a"
       },
       {
-        "id": "cue-handoff-packet",
+        "id": "cue-handoff-mode-2",
+        "kind": "narration",
+        "sectionId": "delegate-or-transfer",
+        "text": "specialist must own the next phase."
+      },
+      {
+        "id": "cue-handoff-packet-1",
         "kind": "narration",
         "sectionId": "handoff-packet",
-        "text": "Transfer a versioned contract containing intent, evidence, artifacts, authority, budget, and return conditions."
+        "text": "Transfer a versioned contract, then\nvalidate both its structure and semantic"
       },
       {
-        "id": "cue-handoff-filter",
+        "id": "cue-handoff-packet-2",
+        "kind": "narration",
+        "sectionId": "handoff-packet",
+        "text": "consistency before activation."
+      },
+      {
+        "id": "cue-handoff-filter-1",
         "kind": "narration",
         "sectionId": "filter-and-reauthorize",
-        "text": "Filter context to the recipient's need and re-evaluate permissions instead of forwarding everything."
+        "text": "Validate the context actually consumed by\nthe receiver and intersect requested"
+      },
+      {
+        "id": "cue-handoff-filter-2",
+        "kind": "narration",
+        "sectionId": "filter-and-reauthorize",
+        "text": "authority with recipient policy."
       },
       {
         "id": "cue-handoff-visual",
         "kind": "visual",
         "sectionId": "filter-and-reauthorize",
-        "text": "Move one handoff packet through filter, authorize, accept, work, return, and verify states.",
-        "accessibilityAlternative": "A static state table lists the packet fields and validation result at filter, authorize, accept, work, return, and verify. Reduced-motion mode shows every state at once."
+        "text": "Move one packet through validation, authorization, acceptance, work, return, and verification.",
+        "accessibilityAlternative": "A static table lists packet fields and results at validation, authorization, acceptance, work, return, and verification."
       },
       {
-        "id": "cue-handoff-ack",
+        "id": "cue-handoff-ack-1",
         "kind": "narration",
         "sectionId": "accept-return-and-escalate",
-        "text": "Require explicit acceptance and a typed return while bounding rejection, timeout, recursion, and revision."
+        "text": "Distinguish accepted, returned, rejected,\npaused, and escalated states while"
       },
       {
-        "id": "cue-handoff-provider",
+        "id": "cue-handoff-ack-2",
+        "kind": "narration",
+        "sectionId": "accept-return-and-escalate",
+        "text": "preserving budget and side-effect\nevidence."
+      },
+      {
+        "id": "cue-handoff-provider-1",
         "kind": "narration",
         "sectionId": "provider-mappings-and-tests",
-        "text": "Test one portable handoff contract across provider adapters without assuming identical framework behavior."
+        "text": "Separate SDK transport features from\napplication authorization and"
+      },
+      {
+        "id": "cue-handoff-provider-2",
+        "kind": "narration",
+        "sectionId": "provider-mappings-and-tests",
+        "text": "operational guarantees."
+      },
+      {
+        "id": "cue-handoff-invariants-1",
+        "kind": "narration",
+        "sectionId": "handoff-invariants",
+        "text": "Use shared fail-closed validation so the\nlearner repairs only the"
+      },
+      {
+        "id": "cue-handoff-invariants-2",
+        "kind": "narration",
+        "sectionId": "handoff-invariants",
+        "text": "authority intersection."
+      },
+      {
+        "id": "cue-handoff-worked-1",
+        "kind": "narration",
+        "sectionId": "worked-handoff-example",
+        "text": "Work through recipient, provenance,\ncontext, authority, depth, and budget"
+      },
+      {
+        "id": "cue-handoff-worked-2",
+        "kind": "narration",
+        "sectionId": "worked-handoff-example",
+        "text": "checks in causal order."
+      },
+      {
+        "id": "cue-handoff-traces-1",
+        "kind": "narration",
+        "sectionId": "eight-scenario-traces",
+        "text": "Read all eight fixtures as explicit\ntransitions with activation or"
+      },
+      {
+        "id": "cue-handoff-traces-2",
+        "kind": "narration",
+        "sectionId": "eight-scenario-traces",
+        "text": "nonactivation visible."
+      },
+      {
+        "id": "cue-handoff-lab-1",
+        "kind": "narration",
+        "sectionId": "node22-repair-lab",
+        "text": "Run the Node.js 22 suite, repair one line,\nand use independent changed inputs to"
+      },
+      {
+        "id": "cue-handoff-lab-2",
+        "kind": "narration",
+        "sectionId": "node22-repair-lab",
+        "text": "rule out deny-all."
+      },
+      {
+        "id": "cue-handoff-recovery-1",
+        "kind": "narration",
+        "sectionId": "recovery-and-variation",
+        "text": "Separate code restoration from timeout\nrecovery, which preserves the ledger and"
+      },
+      {
+        "id": "cue-handoff-recovery-2",
+        "kind": "narration",
+        "sectionId": "recovery-and-variation",
+        "text": "avoids replay."
+      },
+      {
+        "id": "cue-handoff-ecosystem-1",
+        "kind": "narration",
+        "sectionId": "ecosystem-transfer",
+        "text": "Keep model family, runtime, API, adapter,\nand application policy as separate layers."
+      },
+      {
+        "id": "cue-handoff-rubric-1",
+        "kind": "narration",
+        "sectionId": "activity-rubric",
+        "text": "Grade concrete traces, immutable test\nresults, and explicit"
+      },
+      {
+        "id": "cue-handoff-rubric-2",
+        "kind": "narration",
+        "sectionId": "activity-rubric",
+        "text": "fixture-versus-live limits."
       },
       {
         "id": "cue-handoff-prompt",
         "kind": "learner-prompt",
         "sectionId": "filter-and-reauthorize",
-        "text": "Ask learners which parent permissions must be removed before the specialist receives the packet."
+        "text": "Ask which requested actions survive both recipient policy and the denied set."
       },
       {
         "id": "cue-handoff-pause",
         "kind": "pause",
         "sectionId": "handoff-packet",
-        "text": "Allow three minutes to add one rejection reason and one return condition to the packet."
+        "text": "Allow three minutes to identify one structural check and one semantic consistency check."
       },
       {
         "id": "cue-handoff-checkpoint",
         "kind": "checkpoint",
         "sectionId": "accept-return-and-escalate",
-        "text": "Check that a rejected or timed-out handoff cannot silently continue under broader authority."
+        "text": "Check that zero work turns, rejection, and timeout never silently activate the recipient."
       },
       {
         "id": "cue-handoff-activity",
         "kind": "learner-prompt",
-        "text": "Guide role definition, packet design, eight failure cases, and trace-continuity proof."
+        "text": "Guide role definition, packet design, eight scenarios, repair, and continuity proof."
       },
       {
-        "id": "cue-handoff-assessment",
+        "id": "cue-handoff-assessment-1",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can prove intent, authority, evidence, and trace continuity."
+        "text": "Begin the check after the learner can\nprove intent, evidence, authority, budget,"
+      },
+      {
+        "id": "cue-handoff-assessment-2",
+        "kind": "assessment-handoff",
+        "text": "and trace continuity."
       }
     ],
-    "transcript": "Choose delegation when a parent retains responsibility and handoff when a specialist must own the next phase. Transfer a versioned contract containing intent, evidence, artifacts, authority, budget, and return conditions. Filter context to the recipient's need and re-evaluate permissions instead of forwarding everything. Require explicit acceptance and a typed return while bounding rejection, timeout, recursion, and revision. Test one portable handoff contract across provider adapters without assuming identical framework behavior.",
+    "transcript": "Choose delegation when a parent retains\nresponsibility and handoff when a specialist must own the next phase. Transfer a versioned contract, then\nvalidate both its structure and semantic consistency before activation. Validate the context actually consumed by\nthe receiver and intersect requested authority with recipient policy. Distinguish accepted, returned, rejected,\npaused, and escalated states while preserving budget and side-effect\nevidence. Separate SDK transport features from\napplication authorization and operational guarantees. Use shared fail-closed validation so the\nlearner repairs only the authority intersection. Work through recipient, provenance,\ncontext, authority, depth, and budget checks in causal order. Read all eight fixtures as explicit\ntransitions with activation or nonactivation visible. Run the Node.js 22 suite, repair one line,\nand use independent changed inputs to rule out deny-all. Separate code restoration from timeout\nrecovery, which preserves the ledger and avoids replay. Keep model family, runtime, API, adapter,\nand application policy as separate layers. Grade concrete traces, immutable test\nresults, and explicit fixture-versus-live limits. Begin the check after the learner can\nprove intent, evidence, authority, budget, and trace continuity.",
     "captions": [
       {
-        "cueId": "cue-handoff-mode",
+        "cueId": "cue-handoff-mode-1",
         "startSeconds": 0,
-        "endSeconds": 270,
-        "text": "Choose delegation when a parent retains responsibility and handoff when a specialist must own the next phase."
+        "endSeconds": 5,
+        "text": "Choose delegation when a parent retains\nresponsibility and handoff when a"
       },
       {
-        "cueId": "cue-handoff-packet",
-        "startSeconds": 300,
-        "endSeconds": 570,
-        "text": "Transfer a versioned contract containing intent, evidence, artifacts, authority, budget, and return conditions."
+        "cueId": "cue-handoff-mode-2",
+        "startSeconds": 5,
+        "endSeconds": 8,
+        "text": "specialist must own the next phase."
       },
       {
-        "cueId": "cue-handoff-filter",
-        "startSeconds": 600,
-        "endSeconds": 870,
-        "text": "Filter context to the recipient's need and re-evaluate permissions instead of forwarding everything."
+        "cueId": "cue-handoff-packet-1",
+        "startSeconds": 8,
+        "endSeconds": 13,
+        "text": "Transfer a versioned contract, then\nvalidate both its structure and semantic"
       },
       {
-        "cueId": "cue-handoff-ack",
-        "startSeconds": 900,
-        "endSeconds": 1170,
-        "text": "Require explicit acceptance and a typed return while bounding rejection, timeout, recursion, and revision."
+        "cueId": "cue-handoff-packet-2",
+        "startSeconds": 13,
+        "endSeconds": 15,
+        "text": "consistency before activation."
       },
       {
-        "cueId": "cue-handoff-provider",
-        "startSeconds": 1200,
-        "endSeconds": 1440,
-        "text": "Test one portable handoff contract across provider adapters without assuming identical framework behavior."
+        "cueId": "cue-handoff-filter-1",
+        "startSeconds": 15,
+        "endSeconds": 20,
+        "text": "Validate the context actually consumed by\nthe receiver and intersect requested"
+      },
+      {
+        "cueId": "cue-handoff-filter-2",
+        "startSeconds": 20,
+        "endSeconds": 22,
+        "text": "authority with recipient policy."
+      },
+      {
+        "cueId": "cue-handoff-ack-1",
+        "startSeconds": 22,
+        "endSeconds": 26,
+        "text": "Distinguish accepted, returned, rejected,\npaused, and escalated states while"
+      },
+      {
+        "cueId": "cue-handoff-ack-2",
+        "startSeconds": 26,
+        "endSeconds": 29,
+        "text": "preserving budget and side-effect\nevidence."
+      },
+      {
+        "cueId": "cue-handoff-provider-1",
+        "startSeconds": 29,
+        "endSeconds": 33,
+        "text": "Separate SDK transport features from\napplication authorization and"
+      },
+      {
+        "cueId": "cue-handoff-provider-2",
+        "startSeconds": 33,
+        "endSeconds": 34,
+        "text": "operational guarantees."
+      },
+      {
+        "cueId": "cue-handoff-invariants-1",
+        "startSeconds": 34,
+        "endSeconds": 39,
+        "text": "Use shared fail-closed validation so the\nlearner repairs only the"
+      },
+      {
+        "cueId": "cue-handoff-invariants-2",
+        "startSeconds": 39,
+        "endSeconds": 40,
+        "text": "authority intersection."
+      },
+      {
+        "cueId": "cue-handoff-worked-1",
+        "startSeconds": 40,
+        "endSeconds": 44,
+        "text": "Work through recipient, provenance,\ncontext, authority, depth, and budget"
+      },
+      {
+        "cueId": "cue-handoff-worked-2",
+        "startSeconds": 44,
+        "endSeconds": 46,
+        "text": "checks in causal order."
+      },
+      {
+        "cueId": "cue-handoff-traces-1",
+        "startSeconds": 46,
+        "endSeconds": 51,
+        "text": "Read all eight fixtures as explicit\ntransitions with activation or"
+      },
+      {
+        "cueId": "cue-handoff-traces-2",
+        "startSeconds": 51,
+        "endSeconds": 52,
+        "text": "nonactivation visible."
+      },
+      {
+        "cueId": "cue-handoff-lab-1",
+        "startSeconds": 52,
+        "endSeconds": 58,
+        "text": "Run the Node.js 22 suite, repair one line,\nand use independent changed inputs to"
+      },
+      {
+        "cueId": "cue-handoff-lab-2",
+        "startSeconds": 58,
+        "endSeconds": 60,
+        "text": "rule out deny-all."
+      },
+      {
+        "cueId": "cue-handoff-recovery-1",
+        "startSeconds": 60,
+        "endSeconds": 65,
+        "text": "Separate code restoration from timeout\nrecovery, which preserves the ledger and"
+      },
+      {
+        "cueId": "cue-handoff-recovery-2",
+        "startSeconds": 65,
+        "endSeconds": 66,
+        "text": "avoids replay."
+      },
+      {
+        "cueId": "cue-handoff-ecosystem-1",
+        "startSeconds": 66,
+        "endSeconds": 72,
+        "text": "Keep model family, runtime, API, adapter,\nand application policy as separate layers."
+      },
+      {
+        "cueId": "cue-handoff-rubric-1",
+        "startSeconds": 72,
+        "endSeconds": 76,
+        "text": "Grade concrete traces, immutable test\nresults, and explicit"
+      },
+      {
+        "cueId": "cue-handoff-rubric-2",
+        "startSeconds": 76,
+        "endSeconds": 77,
+        "text": "fixture-versus-live limits."
+      },
+      {
+        "cueId": "cue-handoff-assessment-1",
+        "startSeconds": 77,
+        "endSeconds": 83,
+        "text": "Begin the check after the learner can\nprove intent, evidence, authority, budget,"
+      },
+      {
+        "cueId": "cue-handoff-assessment-2",
+        "startSeconds": 83,
+        "endSeconds": 85,
+        "text": "and trace continuity."
       }
     ],
-    "reducedMotionAlternative": "Use a static handoff state table and context-permission diff with focus indicators rather than animation."
+    "reducedMotionAlternative": "Use static state, context-diff, permission-set, budget, and outcome tables with focus indicators rather than animation."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -199,11 +547,11 @@
           "When no output contract exists"
         ],
         "answerIndex": 0,
-        "explanation": "Delegation returns a bounded artifact to the parent, which remains accountable."
+        "explanation": "Delegation returns a bounded artifact to the accountable parent."
       },
       {
         "id": "q-handoff-2",
-        "prompt": "What is missing from a packet that contains only a conversation summary?",
+        "prompt": "What is missing from a packet containing only a conversation summary?",
         "choices": [
           "A longer model name",
           "Explicit authority, evidence, artifacts, budgets, and return conditions",
@@ -215,39 +563,75 @@
       },
       {
         "id": "q-handoff-3",
-        "prompt": "The parent can publish, but the reviewer only needs to comment. What authority should the reviewer receive?",
+        "prompt": "The packet requests read and publish, but the reviewer may read and comment. Publish is denied. What survives?",
         "choices": [
-          "Publish and delete",
-          "Every parent credential",
-          "Read and comment only",
-          "No identity checks"
+          "Read only",
+          "Read and publish",
+          "Comment only",
+          "Nothing"
         ],
-        "answerIndex": 2,
-        "explanation": "Authority should be re-evaluated and minimized for the recipient's task."
+        "answerIndex": 0,
+        "explanation": "Only requested actions that recipient policy permits and the denied set does not remove survive."
       },
       {
         "id": "q-handoff-4",
-        "prompt": "A specialist rejects a handoff because provenance is missing. What should happen?",
+        "prompt": "Why validate context.facts even after validating top-level facts?",
         "choices": [
-          "Proceed as if accepted",
-          "Record the rejection and repair or escalate the packet within bounded retries",
-          "Grant more tools",
-          "Delete the trace"
+          "The receiver consumes context.facts",
+          "JSON arrays are always trusted",
+          "It increases model context length",
+          "Top-level facts authorize tools"
         ],
-        "answerIndex": 1,
-        "explanation": "Rejection is an explicit state that requires repair or escalation, not silent continuation."
+        "answerIndex": 0,
+        "explanation": "Validation must cover the data actually consumed by the receiver and require consistency between duplicate representations."
       },
       {
         "id": "q-handoff-5",
-        "prompt": "Which invariant should hold across different provider frameworks?",
+        "prompt": "What happens when one incoming turn is entirely consumed by transition cost?",
         "choices": [
-          "Identical SDK syntax",
-          "The same model name",
-          "Intent, minimal context, authority, trace, bounded failure, and verified return",
-          "The same beta header"
+          "Activate with zero turns",
+          "Pause without activation",
+          "Ignore the cost",
+          "Grant unlimited turns"
+        ],
+        "answerIndex": 1,
+        "explanation": "At least one receiver work turn is required for activation."
+      },
+      {
+        "id": "q-handoff-6",
+        "prompt": "The packet requests comment and delete. Recipient policy allows read and comment, and delete is denied. What is effective?",
+        "choices": [
+          "Comment only",
+          "Comment and delete",
+          "No actions",
+          "Read and comment"
+        ],
+        "answerIndex": 0,
+        "explanation": "Comment survives the intersection. Delete does not."
+      },
+      {
+        "id": "q-handoff-7",
+        "prompt": "A recorded side effect has an ambiguous timeout. What should happen?",
+        "choices": [
+          "Repeat immediately",
+          "Erase the ledger",
+          "Escalate or verify status without replay",
+          "Grant publish authority"
         ],
         "answerIndex": 2,
-        "explanation": "Product-level handoff guarantees should survive adapter differences."
+        "explanation": "Ambiguity does not prove failure, so preserve the ledger and prohibit replay."
+      },
+      {
+        "id": "q-handoff-8",
+        "prompt": "What does the offline fixture lab establish about a live provider?",
+        "choices": [
+          "Provider approval",
+          "External action completion",
+          "Only deterministic application-policy behavior represented by fixtures",
+          "Identical SDK semantics"
+        ],
+        "answerIndex": 2,
+        "explanation": "The lab performs no network or provider operation."
       }
     ]
   },
@@ -275,6 +659,42 @@
       "url": "https://adk.dev/agents/workflow-agents/",
       "publisher": "Google",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "ECMAScript modules",
+      "url": "https://nodejs.org/api/esm.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Llama models",
+      "url": "https://github.com/meta-llama/llama-models",
+      "publisher": "Meta",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Qwen3",
+      "url": "https://github.com/QwenLM/Qwen3",
+      "publisher": "Qwen",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "DeepSeek-V3",
+      "url": "https://github.com/deepseek-ai/DeepSeek-V3",
+      "publisher": "DeepSeek",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "mistral-inference",
+      "url": "https://github.com/mistralai/mistral-inference",
+      "publisher": "Mistral AI",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Phi Cookbook",
+      "url": "https://github.com/microsoft/PhiCookBook",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-21"
     }
   ]
 }
