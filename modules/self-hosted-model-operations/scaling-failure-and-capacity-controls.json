@@ -23,40 +23,68 @@
       "id": "scale-the-bottleneck",
       "title": "Scale the measured bottleneck, not the diagram",
       "paragraphs": [
-        "Use latency distributions, queue time, utilization, memory headroom, bandwidth, cache behavior, request sizes, concurrency, rejection, and cost to identify the limiting resource. Decide whether to use a larger device or host, more replicas, model or tensor parallelism, request batching, a queue, caching, routing by workload, or a smaller evaluated model.",
-        "Each option changes failure domains, startup, consistency, quality, latency, utilization, cost, and operating complexity. Scaling compute cannot fix an unbounded queue, slow artifact store, identity outage, bad prompt template, incompatible runtime, or quality regression."
+        "Instructor narration: Begin with measurements, not a preferred topology. Inspect latency distributions, queue time, utilization, memory headroom, bandwidth, cache behavior, request sizes, concurrency, rejection, quality, and cost to identify the limiting resource. Possible responses include a larger device or host, more replicas, model or tensor parallelism, request batching, a bounded queue, caching, workload routing, or a smaller evaluated model. MLPerf Inference Datacenter illustrates why comparisons need defined workloads, scenarios, and measured systems. It supplies no measurement or score for this fictional exercise.",
+        "Worked synthetic bottleneck: Four ready replicas each complete 2 work units per interval, so ready capacity is 4 × 2 = 8 work units. Burst demand is 13. Queue delay rises from 20 ms to 410 ms while device utilization is 91 percent, memory headroom is 34 percent, artifact-store latency is 18 ms, and cache hit rate is 62 percent. These fictional teaching observations identify serving-compute throughput as the measured burst bottleneck. Thirteen demanded units minus eight immediately serviceable units leaves five units for queueing or rejection. A queue limited to two can absorb two, so three must be rejected under the baseline.",
+        "Eight alternatives and their tradeoffs: (1) Vertical scaling may increase throughput, but raises unit cost and host blast radius. (2) Additional replicas increase capacity only after readiness and only improve host availability when spread across failure domains. (3) Model or tensor parallelism may fit or accelerate a model, but adds communication and can widen the serving-unit failure domain. (4) Batching may improve utilization, but adds waiting time and requires evaluated batch limits. (5) A bounded queue absorbs a short burst, but creates no throughput and must fit the deadline. (6) Caching may remove repeated work, but requires correct identity, tenant isolation, freshness, and invalidation. (7) Workload routing can protect interactive traffic, but introduces a routing dependency and reserved-capacity tradeoffs. (8) A smaller model may reduce latency and cost, but requires a separate workload-specific quality and safety evaluation.",
+        "Worked decision: Add two warmed replicas to raise ready capacity from 8 to 12 work units, place them in a second host domain, retain a queue limit of two, and reject excess work before completion becomes impossible. Do not choose sharding because the model already fits with 34 percent synthetic memory headroom. Do not claim caching solves the burst because 38 percent of requests are misses. Retain only the previously evaluated batch bound. The design remains provisional until service, quality, placement, startup, failure, cost, recovery, and rollback gates pass.",
+        "Broad ecosystem transfer: Meta Llama, Qwen, DeepSeek, Mistral, Microsoft Phi, and NVIDIA TensorRT-LLM may appear in self-hosted deployments, but model family, weights, runtime, serving API, and orchestration layer are distinct choices. Memory formats, licenses, prompt contracts, parallelism, compatibility, and security controls require separate verification. Do not infer equivalent capabilities across families or assume that one runtime supports every family. Official repositories used for transfer research are https://github.com/meta-llama/llama-models, https://github.com/QwenLM/Qwen, https://github.com/deepseek-ai/DeepSeek-V3, https://github.com/mistralai/mistral-inference, https://github.com/microsoft/PhiCookBook, and https://github.com/NVIDIA/TensorRT-LLM.",
+        "Learner activity: Before reading the worked artifact, identify the bottleneck and rank all eight alternatives. Connect each ranking to latency, quality, failure scope, cost, and complexity. Then repair the focused simulator defect. The broad design exercise is not reduced to that predicate. The predicate demonstrates one causal requirement within the larger policy: only ready, non-draining capacity can support admission."
       ]
     },
     {
       "id": "control-admission-and-backpressure",
       "title": "Control admission and backpressure",
       "paragraphs": [
-        "Set request body, context, output, concurrency, rate, queue, deadline, and resource limits by workload and priority. Reject early with stable retry guidance when work cannot complete inside its deadline or budget. Propagate cancellation and deadlines through gateway, queue, server, runtime, and dependent tools.",
-        "Use bounded retries with jitter only for classified transient failures and only when the request is safe to repeat. Apply circuit breaking and load shedding before saturation cascades across replicas or dependencies. Define degraded modes that remain safe, such as reduced limits, lower-priority rejection, or routing to a separately evaluated fallback."
+        "Instructor narration: Capacity does not replace admission control. Set request-body, context, output, concurrency, rate, queue, deadline, and resource limits by workload and priority. Reject early with stable retry guidance when work cannot complete inside its budget. Propagate deadlines and cancellation through the gateway, queue, server, runtime, and dependent tools. Backpressure prevents upstream demand from becoming unbounded downstream work.",
+        "Synthetic per-workload policy: Interactive requests permit a 1 MiB body, 8,192 context tokens, 1,024 output tokens, 16 concurrent requests per tenant, 20 requests per second, a queue of 2 work units, and a 1,000 ms deadline. Batch requests permit a 4 MiB body, 16,384 context tokens, 2,048 output tokens, 4 concurrent jobs per tenant, 2 jobs per second, a queue of 8 work units, and a 30,000 ms deadline. Administrative evaluation permits 2 concurrent jobs and no retry by default. These are fictional teaching limits, not production recommendations.",
+        "Retry and cancellation rules: Retry at most twice with bounded jitter, only for classified transient failures, only when repetition is safe, and always within the original deadline and queue budget. Never retry malformed input, authorization denial, deadline exhaustion, an unverified model, or a deterministic context-limit failure. Cancellation removes queued work and signals active work through each supported layer. If the runtime cannot stop active computation, suppress the result and account for residual capacity consumption.",
+        "Circuit, shedding, and degraded-mode rules: Open the artifact-store circuit after three classified failures within a 30-second exercise window. Allow one probe after a 20-second cooldown and close after two successful probes. Shed batch work first when ready capacity and its bounded queue cannot satisfy deadlines. Reject lower-priority interactive work next with retry guidance. A degraded mode may lower output limits to 256 tokens or use a separately evaluated fallback. It must not silently change model identity, weaken authorization, or claim equivalent quality without measurement.",
+        "Causal feedback: Deny-all is not a repair because it destroys available service and fails the positive changed-input case. Admit-all is also invalid because warming, draining, and failed replicas are fictional capacity. A valid decision requires ready capacity plus the bounded queue to cover demand, queue delay plus service time to fit the deadline, enough ready failure domains, and cost at or below its ceiling."
       ]
     },
     {
       "id": "place-and-warm-capacity",
       "title": "Place, warm, drain, and replace capacity deliberately",
       "paragraphs": [
-        "Schedule against real device, memory, topology, storage, network, and driver requirements. Kubernetes resource requests influence placement and limits bound use; extended devices cannot be overcommitted in the same way as fractional CPU. Verify the actual scheduler, device plugin, topology, and runtime behavior in the target environment.",
-        "Account for artifact download, verification, model load, compilation, cache warm-up, and readiness before adding a replica to service. On removal or update, stop new work, drain bounded in-flight requests, preserve telemetry, and revoke the route before reclaiming resources."
-      ]
+        "Instructor narration: Schedule against actual device, memory, topology, storage, network, and driver requirements. Kubernetes resource requests influence placement and limits bound consumption. Extended devices such as GPUs cannot be overcommitted in the same way as fractional CPU. Docker containers have no resource constraints by default, so explicit limits and host capacity matter. Documentation describes platform behavior and configuration, but does not prove that a live deployment enforces a proposed policy.",
+        "Placement rule: Require the intended accelerator, sufficient device and host memory, compatible driver and runtime, artifact-storage reachability, and tested network capacity. Spread ready replicas across at least two host domains before making a two-domain availability claim. Two replicas on one host remain one host-failure domain. The lab's `domain` field is a deterministic abstraction, not a Kubernetes scheduler simulation.",
+        "Warm-up and readiness rule: A replacement passes through artifact download, digest verification, model load, compilation where required, cache warm-up, and an exact model-identity readiness probe. It contributes zero admission capacity while warming. A listening port or scheduled Pod alone is insufficient evidence of model readiness.",
+        "Drain and replacement rule: Mark a replica draining before route removal, stop new work, allow bounded in-flight work until the drain deadline, preserve telemetry, revoke its route, and then reclaim resources. Draining and failed replicas contribute zero capacity. Start a verified replacement, but do not count it until ready. Maintain at least four ready slots across the required domains.",
+        "Autoscaling rules: Use queue delay and admitted work units as leading signals, with saturation as corroborating evidence. Keep a minimum of four ready slots, cap the exercise fleet at twelve slots, and cap cost at 24 fictional cost units per hour. Allow two intervals for warm-up, require three stable intervals before scale-down, drain before removal, and retain the prior policy and capacity floor for rollback. Kubernetes HPA can use CPU, memory, or custom metrics to adjust replicas, but this lesson does not claim CPU alone predicts this workload's queue growth.",
+        "Runnable exercise from the repository root:\n\nThe starter simulator exits 0 and prints:\n\nThe starter tests exit 1 and print:\n\nAfter repairing only the admission-capacity calculation, the baseline simulator exits 2 and prints:\n\nThe repaired tests exit 0 and print `RESULT 8 passed, 0 failed`. The README supplies recovery and changed-input commands."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Repository-root commands",
+        "code": "node training/self-hosted-model-operations/scaling-failure-and-capacity-controls/lab/src/simulate.js training/self-hosted-model-operations/scaling-failure-and-capacity-controls/lab/fixtures/baseline.json\nnode training/self-hosted-model-operations/scaling-failure-and-capacity-controls/lab/test/run-tests.js\nfixture=baseline.json\nreadyCapacity=4 nominalCapacity=12 demand=9 queueLimit=2\nadmission=ADMIT decision=APPROVE\ncauses=none\nFAIL baseline-capacity: expected REJECT/capacity, got APPROVE/none\nRESULT 7 passed, 1 failed\nfixture=baseline.json\nreadyCapacity=4 nominalCapacity=12 demand=9 queueLimit=2\nadmission=REJECT decision=REJECT\ncauses=capacity"
+      }
     },
     {
       "id": "test-failure-isolation",
       "title": "Test shared-resource and failure isolation",
       "paragraphs": [
-        "Inject process crash, out-of-memory termination, device loss, host loss, storage delay, network partition, identity failure, telemetry failure, registry outage, queue pressure, malformed work, and a bad model release. Observe which requests, replicas, nodes, sites, and management functions are affected.",
-        "Confirm that health and readiness remove unsafe capacity, retries do not amplify load, queues remain bounded, one workload cannot starve another, exact model identity is preserved, and recovery does not accept stale or unverified artifacts. Multiple replicas are useful only when their shared dependencies and placement match the availability claim."
+        "Instructor narration: Failure testing asks what becomes unsafe, how far the effect travels, whether retries amplify demand, and whether recovery preserves identity and budgets. The complete activity tests ten concrete cases rather than treating replica count as availability evidence.",
+        "Ten synthetic failure cases: (1) A process crash removes one replica and permits retries only for safe in-flight work. (2) Device loss removes every replica using that device. (3) Host loss removes all replicas in that host domain. (4) Artifact-store delay blocks warming replacements without making them ready. (5) Network partition removes unreachable routes and invokes the dependency circuit. (6) Identity failure rejects protected requests without bypassing authorization. (7) Telemetry failure raises an alarm and leaves health evidence unknown rather than inventing capacity. (8) Queue pressure reaches its bound, sheds batch first, and rejects excess demand. (9) Malformed work is rejected before queueing and is not retried. (10) A bad model release fails identity or measured quality gates, remains unrouted, and triggers rollback to the verified prior release.",
+        "Required observations: Verify that readiness removes unsafe capacity, retries do not amplify load, queues remain bounded, one workload cannot starve another, model identity remains exact, and recovery does not accept stale or unverified artifacts. The immutable local tests cover warming, draining, and failed hosts; a shared failure domain; queue and deadline budgets; the cost ceiling; a positive changed input; unknown enums; malformed or unknown evidence; and bounded local temporary-fixture handling.",
+        "Fixture versus real integration: The Node 22 lab is a deterministic policy simulator. Hosts, status, slots, domains, costs, deadlines, and traffic observations are fixtures. It does not start containers, schedule Kubernetes Pods, allocate accelerators, download models, invoke provider APIs, measure live inference, verify a deployed security control, or approve production infrastructure. Real integration must observe the target scheduler, device plugin, runtime, artifact verification, readiness, cancellation propagation, routing, telemetry, quality evaluation, failure injection, and billing data. A fixture pass proves only that the local function handles supplied evidence consistently.",
+        "Independent learner variation, prediction first: Before running `changed-positive.json`, predict whether demand 9 should be admitted when two ready hosts each provide 4 slots and the queue limit is 2. The answer is not visible from nominal count alone, so list every gate. Explained answer: 4 + 4 = 8 ready slots, and 8 + 2 = 10 covers demand 9. Queue delay 40 ms plus service time 300 ms equals 340 ms, below the 1,000 ms deadline. Two ready domains meet the minimum of two. Cost 20 is below 24. The repaired decision is therefore ADMIT and APPROVE. A rejection indicates deny-all, stale capacity logic, or damage to another gate."
       ]
     },
     {
       "id": "gate-autoscaling-and-change",
       "title": "Gate autoscaling and scale changes",
       "paragraphs": [
-        "Choose scale signals that lead demand without reacting to noise: queue delay, concurrency, work units, saturation, or a tested combination. CPU or accelerator utilization alone may lag queue growth or encourage thrashing. Set minimum safe capacity, maximum cost and quota, stabilization windows, warm-up allowance, scale-down drain, and alerting.",
-        "Compare scale policy against representative steady, burst, ramp, skewed, and failure traffic. Approve only when objectives, quality, resource isolation, cost, startup, recovery, and rollback gates pass. Preserve the prior policy and capacity floor for rapid reversal."
+        "Instructor narration: Autoscaling is a controlled change, not evidence of success by itself. Predeclare service, quality, cost, recovery, and rollback thresholds before comparing policies. Queue delay, concurrency, admitted work units, and saturation can be combined, while a stabilization window prevents a noisy sample from causing oscillation.",
+        "All values in the following comparison are fictional teaching data, not measured real-model or live-infrastructure performance. Predeclared service gates are: interactive p95 latency at most 700 ms, interactive queue delay at most 200 ms, and deadline 1,000 ms; batch p95 latency at most 5,000 ms, batch queue delay at most 2,000 ms, and deadline 30,000 ms. Allowed candidate rejection is 0 for steady and ramp, at most 1 batch request for skew, at most 1 request for burst, and 0 for failure demand up to retained capacity plus queue. Cost must be at most 24 units per hour. Recovery must restore the twelve-slot candidate within two intervals. Minimum safe ready capacity is four slots.",
+        "Predeclared synthetic quality gates apply to release `r17` with prompt contract `p4`, and are measured independently for baseline and candidate because concurrency, batching, routing, and timeouts may affect results even when model identity is unchanged. Interactive task success must be at least 95 correct out of 100 cases. Batch task success must be at least 188 correct out of 200 cases, which is 94 percent. Safety refusal correctness must be at least 49 correct out of 50 cases, which is 98 percent. Route-to-contract correctness must be 100 out of 100 cases. A changed release, prompt contract, denominator, or scoring rule invalidates comparison and makes quality UNKNOWN until reevaluated.",
+        "Steady comparison, demand 6: Baseline serves 6, rejects 0, records 0 ms queue delay, 420 ms interactive p95 latency, cost 12, and interactive quality 97/100. Candidate serves 6, rejects 0, records 0 ms queue delay, 390 ms p95 latency, cost 20, and quality 97/100. Both pass service and quality. The candidate has an 8-unit cost penalty, calculated as 20 - 12, but remains below the 24-unit ceiling.",
+        "Burst comparison, demand 13: Baseline ready capacity 8 plus queue 2 serves 10 and rejects 3 because 13 - 8 - 2 = 3. It records 410 ms queue delay and 1,120 ms interactive p95 latency, so it breaches the 200 ms queue and 700 ms latency gates. Candidate ready capacity 12 queues 1, serves 13, rejects 0, records 120 ms queue delay, 640 ms p95 latency, cost 20, and interactive quality 96/100. Candidate arithmetic is 13 - 12 = 1 queued unit, within the queue limit and rejection allowance. It passes all declared burst gates.",
+        "Ramp comparison, demands 6, 8, and 10: Baseline serves 6, 8, and 10 with queue delays 0, 80, and 260 ms, p95 latencies 420, 560, and 780 ms, and no rejection. Its third interval breaches both 200 ms queue and 700 ms latency gates. Candidate begins warming before the third interval and records ready capacities 8, 8, and 12 after the declared two-interval warm-up. It serves 6, 8, and 10 with queue delays 0, 70, and 60 ms, p95 latencies 400, 520, and 510 ms, no rejection, cost 20, and interactive quality 96/100. It passes because warming capacity is counted only after readiness.",
+        "Skewed comparison, interactive demand 7 plus batch demand 6: Baseline serves 6 interactive and 4 batch, queues 2 mixed requests, rejects 1 interactive and 2 batch, records 330 ms interactive queue delay and 810 ms interactive p95 latency, and therefore fails priority protection. Candidate routing serves all 7 interactive and 5 batch requests, rejects 1 batch request under its declared shedding rule, records 80 ms interactive queue delay, 500 ms interactive p95 latency, 900 ms batch queue delay, and 3,200 ms batch p95 latency. Candidate interactive quality is 96/100, batch quality is 189/200, and route correctness is 100/100. It passes every skew threshold because 189/200 = 94.5 percent and the sole rejection is lower-priority batch work.",
+        "Failure comparison, demand 6 after one host-domain loss: Baseline placed all ready replicas in the failed domain, retains 0 ready slots, serves 0, rejects 6, and has no valid latency result because no request completes. Candidate retains 4 ready slots in the second domain, queues 2, serves all 6, rejects 0, records 180 ms queue delay and 680 ms interactive p95 latency, and restores twelve ready slots after two intervals. Its safety quality result is 49/50 and route correctness is 100/100. It meets the 98 percent safety threshold exactly, the service thresholds, and the two-interval recovery objective.",
+        "Decision and rollback: The candidate passes the supplied synthetic service, quality, domain-isolation, cost, startup, recovery, and routing gates, so the artifact recommends only a staged fictional-policy decision. This is not live deployment approval. Roll back to the prior policy and four-slot floor if any measured quality denominator misses its threshold, release or prompt identity changes without reevaluation, cost exceeds 24, queue delay breaches for two intervals, readiness becomes unknown, route correctness is below 100/100, or recovery exceeds two intervals. Preserve the prior policy, route configuration, verified artifact identity, and capacity floor for reversal.",
+        "Rubric: A complete submission identifies the bottleneck and compares all eight alternatives; defines interactive, batch, and administrative admission, queue, deadline, retry, cancellation, circuit, shedding, and degraded-mode behavior; states placement, warm-up, readiness, drain, replacement, minimum, maximum-cost, and stabilization rules; reports all ten failure cases; computes all five traffic comparisons; evaluates service, quality, isolation, cost, startup, recovery, and rollback gates; repairs only the capacity defect; passes all eight immutable tests and the changed input; and distinguishes fixture evidence from integration evidence. Deny-all earns no repair credit because it fails the positive case.",
+        "Reflection guidance: CPU utilization may arrive too late when queue delay grows while a replacement is still warming. Queue delay or admitted work units can provide an earlier signal. A strong response explains lead time, links it to readiness delay, and states how stabilization avoids oscillation."
       ]
     }
   ],
@@ -64,123 +92,21 @@
     "id": "activity-scaling-failure-plan",
     "title": "Design and challenge a scaling policy",
     "instructions": [
-      "Use a synthetic load result to identify one measured bottleneck and compare vertical, replica, sharded, batched, queued, cached, routed, and smaller-model options.",
-      "Define per-workload admission, queue, deadline, retry, cancellation, circuit, shedding, and degraded-mode behavior.",
-      "Write placement, artifact warm-up, readiness, draining, replacement, minimum capacity, maximum cost, and stabilization rules.",
-      "Create ten process, device, host, dependency, pressure, and bad-release failure cases with expected blast radius and recovery.",
-      "Compare the candidate scale policy to a baseline under steady, burst, ramp, skewed, and failure traffic, then issue a reversible decision."
+      "Use the supplied synthetic load result to identify one measured bottleneck and compare vertical, replica, sharded, batched, queued, cached, routed, and smaller-model options. Record quality, latency, failure, cost, and complexity effects.",
+      "Define per-workload admission, queue, deadline, retry, cancellation, circuit, shedding, and degraded-mode behavior. Explain why deny-all and admit-all are invalid.",
+      "Write placement, artifact warm-up, readiness, draining, replacement, minimum capacity, maximum cost, warm-up, and scale-down stabilization rules.",
+      "Create or review ten process, device, host, dependency, pressure, and bad-release failure cases with expected blast radius and recovery.",
+      "Calculate baseline and candidate results under steady, burst, ramp, skewed, and failure traffic. Apply the predeclared service, quality, cost, recovery, and rollback thresholds before issuing a reversible decision.",
+      "Prediction before execution: calculate `changed-positive.json` without running it. Then run the baseline and immutable tests. Repair only `src/policy.js`; do not modify tests, fixtures, schema validation, or the reference.",
+      "Run the changed input after repair and explain causally why it approves. Use `training/self-hosted-model-operations/scaling-failure-and-capacity-controls/lab/worked-artifact.json` as the answer key only after recording your prediction."
     ],
     "evidence": [
       "A bottleneck-to-pattern comparison with quality, latency, failure, cost, and complexity impacts.",
       "An admission, backpressure, placement, warm-up, drain, autoscale, and degraded-mode policy.",
-      "A failure-isolation report and baseline-candidate scale decision with objectives, cost, recovery, and rollback gates."
+      "A ten-case failure-isolation report and five-pattern baseline-candidate decision with numeric service, quality, cost, recovery, and rollback evidence.",
+      "A repaired `src/policy.js` that passes eight immutable tests and the changed input, with recorded starter and repaired output."
     ],
     "reflectionPrompt": "Which autoscaling signal would arrive too late for your workload, and what leading signal should accompany it?"
-  },
-  "instructorScript": {
-    "schemaVersion": "1.1",
-    "estimatedSeconds": 1680,
-    "cues": [
-      {
-        "id": "cue-scaling-bottleneck",
-        "kind": "narration",
-        "sectionId": "scale-the-bottleneck",
-        "text": "Identify the measured bottleneck before choosing vertical, replica, sharded, batched, queued, cached, routed, or smaller-model scaling."
-      },
-      {
-        "id": "cue-scaling-visual",
-        "kind": "visual",
-        "sectionId": "scale-the-bottleneck",
-        "text": "Compare scaling patterns across bottleneck, latency, quality, utilization, failure domains, startup, cost, and complexity.",
-        "accessibilityAlternative": "A static comparison table maps each scaling pattern to the bottleneck it addresses and the new risks it introduces."
-      },
-      {
-        "id": "cue-scaling-admission",
-        "kind": "narration",
-        "sectionId": "control-admission-and-backpressure",
-        "text": "Bound admission, queues, deadlines, cancellation, retries, circuits, shedding, and degraded modes before saturation."
-      },
-      {
-        "id": "cue-scaling-placement",
-        "kind": "narration",
-        "sectionId": "place-and-warm-capacity",
-        "text": "Place capacity on verified resources, complete artifact verification and warm-up before readiness, and drain safely before removal."
-      },
-      {
-        "id": "cue-scaling-checkpoint",
-        "kind": "checkpoint",
-        "sectionId": "control-admission-and-backpressure",
-        "text": "Ask how unbounded retries can turn a small overload into a cascading failure."
-      },
-      {
-        "id": "cue-scaling-failures",
-        "kind": "narration",
-        "sectionId": "test-failure-isolation",
-        "text": "Inject process, device, host, storage, network, identity, telemetry, queue, and bad-release failures and measure blast radius."
-      },
-      {
-        "id": "cue-scaling-policy",
-        "kind": "narration",
-        "sectionId": "gate-autoscaling-and-change",
-        "text": "Gate scale signals, floors, ceilings, stabilization, cost, warm-up, drain, objectives, recovery, and rollback under representative traffic."
-      },
-      {
-        "id": "cue-scaling-activity",
-        "kind": "learner-prompt",
-        "text": "Guide the bottleneck analysis, control policy, failure matrix, traffic comparison, scale decision, and reversal plan."
-      },
-      {
-        "id": "cue-scaling-assessment",
-        "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can defend scaling patterns, backpressure, placement, isolation, autoscaling, and rollback."
-      }
-    ],
-    "transcript": "Identify the measured bottleneck before choosing vertical, replica, sharded, batched, queued, cached, routed, or smaller-model scaling. Every pattern changes latency, quality, utilization, failure domains, startup, cost, and complexity. Bound admission, queues, deadlines, cancellation, retries, circuits, shedding, and degraded modes before saturation. Reject work that cannot finish safely rather than allowing an unbounded queue. Place capacity on verified resources, complete artifact verification and warm-up before readiness, and drain safely before removal. A scheduled process is not useful capacity until the exact model is ready. Inject process, device, host, storage, network, identity, telemetry, queue, and bad-release failures and measure blast radius. Verify that retries, shared dependencies, and placement do not defeat redundancy. Gate scale signals, floors, ceilings, stabilization, cost, warm-up, drain, objectives, recovery, and rollback under representative traffic. Preserve the prior policy and a safe capacity floor so the change can be reversed.",
-    "captions": [
-      {
-        "cueId": "cue-scaling-bottleneck",
-        "startSeconds": 0,
-        "endSeconds": 300,
-        "text": "Identify the measured bottleneck before choosing vertical, replica, sharded, batched, queued, cached, routed, or smaller-model scaling."
-      },
-      {
-        "cueId": "cue-scaling-admission",
-        "startSeconds": 300,
-        "endSeconds": 600,
-        "text": "Bound admission, queues, deadlines, cancellation, retries, circuits, shedding, and degraded modes before saturation."
-      },
-      {
-        "cueId": "cue-scaling-placement",
-        "startSeconds": 600,
-        "endSeconds": 900,
-        "text": "Place capacity on verified resources, complete artifact verification and warm-up before readiness, and drain safely before removal."
-      },
-      {
-        "cueId": "cue-scaling-failures",
-        "startSeconds": 900,
-        "endSeconds": 1200,
-        "text": "Inject process, device, host, storage, network, identity, telemetry, queue, and bad-release failures and measure blast radius."
-      },
-      {
-        "cueId": "cue-scaling-policy",
-        "startSeconds": 1200,
-        "endSeconds": 1470,
-        "text": "Gate scale signals, floors, ceilings, stabilization, cost, warm-up, drain, objectives, recovery, and rollback under representative traffic."
-      },
-      {
-        "cueId": "cue-scaling-activity",
-        "startSeconds": 1470,
-        "endSeconds": 1650,
-        "text": "Guide the bottleneck analysis, control policy, failure matrix, traffic comparison, scale decision, and reversal plan."
-      },
-      {
-        "cueId": "cue-scaling-assessment",
-        "startSeconds": 1650,
-        "endSeconds": 1680,
-        "text": "Begin the check after the learner can defend scaling patterns, backpressure, placement, isolation, autoscaling, and rollback."
-      }
-    ],
-    "reducedMotionAlternative": "Use static bottleneck, scaling-pattern, admission, placement, failure-domain, traffic, and scale-decision tables. Show state transitions as numbered text."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -283,6 +209,1503 @@
       "url": "https://mlcommons.org/benchmarks/inference-datacenter/",
       "publisher": "MLCommons",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Meta Llama Models",
+      "url": "https://github.com/meta-llama/llama-models",
+      "publisher": "Meta",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Qwen",
+      "url": "https://github.com/QwenLM/Qwen",
+      "publisher": "QwenLM",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "DeepSeek-V3",
+      "url": "https://github.com/deepseek-ai/DeepSeek-V3",
+      "publisher": "DeepSeek",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Mistral Inference",
+      "url": "https://github.com/mistralai/mistral-inference",
+      "publisher": "Mistral AI",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Phi-3 Cookbook",
+      "url": "https://github.com/microsoft/PhiCookBook",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "TensorRT-LLM",
+      "url": "https://github.com/NVIDIA/TensorRT-LLM",
+      "publisher": "NVIDIA",
+      "lastVerified": "2026-09-21"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 874,
+    "cues": [
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-1",
+        "kind": "narration",
+        "text": "Welcome. Scaling is not the act of adding\nreplicas until a graph looks better."
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-2",
+        "kind": "narration",
+        "text": "It is a controlled response to measured\ndemand and failure risk. In this class,"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-3",
+        "kind": "narration",
+        "text": "you will identify the real bottleneck,\nbound admission and retries, place and"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-4",
+        "kind": "narration",
+        "text": "warm useful capacity, test blast radius,\nand approve only a scale policy whose"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-5",
+        "kind": "narration",
+        "text": "quality, cost, recovery, and rollback\nevidence holds under representative"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-6",
+        "kind": "narration",
+        "text": "traffic."
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-1",
+        "kind": "narration",
+        "text": "Scale the measured bottleneck, not the\narchitecture diagram. Use latency",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-2",
+        "kind": "narration",
+        "text": "distributions, queue time, concurrency,\nrejection, accelerator and host",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-3",
+        "kind": "narration",
+        "text": "utilization, memory headroom, bandwidth,\nstorage delay, cache behavior, request",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-4",
+        "kind": "narration",
+        "text": "sizes, and attributable cost. Then compare\noptions. A larger device or host can",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-5",
+        "kind": "narration",
+        "text": "increase vertical capacity but may enlarge\none failure domain. More replicas can",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-6",
+        "kind": "narration",
+        "text": "improve parallel work and replacement but\nalso multiply startup, memory, and",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-7",
+        "kind": "narration",
+        "text": "shared-dependency load. Model or tensor\nparallelism can fit or accelerate a larger",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-8",
+        "kind": "narration",
+        "text": "build while adding communication and\nplacement constraints. Batching can",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-9",
+        "kind": "narration",
+        "text": "improve throughput while increasing queue\nand tail latency. A bounded queue can",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-10",
+        "kind": "narration",
+        "text": "absorb a short burst but cannot create\ncompute. Caching can avoid repeated work",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-11",
+        "kind": "narration",
+        "text": "only when keys, freshness, authorization,\nand data isolation are correct. Workload",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-12",
+        "kind": "narration",
+        "text": "routing can match requests to specialized\nevaluated capacity. A smaller evaluated",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-13",
+        "kind": "narration",
+        "text": "model can reduce latency and cost but\nchanges quality and safety evidence.",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-14",
+        "kind": "narration",
+        "text": "Scaling compute cannot repair an unbounded\nqueue, unavailable identity service, slow",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-15",
+        "kind": "narration",
+        "text": "artifact store, bad prompt template,\nincompatible runtime, or quality",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-16",
+        "kind": "narration",
+        "text": "regression.",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-1",
+        "kind": "narration",
+        "text": "Consider a synthetic service with\nacceptable processing time at one request,",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-2",
+        "kind": "narration",
+        "text": "but rising queue delay during a\nten-request burst. Accelerator utilization",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-3",
+        "kind": "narration",
+        "text": "is high, memory has safe headroom,\nartifact storage is healthy, and quality",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-4",
+        "kind": "narration",
+        "text": "is unchanged. The first experiment\ncompares two warmed replicas against one",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-5",
+        "kind": "narration",
+        "text": "larger-batch replica under the same\nrequests, limits, hardware class, and",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-6",
+        "kind": "narration",
+        "text": "load. Two replicas reduce queue delay and\npreserve time to first output, but both",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-7",
+        "kind": "narration",
+        "text": "are placed on one host and share one\ngateway. That does not satisfy a",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-8",
+        "kind": "narration",
+        "text": "host-failure availability claim. The\nbatched option improves throughput but",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-9",
+        "kind": "narration",
+        "text": "violates the interactive latency\nobjective. The decision selects two",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-10",
+        "kind": "narration",
+        "text": "replicas spread across verified failure\ndomains, retains bounded batching, and",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-11",
+        "kind": "narration",
+        "text": "records the shared gateway as a remaining\ndependency. It also preserves the baseline",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-12",
+        "kind": "narration",
+        "text": "policy and cost ceiling. The answer came\nfrom queue, placement, latency, quality,",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-13",
+        "kind": "narration",
+        "text": "and cost evidence, not from replica count\nalone.",
+        "sectionId": "scale-the-bottleneck"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-1",
+        "kind": "narration",
+        "text": "Control admission before saturation. Set\nbody, context, output, concurrency, rate,",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-2",
+        "kind": "narration",
+        "text": "queue, deadline, and compute limits by\nworkload and priority. Reject early with a",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-3",
+        "kind": "narration",
+        "text": "stable error and bounded retry guidance\nwhen work cannot finish inside its",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-4",
+        "kind": "narration",
+        "text": "deadline or budget. Propagate cancellation\nand deadlines through gateway, queue,",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-5",
+        "kind": "narration",
+        "text": "inference server, runtime, and dependent\ntools so abandoned work does not keep",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-6",
+        "kind": "narration",
+        "text": "consuming capacity. Backpressure tells\nupstream callers that downstream capacity",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-7",
+        "kind": "narration",
+        "text": "is constrained; an unbounded queue only\nhides overload until latency and memory",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-8",
+        "kind": "narration",
+        "text": "fail. Retry only classified transient\nfailures, use a bounded attempt count and",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-9",
+        "kind": "narration",
+        "text": "jitter, honor a retry budget, and confirm\nthe operation is safe to repeat. Circuit",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-10",
+        "kind": "narration",
+        "text": "breakers stop repeated calls to a failing\ndependency. Load shedding protects",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-11",
+        "kind": "narration",
+        "text": "critical work by rejecting lower-priority\ndemand before all work fails. Define safe",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-12",
+        "kind": "narration",
+        "text": "degraded modes in advance: smaller limits,\nlower-priority rejection, a read-only",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-13",
+        "kind": "narration",
+        "text": "path, or a separately evaluated fallback.\nA degraded mode is not permission to",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-14",
+        "kind": "narration",
+        "text": "bypass identity, authorization, privacy,\nsafety, or evidence controls.",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-checkpoint-1",
+        "kind": "narration",
+        "text": "Checkpoint. One dependency begins timing\nout. Each client retries immediately",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-checkpoint-2",
+        "kind": "narration",
+        "text": "without a limit, the gateway retries\ntwice, and the queue accepts every",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-checkpoint-3",
+        "kind": "narration",
+        "text": "attempt. Explain how a small partial\nfailure becomes a cascade and name the",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-checkpoint-4",
+        "kind": "narration",
+        "text": "controls that stop it.",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-response-time",
+        "kind": "pause",
+        "text": "Hold the checkpoint for up to seventy-five seconds with pause, extend, and continue controls."
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-feedback-1",
+        "kind": "narration",
+        "text": "Every original request creates multiple\nclient attempts, and each gateway attempt",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-feedback-2",
+        "kind": "narration",
+        "text": "multiplies them again. The unbounded queue\npreserves work after its useful deadline,",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-feedback-3",
+        "kind": "narration",
+        "text": "so capacity is consumed by requests that\nshould already have failed. Stop the",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-feedback-4",
+        "kind": "narration",
+        "text": "cascade with one end-to-end deadline,\npropagated cancellation, one owned retry",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-feedback-5",
+        "kind": "narration",
+        "text": "layer, classified transient failures, a\nsmall attempt and retry budget with",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-feedback-6",
+        "kind": "narration",
+        "text": "jitter, a circuit breaker, bounded\nadmission and queueing, and prioritized",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-feedback-7",
+        "kind": "narration",
+        "text": "shedding. Recover the dependency, drain or\ndiscard expired work safely, and verify",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-feedback-8",
+        "kind": "narration",
+        "text": "normal load before closing the event. If\nyour answer only added replicas, the",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-retry-feedback-9",
+        "kind": "narration",
+        "text": "amplification would consume those replicas\ntoo.",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-1",
+        "kind": "narration",
+        "text": "Place capacity against real device,\nmemory, topology, storage, network,",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-2",
+        "kind": "narration",
+        "text": "driver, and runtime requirements.\nKubernetes resource requests influence",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-3",
+        "kind": "narration",
+        "text": "scheduling, limits bound some resource\nuse, and extended devices have different",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-4",
+        "kind": "narration",
+        "text": "allocation behavior from fractional CPU.\nDocker likewise warns that containers have",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-5",
+        "kind": "narration",
+        "text": "no resource constraints by default. Verify\nactual scheduler, device-plugin, topology,",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-6",
+        "kind": "narration",
+        "text": "and runtime behavior in the target\nenvironment. A scheduled process is not",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-7",
+        "kind": "narration",
+        "text": "useful capacity. Account for artifact\ndownload, integrity and policy",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-8",
+        "kind": "narration",
+        "text": "verification, model load, compilation,\ncache warm-up, adapter initialization, and",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-9",
+        "kind": "narration",
+        "text": "exact-model readiness before routing\ntraffic. During removal or update, stop",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-10",
+        "kind": "narration",
+        "text": "new admission to the replica, drain\nbounded in-flight work until a declared",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-11",
+        "kind": "narration",
+        "text": "deadline, cancel or reconcile remaining\noperations, preserve telemetry, revoke the",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-12",
+        "kind": "narration",
+        "text": "route, and only then reclaim resources.\nTest cold start, replacement, host",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-13",
+        "kind": "narration",
+        "text": "pressure, and simultaneous rollout so\nautoscaling does not count replicas that",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-14",
+        "kind": "narration",
+        "text": "cannot become ready before the demand\npasses.",
+        "sectionId": "place-and-warm-capacity"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-1",
+        "kind": "narration",
+        "text": "Inject failures and measure the actual\nblast radius. Include process crash,",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-2",
+        "kind": "narration",
+        "text": "out-of-memory termination, device loss,\nhost loss, storage delay, network",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-3",
+        "kind": "narration",
+        "text": "partition, identity failure, telemetry\nfailure, registry outage, queue pressure,",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-4",
+        "kind": "narration",
+        "text": "malformed work, and a bad model release.\nObserve affected requests, replicas,",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-5",
+        "kind": "narration",
+        "text": "nodes, sites, shared services, and\nmanagement functions. Confirm liveness and",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-6",
+        "kind": "narration",
+        "text": "readiness remove unsafe capacity, queues\nstay bounded, retries do not amplify",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-7",
+        "kind": "narration",
+        "text": "demand, one workload cannot starve\nanother, exact model identity remains",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-8",
+        "kind": "narration",
+        "text": "visible, and recovery rejects stale or\nunverified artifacts. Multiple replicas",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-9",
+        "kind": "narration",
+        "text": "improve availability only when placement\nand shared dependencies support the claim.",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-10",
+        "kind": "narration",
+        "text": "Two replicas on one host do not survive\nhost loss. Replicas across hosts still",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-11",
+        "kind": "narration",
+        "text": "share a gateway, identity provider,\nartifact store, network, power domain, or",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-12",
+        "kind": "narration",
+        "text": "operator error unless those dependencies\nare addressed. Record the expected and",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-13",
+        "kind": "narration",
+        "text": "observed blast radius, containment, data\nand state reconciliation, recovery time,",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-14",
+        "kind": "narration",
+        "text": "evidence gaps, and owner.",
+        "sectionId": "test-failure-isolation"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-1",
+        "kind": "narration",
+        "text": "Choose scale signals that lead useful\ndemand without chasing noise. Queue delay,",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-2",
+        "kind": "narration",
+        "text": "admitted concurrency, work units,\nsaturation, or a tested combination may",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-3",
+        "kind": "narration",
+        "text": "react earlier than CPU or accelerator\nutilization alone. Kubernetes Horizontal",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-4",
+        "kind": "narration",
+        "text": "Pod Autoscaling periodically adjusts\ndesired replicas from observed metrics,",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-5",
+        "kind": "narration",
+        "text": "subject to its algorithm and configured\nbehavior; model-serving warm-up means your",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-6",
+        "kind": "narration",
+        "text": "useful-capacity policy must account for\nthe delay between a scale decision and",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-7",
+        "kind": "narration",
+        "text": "readiness. Set a minimum safe floor,\nmaximum cost and quota, stabilization",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-8",
+        "kind": "narration",
+        "text": "windows, scale-up rate, warm-up allowance,\nscale-down drain, telemetry-loss behavior,",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-9",
+        "kind": "narration",
+        "text": "and alerts. Compare baseline and candidate\npolicies under steady, burst, ramp,",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-10",
+        "kind": "narration",
+        "text": "skewed, and failure traffic. Approve only\nwhen service objectives, quality,",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-11",
+        "kind": "narration",
+        "text": "isolation, cost, startup, recovery, and\nrollback gates pass. Preserve the prior",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-12",
+        "kind": "narration",
+        "text": "policy, exact configuration, and safe\ncapacity floor. If telemetry is missing or",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-13",
+        "kind": "narration",
+        "text": "the candidate thrashes, fail to the\ndeclared safe state rather than treating",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-14",
+        "kind": "narration",
+        "text": "absent measurements as zero demand.",
+        "sectionId": "gate-autoscaling-and-change"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-activity-transition-1",
+        "kind": "narration",
+        "text": "Now design and challenge the scaling\npolicy. Use synthetic load evidence to"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-activity-transition-2",
+        "kind": "narration",
+        "text": "identify one bottleneck and compare\nvertical, replica, sharded, batched,"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-activity-transition-3",
+        "kind": "narration",
+        "text": "queued, cached, routed, and smaller-model\noptions. Define per-workload admission,"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-activity-transition-4",
+        "kind": "narration",
+        "text": "queue, deadline, cancellation, retry,\ncircuit, shedding, and degraded behavior."
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-activity-transition-5",
+        "kind": "narration",
+        "text": "Write placement, artifact verification,\nwarm-up, readiness, drain, replacement,"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-activity-transition-6",
+        "kind": "narration",
+        "text": "minimum capacity, maximum cost, and\nstabilization rules. Create ten process,"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-activity-transition-7",
+        "kind": "narration",
+        "text": "device, host, dependency, pressure,\ntelemetry, and bad-release failures with"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-activity-transition-8",
+        "kind": "narration",
+        "text": "expected blast radius and recovery.\nCompare baseline and candidate under"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-activity-transition-9",
+        "kind": "narration",
+        "text": "steady, burst, ramp, skewed, and failure\ntraffic, then issue a reversible decision."
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-activity-work-time",
+        "kind": "pause",
+        "text": "Provide one hundred eighty seconds of optional work time with pause, extend, save, and continue controls."
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-assessment-handoff-1",
+        "kind": "narration",
+        "text": "Begin the check when you can select a\npattern from a measured bottleneck,"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-assessment-handoff-2",
+        "kind": "narration",
+        "text": "explain backpressure, define useful\nreplica readiness, stop retry"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-assessment-handoff-3",
+        "kind": "narration",
+        "text": "amplification, measure failure isolation,\nand preserve a reversible autoscaling"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-assessment-handoff-4",
+        "kind": "narration",
+        "text": "policy. The check starts only when you\nchoose Begin knowledge check."
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-class-closing-1",
+        "kind": "narration",
+        "text": "Remember: scale the measured constraint,\nbound demand before saturation, count only"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-class-closing-2",
+        "kind": "narration",
+        "text": "verified ready capacity, test shared\nfailures, and preserve the policy and"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-class-closing-3",
+        "kind": "narration",
+        "text": "floor that let you reverse the change."
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-learner-prompt",
+        "kind": "learner-prompt",
+        "text": "Now design and challenge the scaling policy. Use synthetic load evidence to identify one bottleneck and compare vertical, replica, sharded, batched, queued, cached, routed, and smaller-model options. Define per-workload admission, queue, deadline, cancellation, retry, circuit, shedding, and degraded behavior. Write placement, artifact verification, warm-up, readiness, drain, replacement, minimum capacity, maximum cost, and stabilization rules. Create ten process, device, host, dependency, pressure, telemetry, and bad-release failures with expected blast radius and recovery. Compare baseline and candidate under steady, burst, ramp, skewed, and failure traffic, then issue a reversible decision."
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-checkpoint",
+        "kind": "checkpoint",
+        "text": "Checkpoint. One dependency begins timing out. Each client retries immediately without a limit, the gateway retries twice, and the queue accepts every attempt. Explain how a small partial failure becomes a cascade and name the controls that stop it.",
+        "sectionId": "control-admission-and-backpressure"
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-assessment-handoff",
+        "kind": "assessment-handoff",
+        "text": "Begin the check when you can select a pattern from a measured bottleneck, explain backpressure, define useful replica readiness, stop retry amplification, measure failure isolation, and preserve a reversible autoscaling policy. The check starts only when you choose Begin knowledge check."
+      },
+      {
+        "id": "cue-scaling-failure-and-capacity-controls-visual",
+        "kind": "visual",
+        "text": "Measured bottlenecks map to vertical, replica, parallel, batched, queued, cached, routed, or smaller-model responses and their new risks.",
+        "accessibilityAlternative": "Each scaling pattern lists the constraint it can address and tradeoffs in quality, latency, isolation, startup, cost, and complexity.",
+        "sectionId": "scale-the-bottleneck"
+      }
+    ],
+    "captions": [
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-1",
+        "startSeconds": 0,
+        "endSeconds": 7,
+        "text": "Welcome. Scaling is not the act of adding\nreplicas until a graph looks better."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-2",
+        "startSeconds": 7,
+        "endSeconds": 14,
+        "text": "It is a controlled response to measured\ndemand and failure risk. In this class,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-3",
+        "startSeconds": 14,
+        "endSeconds": 20,
+        "text": "you will identify the real bottleneck,\nbound admission and retries, place and"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-4",
+        "startSeconds": 20,
+        "endSeconds": 26,
+        "text": "warm useful capacity, test blast radius,\nand approve only a scale policy whose"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-5",
+        "startSeconds": 26,
+        "endSeconds": 31,
+        "text": "quality, cost, recovery, and rollback\nevidence holds under representative"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-welcome-and-outcomes-6",
+        "startSeconds": 31,
+        "endSeconds": 32,
+        "text": "traffic."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-1",
+        "startSeconds": 32,
+        "endSeconds": 37,
+        "text": "Scale the measured bottleneck, not the\narchitecture diagram. Use latency"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-2",
+        "startSeconds": 37,
+        "endSeconds": 41,
+        "text": "distributions, queue time, concurrency,\nrejection, accelerator and host"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-3",
+        "startSeconds": 41,
+        "endSeconds": 46,
+        "text": "utilization, memory headroom, bandwidth,\nstorage delay, cache behavior, request"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-4",
+        "startSeconds": 46,
+        "endSeconds": 52,
+        "text": "sizes, and attributable cost. Then compare\noptions. A larger device or host can"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-5",
+        "startSeconds": 52,
+        "endSeconds": 58,
+        "text": "increase vertical capacity but may enlarge\none failure domain. More replicas can"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-6",
+        "startSeconds": 58,
+        "endSeconds": 63,
+        "text": "improve parallel work and replacement but\nalso multiply startup, memory, and"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-7",
+        "startSeconds": 63,
+        "endSeconds": 69,
+        "text": "shared-dependency load. Model or tensor\nparallelism can fit or accelerate a larger"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-8",
+        "startSeconds": 69,
+        "endSeconds": 74,
+        "text": "build while adding communication and\nplacement constraints. Batching can"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-9",
+        "startSeconds": 74,
+        "endSeconds": 80,
+        "text": "improve throughput while increasing queue\nand tail latency. A bounded queue can"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-10",
+        "startSeconds": 80,
+        "endSeconds": 86,
+        "text": "absorb a short burst but cannot create\ncompute. Caching can avoid repeated work"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-11",
+        "startSeconds": 86,
+        "endSeconds": 91,
+        "text": "only when keys, freshness, authorization,\nand data isolation are correct. Workload"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-12",
+        "startSeconds": 91,
+        "endSeconds": 96,
+        "text": "routing can match requests to specialized\nevaluated capacity. A smaller evaluated"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-13",
+        "startSeconds": 96,
+        "endSeconds": 102,
+        "text": "model can reduce latency and cost but\nchanges quality and safety evidence."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-14",
+        "startSeconds": 102,
+        "endSeconds": 107,
+        "text": "Scaling compute cannot repair an unbounded\nqueue, unavailable identity service, slow"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-15",
+        "startSeconds": 107,
+        "endSeconds": 112,
+        "text": "artifact store, bad prompt template,\nincompatible runtime, or quality"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scale-bottleneck-narration-16",
+        "startSeconds": 112,
+        "endSeconds": 113,
+        "text": "regression."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-1",
+        "startSeconds": 113,
+        "endSeconds": 118,
+        "text": "Consider a synthetic service with\nacceptable processing time at one request,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-2",
+        "startSeconds": 118,
+        "endSeconds": 123,
+        "text": "but rising queue delay during a\nten-request burst. Accelerator utilization"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-3",
+        "startSeconds": 123,
+        "endSeconds": 129,
+        "text": "is high, memory has safe headroom,\nartifact storage is healthy, and quality"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-4",
+        "startSeconds": 129,
+        "endSeconds": 134,
+        "text": "is unchanged. The first experiment\ncompares two warmed replicas against one"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-5",
+        "startSeconds": 134,
+        "endSeconds": 139,
+        "text": "larger-batch replica under the same\nrequests, limits, hardware class, and"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-6",
+        "startSeconds": 139,
+        "endSeconds": 146,
+        "text": "load. Two replicas reduce queue delay and\npreserve time to first output, but both"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-7",
+        "startSeconds": 146,
+        "endSeconds": 153,
+        "text": "are placed on one host and share one\ngateway. That does not satisfy a"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-8",
+        "startSeconds": 153,
+        "endSeconds": 158,
+        "text": "host-failure availability claim. The\nbatched option improves throughput but"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-9",
+        "startSeconds": 158,
+        "endSeconds": 163,
+        "text": "violates the interactive latency\nobjective. The decision selects two"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-10",
+        "startSeconds": 163,
+        "endSeconds": 168,
+        "text": "replicas spread across verified failure\ndomains, retains bounded batching, and"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-11",
+        "startSeconds": 168,
+        "endSeconds": 174,
+        "text": "records the shared gateway as a remaining\ndependency. It also preserves the baseline"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-12",
+        "startSeconds": 174,
+        "endSeconds": 180,
+        "text": "policy and cost ceiling. The answer came\nfrom queue, placement, latency, quality,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-scaling-choice-demonstration-13",
+        "startSeconds": 180,
+        "endSeconds": 184,
+        "text": "and cost evidence, not from replica count\nalone."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-1",
+        "startSeconds": 184,
+        "endSeconds": 189,
+        "text": "Control admission before saturation. Set\nbody, context, output, concurrency, rate,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-2",
+        "startSeconds": 189,
+        "endSeconds": 195,
+        "text": "queue, deadline, and compute limits by\nworkload and priority. Reject early with a"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-3",
+        "startSeconds": 195,
+        "endSeconds": 201,
+        "text": "stable error and bounded retry guidance\nwhen work cannot finish inside its"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-4",
+        "startSeconds": 201,
+        "endSeconds": 206,
+        "text": "deadline or budget. Propagate cancellation\nand deadlines through gateway, queue,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-5",
+        "startSeconds": 206,
+        "endSeconds": 212,
+        "text": "inference server, runtime, and dependent\ntools so abandoned work does not keep"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-6",
+        "startSeconds": 212,
+        "endSeconds": 217,
+        "text": "consuming capacity. Backpressure tells\nupstream callers that downstream capacity"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-7",
+        "startSeconds": 217,
+        "endSeconds": 223,
+        "text": "is constrained; an unbounded queue only\nhides overload until latency and memory"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-8",
+        "startSeconds": 223,
+        "endSeconds": 229,
+        "text": "fail. Retry only classified transient\nfailures, use a bounded attempt count and"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-9",
+        "startSeconds": 229,
+        "endSeconds": 236,
+        "text": "jitter, honor a retry budget, and confirm\nthe operation is safe to repeat. Circuit"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-10",
+        "startSeconds": 236,
+        "endSeconds": 241,
+        "text": "breakers stop repeated calls to a failing\ndependency. Load shedding protects"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-11",
+        "startSeconds": 241,
+        "endSeconds": 247,
+        "text": "critical work by rejecting lower-priority\ndemand before all work fails. Define safe"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-12",
+        "startSeconds": 247,
+        "endSeconds": 252,
+        "text": "degraded modes in advance: smaller limits,\nlower-priority rejection, a read-only"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-13",
+        "startSeconds": 252,
+        "endSeconds": 258,
+        "text": "path, or a separately evaluated fallback.\nA degraded mode is not permission to"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-admission-backpressure-narration-14",
+        "startSeconds": 258,
+        "endSeconds": 262,
+        "text": "bypass identity, authorization, privacy,\nsafety, or evidence controls."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-checkpoint-1",
+        "startSeconds": 262,
+        "endSeconds": 267,
+        "text": "Checkpoint. One dependency begins timing\nout. Each client retries immediately"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-checkpoint-2",
+        "startSeconds": 267,
+        "endSeconds": 273,
+        "text": "without a limit, the gateway retries\ntwice, and the queue accepts every"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-checkpoint-3",
+        "startSeconds": 273,
+        "endSeconds": 279,
+        "text": "attempt. Explain how a small partial\nfailure becomes a cascade and name the"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-checkpoint-4",
+        "startSeconds": 279,
+        "endSeconds": 281,
+        "text": "controls that stop it."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-feedback-1",
+        "startSeconds": 356,
+        "endSeconds": 361,
+        "text": "Every original request creates multiple\nclient attempts, and each gateway attempt"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-feedback-2",
+        "startSeconds": 361,
+        "endSeconds": 367,
+        "text": "multiplies them again. The unbounded queue\npreserves work after its useful deadline,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-feedback-3",
+        "startSeconds": 367,
+        "endSeconds": 373,
+        "text": "so capacity is consumed by requests that\nshould already have failed. Stop the"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-feedback-4",
+        "startSeconds": 373,
+        "endSeconds": 378,
+        "text": "cascade with one end-to-end deadline,\npropagated cancellation, one owned retry"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-feedback-5",
+        "startSeconds": 378,
+        "endSeconds": 383,
+        "text": "layer, classified transient failures, a\nsmall attempt and retry budget with"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-feedback-6",
+        "startSeconds": 383,
+        "endSeconds": 388,
+        "text": "jitter, a circuit breaker, bounded\nadmission and queueing, and prioritized"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-feedback-7",
+        "startSeconds": 388,
+        "endSeconds": 394,
+        "text": "shedding. Recover the dependency, drain or\ndiscard expired work safely, and verify"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-feedback-8",
+        "startSeconds": 394,
+        "endSeconds": 400,
+        "text": "normal load before closing the event. If\nyour answer only added replicas, the"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-retry-feedback-9",
+        "startSeconds": 400,
+        "endSeconds": 403,
+        "text": "amplification would consume those replicas\ntoo."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-1",
+        "startSeconds": 403,
+        "endSeconds": 408,
+        "text": "Place capacity against real device,\nmemory, topology, storage, network,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-2",
+        "startSeconds": 408,
+        "endSeconds": 412,
+        "text": "driver, and runtime requirements.\nKubernetes resource requests influence"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-3",
+        "startSeconds": 412,
+        "endSeconds": 417,
+        "text": "scheduling, limits bound some resource\nuse, and extended devices have different"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-4",
+        "startSeconds": 417,
+        "endSeconds": 422,
+        "text": "allocation behavior from fractional CPU.\nDocker likewise warns that containers have"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-5",
+        "startSeconds": 422,
+        "endSeconds": 427,
+        "text": "no resource constraints by default. Verify\nactual scheduler, device-plugin, topology,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-6",
+        "startSeconds": 427,
+        "endSeconds": 433,
+        "text": "and runtime behavior in the target\nenvironment. A scheduled process is not"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-7",
+        "startSeconds": 433,
+        "endSeconds": 438,
+        "text": "useful capacity. Account for artifact\ndownload, integrity and policy"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-8",
+        "startSeconds": 438,
+        "endSeconds": 443,
+        "text": "verification, model load, compilation,\ncache warm-up, adapter initialization, and"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-9",
+        "startSeconds": 443,
+        "endSeconds": 448,
+        "text": "exact-model readiness before routing\ntraffic. During removal or update, stop"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-10",
+        "startSeconds": 448,
+        "endSeconds": 454,
+        "text": "new admission to the replica, drain\nbounded in-flight work until a declared"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-11",
+        "startSeconds": 454,
+        "endSeconds": 459,
+        "text": "deadline, cancel or reconcile remaining\noperations, preserve telemetry, revoke the"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-12",
+        "startSeconds": 459,
+        "endSeconds": 464,
+        "text": "route, and only then reclaim resources.\nTest cold start, replacement, host"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-13",
+        "startSeconds": 464,
+        "endSeconds": 469,
+        "text": "pressure, and simultaneous rollout so\nautoscaling does not count replicas that"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-placement-warmup-narration-14",
+        "startSeconds": 469,
+        "endSeconds": 473,
+        "text": "cannot become ready before the demand\npasses."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-1",
+        "startSeconds": 473,
+        "endSeconds": 478,
+        "text": "Inject failures and measure the actual\nblast radius. Include process crash,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-2",
+        "startSeconds": 478,
+        "endSeconds": 483,
+        "text": "out-of-memory termination, device loss,\nhost loss, storage delay, network"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-3",
+        "startSeconds": 483,
+        "endSeconds": 488,
+        "text": "partition, identity failure, telemetry\nfailure, registry outage, queue pressure,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-4",
+        "startSeconds": 488,
+        "endSeconds": 493,
+        "text": "malformed work, and a bad model release.\nObserve affected requests, replicas,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-5",
+        "startSeconds": 493,
+        "endSeconds": 498,
+        "text": "nodes, sites, shared services, and\nmanagement functions. Confirm liveness and"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-6",
+        "startSeconds": 498,
+        "endSeconds": 503,
+        "text": "readiness remove unsafe capacity, queues\nstay bounded, retries do not amplify"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-7",
+        "startSeconds": 503,
+        "endSeconds": 508,
+        "text": "demand, one workload cannot starve\nanother, exact model identity remains"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-8",
+        "startSeconds": 508,
+        "endSeconds": 513,
+        "text": "visible, and recovery rejects stale or\nunverified artifacts. Multiple replicas"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-9",
+        "startSeconds": 513,
+        "endSeconds": 518,
+        "text": "improve availability only when placement\nand shared dependencies support the claim."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-10",
+        "startSeconds": 518,
+        "endSeconds": 525,
+        "text": "Two replicas on one host do not survive\nhost loss. Replicas across hosts still"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-11",
+        "startSeconds": 525,
+        "endSeconds": 530,
+        "text": "share a gateway, identity provider,\nartifact store, network, power domain, or"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-12",
+        "startSeconds": 530,
+        "endSeconds": 535,
+        "text": "operator error unless those dependencies\nare addressed. Record the expected and"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-13",
+        "startSeconds": 535,
+        "endSeconds": 540,
+        "text": "observed blast radius, containment, data\nand state reconciliation, recovery time,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-failure-isolation-narration-14",
+        "startSeconds": 540,
+        "endSeconds": 542,
+        "text": "evidence gaps, and owner."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-1",
+        "startSeconds": 542,
+        "endSeconds": 548,
+        "text": "Choose scale signals that lead useful\ndemand without chasing noise. Queue delay,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-2",
+        "startSeconds": 548,
+        "endSeconds": 553,
+        "text": "admitted concurrency, work units,\nsaturation, or a tested combination may"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-3",
+        "startSeconds": 553,
+        "endSeconds": 558,
+        "text": "react earlier than CPU or accelerator\nutilization alone. Kubernetes Horizontal"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-4",
+        "startSeconds": 558,
+        "endSeconds": 563,
+        "text": "Pod Autoscaling periodically adjusts\ndesired replicas from observed metrics,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-5",
+        "startSeconds": 563,
+        "endSeconds": 568,
+        "text": "subject to its algorithm and configured\nbehavior; model-serving warm-up means your"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-6",
+        "startSeconds": 568,
+        "endSeconds": 574,
+        "text": "useful-capacity policy must account for\nthe delay between a scale decision and"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-7",
+        "startSeconds": 574,
+        "endSeconds": 579,
+        "text": "readiness. Set a minimum safe floor,\nmaximum cost and quota, stabilization"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-8",
+        "startSeconds": 579,
+        "endSeconds": 584,
+        "text": "windows, scale-up rate, warm-up allowance,\nscale-down drain, telemetry-loss behavior,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-9",
+        "startSeconds": 584,
+        "endSeconds": 589,
+        "text": "and alerts. Compare baseline and candidate\npolicies under steady, burst, ramp,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-10",
+        "startSeconds": 589,
+        "endSeconds": 594,
+        "text": "skewed, and failure traffic. Approve only\nwhen service objectives, quality,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-11",
+        "startSeconds": 594,
+        "endSeconds": 599,
+        "text": "isolation, cost, startup, recovery, and\nrollback gates pass. Preserve the prior"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-12",
+        "startSeconds": 599,
+        "endSeconds": 605,
+        "text": "policy, exact configuration, and safe\ncapacity floor. If telemetry is missing or"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-13",
+        "startSeconds": 605,
+        "endSeconds": 611,
+        "text": "the candidate thrashes, fail to the\ndeclared safe state rather than treating"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-autoscaling-change-narration-14",
+        "startSeconds": 611,
+        "endSeconds": 614,
+        "text": "absent measurements as zero demand."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-activity-transition-1",
+        "startSeconds": 614,
+        "endSeconds": 620,
+        "text": "Now design and challenge the scaling\npolicy. Use synthetic load evidence to"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-activity-transition-2",
+        "startSeconds": 620,
+        "endSeconds": 625,
+        "text": "identify one bottleneck and compare\nvertical, replica, sharded, batched,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-activity-transition-3",
+        "startSeconds": 625,
+        "endSeconds": 630,
+        "text": "queued, cached, routed, and smaller-model\noptions. Define per-workload admission,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-activity-transition-4",
+        "startSeconds": 630,
+        "endSeconds": 635,
+        "text": "queue, deadline, cancellation, retry,\ncircuit, shedding, and degraded behavior."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-activity-transition-5",
+        "startSeconds": 635,
+        "endSeconds": 639,
+        "text": "Write placement, artifact verification,\nwarm-up, readiness, drain, replacement,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-activity-transition-6",
+        "startSeconds": 639,
+        "endSeconds": 644,
+        "text": "minimum capacity, maximum cost, and\nstabilization rules. Create ten process,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-activity-transition-7",
+        "startSeconds": 644,
+        "endSeconds": 649,
+        "text": "device, host, dependency, pressure,\ntelemetry, and bad-release failures with"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-activity-transition-8",
+        "startSeconds": 649,
+        "endSeconds": 654,
+        "text": "expected blast radius and recovery.\nCompare baseline and candidate under"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-activity-transition-9",
+        "startSeconds": 654,
+        "endSeconds": 660,
+        "text": "steady, burst, ramp, skewed, and failure\ntraffic, then issue a reversible decision."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-assessment-handoff-1",
+        "startSeconds": 840,
+        "endSeconds": 846,
+        "text": "Begin the check when you can select a\npattern from a measured bottleneck,"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-assessment-handoff-2",
+        "startSeconds": 846,
+        "endSeconds": 850,
+        "text": "explain backpressure, define useful\nreplica readiness, stop retry"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-assessment-handoff-3",
+        "startSeconds": 850,
+        "endSeconds": 855,
+        "text": "amplification, measure failure isolation,\nand preserve a reversible autoscaling"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-assessment-handoff-4",
+        "startSeconds": 855,
+        "endSeconds": 860,
+        "text": "policy. The check starts only when you\nchoose Begin knowledge check."
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-class-closing-1",
+        "startSeconds": 860,
+        "endSeconds": 865,
+        "text": "Remember: scale the measured constraint,\nbound demand before saturation, count only"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-class-closing-2",
+        "startSeconds": 865,
+        "endSeconds": 870,
+        "text": "verified ready capacity, test shared\nfailures, and preserve the policy and"
+      },
+      {
+        "cueId": "cue-scaling-failure-and-capacity-controls-class-closing-3",
+        "startSeconds": 870,
+        "endSeconds": 874,
+        "text": "floor that let you reverse the change."
+      }
+    ],
+    "transcript": "Welcome. Scaling is not the act of adding\nreplicas until a graph looks better. It is a controlled response to measured\ndemand and failure risk. In this class, you will identify the real bottleneck,\nbound admission and retries, place and warm useful capacity, test blast radius,\nand approve only a scale policy whose quality, cost, recovery, and rollback\nevidence holds under representative traffic. Scale the measured bottleneck, not the\narchitecture diagram. Use latency distributions, queue time, concurrency,\nrejection, accelerator and host utilization, memory headroom, bandwidth,\nstorage delay, cache behavior, request sizes, and attributable cost. Then compare\noptions. A larger device or host can increase vertical capacity but may enlarge\none failure domain. More replicas can improve parallel work and replacement but\nalso multiply startup, memory, and shared-dependency load. Model or tensor\nparallelism can fit or accelerate a larger build while adding communication and\nplacement constraints. Batching can improve throughput while increasing queue\nand tail latency. A bounded queue can absorb a short burst but cannot create\ncompute. Caching can avoid repeated work only when keys, freshness, authorization,\nand data isolation are correct. Workload routing can match requests to specialized\nevaluated capacity. A smaller evaluated model can reduce latency and cost but\nchanges quality and safety evidence. Scaling compute cannot repair an unbounded\nqueue, unavailable identity service, slow artifact store, bad prompt template,\nincompatible runtime, or quality regression. Consider a synthetic service with\nacceptable processing time at one request, but rising queue delay during a\nten-request burst. Accelerator utilization is high, memory has safe headroom,\nartifact storage is healthy, and quality is unchanged. The first experiment\ncompares two warmed replicas against one larger-batch replica under the same\nrequests, limits, hardware class, and load. Two replicas reduce queue delay and\npreserve time to first output, but both are placed on one host and share one\ngateway. That does not satisfy a host-failure availability claim. The\nbatched option improves throughput but violates the interactive latency\nobjective. The decision selects two replicas spread across verified failure\ndomains, retains bounded batching, and records the shared gateway as a remaining\ndependency. It also preserves the baseline policy and cost ceiling. The answer came\nfrom queue, placement, latency, quality, and cost evidence, not from replica count\nalone. Control admission before saturation. Set\nbody, context, output, concurrency, rate, queue, deadline, and compute limits by\nworkload and priority. Reject early with a stable error and bounded retry guidance\nwhen work cannot finish inside its deadline or budget. Propagate cancellation\nand deadlines through gateway, queue, inference server, runtime, and dependent\ntools so abandoned work does not keep consuming capacity. Backpressure tells\nupstream callers that downstream capacity is constrained; an unbounded queue only\nhides overload until latency and memory fail. Retry only classified transient\nfailures, use a bounded attempt count and jitter, honor a retry budget, and confirm\nthe operation is safe to repeat. Circuit breakers stop repeated calls to a failing\ndependency. Load shedding protects critical work by rejecting lower-priority\ndemand before all work fails. Define safe degraded modes in advance: smaller limits,\nlower-priority rejection, a read-only path, or a separately evaluated fallback.\nA degraded mode is not permission to bypass identity, authorization, privacy,\nsafety, or evidence controls. Checkpoint. One dependency begins timing\nout. Each client retries immediately without a limit, the gateway retries\ntwice, and the queue accepts every attempt. Explain how a small partial\nfailure becomes a cascade and name the controls that stop it. Every original request creates multiple\nclient attempts, and each gateway attempt multiplies them again. The unbounded queue\npreserves work after its useful deadline, so capacity is consumed by requests that\nshould already have failed. Stop the cascade with one end-to-end deadline,\npropagated cancellation, one owned retry layer, classified transient failures, a\nsmall attempt and retry budget with jitter, a circuit breaker, bounded\nadmission and queueing, and prioritized shedding. Recover the dependency, drain or\ndiscard expired work safely, and verify normal load before closing the event. If\nyour answer only added replicas, the amplification would consume those replicas\ntoo. Place capacity against real device,\nmemory, topology, storage, network, driver, and runtime requirements.\nKubernetes resource requests influence scheduling, limits bound some resource\nuse, and extended devices have different allocation behavior from fractional CPU.\nDocker likewise warns that containers have no resource constraints by default. Verify\nactual scheduler, device-plugin, topology, and runtime behavior in the target\nenvironment. A scheduled process is not useful capacity. Account for artifact\ndownload, integrity and policy verification, model load, compilation,\ncache warm-up, adapter initialization, and exact-model readiness before routing\ntraffic. During removal or update, stop new admission to the replica, drain\nbounded in-flight work until a declared deadline, cancel or reconcile remaining\noperations, preserve telemetry, revoke the route, and only then reclaim resources.\nTest cold start, replacement, host pressure, and simultaneous rollout so\nautoscaling does not count replicas that cannot become ready before the demand\npasses. Inject failures and measure the actual\nblast radius. Include process crash, out-of-memory termination, device loss,\nhost loss, storage delay, network partition, identity failure, telemetry\nfailure, registry outage, queue pressure, malformed work, and a bad model release.\nObserve affected requests, replicas, nodes, sites, shared services, and\nmanagement functions. Confirm liveness and readiness remove unsafe capacity, queues\nstay bounded, retries do not amplify demand, one workload cannot starve\nanother, exact model identity remains visible, and recovery rejects stale or\nunverified artifacts. Multiple replicas improve availability only when placement\nand shared dependencies support the claim. Two replicas on one host do not survive\nhost loss. Replicas across hosts still share a gateway, identity provider,\nartifact store, network, power domain, or operator error unless those dependencies\nare addressed. Record the expected and observed blast radius, containment, data\nand state reconciliation, recovery time, evidence gaps, and owner. Choose scale signals that lead useful\ndemand without chasing noise. Queue delay, admitted concurrency, work units,\nsaturation, or a tested combination may react earlier than CPU or accelerator\nutilization alone. Kubernetes Horizontal Pod Autoscaling periodically adjusts\ndesired replicas from observed metrics, subject to its algorithm and configured\nbehavior; model-serving warm-up means your useful-capacity policy must account for\nthe delay between a scale decision and readiness. Set a minimum safe floor,\nmaximum cost and quota, stabilization windows, scale-up rate, warm-up allowance,\nscale-down drain, telemetry-loss behavior, and alerts. Compare baseline and candidate\npolicies under steady, burst, ramp, skewed, and failure traffic. Approve only\nwhen service objectives, quality, isolation, cost, startup, recovery, and\nrollback gates pass. Preserve the prior policy, exact configuration, and safe\ncapacity floor. If telemetry is missing or the candidate thrashes, fail to the\ndeclared safe state rather than treating absent measurements as zero demand. Now design and challenge the scaling\npolicy. Use synthetic load evidence to identify one bottleneck and compare\nvertical, replica, sharded, batched, queued, cached, routed, and smaller-model\noptions. Define per-workload admission, queue, deadline, cancellation, retry,\ncircuit, shedding, and degraded behavior. Write placement, artifact verification,\nwarm-up, readiness, drain, replacement, minimum capacity, maximum cost, and\nstabilization rules. Create ten process, device, host, dependency, pressure,\ntelemetry, and bad-release failures with expected blast radius and recovery.\nCompare baseline and candidate under steady, burst, ramp, skewed, and failure\ntraffic, then issue a reversible decision. Begin the check when you can select a\npattern from a measured bottleneck, explain backpressure, define useful\nreplica readiness, stop retry amplification, measure failure isolation,\nand preserve a reversible autoscaling policy. The check starts only when you\nchoose Begin knowledge check. Remember: scale the measured constraint,\nbound demand before saturation, count only verified ready capacity, test shared\nfailures, and preserve the policy and floor that let you reverse the change.",
+    "reducedMotionAlternative": "Display the entire comparison as a static table and emphasize the current row with text and a border. Present baseline and candidates side by side in a static decision table. Show the controls as a numbered static policy table. Present placement as a static checklist and lifecycle states as numbered text. Show the complete failure matrix as a static table. Provide traffic and decision results as labeled static tables rather than animated graphs."
+  }
 }

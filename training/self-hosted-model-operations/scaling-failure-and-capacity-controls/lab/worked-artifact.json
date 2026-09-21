@@ -1,0 +1,108 @@
+{
+  "artifact": "activity-scaling-failure-plan",
+  "evidenceKind": "fictional deterministic teaching data, not measured real-model or live-infrastructure performance",
+  "releaseUnderEvaluation": {
+    "modelRelease": "r17",
+    "promptContract": "p4",
+    "rule": "Baseline and candidate are evaluated separately because concurrency, batching, routing, queueing, cancellation, and timeouts can change effective quality even when release and prompt identity are unchanged."
+  },
+  "measuredBottleneck": {
+    "readyReplicas": 4,
+    "workUnitsPerReplica": 2,
+    "readyCapacityArithmetic": "4 * 2 = 8",
+    "burstDemand": 13,
+    "unservedBeforeQueueArithmetic": "13 - 8 = 5",
+    "queueLimit": 2,
+    "requiredRejectionArithmetic": "5 - 2 = 3",
+    "queueDelayMsBefore": 20,
+    "queueDelayMsBurst": 410,
+    "deviceUtilizationPercent": 91,
+    "memoryHeadroomPercent": 34,
+    "artifactStoreLatencyMs": 18,
+    "cacheHitPercent": 62,
+    "reasoning": "Rising queue delay and high serving utilization coincide with memory and artifact-store headroom. Burst serving throughput is the measured synthetic bottleneck."
+  },
+  "alternatives": [
+    {"pattern":"vertical","quality":"measure again after runtime or precision changes","latency":"may lower service time","failure":"larger host blast radius","cost":"higher unit cost","complexity":"hardware and placement change","decision":"not first choice"},
+    {"pattern":"replicas","quality":"evaluate candidate under new concurrency and routing","latency":"lowers queueing after readiness","failure":"helps only across domains","cost":"raises hourly cost","complexity":"readiness and routing required","decision":"selected"},
+    {"pattern":"sharded","quality":"verify numerical and runtime behavior","latency":"communication may add latency","failure":"one shard loss may fail a request","cost":"multiple devices per serving unit","complexity":"high","decision":"not selected because model fits"},
+    {"pattern":"batched","quality":"test under declared batch size","latency":"waiting can increase tail latency","failure":"oversized batch affects more requests","cost":"may improve utilization","complexity":"batch scheduler required","decision":"retain evaluated bound"},
+    {"pattern":"queued","quality":"timeouts can alter completed-case mix","latency":"adds waiting","failure":"unbounded queue causes overload","cost":"does not create throughput","complexity":"deadlines and cancellation required","decision":"bounded at two interactive units"},
+    {"pattern":"cached","quality":"requires correct identity, privacy, and freshness","latency":"hits are faster","failure":"stale or cross-tenant keys are unsafe","cost":"can remove repeated work","complexity":"keying and invalidation","decision":"supplement only"},
+    {"pattern":"routed","quality":"route correctness must be 100/100","latency":"can isolate interactive work","failure":"router becomes a dependency","cost":"reserved pools may lower utilization","complexity":"policy and observability","decision":"selected for priority isolation"},
+    {"pattern":"smaller-model","quality":"requires a separate evaluation","latency":"may be lower but must be measured","failure":"separate artifact and route","cost":"potentially lower","complexity":"fallback governance","decision":"degraded mode only after evaluation"}
+  ],
+  "workloadPolicies": {
+    "interactive":{"bodyMiB":1,"contextTokens":8192,"outputTokens":1024,"concurrencyPerTenant":16,"ratePerSecond":20,"queueWorkUnits":2,"deadlineMs":1000,"retry":"at most two safe transient retries inside original deadline","cancellation":"remove queued work and signal active layers","shedding":"reject lower priority after batch","degraded":"output limit 256 or separately evaluated fallback"},
+    "batch":{"bodyMiB":4,"contextTokens":16384,"outputTokens":2048,"concurrencyPerTenant":4,"ratePerSecond":2,"queueWorkUnits":8,"deadlineMs":30000,"retry":"at most two when resumable and safe","cancellation":"checkpoint only if supported, otherwise suppress result","shedding":"shed first","degraded":"pause new jobs"},
+    "administrativeEvaluation":{"concurrency":2,"retry":"none by default","cancellation":"mandatory","shedding":"shed before interactive only if resumable","degraded":"stop rather than change identity"},
+    "circuit":{"openAfterFailures":3,"windowSeconds":30,"cooldownSeconds":20,"successfulProbesToClose":2},
+    "globalRules":["Never retry malformed, unauthorized, expired, unverified, or deterministic limit failures.","Every retry consumes the original queue and deadline budget.","Never silently change model identity or authorization behavior."]
+  },
+  "lifecyclePolicy": {
+    "placement":["compatible device, memory, driver, runtime, storage, and network","spread availability claim across at least two host domains"],
+    "warmup":["download","digest verification","load","compile if required","cache warm-up","identity readiness probe"],
+    "readiness":"count slots only after every warm-up and identity check passes",
+    "drain":"stop new work, finish bounded in-flight work, preserve telemetry, revoke route, reclaim",
+    "replacement":"failed capacity remains zero until a verified replacement is ready",
+    "minimumReadySlots":4,
+    "maximumSlots":12,
+    "maximumSyntheticHourlyCost":24,
+    "warmupIntervals":2,
+    "scaleDownStableIntervals":3
+  },
+  "qualityGates": [
+    {"workload":"interactive","metric":"task success","denominator":100,"thresholdCorrect":95,"thresholdPercent":95},
+    {"workload":"batch","metric":"task success","denominator":200,"thresholdCorrect":188,"thresholdPercent":94},
+    {"workload":"safety","metric":"refusal correctness","denominator":50,"thresholdCorrect":49,"thresholdPercent":98},
+    {"workload":"routing","metric":"route-to-contract correctness","denominator":100,"thresholdCorrect":100,"thresholdPercent":100}
+  ],
+  "serviceGates": {
+    "interactiveP95LatencyMsMax":700,
+    "interactiveQueueDelayMsMax":200,
+    "interactiveDeadlineMs":1000,
+    "batchP95LatencyMsMax":5000,
+    "batchQueueDelayMsMax":2000,
+    "batchDeadlineMs":30000,
+    "costUnitsPerHourMax":24,
+    "recoveryIntervalsMax":2,
+    "allowedCandidateRejections":{"steady":0,"burst":1,"ramp":0,"skewedBatch":1,"failure":0}
+  },
+  "failureCases": [
+    {"id":1,"failure":"process crash","blastRadius":"one replica and its in-flight requests","recovery":"remove from readiness and retry only safe work"},
+    {"id":2,"failure":"device loss","blastRadius":"replicas using that device","recovery":"remove device capacity and place verified replacement"},
+    {"id":3,"failure":"host loss","blastRadius":"all replicas in the host domain","recovery":"serve bounded demand from another domain"},
+    {"id":4,"failure":"artifact-store delay","blastRadius":"warming replacements","recovery":"keep them unready and use circuit policy"},
+    {"id":5,"failure":"network partition","blastRadius":"unreachable replicas or dependency path","recovery":"remove routes and probe after cooldown"},
+    {"id":6,"failure":"identity failure","blastRadius":"new protected requests","recovery":"reject without authorization bypass"},
+    {"id":7,"failure":"telemetry failure","blastRadius":"management visibility","recovery":"alarm and mark evidence unknown"},
+    {"id":8,"failure":"queue pressure","blastRadius":"workload queue and shared capacity","recovery":"bound queue, shed batch, reject excess"},
+    {"id":9,"failure":"malformed work","blastRadius":"request only","recovery":"reject before queue and do not retry"},
+    {"id":10,"failure":"bad model release","blastRadius":"candidate route if isolation fails","recovery":"keep unrouted and restore verified prior identity"}
+  ],
+  "trafficComparison": [
+    {"pattern":"steady","demand":6,"baseline":{"served":6,"rejected":0,"queueDelayMs":0,"p95LatencyMs":420,"costPerHour":12,"quality":{"correct":97,"total":100}},"candidate":{"served":6,"rejected":0,"queueDelayMs":0,"p95LatencyMs":390,"costPerHour":20,"quality":{"correct":97,"total":100}},"arithmetic":"candidate cost penalty = 20 - 12 = 8; 97/100 >= 95/100","result":"both pass; candidate costs 8 more units"},
+    {"pattern":"burst","demand":13,"baseline":{"readyCapacity":8,"queued":2,"served":10,"rejected":3,"queueDelayMs":410,"p95LatencyMs":1120,"costPerHour":12},"candidate":{"readyCapacity":12,"queued":1,"served":13,"rejected":0,"queueDelayMs":120,"p95LatencyMs":640,"costPerHour":20,"quality":{"correct":96,"total":100}},"arithmetic":"baseline rejection = 13 - 8 - 2 = 3; candidate queue = 13 - 12 = 1; 96/100 >= 95/100","result":"baseline fails queue and latency; candidate passes"},
+    {"pattern":"ramp","demandByInterval":[6,8,10],"baseline":{"servedByInterval":[6,8,10],"rejectedByInterval":[0,0,0],"queueDelayMsByInterval":[0,80,260],"p95LatencyMsByInterval":[420,560,780]},"candidate":{"readyCapacityByInterval":[8,8,12],"servedByInterval":[6,8,10],"rejectedByInterval":[0,0,0],"queueDelayMsByInterval":[0,70,60],"p95LatencyMsByInterval":[400,520,510],"costPerHour":20,"quality":{"correct":96,"total":100}},"arithmetic":"baseline interval three has 260 > 200 and 780 > 700; candidate counts 12 only after two warm-up intervals; 96/100 >= 95/100","result":"baseline fails interval three; candidate passes"},
+    {"pattern":"skewed","demand":{"interactive":7,"batch":6,"total":13},"baseline":{"served":{"interactive":6,"batch":4},"queued":2,"rejected":{"interactive":1,"batch":2},"interactiveQueueDelayMs":330,"interactiveP95LatencyMs":810},"candidate":{"served":{"interactive":7,"batch":5},"rejected":{"interactive":0,"batch":1},"interactiveQueueDelayMs":80,"interactiveP95LatencyMs":500,"batchQueueDelayMs":900,"batchP95LatencyMs":3200,"quality":{"interactive":{"correct":96,"total":100},"batch":{"correct":189,"total":200},"routing":{"correct":100,"total":100}}},"arithmetic":"candidate serves 7 + 5 = 12 and sheds 1 batch; 189/200 = 94.5 percent >= 94 percent","result":"baseline fails priority protection; candidate passes"},
+    {"pattern":"failure","demand":6,"baseline":{"readyAfterHostLoss":0,"served":0,"rejected":6,"latency":"not available because no request completed"},"candidate":{"readyAfterHostLoss":4,"queued":2,"served":6,"rejected":0,"queueDelayMs":180,"p95LatencyMs":680,"recoveryIntervals":2,"quality":{"safetyCorrect":49,"safetyTotal":50,"routingCorrect":100,"routingTotal":100}},"arithmetic":"4 ready + 2 queued = 6 served; 49/50 = 98 percent; recovery 2 <= 2 intervals","result":"baseline fails; candidate passes at the declared bounds"}
+  ],
+  "decision": {
+    "outcome":"staged fictional-policy decision only, not live deployment approval",
+    "service":"candidate passes all five supplied synthetic patterns",
+    "quality":"candidate passes explicit interactive, batch, safety, and routing thresholds on the supplied synthetic cases",
+    "qualityInvalidation":"quality becomes UNKNOWN if release, prompt contract, denominator, scoring, routing, batching, concurrency, or timeout configuration changes without reevaluation",
+    "isolation":"passes only with ready capacity in two domains",
+    "cost":"20 is within maximum 24",
+    "startup":"passes after two warm-up intervals",
+    "recovery":"passes at two intervals with failed capacity removed immediately",
+    "rollback":"restore prior policy and four-slot floor on a quality miss, unevaluated identity change, cost above 24, two queue-delay breaches, route correctness below 100/100, unknown readiness, or recovery beyond two intervals"
+  },
+  "variationAnswer": {
+    "prediction":"changed-positive should approve",
+    "calculation":"4 + 4 = 8 ready slots; 8 + queue 2 = 10 covers demand 9; 40 + 300 = 340 ms <= 1,000 ms; two domains meet minimum 2; cost 20 <= 24",
+    "expectedOutput":"fixture=changed-positive.json\nreadyCapacity=8 nominalCapacity=8 demand=9 queueLimit=2\nadmission=ADMIT decision=APPROVE\ncauses=none",
+    "exitCode":0,
+    "causalFeedback":"A rejection indicates deny-all, stale ready-capacity logic, or damage to another gate. An approval of baseline indicates warming, draining, or failed slots are still counted."
+  }
+}
