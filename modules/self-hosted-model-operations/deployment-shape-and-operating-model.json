@@ -1,7 +1,7 @@
 {
   "id": "deployment-shape-and-operating-model",
   "title": "Choose a Deployment Shape and Operating Model",
-  "summary": "Choose among workstation, container, on-premises, edge, and cloud shapes from workload evidence, data boundaries, ownership, and recovery needs.",
+  "summary": "Choose among workstation, container, on-premises, edge, cloud, and hybrid shapes from workload evidence, data boundaries, ownership, recovery needs, and reversible operating decisions.",
   "level": "advanced",
   "reviewCadenceDays": 60,
   "lastVerified": "2026-09-13",
@@ -23,8 +23,11 @@
       "id": "define-workload-before-platform",
       "title": "Define the workload before choosing a platform",
       "paragraphs": [
-        "Write the users, tasks, model class, input and output modalities, sensitivity, concurrency, arrival pattern, context size, output length, latency objective, availability target, geographic boundary, disconnected requirement, retention rule, and recovery objective. Separate an experiment from a shared internal service and a production dependency.",
-        "Record what happens when the endpoint is slow, unavailable, overloaded, wrong, unsafe, or unable to process a request. A deployment shape is suitable only when the team can operate its normal path and its failure path."
+        "Instructor narration: begin with the service contract because a platform is only suitable relative to a workload and its failure consequences. Record the users, tasks, model class, input and output modalities, sensitivity, concurrency, arrival pattern, context size, output length, latency objective, availability target, geographic boundary, disconnected requirement, retention rule, and recovery objective. Separate an experiment, a shared internal service, and a production dependency because they justify different operating commitments.",
+        "Record what happens when the endpoint is slow, unavailable, overloaded, wrong, unsafe, or unable to process a request. A deployment shape is suitable only when the team can operate both its normal path and its failure path. A retry response, safe refusal, traffic stop, or human queue can be an intentional failure response. Silent loss or an undocumented bypass cannot.",
+        "Worked workload dated 2026-09-21: a synthetic internal support assistant serves 120 analysts in one country. It receives 60 requests per minute at the 95th-percentile demand point and bursts to 120 requests per minute. Inputs contain 2,000 to 8,000 tokens and outputs are capped at 800 tokens. The model class is a text-generating language model accessed through an internal text-in and text-out service. The data is confidential internal text and must remain in-country. No disconnected operation is required.",
+        "The synthetic service objectives are p95 latency of 4 seconds or less, 99.5 percent monthly availability, recovery time objective, or RTO, of 60 minutes, and recovery point objective, or RPO, of 15 minutes. Inputs are retained for 7 days for approved evaluation and then deleted. Audit events are retained for 90 days. When the service is unavailable, requests enter an approved human queue. When overloaded, the service returns a retryable response rather than dropping work. Unsafe or unprocessable requests stop safely and are routed for human review.",
+        "These figures define the exercise and are not measurements of any model, accelerator, runtime, API, provider, or deployment. A real team would establish capacity and latency with representative prompts, the exact model artifact, the exact serving runtime, target hardware, and controlled load tests. The lab fixtures contain decision evidence only. They do not execute a model or establish that any service objective has been achieved."
       ],
       "callout": "Start with the service contract and failure consequences, not the hardware catalog."
     },
@@ -32,34 +35,77 @@
       "id": "compare-five-shapes",
       "title": "Compare five useful deployment shapes",
       "paragraphs": [
-        "A workstation can support individual learning, offline experiments, and low-concurrency development, but user sessions, sleep, local privilege, thermal limits, and unmanaged changes make it a weak default for a shared service. A container adds a reproducible process boundary and packaging contract; it does not by itself add strong isolation, authentication, backups, high availability, or resource limits.",
+        "Instructor narration: a deployment label describes part of a topology, not a completed control system. A workstation can support individual learning, offline experiments, and low-concurrency development, but user sessions, sleep, local privilege, thermal limits, and unmanaged changes make it a weak default for a shared service. A container adds a reproducible process boundary and packaging contract. It does not by itself add strong isolation, authentication, backups, high availability, or resource limits.",
         "On-premises infrastructure can align with local data, connectivity, and hardware-control requirements while transferring capacity, patching, power, cooling, spare-parts, and incident ownership to the operator. Edge deployments reduce distance or support intermittent connectivity but constrain power, memory, update bandwidth, physical security, and repair.",
-        "Cloud compute can provide faster provisioning, managed infrastructure options, and elastic capacity, but it still requires verified region, identity, networking, encryption, quotas, cost controls, observability, backup, and exit planning. Hybrid designs add routing and consistency choices. None of these labels proves privacy, cost efficiency, performance, or resilience."
-      ]
+        "Cloud compute can provide faster provisioning, managed infrastructure options, and elastic capacity, but it still requires verified region, identity, networking, encryption, quotas, cost controls, observability, backup, and exit planning. Hybrid designs add routing, consistency, identity, and operational choices. None of these labels proves privacy, cost efficiency, performance, or resilience.",
+        "Use hard constraints before weighted ranking. For this packet, the mandatory constraints are evidence that the selected option matches the required data boundary, has RTO no worse than 60 minutes, has RPO no worse than 15 minutes, and has a qualified owner for the bounded evaluation. Unknown evidence is accepted as an incomplete input state, but it does not satisfy a constraint. Negative recovery values, unsupported enum values, non-finite numbers, missing alternatives, and duplicate alternatives are malformed inputs rather than incomplete evidence.",
+        "After eligibility, every option uses the same illustrative weights: capacity and latency fit 25 points, scalability 20, operability 20, reversibility 15, cost predictability 10, and workload fit 10. The arithmetic is: workstation 4 + 2 + 2 + 5 + 3 + 2 = 18; containerized single host 15 + 10 + 10 + 14 + 8 + 7 = 64; on-premises service 20 + 14 + 17 + 12 + 8 + 7 = 78; edge appliance 10 + 5 + 10 + 10 + 10 + 10 = 55; cloud service 25 + 20 + 18 + 15 + 9 + 5 = 92; hybrid 19 + 17 + 14 + 10 + 8 + 5 = 73. These are synthetic decision scores, not benchmark results.",
+        "The comparable evidence matrix is as follows. Workstation: boundary unknown, RTO 1,440 minutes, RPO 1,440 minutes, owner missing, score 18, ineligible. Containerized single host: local-only boundary verified, RTO 180, RPO 60, owner qualified, score 64, ineligible on recovery. On-premises service: local-only boundary verified, RTO 60, RPO 15, owner qualified for the evaluation, score 78, eligible. Edge appliance: local-only boundary verified, RTO 120, RPO 60, owner qualified, score 55, ineligible on recovery. Cloud service: boundary unknown, recovery unknown, owner missing, score 92, ineligible despite the highest score. Hybrid: local-only boundary verified, RTO 60, RPO 15, owner qualified, score 73, eligible but lower-ranked.",
+        "A container has no resource constraints by default, so CPU and memory limits and host-capacity evidence must be configured and verified rather than inferred from packaging. Docker documents this behavior at https://docs.docker.com/engine/containers/resource_constraints/. Kubernetes resource settings and security guidance likewise describe configuration mechanisms and checks, not proof that a particular deployment enforces them: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/ and https://kubernetes.io/docs/concepts/security/security-checklist/.",
+        "Keep model family, artifact, runtime, hardware integration, and API as separate decision fields. Meta Llama, Qwen, DeepSeek, Mistral, Microsoft Phi, and NVIDIA model or runtime offerings may be evaluated when their specific licenses, artifacts, supported runtimes, hardware targets, and interfaces fit the workload. Their names do not establish equivalent APIs, quality, security controls, licenses, context limits, or operating contracts. ONNX Runtime execution providers illustrate a runtime-to-hardware integration boundary, including provider-specific execution paths, but do not prove that every model family supports every provider: https://onnxruntime.ai/docs/execution-providers/.",
+        "Real integration requires testing the exact selected artifact and version, runtime and version, host or accelerator, resource limits, identity path, network policy, storage path, registry, telemetry, backup, and restore procedure. The supplied lab is deliberately narrower. It simulates previously collected evidence and repairs decision ordering. It makes no live API call and cannot approve a model, provider, or production deployment."
+      ],
+      "callout": "A workstation, container, edge, cloud, or hybrid label never establishes privacy, cost, performance, or availability."
     },
     {
       "id": "separate-failure-domains",
       "title": "Separate process, host, site, and control-plane failure domains",
       "paragraphs": [
-        "List the process, container, device, host, accelerator, storage, network, identity provider, scheduler, site, region, registry, and management-plane dependencies. Decide which failures should restart a process, replace a replica, move to another node, fail over to another site, shed load, or stop safely.",
-        "Do not claim high availability because multiple replicas exist on one host or because an orchestrator can restart a broken process. Test the actual failure domain and confirm that state, secrets, model artifacts, queues, and routing remain recoverable."
-      ]
+        "Instructor narration: redundancy only helps when replicas do not share the failure being tested. List the process, container, device, host, accelerator, storage, network, identity provider, scheduler, site, region, registry, and management-plane dependencies. For each dependency, decide whether the response is to restart the process, replace a replica, move to another node, fail over to another site, shed load, or stop safely.",
+        "Do not claim high availability because multiple replicas exist on one host or because an orchestrator can restart a broken process. Test the actual failure domain and confirm that state, secrets, model artifacts, queues, and routing remain recoverable.",
+        "Filled failure-domain map for the support assistant: a process crash triggers a bounded restart; a container failure replaces the replica; an image defect rolls back to the prior approved digest; an accelerator failure moves service to a tested spare host; a host failure moves traffic to another host; storage corruption invokes a restore test against the RPO; network loss sheds traffic to the human queue; and site loss invokes the approved secondary-site procedure. A region failure matters only if the chosen topology uses a cloud region.",
+        "Shared dependencies remain after replica placement. Identity-provider loss stops new requests safely because there is no emergency authentication bypass. Registry loss permits use of a locally cached approved artifact but blocks new deployment. Scheduler or management-plane loss freezes changes and retains the last known-good data plane where safe. A shared site can remove every host in that site. Shared secrets, queues, storage, DNS, routing, identity, registry, or management services can also defeat apparently independent replicas.",
+        "Recovery evidence must include more than a successful process restart. The test packet must show whether the model artifact can be retrieved or safely cached, whether secrets remain available, whether queued work is preserved within the RPO, whether routing can move, and whether operators can restore the last approved configuration. A claimed RTO or RPO without a dated exercise remains unknown.",
+        "The lab fixture does not perform these failure tests. It represents outcomes such as an RTO number, an RPO number, or explicit unknown evidence. A live integration would inject controlled failures into authorized test infrastructure and collect timestamps, logs, restore checks, and routing observations."
+      ],
+      "callout": "Redundancy inside one shared failure domain is not evidence of availability outside that domain."
     },
     {
       "id": "assign-operating-ownership",
       "title": "Assign operating ownership before deployment",
       "paragraphs": [
-        "Name accountable owners for model and license review, artifact integrity, host and accelerator lifecycle, runtime, identity and access, secrets, network policy, data handling, evaluation, capacity, cost, telemetry, vulnerability response, abuse handling, incident command, backup, restore, rollback, and end-of-life.",
-        "For each role, record decision authority, on-call expectation, evidence produced, escalation path, and substitute. A technically successful endpoint without owned updates and recovery is an unmanaged liability."
-      ]
+        "Instructor narration: assign operating work before the endpoint becomes important. Name accountable owners for model and license review, artifact integrity, host and accelerator lifecycle, runtime, identity and access, secrets, network policy, data handling, evaluation, capacity, cost, telemetry, vulnerability response, abuse handling, incident command, backup, restore, rollback, and end-of-life.",
+        "For each role, record decision authority, on-call expectation, evidence produced, escalation path, and substitute. A team name without authority, evidence, availability, escalation, and backup coverage is not a complete assignment.",
+        "Filled ownership packet for the bounded evaluation: the model steward approves the model and license and records the review; the artifact custodian verifies hashes and provenance; platform operations owns hosts, accelerators, runtime, capacity, cost, telemetry, backup, restore, rollback, and end-of-life; security owns identity, secrets, network policy, vulnerability response, and abuse handling; data governance owns classification, retention, deletion evidence, and geographic handling; evaluation owns quality and safety gates; and the incident commander coordinates incidents and declares recovery.",
+        "Each accepted evaluation assignment records decision authority, a business-hours response expectation, its evidence location, escalation to the service owner, and a named substitute where available. The selector's `requiredOwner` field compresses this packet into a fixture enum. `qualified` means the bounded evaluation has accepted coverage. It does not mean every future production responsibility is permanently staffed.",
+        "Two production gaps remain unresolved: there is no qualified substitute for the artifact custodian, and no owner has accepted after-hours incident command. Therefore the decision authorizes only a staffed business-hours evaluation. It does not authorize a 24-hour production dependency. If the evaluation itself loses qualified coverage, every option becomes ineligible until coverage is restored or the workload is reduced to a safely bounded experiment."
+      ],
+      "callout": "Useful ownership includes authority, evidence, escalation, on-call expectation, and a substitute."
     },
     {
       "id": "choose-reversible-first-shape",
       "title": "Choose the smallest reversible shape that proves the next claim",
       "paragraphs": [
-        "Select the initial shape that can safely answer the next decision: whether the exact artifact and runtime work, whether representative quality passes, whether one host meets capacity, or whether a shared service meets reliability. Avoid building multi-site orchestration before a bounded single-endpoint contract is evaluated.",
-        "Record the chosen and rejected shapes, assumptions, evidence, unresolved risks, cost and capacity envelope, required controls, stop conditions, migration path, and review date. Trigger re-evaluation when workload, data class, users, geography, model, runtime, demand, service objective, incident history, or ownership changes."
-      ]
+        "Instructor narration: select the smallest shape that can safely answer the next decision, such as whether the exact artifact and runtime work, whether representative quality passes, whether one host meets capacity, or whether a shared service meets reliability. Avoid building multi-site orchestration before a bounded endpoint contract has been evaluated.",
+        "Apply the hard constraints before ranking. Workstation, containerized single host, edge appliance, and cloud service are rejected because one or more mandatory constraints are unmet or unknown. On-premises service and hybrid are eligible. Their scores are 78 and 73, so on-premises service is selected. If eligible options tie, sort their documented option IDs in ascending lexicographic order. A high score never overrides an unmet data-boundary, recovery, or owner constraint.",
+        "Rejected alternatives remain useful evidence. Workstation is rejected for shared-service operation and recovery. Containerized single host is rejected because packaging does not remove the host failure domain and its 180-minute RTO and 60-minute RPO miss the objectives. Edge is rejected because its 120-minute RTO and 60-minute RPO miss the objectives, while disconnected operation is not required. Cloud is rejected despite score 92 because boundary, recovery, and owner evidence are unknown or missing. Hybrid is eligible but rejected for the first evaluation because its score is lower and its routing and consistency responsibilities are not needed to prove the next claim.",
+        "The reversible decision is a staffed on-premises evaluation, not a production availability claim. The safe return state is the last approved model digest, image digest, configuration, and routing rule, with new model traffic disabled and the human queue enabled. Preserve the prior artifact and configuration until rollback has been tested. Record capacity and cost as UNKNOWN until representative load and financial measurements are collected.",
+        "Stop immediately if data-boundary evidence expires, an RTO or RPO exercise fails, qualified evaluation ownership disappears, a quality or safety gate fails, an unapproved artifact is detected, retention or deletion controls fail, or a severe incident requires containment. Migrate or redesign when host or site loss cannot meet the objective, demand exceeds the tested envelope for two review periods, the 99.5 percent objective is missed, the geography changes, or production after-hours coverage becomes required.",
+        "Review weekly during the evaluation and at least every 60 days afterward. Review sooner after a change to workload, data class, users, geography, model, artifact, runtime, demand, service objective, incident history, identity path, registry, management plane, or ownership. The exit plan is to disable routing, preserve required audit evidence, remove retained inputs according to policy, revoke service credentials, archive the decision record, and return work to the human queue.",
+        "Independent learner variation: predict before inspecting the answer. Suppose the required boundary changes to `cloud-region-verified`, cloud evidence becomes `cloud-region-verified`, cloud recovery becomes RTO 60 and RPO 15, its owner becomes qualified, and hybrid also has verified cloud-region evidence. Which option should win? Answer: cloud wins because cloud and hybrid are now eligible and their scores are 92 and 73. The cause is changed constraint evidence followed by ranking, not a hardcoded preference for cloud. Local-only options no longer match the changed boundary."
+      ],
+      "callout": "Choose a reversible first shape, not the most attractive shape."
+    },
+    {
+      "id": "repair-selector-lab",
+      "title": "Repair the constraint-first selector",
+      "paragraphs": [
+        "Instructor narration: the runnable lab isolates one defect without replacing the operating packet. The starter validates a complete six-option fixture, sorts every option by weighted score, and only then reports whether the winner is eligible. This allows the attractive but ineligible cloud option to appear first. Your repair must filter by mandatory data-boundary, recovery, and owner evidence before ranking.",
+        "The lab uses Node 22 native ECMAScript modules, built-in modules only, deterministic local JSON, no dependencies, no API keys, and no network. `validation.mjs` is shared by the learner selector and the independent reference. It accepts `null` recovery values as explicit unknown evidence but rejects negative, non-finite, and incorrectly typed values. It also requires the exact six unique option IDs and validates `requiredOwner`. Only `selector.mjs` is the learner edit.",
+        "From the repository root, run:\n\nBefore repair, the CLI stdout is exactly `{\"selected\":\"cloud-service\",\"eligible\":false,\"reason\":\"mandatory-constraints-not-met\"}` with exit code 0. The tests print exactly `FAIL 19/27 failed=base-selection,reference-base,unknown-boundary-fallback,tie-policy,unknown-recovery-fallback,zero-eligible,cli-root,cli-lab` with exit code 1.",
+        "After repair, the same CLI command prints exactly `{\"selected\":\"on-premises-service\",\"eligible\":true,\"reason\":\"eligible\"}` with exit code 0. The tests print exactly `PASS 27/27` with exit code 0. Run the changed input from the repository root with:\n\nIts repaired stdout is exactly `{\"selected\":\"cloud-service\",\"eligible\":true,\"reason\":\"eligible\"}` with exit code 0.",
+        "Prediction before answer: in the baseline, cloud has score 92 but unknown boundary and recovery evidence and a missing owner. On-premises and hybrid are eligible, with scores 78 and 73. Predict that on-premises wins. In the changed input, predict that cloud wins because the required boundary and cloud evidence change together, recovery and ownership become complete, and cloud then outranks the other eligible option.",
+        "Explained answer key: preserve the shared validator and score calculation. In `select`, call `validateDecision`, filter options with the clearly named mandatory-constraint predicate, throw `no eligible option` when the filtered array is empty, then sort only the eligible options by descending calculated score and ascending ID. Return the first eligible option. Do not weaken validation, return a canned result, deny every option, inspect the fixture filename, or hardcode an ID. Those approaches fail the changed input, fallback, tie, malformed-input, or zero-eligible tests.",
+        "Causal feedback: `base-selection` means ranking occurred before eligibility or an eligibility condition is wrong. `unknown-boundary-fallback` means unknown boundary evidence was incorrectly treated as met. `unknown-recovery-fallback` means a null recovery value was incorrectly treated as sufficient evidence. `tie-policy` means sorting did not apply ascending option ID after equal scores. `zero-eligible` means the selector returned an ineligible option instead of stopping. `cli-root` or `cli-lab` means the selector or path behavior differs by working directory.",
+        "Recovery: from the repository root run `cp training/self-hosted-model-operations/deployment-shape-and-operating-model/lab/starter.mjs training/self-hosted-model-operations/deployment-shape-and-operating-model/lab/selector.mjs`. From the lab directory run `cp starter.mjs selector.mjs`. These commands restore only the deliberately defective learner file. The tests use no operating-system temporary directory and write no files.",
+        "Rubric: a complete repair earns credit only when all 27 immutable checks pass, the baseline selects on-premises, the changed input selects cloud, unknown evidence is disqualifying rather than malformed, malformed types and ranges are rejected, zero eligible options stops with an error, and tie ordering is deterministic. Passing the code lab does not prove deployment approval. The learner must also submit the workload contract, six-shape matrix, failure-domain map, ownership packet with gaps, reversible decision, rejected alternatives, stop and migration triggers, and safe-state recovery plan."
+      ],
+      "callout": "Filter on mandatory evidence first, then rank eligible options.",
+      "code": {
+        "language": "text",
+        "label": "Repository-root commands",
+        "code": "node training/self-hosted-model-operations/deployment-shape-and-operating-model/lab/cli.mjs training/self-hosted-model-operations/deployment-shape-and-operating-model/lab/workload.json\nnode training/self-hosted-model-operations/deployment-shape-and-operating-model/lab/tests.mjs\nnode training/self-hosted-model-operations/deployment-shape-and-operating-model/lab/cli.mjs training/self-hosted-model-operations/deployment-shape-and-operating-model/lab/changed.json"
+      }
     }
   ],
   "activity": {
@@ -70,119 +116,16 @@
       "Score workstation, containerized single host, on-premises service, edge appliance, cloud service, and one hybrid option against the same criteria.",
       "Draw the process, host, site, identity, network, storage, registry, and management-plane failure domains.",
       "Assign all operating roles and identify every role without a qualified owner.",
-      "Choose a bounded first shape, define stop and migration triggers, and write how to return to a known safe state."
+      "Choose a bounded first shape, define stop and migration triggers, and write how to return to a known safe state.",
+      "Predict the baseline and changed-input winners, repair only `lab/selector.mjs`, run the Node 22 CLI and immutable tests, and explain why eligibility must precede ranking."
     ],
     "evidence": [
       "A dated workload and service contract with normal and failure behavior.",
       "A comparable shape matrix, failure-domain map, and ownership matrix.",
-      "A reversible decision record with rejected alternatives, stop conditions, migration path, and review triggers."
+      "A reversible decision record with rejected alternatives, stop conditions, migration path, and review triggers.",
+      "A repaired selector that produces the documented stdout, passes all 27 tests, and handles the independent changed input without hardcoded IDs."
     ],
     "reflectionPrompt": "Which attractive platform feature does not address your workload's most consequential failure?"
-  },
-  "instructorScript": {
-    "schemaVersion": "1.1",
-    "estimatedSeconds": 1380,
-    "cues": [
-      {
-        "id": "cue-deployment-shape-workload",
-        "kind": "narration",
-        "sectionId": "define-workload-before-platform",
-        "text": "Define users, data, demand, latency, availability, disconnection, retention, and recovery before naming a platform."
-      },
-      {
-        "id": "cue-deployment-shape-visual",
-        "kind": "visual",
-        "sectionId": "compare-five-shapes",
-        "text": "Compare workstation, container, on-premises, edge, cloud, and hybrid shapes in one evidence matrix.",
-        "accessibilityAlternative": "A static table compares each shape across control, capacity, connectivity, physical exposure, scaling, operations, cost, and recovery."
-      },
-      {
-        "id": "cue-deployment-shape-compare",
-        "kind": "narration",
-        "sectionId": "compare-five-shapes",
-        "text": "Explain that workstation, container, on-premises, edge, cloud, and hybrid labels do not prove privacy, cost, performance, or resilience."
-      },
-      {
-        "id": "cue-deployment-shape-failures",
-        "kind": "narration",
-        "sectionId": "separate-failure-domains",
-        "text": "Separate process, host, accelerator, storage, network, identity, scheduler, site, registry, and management-plane failures."
-      },
-      {
-        "id": "cue-deployment-shape-checkpoint",
-        "kind": "checkpoint",
-        "sectionId": "separate-failure-domains",
-        "text": "Ask why two replicas on one host do not establish site or host availability."
-      },
-      {
-        "id": "cue-deployment-shape-owners",
-        "kind": "narration",
-        "sectionId": "assign-operating-ownership",
-        "text": "Assign accountable owners for every control, lifecycle, evidence, incident, and recovery responsibility."
-      },
-      {
-        "id": "cue-deployment-shape-reversible",
-        "kind": "narration",
-        "sectionId": "choose-reversible-first-shape",
-        "text": "Choose the smallest reversible deployment that can safely prove the next operational claim."
-      },
-      {
-        "id": "cue-deployment-shape-activity",
-        "kind": "learner-prompt",
-        "text": "Guide the workload contract, shape matrix, failure map, ownership matrix, decision, and exit path."
-      },
-      {
-        "id": "cue-deployment-shape-assessment",
-        "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can defend the chosen shape and its failure and ownership boundaries."
-      }
-    ],
-    "transcript": "Define users, data, demand, latency, availability, disconnection, retention, and recovery before naming a platform. Describe normal requests and what must happen when the service is slow, unavailable, overloaded, wrong, or unsafe. Explain that workstation, container, on-premises, edge, cloud, and hybrid labels do not prove privacy, cost, performance, or resilience. A workstation may fit individual experiments; a container improves packaging but does not create authentication, resource limits, backup, or availability; on-premises, edge, and cloud each transfer different responsibilities rather than removing them. Separate process, host, accelerator, storage, network, identity, scheduler, site, registry, and management-plane failures. Test the failure domain actually claimed. Assign accountable owners for every control, lifecycle, evidence, incident, and recovery responsibility. Record authority, escalation, evidence, and substitutes. Choose the smallest reversible deployment that can safely prove the next operational claim. Preserve rejected alternatives, stop conditions, a migration path, and triggers that force the decision to be reviewed again.",
-    "captions": [
-      {
-        "cueId": "cue-deployment-shape-workload",
-        "startSeconds": 0,
-        "endSeconds": 240,
-        "text": "Define users, data, demand, latency, availability, disconnection, retention, and recovery before naming a platform."
-      },
-      {
-        "cueId": "cue-deployment-shape-compare",
-        "startSeconds": 240,
-        "endSeconds": 540,
-        "text": "Explain that workstation, container, on-premises, edge, cloud, and hybrid labels do not prove privacy, cost, performance, or resilience."
-      },
-      {
-        "cueId": "cue-deployment-shape-failures",
-        "startSeconds": 540,
-        "endSeconds": 780,
-        "text": "Separate process, host, accelerator, storage, network, identity, scheduler, site, registry, and management-plane failures."
-      },
-      {
-        "cueId": "cue-deployment-shape-owners",
-        "startSeconds": 780,
-        "endSeconds": 1020,
-        "text": "Assign accountable owners for every control, lifecycle, evidence, incident, and recovery responsibility."
-      },
-      {
-        "cueId": "cue-deployment-shape-reversible",
-        "startSeconds": 1020,
-        "endSeconds": 1200,
-        "text": "Choose the smallest reversible deployment that can safely prove the next operational claim."
-      },
-      {
-        "cueId": "cue-deployment-shape-activity",
-        "startSeconds": 1200,
-        "endSeconds": 1350,
-        "text": "Guide the workload contract, shape matrix, failure map, ownership matrix, decision, and exit path."
-      },
-      {
-        "cueId": "cue-deployment-shape-assessment",
-        "startSeconds": 1350,
-        "endSeconds": 1380,
-        "text": "Begin the check after the learner can defend the chosen shape and its failure and ownership boundaries."
-      }
-    ],
-    "reducedMotionAlternative": "Use static workload, shape-comparison, failure-domain, and ownership tables. Number the decision flow without animated topology changes."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -285,6 +228,1993 @@
       "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
       "publisher": "NIST",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Security Checklist",
+      "url": "https://kubernetes.io/docs/concepts/security/security-checklist/",
+      "publisher": "Kubernetes",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Zero Trust Architecture",
+      "url": "https://csrc.nist.gov/pubs/sp/800/207/final",
+      "publisher": "NIST",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "MLPerf Inference: Datacenter",
+      "url": "https://mlcommons.org/benchmarks/inference-datacenter/",
+      "publisher": "MLCommons",
+      "lastVerified": "2026-09-21"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 1178,
+    "cues": [
+      {
+        "id": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-1",
+        "kind": "narration",
+        "text": "Welcome. In this class, you will choose\nwhere a self-hosted model should run by"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-2",
+        "kind": "narration",
+        "text": "starting with the work and the\nconsequences of failure, not with a"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-3",
+        "kind": "narration",
+        "text": "favorite platform. We will define a\nservice contract, compare workstation,"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-4",
+        "kind": "narration",
+        "text": "container, on-premises, edge, cloud, and\nhybrid shapes, map real failure domains,"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-5",
+        "kind": "narration",
+        "text": "assign operating ownership, and select a\nreversible first step. Self-hosted does"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-6",
+        "kind": "narration",
+        "text": "not automatically mean private,\ninexpensive, reliable, or under control."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-7",
+        "kind": "narration",
+        "text": "Those are claims that the complete system\nmust prove."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-1",
+        "kind": "narration",
+        "text": "Begin with a workload contract. Name the\nusers, their tasks, the model class, input",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-2",
+        "kind": "narration",
+        "text": "and output types, sensitivity,\nconcurrency, arrival pattern, context",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-3",
+        "kind": "narration",
+        "text": "size, output length, latency objective,\navailability target, geographic boundary,",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-4",
+        "kind": "narration",
+        "text": "disconnected requirement, retention rule,\nand recovery objective. Separate an",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-5",
+        "kind": "narration",
+        "text": "individual experiment from a shared\ninternal service and from a production",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-6",
+        "kind": "narration",
+        "text": "dependency. Those labels change who can be\naffected and how quickly someone must",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-7",
+        "kind": "narration",
+        "text": "respond. Then describe failure behavior.\nWhat should happen when the endpoint is",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-8",
+        "kind": "narration",
+        "text": "slow, unavailable, overloaded, wrong,\nunsafe, or unable to accept a request? Can",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-9",
+        "kind": "narration",
+        "text": "work wait, move to a reviewed fallback, or\nstop? Which data may be retained",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-10",
+        "kind": "narration",
+        "text": "for recovery, and which data must never\nenter the service? A platform is suitable",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-11",
+        "kind": "narration",
+        "text": "only when the team can operate both the\nnormal path and the failure path.",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-12",
+        "kind": "narration",
+        "text": "Starting with hardware reverses this\nlogic. It encourages the team to reshape",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-13",
+        "kind": "narration",
+        "text": "requirements around a purchase before it\nhas defined what success, safety, or",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-contract-narration-14",
+        "kind": "narration",
+        "text": "recovery mean.",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-1",
+        "kind": "narration",
+        "text": "Consider a synthetic documentation\nassistant used by six engineers. It",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-2",
+        "kind": "narration",
+        "text": "receives approved public manuals, produces\ndraft explanations, has short weekday",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-3",
+        "kind": "narration",
+        "text": "bursts, and may stop safely when evidence\nis missing. It must not process customer",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-4",
+        "kind": "narration",
+        "text": "records or secrets. A five-minute\ninterruption delays work but does not",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-5",
+        "kind": "narration",
+        "text": "cause an external action. The first claim\nto prove is that one exact model",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-6",
+        "kind": "narration",
+        "text": "and runtime can meet the quality target on\nrepresentative manuals within the",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-7",
+        "kind": "narration",
+        "text": "available memory. This contract does not\nyet justify a multi-site cluster. Now",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-8",
+        "kind": "narration",
+        "text": "change one fact: the endpoint becomes a\nproduction dependency for hundreds of",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-9",
+        "kind": "narration",
+        "text": "users with a strict recovery objective.\nThe model may be identical, but ownership,",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-10",
+        "kind": "narration",
+        "text": "capacity, availability, telemetry, and\nrecovery evidence must expand. The",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-workload-demonstration-11",
+        "kind": "narration",
+        "text": "deployment shape follows the service\ncontract.",
+        "sectionId": "define-workload-before-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-1",
+        "kind": "narration",
+        "text": "Compare each shape against the same\ncontract. A workstation can be excellent",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-2",
+        "kind": "narration",
+        "text": "for individual learning, offline\nexperiments, and low-concurrency",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-3",
+        "kind": "narration",
+        "text": "development. It may also sleep, share a\nuser's privileges, change without review,",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-4",
+        "kind": "narration",
+        "text": "throttle under heat, and disappear when\nthe user leaves. A container gives the",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-5",
+        "kind": "narration",
+        "text": "process a reproducible package and an\nexplicit runtime boundary. It does not",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-6",
+        "kind": "narration",
+        "text": "automatically add authentication, strong\ntenant isolation, resource limits,",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-7",
+        "kind": "narration",
+        "text": "backups, or high availability. On-premises\ninfrastructure can support local data or",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-8",
+        "kind": "narration",
+        "text": "connectivity requirements and direct\nhardware control. In exchange, the",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-9",
+        "kind": "narration",
+        "text": "operator owns capacity, patching, power,\ncooling, spares, physical access, and",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-10",
+        "kind": "narration",
+        "text": "incident response. Edge equipment can\nreduce distance and survive intermittent",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-11",
+        "kind": "narration",
+        "text": "upstream connectivity, but power, memory,\nupdate bandwidth, physical security, and",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-12",
+        "kind": "narration",
+        "text": "repair are constrained. Cloud compute can\nspeed provisioning and offer managed",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-13",
+        "kind": "narration",
+        "text": "building blocks, yet region, identity,\nnetworking, encryption, quota, cost,",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-14",
+        "kind": "narration",
+        "text": "observability, backup, and exit still\nrequire proof. Hybrid designs add routing,",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-15",
+        "kind": "narration",
+        "text": "consistency, and failure choices. None of\nthe labels establishes privacy, price,",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-16",
+        "kind": "narration",
+        "text": "performance, or resilience. Write those as\nmeasurable requirements, then collect",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-comparison-narration-17",
+        "kind": "narration",
+        "text": "evidence.",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-bias-prompt-1",
+        "kind": "narration",
+        "text": "Choose the shape that first felt obvious\nfor your workload. Write one benefit you",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-bias-prompt-2",
+        "kind": "narration",
+        "text": "expected and one property you may have\nassumed without evidence, such as privacy,",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-bias-prompt-3",
+        "kind": "narration",
+        "text": "lower cost, availability, or easier\nrecovery. Then name the measurement or",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-bias-prompt-4",
+        "kind": "narration",
+        "text": "test that would support that property.",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-shape-bias-work-time",
+        "kind": "pause",
+        "text": "Hold the three-field prompt for up to seventy-five seconds with pause, extend, save, and continue controls."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-1",
+        "kind": "narration",
+        "text": "Next, map failure domains instead of\ncounting replicas. List the process,",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-2",
+        "kind": "narration",
+        "text": "container, accelerator, host, storage,\nnetwork, identity provider, scheduler,",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-3",
+        "kind": "narration",
+        "text": "site, region, artifact registry, and\nmanagement plane. Decide which failure",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-4",
+        "kind": "narration",
+        "text": "should restart one process, replace one\nreplica, move work to another node, fail",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-5",
+        "kind": "narration",
+        "text": "over, shed load, or stop safely. Two\nreplicas on one host share the host,",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-6",
+        "kind": "narration",
+        "text": "device, power, and often storage and\nnetwork. They may improve process recovery",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-7",
+        "kind": "narration",
+        "text": "without surviving host loss. Two sites can\nstill share identity, registry, routing,",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-8",
+        "kind": "narration",
+        "text": "or management dependencies. An\norchestrator can restart a failed process,",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-9",
+        "kind": "narration",
+        "text": "but it cannot repair an incompatible\nartifact, restore a lost secret, or prove",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-10",
+        "kind": "narration",
+        "text": "that queued work completed. Test the\nfailure domain you claim. Confirm that",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-11",
+        "kind": "narration",
+        "text": "exact artifacts, configuration, state,\nsecrets, queues, routing, and telemetry",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-12",
+        "kind": "narration",
+        "text": "remain recoverable. Availability language\nshould describe observed survival and",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-narration-13",
+        "kind": "narration",
+        "text": "recovery, not topology alone.",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-checkpoint-1",
+        "kind": "narration",
+        "text": "Checkpoint. A team runs three model-server\ncontainers on one physical workstation and",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-checkpoint-2",
+        "kind": "narration",
+        "text": "calls the endpoint highly available. Name\ntwo failures that can remove all three",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-checkpoint-3",
+        "kind": "narration",
+        "text": "replicas, and state what evidence would be\nrequired before making a host-availability",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-checkpoint-4",
+        "kind": "narration",
+        "text": "claim.",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-response-time",
+        "kind": "pause",
+        "text": "Hold the checkpoint for up to seventy-five seconds with an explicit extension control."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-feedback-1",
+        "kind": "narration",
+        "text": "A strong answer names shared host power,\noperating system, accelerator, local",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-feedback-2",
+        "kind": "narration",
+        "text": "storage, network, or physical damage. All\nthree containers can disappear together.",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-feedback-3",
+        "kind": "narration",
+        "text": "Process replication is still useful, but\nthe claim must stay inside that boundary.",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-feedback-4",
+        "kind": "narration",
+        "text": "Host availability requires independent\ncapacity and an observed test that removes",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-feedback-5",
+        "kind": "narration",
+        "text": "the host, restores routing, reconstructs\nthe exact approved service, preserves or",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-feedback-6",
+        "kind": "narration",
+        "text": "reconciles state, and meets the stated\nrecovery objective. If your answer only",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-feedback-7",
+        "kind": "narration",
+        "text": "added more containers, revise it by moving\nthe recovery target outside the failed",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-failure-domain-feedback-8",
+        "kind": "narration",
+        "text": "host.",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-1",
+        "kind": "narration",
+        "text": "A deployable design also needs named\nowners. Assign model and license review,",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-2",
+        "kind": "narration",
+        "text": "artifact integrity, host and accelerator\nlifecycle, runtime, identity and access,",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-3",
+        "kind": "narration",
+        "text": "secrets, network policy, data handling,\nevaluation, capacity, cost, telemetry,",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-4",
+        "kind": "narration",
+        "text": "vulnerability response, abuse handling,\nincident command, backup, restore,",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-5",
+        "kind": "narration",
+        "text": "rollback, and end of life. For each\nresponsibility, record decision authority,",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-6",
+        "kind": "narration",
+        "text": "evidence produced, on-call expectation,\nescalation path, and a qualified",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-7",
+        "kind": "narration",
+        "text": "substitute. A team name is not enough if\nnobody can approve a rollback or",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-8",
+        "kind": "narration",
+        "text": "access the recovery system during an\nincident. Managed services shift some",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-9",
+        "kind": "narration",
+        "text": "tasks to a provider, but the organization\nstill owns configuration, access, workload",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-10",
+        "kind": "narration",
+        "text": "evidence, and the decision to accept\nresidual risk. A technically successful",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-11",
+        "kind": "narration",
+        "text": "endpoint with no update owner, no cost\nowner, or no restore operator is an",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-12",
+        "kind": "narration",
+        "text": "unmanaged liability. Find those gaps\nbefore deployment, when changing the",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-ownership-narration-13",
+        "kind": "narration",
+        "text": "design is still inexpensive.",
+        "sectionId": "assign-operating-ownership"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-1",
+        "kind": "narration",
+        "text": "Choose the smallest reversible shape that\ncan safely prove the next claim. If the",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-2",
+        "kind": "narration",
+        "text": "question is whether the immutable artifact\nruns and meets representative quality on",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-3",
+        "kind": "narration",
+        "text": "available hardware, an isolated\nworkstation or bounded container may be",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-4",
+        "kind": "narration",
+        "text": "enough. If the question is whether a\nshared endpoint meets capacity and access",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-5",
+        "kind": "narration",
+        "text": "requirements, use a controlled service\nenvironment with real identity, load, and",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-6",
+        "kind": "narration",
+        "text": "telemetry. Do not build multi-site\norchestration before one endpoint has a",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-7",
+        "kind": "narration",
+        "text": "verified contract. Record the chosen and\nrejected shapes, assumptions, evidence,",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-8",
+        "kind": "narration",
+        "text": "unresolved risks, capacity and cost\nenvelope, required controls, stop",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-9",
+        "kind": "narration",
+        "text": "conditions, migration path, and review\ndate. Define how to return to a known safe",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-10",
+        "kind": "narration",
+        "text": "state. Trigger a new decision when users,\nworkload, data class, geography, model,",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-11",
+        "kind": "narration",
+        "text": "runtime, demand, objectives, incident\nhistory, or ownership changes.",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-12",
+        "kind": "narration",
+        "text": "Reversibility is not reluctance. It is a\ndesign property that lets evidence change",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-reversible-choice-narration-13",
+        "kind": "narration",
+        "text": "the decision without trapping people,\ndata, or operations.",
+        "sectionId": "choose-reversible-first-shape"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-activity-transition-1",
+        "kind": "narration",
+        "text": "Now create the deployment-shape decision\nrecord. Define one synthetic workload and"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-activity-transition-2",
+        "kind": "narration",
+        "text": "score workstation, containerized host,\non-premises service, edge, cloud, and one"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-activity-transition-3",
+        "kind": "narration",
+        "text": "hybrid option against identical criteria.\nDraw process, host, site, identity,"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-activity-transition-4",
+        "kind": "narration",
+        "text": "network, storage, registry, and management\nfailure domains. Assign every operating"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-activity-transition-5",
+        "kind": "narration",
+        "text": "role and flag gaps. Choose a bounded first\nshape, explain rejected alternatives,"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-activity-transition-6",
+        "kind": "narration",
+        "text": "define stop and migration triggers, and\ndescribe the return to a known safe state."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-activity-transition-7",
+        "kind": "narration",
+        "text": "Your evidence is the dated workload\ncontract, comparison matrix, failure map,"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-activity-transition-8",
+        "kind": "narration",
+        "text": "ownership matrix, and reversible decision."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-activity-work-time",
+        "kind": "pause",
+        "text": "Provide one hundred eighty seconds of optional work time with pause, extend, save, and continue controls."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-1",
+        "kind": "narration",
+        "text": "Instructor narration: the runnable lab\nisolates one defect without replacing the",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-2",
+        "kind": "narration",
+        "text": "operating packet. The starter validates a\ncomplete six-option fixture, sorts every",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-3",
+        "kind": "narration",
+        "text": "option by weighted score, and only then\nreports whether the winner is eligible.",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-4",
+        "kind": "narration",
+        "text": "This allows the attractive but ineligible\ncloud option to appear first. Your repair",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-5",
+        "kind": "narration",
+        "text": "must filter by mandatory data-boundary,\nrecovery, and owner evidence before",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-6",
+        "kind": "narration",
+        "text": "ranking. `validation.mjs` is shared by the\nlearner selector and the independent",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-7",
+        "kind": "narration",
+        "text": "reference. It accepts `null` recovery\nvalues as explicit unknown evidence but",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-8",
+        "kind": "narration",
+        "text": "rejects negative, non-finite, and\nincorrectly typed values. It also requires",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-9",
+        "kind": "narration",
+        "text": "the exact six unique option IDs and\nvalidates `requiredOwner`. Only",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-10",
+        "kind": "narration",
+        "text": "`selector.mjs` is the learner edit. The\ntests print exactly `PASS 27/27` with exit",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-11",
+        "kind": "narration",
+        "text": "code 0. Prediction before answer: in the\nbaseline, cloud has score 92 but unknown",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-12",
+        "kind": "narration",
+        "text": "boundary and recovery evidence and a\nmissing owner. On-premises and hybrid are",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-13",
+        "kind": "narration",
+        "text": "eligible, with scores 78 and 73. Predict\nthat on-premises wins. In the changed",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-14",
+        "kind": "narration",
+        "text": "input, predict that cloud wins because the\nrequired boundary and cloud evidence",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-15",
+        "kind": "narration",
+        "text": "change together, recovery and ownership\nbecome complete, and cloud then outranks",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-16",
+        "kind": "narration",
+        "text": "the other eligible option. Explained\nanswer key: preserve the shared validator",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-17",
+        "kind": "narration",
+        "text": "and score calculation. In `select`, call\n`validateDecision`, filter options with",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-18",
+        "kind": "narration",
+        "text": "the clearly named mandatory-constraint\npredicate, throw `no eligible option` when",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-19",
+        "kind": "narration",
+        "text": "the filtered array is empty, then sort\nonly the eligible options by descending",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-20",
+        "kind": "narration",
+        "text": "calculated score and ascending ID. Return\nthe first eligible option. Do not weaken",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-21",
+        "kind": "narration",
+        "text": "validation, return a canned result, deny\nevery option, inspect the fixture",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-22",
+        "kind": "narration",
+        "text": "filename, or hardcode an ID. Those\napproaches fail the changed input,",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-23",
+        "kind": "narration",
+        "text": "fallback, tie, malformed-input, or\nzero-eligible tests. Causal feedback:",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-24",
+        "kind": "narration",
+        "text": "`base-selection` means ranking occurred\nbefore eligibility or an eligibility",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-25",
+        "kind": "narration",
+        "text": "condition is wrong.\n`unknown-boundary-fallback` means unknown",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-26",
+        "kind": "narration",
+        "text": "boundary evidence was incorrectly treated\nas met. `unknown-recovery-fallback` means",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-27",
+        "kind": "narration",
+        "text": "a null recovery value was incorrectly\ntreated as sufficient evidence.",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-28",
+        "kind": "narration",
+        "text": "`tie-policy` means sorting did not apply\nascending option ID after equal scores.",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-29",
+        "kind": "narration",
+        "text": "`zero-eligible` means the selector\nreturned an ineligible option instead of",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-30",
+        "kind": "narration",
+        "text": "stopping. `cli-root` or `cli-lab` means\nthe selector or path behavior differs by",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-31",
+        "kind": "narration",
+        "text": "working directory. From the lab directory\nrun `cp starter.mjs selector.mjs`. These",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-32",
+        "kind": "narration",
+        "text": "commands restore only the deliberately\ndefective learner file. The tests use no",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-33",
+        "kind": "narration",
+        "text": "operating-system temporary directory and\nwrite no files. Rubric: a complete repair",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-34",
+        "kind": "narration",
+        "text": "earns credit only when all 27 immutable\nchecks pass, the baseline selects",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-35",
+        "kind": "narration",
+        "text": "on-premises, the changed input selects\ncloud, unknown evidence is disqualifying",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-36",
+        "kind": "narration",
+        "text": "rather than malformed, malformed types and\nranges are rejected, zero eligible options",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-37",
+        "kind": "narration",
+        "text": "stops with an error, and tie ordering is\ndeterministic. Passing the code lab does",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-38",
+        "kind": "narration",
+        "text": "not prove deployment approval. The learner\nmust also submit the workload contract,",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-39",
+        "kind": "narration",
+        "text": "six-shape matrix, failure-domain map,\nownership packet with gaps, reversible",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-40",
+        "kind": "narration",
+        "text": "decision, rejected alternatives, stop and\nmigration triggers, and safe-state",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-41",
+        "kind": "narration",
+        "text": "recovery plan.",
+        "sectionId": "repair-selector-lab"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-assessment-handoff-1",
+        "kind": "narration",
+        "text": "When you are ready, begin the knowledge\ncheck. You will define the pre-platform"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-assessment-handoff-2",
+        "kind": "narration",
+        "text": "service contract, distinguish what a\ncontainer does and does not provide,"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-assessment-handoff-3",
+        "kind": "narration",
+        "text": "reason about shared failure domains,\nevaluate locality claims, assign"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-assessment-handoff-4",
+        "kind": "narration",
+        "text": "actionable ownership, and choose a\nreversible first shape. Review the"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-assessment-handoff-5",
+        "kind": "narration",
+        "text": "transcript or decision record before\nsubmitting. The assessment begins only"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-assessment-handoff-6",
+        "kind": "narration",
+        "text": "when you select Begin knowledge check."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-class-closing-1",
+        "kind": "narration",
+        "text": "Keep this rule: define the work, failure,\nand owner before choosing the platform."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-class-closing-2",
+        "kind": "narration",
+        "text": "Select the smallest reversible shape that\nproves the next claim, and never describe"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-class-closing-3",
+        "kind": "narration",
+        "text": "privacy, reliability, cost, or recovery\nbeyond the evidence you have tested."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-learner-prompt",
+        "kind": "learner-prompt",
+        "text": "Choose the shape that first felt obvious for your workload. Write one benefit you expected and one property you may have assumed without evidence, such as privacy, lower cost, availability, or easier recovery. Then name the measurement or test that would support that property.",
+        "sectionId": "compare-five-shapes"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-checkpoint",
+        "kind": "checkpoint",
+        "text": "Checkpoint. A team runs three model-server containers on one physical workstation and calls the endpoint highly available. Name two failures that can remove all three replicas, and state what evidence would be required before making a host-availability claim.",
+        "sectionId": "separate-failure-domains"
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-assessment-handoff",
+        "kind": "assessment-handoff",
+        "text": "When you are ready, begin the knowledge check. You will define the pre-platform service contract, distinguish what a container does and does not provide, reason about shared failure domains, evaluate locality claims, assign actionable ownership, and choose a reversible first shape. Review the transcript or decision record before submitting. The assessment begins only when you select Begin knowledge check."
+      },
+      {
+        "id": "cue-deployment-shape-and-operating-model-visual",
+        "kind": "visual",
+        "text": "A workload-contract form connecting users and tasks to data boundaries, demand, service objectives, failure behavior, and recovery.",
+        "accessibilityAlternative": "The deployment decision begins with users, tasks, data, demand, latency, availability, failure behavior, and recovery rather than a hardware or cloud product.",
+        "sectionId": "define-workload-before-platform"
+      }
+    ],
+    "captions": [
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-1",
+        "startSeconds": 0,
+        "endSeconds": 7,
+        "text": "Welcome. In this class, you will choose\nwhere a self-hosted model should run by"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-2",
+        "startSeconds": 7,
+        "endSeconds": 13,
+        "text": "starting with the work and the\nconsequences of failure, not with a"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-3",
+        "startSeconds": 13,
+        "endSeconds": 18,
+        "text": "favorite platform. We will define a\nservice contract, compare workstation,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-4",
+        "startSeconds": 18,
+        "endSeconds": 23,
+        "text": "container, on-premises, edge, cloud, and\nhybrid shapes, map real failure domains,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-5",
+        "startSeconds": 23,
+        "endSeconds": 28,
+        "text": "assign operating ownership, and select a\nreversible first step. Self-hosted does"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-6",
+        "startSeconds": 28,
+        "endSeconds": 33,
+        "text": "not automatically mean private,\ninexpensive, reliable, or under control."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-welcome-and-outcomes-7",
+        "startSeconds": 33,
+        "endSeconds": 38,
+        "text": "Those are claims that the complete system\nmust prove."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-1",
+        "startSeconds": 38,
+        "endSeconds": 45,
+        "text": "Begin with a workload contract. Name the\nusers, their tasks, the model class, input"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-2",
+        "startSeconds": 45,
+        "endSeconds": 49,
+        "text": "and output types, sensitivity,\nconcurrency, arrival pattern, context"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-3",
+        "startSeconds": 49,
+        "endSeconds": 54,
+        "text": "size, output length, latency objective,\navailability target, geographic boundary,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-4",
+        "startSeconds": 54,
+        "endSeconds": 59,
+        "text": "disconnected requirement, retention rule,\nand recovery objective. Separate an"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-5",
+        "startSeconds": 59,
+        "endSeconds": 64,
+        "text": "individual experiment from a shared\ninternal service and from a production"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-6",
+        "startSeconds": 64,
+        "endSeconds": 70,
+        "text": "dependency. Those labels change who can be\naffected and how quickly someone must"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-7",
+        "startSeconds": 70,
+        "endSeconds": 76,
+        "text": "respond. Then describe failure behavior.\nWhat should happen when the endpoint is"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-8",
+        "startSeconds": 76,
+        "endSeconds": 82,
+        "text": "slow, unavailable, overloaded, wrong,\nunsafe, or unable to accept a request? Can"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-9",
+        "startSeconds": 82,
+        "endSeconds": 89,
+        "text": "work wait, move to a reviewed fallback, or\nstop? Which data may be retained"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-10",
+        "startSeconds": 89,
+        "endSeconds": 96,
+        "text": "for recovery, and which data must never\nenter the service? A platform is suitable"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-11",
+        "startSeconds": 96,
+        "endSeconds": 103,
+        "text": "only when the team can operate both the\nnormal path and the failure path."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-12",
+        "startSeconds": 103,
+        "endSeconds": 109,
+        "text": "Starting with hardware reverses this\nlogic. It encourages the team to reshape"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-13",
+        "startSeconds": 109,
+        "endSeconds": 115,
+        "text": "requirements around a purchase before it\nhas defined what success, safety, or"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-contract-narration-14",
+        "startSeconds": 115,
+        "endSeconds": 116,
+        "text": "recovery mean."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-1",
+        "startSeconds": 116,
+        "endSeconds": 121,
+        "text": "Consider a synthetic documentation\nassistant used by six engineers. It"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-2",
+        "startSeconds": 121,
+        "endSeconds": 126,
+        "text": "receives approved public manuals, produces\ndraft explanations, has short weekday"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-3",
+        "startSeconds": 126,
+        "endSeconds": 133,
+        "text": "bursts, and may stop safely when evidence\nis missing. It must not process customer"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-4",
+        "startSeconds": 133,
+        "endSeconds": 138,
+        "text": "records or secrets. A five-minute\ninterruption delays work but does not"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-5",
+        "startSeconds": 138,
+        "endSeconds": 145,
+        "text": "cause an external action. The first claim\nto prove is that one exact model"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-6",
+        "startSeconds": 145,
+        "endSeconds": 151,
+        "text": "and runtime can meet the quality target on\nrepresentative manuals within the"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-7",
+        "startSeconds": 151,
+        "endSeconds": 157,
+        "text": "available memory. This contract does not\nyet justify a multi-site cluster. Now"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-8",
+        "startSeconds": 157,
+        "endSeconds": 163,
+        "text": "change one fact: the endpoint becomes a\nproduction dependency for hundreds of"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-9",
+        "startSeconds": 163,
+        "endSeconds": 169,
+        "text": "users with a strict recovery objective.\nThe model may be identical, but ownership,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-10",
+        "startSeconds": 169,
+        "endSeconds": 174,
+        "text": "capacity, availability, telemetry, and\nrecovery evidence must expand. The"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-workload-demonstration-11",
+        "startSeconds": 174,
+        "endSeconds": 177,
+        "text": "deployment shape follows the service\ncontract."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-1",
+        "startSeconds": 177,
+        "endSeconds": 183,
+        "text": "Compare each shape against the same\ncontract. A workstation can be excellent"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-2",
+        "startSeconds": 183,
+        "endSeconds": 187,
+        "text": "for individual learning, offline\nexperiments, and low-concurrency"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-3",
+        "startSeconds": 187,
+        "endSeconds": 193,
+        "text": "development. It may also sleep, share a\nuser's privileges, change without review,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-4",
+        "startSeconds": 193,
+        "endSeconds": 199,
+        "text": "throttle under heat, and disappear when\nthe user leaves. A container gives the"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-5",
+        "startSeconds": 199,
+        "endSeconds": 205,
+        "text": "process a reproducible package and an\nexplicit runtime boundary. It does not"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-6",
+        "startSeconds": 205,
+        "endSeconds": 209,
+        "text": "automatically add authentication, strong\ntenant isolation, resource limits,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-7",
+        "startSeconds": 209,
+        "endSeconds": 214,
+        "text": "backups, or high availability. On-premises\ninfrastructure can support local data or"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-8",
+        "startSeconds": 214,
+        "endSeconds": 219,
+        "text": "connectivity requirements and direct\nhardware control. In exchange, the"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-9",
+        "startSeconds": 219,
+        "endSeconds": 224,
+        "text": "operator owns capacity, patching, power,\ncooling, spares, physical access, and"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-10",
+        "startSeconds": 224,
+        "endSeconds": 229,
+        "text": "incident response. Edge equipment can\nreduce distance and survive intermittent"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-11",
+        "startSeconds": 229,
+        "endSeconds": 234,
+        "text": "upstream connectivity, but power, memory,\nupdate bandwidth, physical security, and"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-12",
+        "startSeconds": 234,
+        "endSeconds": 239,
+        "text": "repair are constrained. Cloud compute can\nspeed provisioning and offer managed"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-13",
+        "startSeconds": 239,
+        "endSeconds": 244,
+        "text": "building blocks, yet region, identity,\nnetworking, encryption, quota, cost,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-14",
+        "startSeconds": 244,
+        "endSeconds": 249,
+        "text": "observability, backup, and exit still\nrequire proof. Hybrid designs add routing,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-15",
+        "startSeconds": 249,
+        "endSeconds": 254,
+        "text": "consistency, and failure choices. None of\nthe labels establishes privacy, price,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-16",
+        "startSeconds": 254,
+        "endSeconds": 259,
+        "text": "performance, or resilience. Write those as\nmeasurable requirements, then collect"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-comparison-narration-17",
+        "startSeconds": 259,
+        "endSeconds": 260,
+        "text": "evidence."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-bias-prompt-1",
+        "startSeconds": 260,
+        "endSeconds": 267,
+        "text": "Choose the shape that first felt obvious\nfor your workload. Write one benefit you"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-bias-prompt-2",
+        "startSeconds": 267,
+        "endSeconds": 273,
+        "text": "expected and one property you may have\nassumed without evidence, such as privacy,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-bias-prompt-3",
+        "startSeconds": 273,
+        "endSeconds": 278,
+        "text": "lower cost, availability, or easier\nrecovery. Then name the measurement or"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-shape-bias-prompt-4",
+        "startSeconds": 278,
+        "endSeconds": 281,
+        "text": "test that would support that property."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-1",
+        "startSeconds": 356,
+        "endSeconds": 361,
+        "text": "Next, map failure domains instead of\ncounting replicas. List the process,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-2",
+        "startSeconds": 361,
+        "endSeconds": 365,
+        "text": "container, accelerator, host, storage,\nnetwork, identity provider, scheduler,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-3",
+        "startSeconds": 365,
+        "endSeconds": 370,
+        "text": "site, region, artifact registry, and\nmanagement plane. Decide which failure"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-4",
+        "startSeconds": 370,
+        "endSeconds": 376,
+        "text": "should restart one process, replace one\nreplica, move work to another node, fail"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-5",
+        "startSeconds": 376,
+        "endSeconds": 383,
+        "text": "over, shed load, or stop safely. Two\nreplicas on one host share the host,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-6",
+        "startSeconds": 383,
+        "endSeconds": 389,
+        "text": "device, power, and often storage and\nnetwork. They may improve process recovery"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-7",
+        "startSeconds": 389,
+        "endSeconds": 395,
+        "text": "without surviving host loss. Two sites can\nstill share identity, registry, routing,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-8",
+        "startSeconds": 395,
+        "endSeconds": 400,
+        "text": "or management dependencies. An\norchestrator can restart a failed process,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-9",
+        "startSeconds": 400,
+        "endSeconds": 406,
+        "text": "but it cannot repair an incompatible\nartifact, restore a lost secret, or prove"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-10",
+        "startSeconds": 406,
+        "endSeconds": 412,
+        "text": "that queued work completed. Test the\nfailure domain you claim. Confirm that"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-11",
+        "startSeconds": 412,
+        "endSeconds": 417,
+        "text": "exact artifacts, configuration, state,\nsecrets, queues, routing, and telemetry"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-12",
+        "startSeconds": 417,
+        "endSeconds": 422,
+        "text": "remain recoverable. Availability language\nshould describe observed survival and"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-narration-13",
+        "startSeconds": 422,
+        "endSeconds": 424,
+        "text": "recovery, not topology alone."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-checkpoint-1",
+        "startSeconds": 424,
+        "endSeconds": 430,
+        "text": "Checkpoint. A team runs three model-server\ncontainers on one physical workstation and"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-checkpoint-2",
+        "startSeconds": 430,
+        "endSeconds": 436,
+        "text": "calls the endpoint highly available. Name\ntwo failures that can remove all three"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-checkpoint-3",
+        "startSeconds": 436,
+        "endSeconds": 442,
+        "text": "replicas, and state what evidence would be\nrequired before making a host-availability"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-checkpoint-4",
+        "startSeconds": 442,
+        "endSeconds": 443,
+        "text": "claim."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-feedback-1",
+        "startSeconds": 518,
+        "endSeconds": 523,
+        "text": "A strong answer names shared host power,\noperating system, accelerator, local"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-feedback-2",
+        "startSeconds": 523,
+        "endSeconds": 528,
+        "text": "storage, network, or physical damage. All\nthree containers can disappear together."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-feedback-3",
+        "startSeconds": 528,
+        "endSeconds": 534,
+        "text": "Process replication is still useful, but\nthe claim must stay inside that boundary."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-feedback-4",
+        "startSeconds": 534,
+        "endSeconds": 539,
+        "text": "Host availability requires independent\ncapacity and an observed test that removes"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-feedback-5",
+        "startSeconds": 539,
+        "endSeconds": 544,
+        "text": "the host, restores routing, reconstructs\nthe exact approved service, preserves or"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-feedback-6",
+        "startSeconds": 544,
+        "endSeconds": 550,
+        "text": "reconciles state, and meets the stated\nrecovery objective. If your answer only"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-feedback-7",
+        "startSeconds": 550,
+        "endSeconds": 556,
+        "text": "added more containers, revise it by moving\nthe recovery target outside the failed"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-failure-domain-feedback-8",
+        "startSeconds": 556,
+        "endSeconds": 557,
+        "text": "host."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-1",
+        "startSeconds": 557,
+        "endSeconds": 563,
+        "text": "A deployable design also needs named\nowners. Assign model and license review,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-2",
+        "startSeconds": 563,
+        "endSeconds": 568,
+        "text": "artifact integrity, host and accelerator\nlifecycle, runtime, identity and access,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-3",
+        "startSeconds": 568,
+        "endSeconds": 573,
+        "text": "secrets, network policy, data handling,\nevaluation, capacity, cost, telemetry,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-4",
+        "startSeconds": 573,
+        "endSeconds": 577,
+        "text": "vulnerability response, abuse handling,\nincident command, backup, restore,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-5",
+        "startSeconds": 577,
+        "endSeconds": 582,
+        "text": "rollback, and end of life. For each\nresponsibility, record decision authority,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-6",
+        "startSeconds": 582,
+        "endSeconds": 587,
+        "text": "evidence produced, on-call expectation,\nescalation path, and a qualified"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-7",
+        "startSeconds": 587,
+        "endSeconds": 594,
+        "text": "substitute. A team name is not enough if\nnobody can approve a rollback or"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-8",
+        "startSeconds": 594,
+        "endSeconds": 599,
+        "text": "access the recovery system during an\nincident. Managed services shift some"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-9",
+        "startSeconds": 599,
+        "endSeconds": 605,
+        "text": "tasks to a provider, but the organization\nstill owns configuration, access, workload"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-10",
+        "startSeconds": 605,
+        "endSeconds": 610,
+        "text": "evidence, and the decision to accept\nresidual risk. A technically successful"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-11",
+        "startSeconds": 610,
+        "endSeconds": 617,
+        "text": "endpoint with no update owner, no cost\nowner, or no restore operator is an"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-12",
+        "startSeconds": 617,
+        "endSeconds": 622,
+        "text": "unmanaged liability. Find those gaps\nbefore deployment, when changing the"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-ownership-narration-13",
+        "startSeconds": 622,
+        "endSeconds": 624,
+        "text": "design is still inexpensive."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-1",
+        "startSeconds": 624,
+        "endSeconds": 631,
+        "text": "Choose the smallest reversible shape that\ncan safely prove the next claim. If the"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-2",
+        "startSeconds": 631,
+        "endSeconds": 637,
+        "text": "question is whether the immutable artifact\nruns and meets representative quality on"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-3",
+        "startSeconds": 637,
+        "endSeconds": 642,
+        "text": "available hardware, an isolated\nworkstation or bounded container may be"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-4",
+        "startSeconds": 642,
+        "endSeconds": 648,
+        "text": "enough. If the question is whether a\nshared endpoint meets capacity and access"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-5",
+        "startSeconds": 648,
+        "endSeconds": 653,
+        "text": "requirements, use a controlled service\nenvironment with real identity, load, and"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-6",
+        "startSeconds": 653,
+        "endSeconds": 658,
+        "text": "telemetry. Do not build multi-site\norchestration before one endpoint has a"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-7",
+        "startSeconds": 658,
+        "endSeconds": 663,
+        "text": "verified contract. Record the chosen and\nrejected shapes, assumptions, evidence,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-8",
+        "startSeconds": 663,
+        "endSeconds": 668,
+        "text": "unresolved risks, capacity and cost\nenvelope, required controls, stop"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-9",
+        "startSeconds": 668,
+        "endSeconds": 675,
+        "text": "conditions, migration path, and review\ndate. Define how to return to a known safe"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-10",
+        "startSeconds": 675,
+        "endSeconds": 681,
+        "text": "state. Trigger a new decision when users,\nworkload, data class, geography, model,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-11",
+        "startSeconds": 681,
+        "endSeconds": 685,
+        "text": "runtime, demand, objectives, incident\nhistory, or ownership changes."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-12",
+        "startSeconds": 685,
+        "endSeconds": 691,
+        "text": "Reversibility is not reluctance. It is a\ndesign property that lets evidence change"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-reversible-choice-narration-13",
+        "startSeconds": 691,
+        "endSeconds": 695,
+        "text": "the decision without trapping people,\ndata, or operations."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-activity-transition-1",
+        "startSeconds": 695,
+        "endSeconds": 700,
+        "text": "Now create the deployment-shape decision\nrecord. Define one synthetic workload and"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-activity-transition-2",
+        "startSeconds": 700,
+        "endSeconds": 705,
+        "text": "score workstation, containerized host,\non-premises service, edge, cloud, and one"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-activity-transition-3",
+        "startSeconds": 705,
+        "endSeconds": 710,
+        "text": "hybrid option against identical criteria.\nDraw process, host, site, identity,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-activity-transition-4",
+        "startSeconds": 710,
+        "endSeconds": 715,
+        "text": "network, storage, registry, and management\nfailure domains. Assign every operating"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-activity-transition-5",
+        "startSeconds": 715,
+        "endSeconds": 721,
+        "text": "role and flag gaps. Choose a bounded first\nshape, explain rejected alternatives,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-activity-transition-6",
+        "startSeconds": 721,
+        "endSeconds": 728,
+        "text": "define stop and migration triggers, and\ndescribe the return to a known safe state."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-activity-transition-7",
+        "startSeconds": 728,
+        "endSeconds": 733,
+        "text": "Your evidence is the dated workload\ncontract, comparison matrix, failure map,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-activity-transition-8",
+        "startSeconds": 733,
+        "endSeconds": 736,
+        "text": "ownership matrix, and reversible decision."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-1",
+        "startSeconds": 916,
+        "endSeconds": 921,
+        "text": "Instructor narration: the runnable lab\nisolates one defect without replacing the"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-2",
+        "startSeconds": 921,
+        "endSeconds": 926,
+        "text": "operating packet. The starter validates a\ncomplete six-option fixture, sorts every"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-3",
+        "startSeconds": 926,
+        "endSeconds": 932,
+        "text": "option by weighted score, and only then\nreports whether the winner is eligible."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-4",
+        "startSeconds": 932,
+        "endSeconds": 938,
+        "text": "This allows the attractive but ineligible\ncloud option to appear first. Your repair"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-5",
+        "startSeconds": 938,
+        "endSeconds": 943,
+        "text": "must filter by mandatory data-boundary,\nrecovery, and owner evidence before"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-6",
+        "startSeconds": 943,
+        "endSeconds": 948,
+        "text": "ranking. `validation.mjs` is shared by the\nlearner selector and the independent"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-7",
+        "startSeconds": 948,
+        "endSeconds": 953,
+        "text": "reference. It accepts `null` recovery\nvalues as explicit unknown evidence but"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-8",
+        "startSeconds": 953,
+        "endSeconds": 958,
+        "text": "rejects negative, non-finite, and\nincorrectly typed values. It also requires"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-9",
+        "startSeconds": 958,
+        "endSeconds": 963,
+        "text": "the exact six unique option IDs and\nvalidates `requiredOwner`. Only"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-10",
+        "startSeconds": 963,
+        "endSeconds": 969,
+        "text": "`selector.mjs` is the learner edit. The\ntests print exactly `PASS 27/27` with exit"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-11",
+        "startSeconds": 969,
+        "endSeconds": 976,
+        "text": "code 0. Prediction before answer: in the\nbaseline, cloud has score 92 but unknown"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-12",
+        "startSeconds": 976,
+        "endSeconds": 982,
+        "text": "boundary and recovery evidence and a\nmissing owner. On-premises and hybrid are"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-13",
+        "startSeconds": 982,
+        "endSeconds": 988,
+        "text": "eligible, with scores 78 and 73. Predict\nthat on-premises wins. In the changed"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-14",
+        "startSeconds": 988,
+        "endSeconds": 994,
+        "text": "input, predict that cloud wins because the\nrequired boundary and cloud evidence"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-15",
+        "startSeconds": 994,
+        "endSeconds": 999,
+        "text": "change together, recovery and ownership\nbecome complete, and cloud then outranks"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-16",
+        "startSeconds": 999,
+        "endSeconds": 1004,
+        "text": "the other eligible option. Explained\nanswer key: preserve the shared validator"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-17",
+        "startSeconds": 1004,
+        "endSeconds": 1009,
+        "text": "and score calculation. In `select`, call\n`validateDecision`, filter options with"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-18",
+        "startSeconds": 1009,
+        "endSeconds": 1014,
+        "text": "the clearly named mandatory-constraint\npredicate, throw `no eligible option` when"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-19",
+        "startSeconds": 1014,
+        "endSeconds": 1020,
+        "text": "the filtered array is empty, then sort\nonly the eligible options by descending"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-20",
+        "startSeconds": 1020,
+        "endSeconds": 1026,
+        "text": "calculated score and ascending ID. Return\nthe first eligible option. Do not weaken"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-21",
+        "startSeconds": 1026,
+        "endSeconds": 1031,
+        "text": "validation, return a canned result, deny\nevery option, inspect the fixture"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-22",
+        "startSeconds": 1031,
+        "endSeconds": 1036,
+        "text": "filename, or hardcode an ID. Those\napproaches fail the changed input,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-23",
+        "startSeconds": 1036,
+        "endSeconds": 1040,
+        "text": "fallback, tie, malformed-input, or\nzero-eligible tests. Causal feedback:"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-24",
+        "startSeconds": 1040,
+        "endSeconds": 1045,
+        "text": "`base-selection` means ranking occurred\nbefore eligibility or an eligibility"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-25",
+        "startSeconds": 1045,
+        "endSeconds": 1048,
+        "text": "condition is wrong.\n`unknown-boundary-fallback` means unknown"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-26",
+        "startSeconds": 1048,
+        "endSeconds": 1053,
+        "text": "boundary evidence was incorrectly treated\nas met. `unknown-recovery-fallback` means"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-27",
+        "startSeconds": 1053,
+        "endSeconds": 1058,
+        "text": "a null recovery value was incorrectly\ntreated as sufficient evidence."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-28",
+        "startSeconds": 1058,
+        "endSeconds": 1064,
+        "text": "`tie-policy` means sorting did not apply\nascending option ID after equal scores."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-29",
+        "startSeconds": 1064,
+        "endSeconds": 1069,
+        "text": "`zero-eligible` means the selector\nreturned an ineligible option instead of"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-30",
+        "startSeconds": 1069,
+        "endSeconds": 1075,
+        "text": "stopping. `cli-root` or `cli-lab` means\nthe selector or path behavior differs by"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-31",
+        "startSeconds": 1075,
+        "endSeconds": 1080,
+        "text": "working directory. From the lab directory\nrun `cp starter.mjs selector.mjs`. These"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-32",
+        "startSeconds": 1080,
+        "endSeconds": 1086,
+        "text": "commands restore only the deliberately\ndefective learner file. The tests use no"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-33",
+        "startSeconds": 1086,
+        "endSeconds": 1091,
+        "text": "operating-system temporary directory and\nwrite no files. Rubric: a complete repair"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-34",
+        "startSeconds": 1091,
+        "endSeconds": 1097,
+        "text": "earns credit only when all 27 immutable\nchecks pass, the baseline selects"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-35",
+        "startSeconds": 1097,
+        "endSeconds": 1102,
+        "text": "on-premises, the changed input selects\ncloud, unknown evidence is disqualifying"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-36",
+        "startSeconds": 1102,
+        "endSeconds": 1108,
+        "text": "rather than malformed, malformed types and\nranges are rejected, zero eligible options"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-37",
+        "startSeconds": 1108,
+        "endSeconds": 1115,
+        "text": "stops with an error, and tie ordering is\ndeterministic. Passing the code lab does"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-38",
+        "startSeconds": 1115,
+        "endSeconds": 1121,
+        "text": "not prove deployment approval. The learner\nmust also submit the workload contract,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-39",
+        "startSeconds": 1121,
+        "endSeconds": 1126,
+        "text": "six-shape matrix, failure-domain map,\nownership packet with gaps, reversible"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-40",
+        "startSeconds": 1126,
+        "endSeconds": 1131,
+        "text": "decision, rejected alternatives, stop and\nmigration triggers, and safe-state"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-repair-selector-lab-lab-narration-41",
+        "startSeconds": 1131,
+        "endSeconds": 1132,
+        "text": "recovery plan."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-assessment-handoff-1",
+        "startSeconds": 1132,
+        "endSeconds": 1138,
+        "text": "When you are ready, begin the knowledge\ncheck. You will define the pre-platform"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-assessment-handoff-2",
+        "startSeconds": 1138,
+        "endSeconds": 1143,
+        "text": "service contract, distinguish what a\ncontainer does and does not provide,"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-assessment-handoff-3",
+        "startSeconds": 1143,
+        "endSeconds": 1148,
+        "text": "reason about shared failure domains,\nevaluate locality claims, assign"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-assessment-handoff-4",
+        "startSeconds": 1148,
+        "endSeconds": 1153,
+        "text": "actionable ownership, and choose a\nreversible first shape. Review the"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-assessment-handoff-5",
+        "startSeconds": 1153,
+        "endSeconds": 1158,
+        "text": "transcript or decision record before\nsubmitting. The assessment begins only"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-assessment-handoff-6",
+        "startSeconds": 1158,
+        "endSeconds": 1161,
+        "text": "when you select Begin knowledge check."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-class-closing-1",
+        "startSeconds": 1161,
+        "endSeconds": 1167,
+        "text": "Keep this rule: define the work, failure,\nand owner before choosing the platform."
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-class-closing-2",
+        "startSeconds": 1167,
+        "endSeconds": 1173,
+        "text": "Select the smallest reversible shape that\nproves the next claim, and never describe"
+      },
+      {
+        "cueId": "cue-deployment-shape-and-operating-model-class-closing-3",
+        "startSeconds": 1173,
+        "endSeconds": 1178,
+        "text": "privacy, reliability, cost, or recovery\nbeyond the evidence you have tested."
+      }
+    ],
+    "transcript": "Welcome. In this class, you will choose\nwhere a self-hosted model should run by starting with the work and the\nconsequences of failure, not with a favorite platform. We will define a\nservice contract, compare workstation, container, on-premises, edge, cloud, and\nhybrid shapes, map real failure domains, assign operating ownership, and select a\nreversible first step. Self-hosted does not automatically mean private,\ninexpensive, reliable, or under control. Those are claims that the complete system\nmust prove. Begin with a workload contract. Name the\nusers, their tasks, the model class, input and output types, sensitivity,\nconcurrency, arrival pattern, context size, output length, latency objective,\navailability target, geographic boundary, disconnected requirement, retention rule,\nand recovery objective. Separate an individual experiment from a shared\ninternal service and from a production dependency. Those labels change who can be\naffected and how quickly someone must respond. Then describe failure behavior.\nWhat should happen when the endpoint is slow, unavailable, overloaded, wrong,\nunsafe, or unable to accept a request? Can work wait, move to a reviewed fallback, or\nstop? Which data may be retained for recovery, and which data must never\nenter the service? A platform is suitable only when the team can operate both the\nnormal path and the failure path. Starting with hardware reverses this\nlogic. It encourages the team to reshape requirements around a purchase before it\nhas defined what success, safety, or recovery mean. Consider a synthetic documentation\nassistant used by six engineers. It receives approved public manuals, produces\ndraft explanations, has short weekday bursts, and may stop safely when evidence\nis missing. It must not process customer records or secrets. A five-minute\ninterruption delays work but does not cause an external action. The first claim\nto prove is that one exact model and runtime can meet the quality target on\nrepresentative manuals within the available memory. This contract does not\nyet justify a multi-site cluster. Now change one fact: the endpoint becomes a\nproduction dependency for hundreds of users with a strict recovery objective.\nThe model may be identical, but ownership, capacity, availability, telemetry, and\nrecovery evidence must expand. The deployment shape follows the service\ncontract. Compare each shape against the same\ncontract. A workstation can be excellent for individual learning, offline\nexperiments, and low-concurrency development. It may also sleep, share a\nuser's privileges, change without review, throttle under heat, and disappear when\nthe user leaves. A container gives the process a reproducible package and an\nexplicit runtime boundary. It does not automatically add authentication, strong\ntenant isolation, resource limits, backups, or high availability. On-premises\ninfrastructure can support local data or connectivity requirements and direct\nhardware control. In exchange, the operator owns capacity, patching, power,\ncooling, spares, physical access, and incident response. Edge equipment can\nreduce distance and survive intermittent upstream connectivity, but power, memory,\nupdate bandwidth, physical security, and repair are constrained. Cloud compute can\nspeed provisioning and offer managed building blocks, yet region, identity,\nnetworking, encryption, quota, cost, observability, backup, and exit still\nrequire proof. Hybrid designs add routing, consistency, and failure choices. None of\nthe labels establishes privacy, price, performance, or resilience. Write those as\nmeasurable requirements, then collect evidence. Choose the shape that first felt obvious\nfor your workload. Write one benefit you expected and one property you may have\nassumed without evidence, such as privacy, lower cost, availability, or easier\nrecovery. Then name the measurement or test that would support that property. Next, map failure domains instead of\ncounting replicas. List the process, container, accelerator, host, storage,\nnetwork, identity provider, scheduler, site, region, artifact registry, and\nmanagement plane. Decide which failure should restart one process, replace one\nreplica, move work to another node, fail over, shed load, or stop safely. Two\nreplicas on one host share the host, device, power, and often storage and\nnetwork. They may improve process recovery without surviving host loss. Two sites can\nstill share identity, registry, routing, or management dependencies. An\norchestrator can restart a failed process, but it cannot repair an incompatible\nartifact, restore a lost secret, or prove that queued work completed. Test the\nfailure domain you claim. Confirm that exact artifacts, configuration, state,\nsecrets, queues, routing, and telemetry remain recoverable. Availability language\nshould describe observed survival and recovery, not topology alone. Checkpoint. A team runs three model-server\ncontainers on one physical workstation and calls the endpoint highly available. Name\ntwo failures that can remove all three replicas, and state what evidence would be\nrequired before making a host-availability claim. A strong answer names shared host power,\noperating system, accelerator, local storage, network, or physical damage. All\nthree containers can disappear together. Process replication is still useful, but\nthe claim must stay inside that boundary. Host availability requires independent\ncapacity and an observed test that removes the host, restores routing, reconstructs\nthe exact approved service, preserves or reconciles state, and meets the stated\nrecovery objective. If your answer only added more containers, revise it by moving\nthe recovery target outside the failed host. A deployable design also needs named\nowners. Assign model and license review, artifact integrity, host and accelerator\nlifecycle, runtime, identity and access, secrets, network policy, data handling,\nevaluation, capacity, cost, telemetry, vulnerability response, abuse handling,\nincident command, backup, restore, rollback, and end of life. For each\nresponsibility, record decision authority, evidence produced, on-call expectation,\nescalation path, and a qualified substitute. A team name is not enough if\nnobody can approve a rollback or access the recovery system during an\nincident. Managed services shift some tasks to a provider, but the organization\nstill owns configuration, access, workload evidence, and the decision to accept\nresidual risk. A technically successful endpoint with no update owner, no cost\nowner, or no restore operator is an unmanaged liability. Find those gaps\nbefore deployment, when changing the design is still inexpensive. Choose the smallest reversible shape that\ncan safely prove the next claim. If the question is whether the immutable artifact\nruns and meets representative quality on available hardware, an isolated\nworkstation or bounded container may be enough. If the question is whether a\nshared endpoint meets capacity and access requirements, use a controlled service\nenvironment with real identity, load, and telemetry. Do not build multi-site\norchestration before one endpoint has a verified contract. Record the chosen and\nrejected shapes, assumptions, evidence, unresolved risks, capacity and cost\nenvelope, required controls, stop conditions, migration path, and review\ndate. Define how to return to a known safe state. Trigger a new decision when users,\nworkload, data class, geography, model, runtime, demand, objectives, incident\nhistory, or ownership changes. Reversibility is not reluctance. It is a\ndesign property that lets evidence change the decision without trapping people,\ndata, or operations. Now create the deployment-shape decision\nrecord. Define one synthetic workload and score workstation, containerized host,\non-premises service, edge, cloud, and one hybrid option against identical criteria.\nDraw process, host, site, identity, network, storage, registry, and management\nfailure domains. Assign every operating role and flag gaps. Choose a bounded first\nshape, explain rejected alternatives, define stop and migration triggers, and\ndescribe the return to a known safe state. Your evidence is the dated workload\ncontract, comparison matrix, failure map, ownership matrix, and reversible decision. Instructor narration: the runnable lab\nisolates one defect without replacing the operating packet. The starter validates a\ncomplete six-option fixture, sorts every option by weighted score, and only then\nreports whether the winner is eligible. This allows the attractive but ineligible\ncloud option to appear first. Your repair must filter by mandatory data-boundary,\nrecovery, and owner evidence before ranking. `validation.mjs` is shared by the\nlearner selector and the independent reference. It accepts `null` recovery\nvalues as explicit unknown evidence but rejects negative, non-finite, and\nincorrectly typed values. It also requires the exact six unique option IDs and\nvalidates `requiredOwner`. Only `selector.mjs` is the learner edit. The\ntests print exactly `PASS 27/27` with exit code 0. Prediction before answer: in the\nbaseline, cloud has score 92 but unknown boundary and recovery evidence and a\nmissing owner. On-premises and hybrid are eligible, with scores 78 and 73. Predict\nthat on-premises wins. In the changed input, predict that cloud wins because the\nrequired boundary and cloud evidence change together, recovery and ownership\nbecome complete, and cloud then outranks the other eligible option. Explained\nanswer key: preserve the shared validator and score calculation. In `select`, call\n`validateDecision`, filter options with the clearly named mandatory-constraint\npredicate, throw `no eligible option` when the filtered array is empty, then sort\nonly the eligible options by descending calculated score and ascending ID. Return\nthe first eligible option. Do not weaken validation, return a canned result, deny\nevery option, inspect the fixture filename, or hardcode an ID. Those\napproaches fail the changed input, fallback, tie, malformed-input, or\nzero-eligible tests. Causal feedback: `base-selection` means ranking occurred\nbefore eligibility or an eligibility condition is wrong.\n`unknown-boundary-fallback` means unknown boundary evidence was incorrectly treated\nas met. `unknown-recovery-fallback` means a null recovery value was incorrectly\ntreated as sufficient evidence. `tie-policy` means sorting did not apply\nascending option ID after equal scores. `zero-eligible` means the selector\nreturned an ineligible option instead of stopping. `cli-root` or `cli-lab` means\nthe selector or path behavior differs by working directory. From the lab directory\nrun `cp starter.mjs selector.mjs`. These commands restore only the deliberately\ndefective learner file. The tests use no operating-system temporary directory and\nwrite no files. Rubric: a complete repair earns credit only when all 27 immutable\nchecks pass, the baseline selects on-premises, the changed input selects\ncloud, unknown evidence is disqualifying rather than malformed, malformed types and\nranges are rejected, zero eligible options stops with an error, and tie ordering is\ndeterministic. Passing the code lab does not prove deployment approval. The learner\nmust also submit the workload contract, six-shape matrix, failure-domain map,\nownership packet with gaps, reversible decision, rejected alternatives, stop and\nmigration triggers, and safe-state recovery plan. When you are ready, begin the knowledge\ncheck. You will define the pre-platform service contract, distinguish what a\ncontainer does and does not provide, reason about shared failure domains,\nevaluate locality claims, assign actionable ownership, and choose a\nreversible first shape. Review the transcript or decision record before\nsubmitting. The assessment begins only when you select Begin knowledge check. Keep this rule: define the work, failure,\nand owner before choosing the platform. Select the smallest reversible shape that\nproves the next claim, and never describe privacy, reliability, cost, or recovery\nbeyond the evidence you have tested.",
+    "reducedMotionAlternative": "Display the complete form at once and mark the current field group with a persistent border and text heading. Show both contracts side by side with changed fields labeled in text; do not animate between them. Keep all rows and columns visible. Use a text marker and border to identify the current cell without moving the matrix. Show all nested boundaries and dependency labels simultaneously. Use numbered descriptions for each failure test. Show the complete matrix as a static table and identify missing owners with text, an icon, and a border rather than color alone. Present the decision record as a numbered static sequence and keep every field visible."
+  }
 }
