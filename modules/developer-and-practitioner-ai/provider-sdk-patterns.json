@@ -1,66 +1,83 @@
 {
   "id": "provider-sdk-patterns",
   "title": "Unified Multi-Provider SDK Patterns",
-  "summary": "For intermediate developers, this module teaches you to build and test a thin adapter over the native Anthropic, OpenAI, and Google SDKs. After completing it, you can normalize provider response shapes, stop signals, usage, and storage behavior without assuming that different compatibility endpoints drop the same guarantees.",
+  "summary": "For intermediate developers, this module teaches a thin adapter over the native Anthropic, OpenAI, and Google APIs. Learners normalize provider response shapes, terminal states, tool requests, usage, and storage behavior without assuming that compatibility endpoints or model families share one wire contract. A deterministic Node.js 22 lab repairs one ordering defect in a final-response OpenAI Responses adapter.",
   "level": "intermediate",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-21",
   "providers": [
     "provider-neutral",
     "anthropic",
     "openai",
     "google"
   ],
-  "estimatedMinutes": 50,
+  "estimatedMinutes": 90,
   "objectives": [
-    "Map the native request and response shapes of the Claude Messages API, the OpenAI Responses API, and the Gemini generateContent and Interactions APIs onto one internal contract.",
-    "Normalize stop signals and token usage so that truncation, refusal, pauses, and tool requests are never mistaken for a completed answer.",
-    "Distinguish Anthropic's documented OpenAI compatibility limitations from Google's different documented compatibility behavior and decide when a compatibility layer is acceptable.",
-    "Keep model identifiers, API surface, and conversation-storage policy in configuration that a contract test verifies against the provider's documentation."
+    "Map Claude Messages, OpenAI Responses, Gemini generateContent, and Gemini Interactions responses onto one internal ModelResult contract.",
+    "Classify terminal state before exposing ordinary completion or executable tool calls.",
+    "Fail closed on unknown statuses, malformed envelopes, malformed content parts, and function calls without an actual call_id.",
+    "Distinguish deterministic fixture simulation from authenticated live integration testing.",
+    "Keep model identifiers, API surface, storage policy, and source provenance in configuration."
   ],
   "prerequisites": [],
   "sections": [
     {
       "id": "three-native-shapes",
-      "title": "Three SDKs, three different ideas of a response",
+      "title": "Three providers, four native response shapes",
       "paragraphs": [
-        "A portable client starts by admitting that the providers do not agree on what a response is. The Claude Messages API takes the system prompt as a top-level `system` parameter and prior turns in a `messages` array, and returns an assistant message whose `content` is an array of typed blocks such as `text` and `tool_use`. Anthropic describes the Messages API as usable for single queries or stateless multi-turn conversations: your application resends whatever history the model should see.",
-        "The OpenAI Responses API, which OpenAI recommends for new projects while Chat Completions remains supported, returns an `output` array of Items. A `message` is one Item type; `reasoning`, `function_call`, and `function_call_output` are others, and OpenAI's migration guide lists treating every output entry as a message as a common error. The SDK's `output_text` helper joins the text for you, but only the Items tell you what else happened. Responses are stored by default unless you send `store: false`.",
-        "Google documents two Gemini surfaces. `generateContent` returns `candidates`, each with `content.parts` and a `finishReason`. The Interactions API returns an Interaction with a `status` and a `steps` timeline containing entries such as `user_input`, `function_call`, and `model_output`. Google's Interactions overview recommends it for new projects and calls `generateContent` legacy but still supported. An adapter lets you make that choice once, in one place, and reverse it later without touching every caller."
+        "A portable client starts by acknowledging that providers do not share one response schema. The Claude Messages API accepts a top-level `system` parameter and a `messages` array. It returns an assistant message whose `content` contains typed blocks such as `text` and `tool_use`. The application resends the history needed for a stateless multi-turn conversation. See Anthropic's [Create a Message](https://platform.claude.com/docs/en/api/messages/create) documentation.",
+        "OpenAI recommends the Responses API over Chat Completions for new projects. A Response has a top-level status and an `output` array of typed Items. A `message` contains content items such as `output_text` or `refusal`, while a `function_call` is a separate output Item. Responses are stored by default unless the request uses `store: false`. See OpenAI's [Migrate to the Responses API](https://developers.openai.com/api/docs/guides/migrate-to-responses) guide.",
+        "Google documents two Gemini surfaces. `generateContent` returns `candidates[].content.parts[]` and a `finishReason`, where `STOP` represents a normal finish. The Interactions API returns an Interaction with a status such as `completed` or `requires_action` and steps such as `model_output` and `function_call`. Google recommends Interactions for new projects while describing `generateContent` as legacy but supported. See the [Gemini models](https://ai.google.dev/gemini-api/docs/models) and [Interactions API](https://ai.google.dev/gemini-api/docs/interactions-overview) documentation.",
+        "The common abstraction belongs inside the application. It does not establish that the providers validate tools, represent refusals, store state, stream events, or report usage in the same way."
       ],
-      "callout": "The SDK is not the abstraction. The abstraction is the internal contract you write; each SDK sits behind an adapter that fills it.",
+      "callout": "Normalize into an internal contract only after validating the native provider envelope.",
       "code": {
         "language": "typescript",
-        "label": "One internal contract, four wire shapes",
-        "code": "// The only result shape the rest of the application sees.\ntype Outcome = \"complete\" | \"truncated\" | \"refused\" | \"tool_request\" | \"paused\" | \"other\";\n\ninterface ModelResult {\n  provider: \"anthropic\" | \"openai\" | \"google\";\n  surface: \"messages\" | \"responses\" | \"generateContent\" | \"interactions\";\n  model: string;                 // echoed from configuration, never a code default\n  outcome: Outcome;\n  text: string;                  // joined text parts only\n  toolCalls: { id: string; name: string; args: unknown }[];\n  rawStop: string | null;        // the provider value, kept for incident review\n  rawUsage: Record<string, unknown>;\n}\n\n// Where text, tool requests, and the stop signal live on each native response:\n//   Claude Messages          content[] blocks (\"text\", \"tool_use\"); stop_reason\n//   OpenAI Responses         output[] Items (\"message\", \"function_call\", \"reasoning\", ...); status\n//   Gemini generateContent   candidates[].content.parts[]; finishReason\n//   Gemini Interactions      steps[] (\"model_output\", \"function_call\", ...); status"
+        "label": "Stable internal result contract",
+        "code": "type Outcome =\n  | \"complete\"\n  | \"truncated\"\n  | \"refused\"\n  | \"tool_request\"\n  | \"paused\"\n  | \"other\";\n\ninterface ModelResult {\n  provider: \"anthropic\" | \"openai\" | \"google\";\n  surface: \"messages\" | \"responses\" | \"generateContent\" | \"interactions\";\n  model: string;\n  outcome: Outcome;\n  text: string;\n  toolCalls: { id: string; name: string; args: unknown }[];\n  rawStop: string | null;\n  rawUsage: Record<string, unknown>;\n}"
       }
     },
     {
       "id": "normalize-stop-and-usage",
-      "title": "Normalize stop signals before you normalize text",
+      "title": "Classify state before releasing a result",
       "paragraphs": [
-        "The most expensive portability bug is a truncated or refused answer that flows downstream as if it were complete. Each provider signals this differently. Claude sets `stop_reason` to a documented value such as `end_turn`, `max_tokens`, `stop_sequence`, `tool_use`, `pause_turn`, `refusal`, or `model_context_window_exceeded`. The Responses API marks a cut-off answer with `status: \"incomplete\"` and can provide an `incomplete_details.reason` such as `max_output_tokens`; a safety refusal appears as a `refusal` content item instead of ordinary text. Gemini's `generateContent` reports a `finishReason`, with `STOP` indicating a normal finish, and an Interaction waiting on a function result has `status: \"requires_action\"`.",
-        "Map every native value into your own outcome, and make the mapping total: an unknown value becomes `other` and fails closed; it never defaults to `complete`. Keep the raw value as well, because it is needed to investigate why a response stopped. `pause_turn` deserves its own outcome: Anthropic documents it as a paused long-running turn that can be sent back to let the model continue, which is neither success nor failure.",
-        "Usage needs the same treatment. Field names differ: `usage.input_tokens` and `output_tokens` on Claude and OpenAI Responses, and `usageMetadata.promptTokenCount` and `candidatesTokenCount` on Gemini `generateContent`. Their accounting also differs. Anthropic notes that its counts do not match visible content one-to-one and that total input includes `input_tokens`, `cache_creation_input_tokens`, and `cache_read_input_tokens`. OpenAI notes that chaining with `previous_response_id` still bills earlier input tokens. Store raw usage beside any normalized figure so a cost comparison can be audited.",
-        "Streaming multiplies the differences. Responses streaming emits typed server-sent events such as `response.output_text.delta`, `response.function_call_arguments.delta`, and `response.completed`; Gemini can stream structured output as partial JSON strings that must be concatenated; Claude's `stop_reason` is null in the `message_start` event and set later in the stream. A streaming adapter should emit the same internal events whatever the source, and declare an outcome only after the final stop signal arrives."
+        "Terminal state controls what downstream code may do. Claude documents stop reasons including `end_turn`, `max_tokens`, `refusal`, `tool_use`, and `pause_turn`. OpenAI Responses uses `completed` or `incomplete`, with an incomplete reason that can be `max_output_tokens`. Gemini `generateContent` uses `finishReason`, while Gemini Interactions uses its top-level status.",
+        "Text does not prove completion. A final response snapshot can contain partial message text while its status remains incomplete or otherwise noncompleted. Preserve that text for diagnostics or an explicitly marked partial display, but do not label it complete.",
+        "A function-call-shaped item does not by itself authorize execution. In this lesson's final-response adapter, a call becomes executable only when the enclosing response is `completed`, the function-call item is structurally valid, and it has its own nonempty `call_id`, name, and arguments. An item's unrelated `id` must never be substituted for `call_id`. Incomplete, queued, in-progress, failed, cancelled, unknown, or malformed responses expose no executable tool calls.",
+        "Mappings must be total. Known values receive explicit outcomes. Unknown values become `other`. Malformed envelopes and parts also become `other` without throwing. The adapter retains the provider status or incomplete reason as `rawStop` and retains valid raw usage as `rawUsage`.",
+        "This lab adapts final response snapshots, not streaming events. A streaming dispatcher needs a separate state machine that accumulates deltas and waits for the provider's terminal event before authorizing a tool or declaring completion."
       ],
       "code": {
         "language": "typescript",
-        "label": "Total stop-signal mappings that fail closed",
-        "code": "function claudeOutcome(stop: string | null): Outcome {\n  switch (stop) {\n    case \"end_turn\":\n    case \"stop_sequence\": return \"complete\";\n    case \"max_tokens\":\n    case \"model_context_window_exceeded\": return \"truncated\";\n    case \"refusal\": return \"refused\";\n    case \"tool_use\": return \"tool_request\";\n    case \"pause_turn\": return \"paused\";      // send the response back to continue\n    default: return \"other\";                 // values added later fail closed\n  }\n}\n\nfunction responsesOutcome(r: {\n  status: string;\n  incomplete_details?: { reason?: string };\n  output: { type: string; content?: { type: string }[] }[];\n}): Outcome {\n  if (r.status === \"incomplete\") {\n    return r.incomplete_details?.reason === \"max_output_tokens\" ? \"truncated\" : \"other\";\n  }\n  if (r.output.some((i) => i.type === \"function_call\")) return \"tool_request\";\n  const message = r.output.find((i) => i.type === \"message\");\n  if (message?.content?.some((c) => c.type === \"refusal\")) return \"refused\";\n  return message ? \"complete\" : \"other\";\n}\n\nfunction geminiOutcome(r: { finishReason?: string } | { status?: string }): Outcome {\n  if (\"status\" in r) {                       // Interactions API\n    if (r.status === \"completed\") return \"complete\";\n    if (r.status === \"requires_action\") return \"tool_request\";\n    return \"other\";\n  }\n  // generateContent: only STOP is treated as complete here. Map further\n  // finishReason values from the current API reference before trusting them.\n  return r.finishReason === \"STOP\" ? \"complete\" : \"other\";\n}"
+        "label": "Provider-specific outcome sketches",
+        "code": "function claudeOutcome(stop: string | null): Outcome {\n  switch (stop) {\n    case \"end_turn\": return \"complete\";\n    case \"max_tokens\": return \"truncated\";\n    case \"refusal\": return \"refused\";\n    case \"tool_use\": return \"tool_request\";\n    case \"pause_turn\": return \"paused\";\n    default: return \"other\";\n  }\n}\n\nfunction geminiGenerateContentOutcome(finishReason: string | undefined): Outcome {\n  return finishReason === \"STOP\" ? \"complete\" : \"other\";\n}\n\nfunction geminiInteractionOutcome(status: string | undefined): Outcome {\n  if (status === \"completed\") return \"complete\";\n  if (status === \"requires_action\") return \"tool_request\";\n  return \"other\";\n}"
+      }
+    },
+    {
+      "id": "worked-response-classification",
+      "title": "Worked example: incomplete text and a call-shaped item",
+      "paragraphs": [
+        "The worked fixture has `status: \"incomplete\"`, `incomplete_details.reason: \"max_output_tokens\"`, partial text `Draft: inspect the`, and a structurally valid `function_call` item. The correct normalized result is `truncated`, with the partial text preserved and `toolCalls` empty.",
+        "The causal sequence is important. First, the envelope is a valid final-response snapshot. Second, its top-level status says generation is incomplete. Third, `max_output_tokens` supplies the established truncation mapping. The response therefore cannot authorize its call-shaped item, even though that item has a `call_id`, name, and arguments.",
+        "The deliberate starter defect checks for a ready function call before it handles the incomplete status. That leaks the call as `tool_request`. The focused repair moves incomplete classification before the function-call branch. Ordinary messages already require `status: \"completed\"`, so moving this one branch fixes the defect without weakening other validation.",
+        "The repaired result is `{ provider: \"openai\", surface: \"responses\", model: \"fixture-model\", outcome: \"truncated\", text: \"Draft: inspect the\", toolCalls: [], rawStop: \"max_output_tokens\" }`. The usage object is also retained."
+      ],
+      "code": {
+        "language": "json",
+        "label": "Worked fixture response",
+        "code": "{\n  \"status\": \"incomplete\",\n  \"incomplete_details\": { \"reason\": \"max_output_tokens\" },\n  \"output\": [\n    {\n      \"type\": \"message\",\n      \"role\": \"assistant\",\n      \"content\": [\n        { \"type\": \"output_text\", \"text\": \"Draft: inspect the\" }\n      ]\n    },\n    {\n      \"type\": \"function_call\",\n      \"call_id\": \"call_fixture_refund\",\n      \"name\": \"refund\",\n      \"arguments\": \"{}\"\n    }\n  ]\n}"
       }
     },
     {
       "id": "compatibility-layers-drop-guarantees",
-      "title": "OpenAI-compatible endpoints are a test harness, not an abstraction",
+      "title": "Compatibility endpoints do not create identical semantics",
       "paragraphs": [
-        "Both Anthropic and Google let the official OpenAI SDK talk to their models by changing the connection details and model name. That can look like a unified client, but the two compatibility endpoints do not document identical behavior. Read each provider's limitations before using either route.",
-        "Anthropic states that its compatibility layer is primarily intended to test and compare model capabilities and is not considered a long-term or production-ready solution for most use cases. On that layer the `strict` flag on function tools is ignored, so tool arguments are not guaranteed to follow your schema; `response_format` is ignored; `n` must be 1; `temperature` above 1 is capped at 1; system and developer messages are hoisted and concatenated into one leading system message; `choices[].message.refusal` is always empty; and prompt caching is unavailable. Anthropic also says unsupported fields are generally ignored rather than rejected.",
-        "Google documents different behavior for its OpenAI compatibility route. It maps `reasoning_effort` onto Gemini thinking settings, exposes Gemini-specific features through `extra_body`, and documents ignored parameters in its image-generation compatibility behavior. Google recommends calling the Gemini API directly if you are not already using the OpenAI libraries. The supplied Google material does not establish that Gemini compatibility ignores `strict` tool schemas or `response_format`, so this module does not attribute those Anthropic-specific limitations to Google.",
-        "The failure mode on Anthropic's route is quiet. A request that relies on `strict` or `response_format` can still succeed at the protocol level even though the field is ignored, so a malformed argument or incorrectly shaped answer can reach production. Use the compatibility routes only for behavior their respective documentation supports. If you retain one, write a contract test for every guarantee your application needs rather than assuming that Anthropic and Google drop the same features.",
-        "Update note for 2026-09-18: the source URLs and their 2026-09-13 verification dates remain within the 30-day review cadence. This correction changes the earlier narration and transcript, which incorrectly said both Claude and Gemini compatibility endpoints silently ignore `strict` tool schemas and `response_format`. Those specific limitations are now attributed only to Anthropic; Google's separately documented behavior remains unchanged."
+        "Anthropic and Google both document ways to use OpenAI-oriented client libraries with their services, but their compatibility behavior is provider-specific.",
+        "Anthropic documents that its OpenAI SDK compatibility layer ignores the strict tool flag and `response_format`, caps temperatures above 1 at 1, and hoists system messages. Anthropic presents that route primarily for testing and comparison rather than as the preferred long-term production interface. See [Anthropic OpenAI SDK compatibility](https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk).",
+        "Google documents that its OpenAI compatibility route maps `reasoning_effort` to Gemini thinking settings and uses `extra_body` for Gemini-specific features. The cited Google material does not establish the same ignored-field behavior documented by Anthropic. See [Google OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai).",
+        "A successful request proves only that the endpoint accepted that request. If an application depends on strict tool arguments, structured output, refusal detection, storage control, or a particular event sequence, test that guarantee on the exact provider, API surface, model, and SDK version used in deployment."
       ],
-      "callout": "Compatibility is provider-specific. A limitation documented for Anthropic must not be copied to Google's route without Google documentation that supports it.",
+      "callout": "Never copy a limitation documented for one compatibility route onto another provider without a source and a contract test.",
       "code": {
         "language": "typescript",
         "label": "Guarantees are tests, not assumptions",
@@ -69,109 +86,186 @@
     },
     {
       "id": "configuration-and-state-policy",
-      "title": "Model ids, API surface, and storage policy belong in configuration",
+      "title": "Configure model, surface, and storage policy explicitly",
       "paragraphs": [
-        "Model identifiers and available capabilities can change faster than application code. Put each identifier in configuration, record where and when it was verified, and fail startup or continuous integration when it is missing. Never let an adapter fall back to a hardcoded default that nobody reviews. Anthropic's Models API can provide model metadata that a startup check can inspect.",
-        "Documentation can change, which is why the check belongs in code. Provider surfaces and lifecycle labels can drift after a design decision is recorded. A contract test that makes one real call per configured surface-and-model pair establishes whether that pair works for your project on the day you deploy; a source-code comment does not.",
-        "Treat state and retention as configuration too, because the defaults differ. The Claude Messages API expects your application to resend the history the model should see. The Responses API stores responses unless you send `store: false`. The Gemini Interactions API stores interactions by default; setting `store=false` disables `previous_interaction_id` chaining, and interaction-scoped settings must be resent when chaining. A unified client that exposes one `store` switch has to translate it per surface and reject a combination the surface cannot honor rather than quietly retaining data contrary to policy."
+        "Keep the concrete model identifier outside adapter code. Record the provider, API surface, model identifier, storage policy, verification date, and authoritative source. Do not silently fall back to an unreviewed model.",
+        "Claude Messages relies on the application to resend conversation history. OpenAI Responses stores by default unless `store: false` is set. Gemini Interactions stores by default, and Google documents that `store=false` prevents chaining with `previous_interaction_id`. An adapter should translate an application retention policy into surface-specific controls or reject a combination it cannot honor.",
+        "An offline fixture cannot prove that a model is currently available to an account or region. That requires an authenticated live integration test against the configured route."
       ],
       "code": {
         "language": "typescript",
-        "label": "Routes are data with provenance",
-        "code": "interface Route {\n  provider: \"anthropic\" | \"openai\" | \"google\";\n  surface: \"messages\" | \"responses\" | \"generateContent\" | \"interactions\";\n  model: string;        // required; no default in code\n  store: boolean;       // translated per surface; rejected where it cannot be honored\n  verifiedOn: string;   // YYYY-MM-DD the id was checked\n  verifiedAt: string;   // the models page it was checked against\n}\n\nexport function assertRoute(r: Route): Route {\n  if (!r.model) throw new Error(`${r.provider}: model id is required; check ${r.verifiedAt}`);\n  if (r.surface === \"messages\" && r.store) {\n    throw new Error(\"Claude Messages does not offer server-side conversation storage through this setting\");\n  }\n  return r;\n}"
+        "label": "Route configuration with provenance",
+        "code": "interface Route {\n  provider: \"anthropic\" | \"openai\" | \"google\";\n  surface: \"messages\" | \"responses\" | \"generateContent\" | \"interactions\";\n  model: string;\n  store: boolean;\n  verifiedOn: string;\n  verifiedAt: string;\n}\n\nexport function assertRoute(route: Route): Route {\n  if (!route.model) throw new Error(\"A reviewed model identifier is required\");\n  if (!route.verifiedOn || !route.verifiedAt) {\n    throw new Error(\"Route verification provenance is required\");\n  }\n  if (route.surface === \"messages\" && route.store) {\n    throw new Error(\"This store setting is not available on Claude Messages\");\n  }\n  return route;\n}"
+      }
+    },
+    {
+      "id": "bounded-retries-and-cancellation",
+      "title": "Retry transport failures, not model outcomes",
+      "paragraphs": [
+        "Refusal, truncation, pause, and a valid tool request are model or application outcomes. They are not generic transport failures and should not be retried blindly.",
+        "A retry policy needs a maximum attempt count, a total elapsed-time or budget limit, and cancellation propagation. Retrying a generation request can duplicate token charges. Retrying tool-result submission or another mutation can duplicate side effects.",
+        "Retry a mutation only when the exact provider operation documents an idempotency mechanism and the adapter reuses the same idempotency key. If that guarantee is absent or unknown, return an uncertain result for reconciliation instead of issuing a blind retry."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "Bounded retry skeleton",
+        "code": "export async function withRetry(operation, policy) {\n  const started = Date.now();\n  let lastError;\n\n  for (let attempt = 1; attempt <= policy.maxAttempts; attempt += 1) {\n    policy.signal?.throwIfAborted();\n    if (Date.now() - started >= policy.budgetMs) break;\n\n    try {\n      return await operation({ attempt, signal: policy.signal });\n    } catch (error) {\n      lastError = error;\n      if (policy.classifyError(error) !== \"transient\") throw error;\n      if (attempt === policy.maxAttempts) throw error;\n    }\n  }\n\n  throw lastError ?? new Error(\"Retry budget exhausted\");\n}"
+      }
+    },
+    {
+      "id": "ecosystem-transfer",
+      "title": "Transfer the adapter method, not the wire mapping",
+      "paragraphs": [
+        "The adapter method applies beyond these three providers, but the concrete mappings do not. Meta Llama, Qwen, DeepSeek, Mistral, and Microsoft Phi can name model families or released artifacts rather than one hosted API.",
+        "A model can be served by a first-party runtime, a cloud endpoint, a third-party inference server, or a compatibility gateway. Those layers can expose different tool formats, stop fields, token accounting, streaming events, and persistence policies.",
+        "Begin transfer work with the official project material for the chosen artifact, such as [Meta llama-models](https://github.com/meta-llama/llama-models), [Qwen3](https://github.com/QwenLM/Qwen3), [DeepSeek-V3](https://github.com/deepseek-ai/DeepSeek-V3), [Mistral inference](https://github.com/mistralai/mistral-inference), or [PhiCookBook](https://github.com/microsoft/PhiCookBook). Then consult the documentation for the actual serving runtime. Record model family, concrete identifier, runtime or service, and API surface separately."
+      ]
+    },
+    {
+      "id": "fixture-versus-live-integration",
+      "title": "Fixture simulation and live integration answer different questions",
+      "paragraphs": [
+        "The supplied lab is a deterministic fixture simulation. It makes no network call, needs no API key, and incurs no model charges. It tests local parsing, fail-closed behavior, call readiness, call-id handling, and outcome precedence.",
+        "A live integration test uses credentials and a native provider surface. It can establish that a configured account can reach a model and that observed responses satisfy a contract on the test date. It can also be billable, nondeterministic, region-dependent, and affected by provider changes.",
+        "Keep live tests in a separately named target. Record provider, surface, model, storage setting, SDK version, date, budget, cancellation behavior, and observed result. No live provider call or lab command was executed while drafting this artifact."
+      ]
+    },
+    {
+      "id": "repair-lab",
+      "title": "Repair lab: do not execute calls from an incomplete response",
+      "paragraphs": [
+        "Run `node training/developer-and-practitioner-ai/provider-sdk-patterns/lab/verify.mjs` from the repository root. The starter performs 17 immutable checks. Exactly one check fails: the incomplete fixture is incorrectly classified as `tool_request`. The other 16 checks pass.",
+        "Edit only `adapter.mjs`. Move the incomplete-status branch before the completed-response tool branch. Preserve text extraction, raw diagnostics, completed-message classification, refusal classification, function-call validation, exact `call_id` use, noncompleted call suppression, and malformed-input handling.",
+        "After the repair, all 17 checks pass. The verifier covers `in_progress`, `queued`, `failed`, and `cancelled` responses containing function calls. Each maps to `other` and exposes no tool calls. It also covers missing `call_id`, an unrelated item `id`, malformed output shapes, malformed message parts, partial text under an unknown status, valid completion, valid refusal, and a valid completed tool request.",
+        "The independent learner variation changes the incomplete reason to `content_filter`, changes the response id and partial text, and leaves a ready call-shaped item present. The answer is `other`, the text remains available, `rawStop` remains `content_filter`, and `toolCalls` remains empty. The causal reason is that the response is still incomplete and this focused contract establishes only `max_output_tokens` as a truncation mapping.",
+        "Recovery copies `adapter.starter.mjs` over `adapter.mjs`. The independent reference is in `adapter.reference.mjs`. The verifier imports neither the starter copy nor the reference."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "The one defective ordering decision",
+        "code": "// Defect: an incomplete snapshot can reach this branch first.\nif ((status === \"completed\" || status === \"incomplete\") && readyCalls.length > 0) {\n  outcome = \"tool_request\";\n} else if (status === \"incomplete\") {\n  outcome = reason === \"max_output_tokens\" ? \"truncated\" : \"other\";\n}\n\n// Repair: classify status === \"incomplete\" before considering tool calls."
       }
     }
   ],
   "activity": {
     "id": "provider-sdk-patterns-activity",
-    "title": "Build and probe a three-provider adapter",
+    "title": "Repair and probe a final-response adapter",
     "instructions": [
-      "Define an internal result contract with outcome, joined text, tool calls with ids, raw stop value, and raw usage. Write one adapter each for Claude Messages, OpenAI Responses, and one Gemini surface. State in one paragraph why you chose generateContent or Interactions for Gemini.",
-      "Write a total stop-signal mapping for each adapter and a unit test that feeds it every documented value plus one invented value. The invented value must not map to complete.",
-      "In a test environment, point the OpenAI SDK at Anthropic's compatibility endpoint and send one request that depends on strict tool arguments and one that depends on response_format. Record what the layer did with each. Do not infer that Google's compatibility endpoint behaves the same way.",
-      "Move every model id and storage setting into configuration with a verified-on date and source URL, and add a contract test that fails the build when a configured id is rejected or a storage setting cannot be honored on its surface."
+      "Run the verifier from the repository root and confirm the documented 16-pass, 1-failure starter result and exit code 1.",
+      "Inspect the fixture. Explain why `status: \"incomplete\"` prevents its function-call item from becoming executable even though the item has a valid `call_id`.",
+      "Repair only the incomplete-branch ordering in `adapter.mjs`. Do not edit the fixture, verifier, starter copy, or reference.",
+      "Run the verifier again and confirm 17 passes, 0 failures, and exit code 0.",
+      "Run `variation.mjs`. Explain why `content_filter` maps to `other`, retains partial text and `rawStop`, and exposes no tool calls.",
+      "Sketch equivalent state-first rules for Claude Messages and either Gemini surface using their native field names.",
+      "Optional live track: use project-approved credentials for one bounded, cancellable native request. Keep its evidence separate from the fixture result."
     ],
     "evidence": [
-      "Adapter code or a design, plus the stop-signal mapping table and its tests, including the invented-value case.",
-      "A short compatibility-layer finding that separates Anthropic's documented dropped guarantees from Google's separately documented compatibility behavior and names native features only where the source establishes them.",
-      "A configuration file listing model ids, surfaces, and storage settings, each with a verified-on date and the URL it was verified against."
+      "The repaired `adapter.mjs` with the verifier and fixture unchanged.",
+      "The exact repaired verifier output and exit code 0.",
+      "The exact variation output and exit code 0.",
+      "A causal explanation distinguishing incomplete, complete, refusal, tool request, and malformed results.",
+      "A provider-specific mapping sketch that does not invent a universal wire schema."
     ],
-    "reflectionPrompt": "Which provider difference would your adapter have hidden from you if you had normalized the text first and the stop signals second?"
+    "reflectionPrompt": "What downstream side effect could occur if an adapter exposed a call-shaped item before confirming that its final response was completed?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-dev-sdk-1",
-        "prompt": "A Claude response comes back with stop_reason \"max_tokens\". What should a portable adapter report?",
+        "prompt": "A Claude response has stop_reason `max_tokens`. What should the adapter report?",
         "choices": [
-          "Complete, because text was returned",
-          "Truncated, because the output reached a token limit and may be incomplete",
+          "Complete",
+          "Truncated",
           "Refused",
-          "A tool request"
+          "Tool request"
         ],
         "answerIndex": 1,
-        "explanation": "\"max_tokens\" indicates that generation reached a token limit, so the returned text may be partial. The adapter must report `truncated` rather than `complete`."
+        "explanation": "`max_tokens` indicates that generation reached a token limit, so the returned text may be incomplete."
       },
       {
         "id": "q-dev-sdk-2",
-        "prompt": "You call Claude through Anthropic's OpenAI SDK compatibility endpoint with a function tool marked strict: true. What does Anthropic document about that flag?",
+        "prompt": "An OpenAI final response has status `incomplete`, reason `max_output_tokens`, partial text, and a valid-looking function call. What may this adapter expose?",
         "choices": [
-          "It is enforced exactly as it is on OpenAI",
-          "It is ignored, so tool arguments are not guaranteed to match the schema",
-          "It always returns a 400 error",
-          "It reroutes the request to the native Messages API"
+          "A completed answer and executable call",
+          "An executable call only",
+          "A truncated result with partial text and no executable calls",
+          "A refusal"
         ],
-        "answerIndex": 1,
-        "explanation": "Anthropic documents that its compatibility layer ignores `strict`. Code that requires schema-conforming tool arguments must not assume this route preserves that guarantee."
+        "answerIndex": 2,
+        "explanation": "Incomplete status takes precedence. Partial text is retained, but the call is not authorized."
       },
       {
         "id": "q-dev-sdk-3",
-        "prompt": "Why is treating every item in response.output as a message a bug in an OpenAI Responses adapter?",
+        "prompt": "Why must a function-call item's ordinary `id` not be used when `call_id` is absent?",
         "choices": [
-          "The output array only ever contains one item",
-          "Reasoning, function_call, and other Items are distinct types; a message is only one Item type",
-          "Messages are returned in a separate choices field",
-          "Items are only returned when streaming"
+          "Every item id is a secret",
+          "The fields identify different things, and this contract requires the actual call_id used for tool-result correlation",
+          "Item ids are always numbers",
+          "OpenAI responses never contain ids"
         ],
         "answerIndex": 1,
-        "explanation": "The Responses output is a typed collection. Reasoning and function-call Items must be handled according to their own types rather than parsed as assistant messages."
+        "explanation": "Substituting an unrelated item identifier can break correlation or attach a tool result to the wrong protocol object."
       },
       {
         "id": "q-dev-sdk-4",
-        "prompt": "Your policy forbids server-side conversation storage features. Which statement about the default behavior is accurate?",
+        "prompt": "How should a final snapshot with status `queued` and a call-shaped item be classified by this lab adapter?",
         "choices": [
-          "All three APIs keep nothing server-side by default",
-          "OpenAI Responses and Gemini Interactions store by default and need store set to false; Claude Messages relies on the history the application resends",
-          "Only Claude stores conversations by default",
-          "Storage is controlled only by the model id"
+          "Tool request",
+          "Complete",
+          "Other, with no executable tool calls",
+          "Refused"
         ],
-        "answerIndex": 1,
-        "explanation": "Responses and Interactions document storage by default with a `store` control, while a Messages conversation is formed from the history the application sends."
+        "answerIndex": 2,
+        "explanation": "Queued is noncompleted. A final-response adapter must not release its call-shaped item for execution."
       },
       {
         "id": "q-dev-sdk-5",
-        "prompt": "Google's Interactions overview recommends Interactions for new projects and describes generateContent as legacy but supported. What should the adapter designer do?",
+        "prompt": "What should happen when `output` or a message `content` value has a malformed shape?",
         "choices": [
-          "Assume generateContent has already been removed",
-          "Make the surface a configuration choice behind one internal contract, record the reason, and test the chosen surface",
-          "Use an OpenAI compatibility endpoint without testing it",
-          "Hardcode generateContent in every caller"
+          "Throw from array methods",
+          "Treat it as complete",
+          "Fail closed to `other` without throwing",
+          "Execute any function call that can still be found"
         ],
-        "answerIndex": 1,
-        "explanation": "Keeping the surface behind an adapter makes the decision reversible. A contract test then checks that the configured surface still behaves as the application requires."
+        "answerIndex": 2,
+        "explanation": "The boundary parser validates arrays and records before traversal. Malformed input becomes `other`."
       },
       {
         "id": "q-dev-sdk-6",
-        "prompt": "Which compatibility claim does this module support?",
+        "prompt": "What does Anthropic document about `strict` tools on its OpenAI SDK compatibility route?",
         "choices": [
-          "Anthropic and Google both document that strict tool schemas and response_format are ignored",
-          "Anthropic documents that strict and response_format are ignored, while the supplied Google material documents different compatibility behavior",
-          "Google documents that every unsupported field returns an error",
-          "All compatibility endpoints preserve identical guarantees"
+          "They are always enforced",
+          "The flag is ignored",
+          "They are converted into Gemini tools",
+          "They enable server-side conversation storage"
         ],
         "answerIndex": 1,
-        "explanation": "The module attributes ignored `strict` and `response_format` fields only to Anthropic. Google's material describes other mappings and limitations, so identical behavior must not be assumed."
+        "explanation": "Anthropic documents that the compatibility layer ignores the strict tool flag."
+      },
+      {
+        "id": "q-dev-sdk-7",
+        "prompt": "Which statement correctly separates fixture and integration testing?",
+        "choices": [
+          "Fixture success proves current model availability",
+          "A fixture tests local deterministic parsing, while an authenticated integration test checks a configured live route",
+          "Integration tests never require credentials",
+          "Fixtures establish billing behavior"
+        ],
+        "answerIndex": 1,
+        "explanation": "The offline fixture cannot establish provider availability, account access, billing, or live model behavior."
+      },
+      {
+        "id": "q-dev-sdk-8",
+        "prompt": "When may a mutation be retried safely?",
+        "choices": [
+          "Whenever it uses HTTP POST",
+          "Whenever partial text exists",
+          "When the operation documents idempotency, the same key is reused, and the policy remains bounded",
+          "Every refusal should be retried"
+        ],
+        "answerIndex": 2,
+        "explanation": "Mutation retries need an operation-specific idempotency guarantee plus bounded attempts, budget, and cancellation."
       }
     ]
   },
@@ -247,105 +341,447 @@
       "url": "https://ai.google.dev/gemini-api/docs/structured-output",
       "publisher": "Google",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Node.js documentation",
+      "url": "https://nodejs.org/en/docs/",
+      "publisher": "OpenJS Foundation",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "structuredClone",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/structuredClone",
+      "publisher": "Mozilla",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Llama models",
+      "url": "https://github.com/meta-llama/llama-models",
+      "publisher": "Meta",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Qwen3",
+      "url": "https://github.com/QwenLM/Qwen3",
+      "publisher": "Qwen",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "DeepSeek-V3",
+      "url": "https://github.com/deepseek-ai/DeepSeek-V3",
+      "publisher": "DeepSeek",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Mistral inference",
+      "url": "https://github.com/mistralai/mistral-inference",
+      "publisher": "Mistral AI",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "PhiCookBook",
+      "url": "https://github.com/microsoft/PhiCookBook",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-21"
     }
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 3000,
+    "estimatedSeconds": 140,
     "cues": [
       {
-        "id": "cue-dev-sdk-shapes",
+        "id": "cue-dev-sdk-shapes-1-1",
         "kind": "narration",
         "sectionId": "three-native-shapes",
-        "text": "Each SDK returns a different shape: content blocks, output Items, candidates, or steps. The application should depend on one internal contract and put each SDK behind an adapter."
+        "text": "Contrast the four native shapes before\nintroducing the internal contract."
       },
       {
-        "id": "cue-dev-sdk-stops",
+        "id": "cue-dev-sdk-stops-1-1",
         "kind": "narration",
         "sectionId": "normalize-stop-and-usage",
-        "text": "Map every native stop signal into your own outcome, fail closed on values you do not recognize, and keep the raw stop and usage values for audit."
+        "text": "Classify final state before accepting\nordinary text or authorizing a tool call."
       },
       {
         "id": "cue-dev-sdk-stops-visual",
         "kind": "visual",
         "sectionId": "normalize-stop-and-usage",
-        "text": "Show a table mapping Claude stop_reason values, OpenAI Responses status and Items, Gemini finishReason, and Interaction status onto the internal outcome, ending with an invented value that maps to other.",
-        "accessibilityAlternative": "A static table lists each native stop value in its own row with the provider, the value, and the internal outcome it maps to; the last row shows an unrecognized value mapping to other. Reduced-motion mode shows the table without animation."
+        "text": "Show provider, native field, native value, normalized outcome, and whether a tool may execute.",
+        "accessibilityAlternative": "A static table lists each provider field and outcome. Noncompleted and malformed rows all show that no tool may execute."
       },
       {
-        "id": "cue-dev-sdk-stops-checkpoint",
+        "id": "cue-dev-sdk-worked-1-1",
+        "kind": "narration",
+        "sectionId": "worked-response-classification",
+        "text": "Walk through the incomplete fixture and\nexplain why the valid-looking call"
+      },
+      {
+        "id": "cue-dev-sdk-worked-1-2",
+        "kind": "narration",
+        "sectionId": "worked-response-classification",
+        "text": "remains nonexecutable."
+      },
+      {
+        "id": "cue-dev-sdk-compat-1-1",
+        "kind": "narration",
+        "sectionId": "compatibility-layers-drop-guarantees",
+        "text": "Explain that Anthropic and Google document\ndifferent compatibility behavior."
+      },
+      {
+        "id": "cue-dev-sdk-config-1-1",
+        "kind": "narration",
+        "sectionId": "configuration-and-state-policy",
+        "text": "Keep model, surface, storage policy, and\nverification provenance in configuration."
+      },
+      {
+        "id": "cue-dev-sdk-retries-1-1",
+        "kind": "narration",
+        "sectionId": "bounded-retries-and-cancellation",
+        "text": "Separate model outcomes from transient\ntransport failures and mutation retries."
+      },
+      {
+        "id": "cue-dev-sdk-ecosystem-1-1",
+        "kind": "narration",
+        "sectionId": "ecosystem-transfer",
+        "text": "Distinguish model families from runtimes\nand hosted APIs."
+      },
+      {
+        "id": "cue-dev-sdk-fixture-live-1-1",
+        "kind": "narration",
+        "sectionId": "fixture-versus-live-integration",
+        "text": "State what the fixture proves and what\nonly a live integration can establish."
+      },
+      {
+        "id": "cue-dev-sdk-lab",
+        "kind": "learner-prompt",
+        "sectionId": "repair-lab",
+        "text": "Have learners reproduce the one failure, repair one ordering decision, and run all 17 immutable checks."
+      },
+      {
+        "id": "cue-dev-sdk-lab-recovery",
         "kind": "checkpoint",
-        "sectionId": "normalize-stop-and-usage",
-        "text": "Check that learners map max_tokens, an incomplete status, and an invented value to something other than complete."
+        "sectionId": "repair-lab",
+        "text": "Confirm the recovery command, both exit codes, and the independent variation answer."
       },
       {
-        "id": "cue-dev-sdk-compat",
-        "kind": "narration",
-        "sectionId": "compatibility-layers-drop-guarantees",
-        "text": "Anthropic documents that its OpenAI-compatible endpoint ignores strict tool schemas and response_format. Google's compatibility documentation describes different mappings and limitations, so do not assume the two routes drop the same guarantees."
-      },
-      {
-        "id": "cue-dev-sdk-compat-prompt",
-        "kind": "learner-prompt",
-        "sectionId": "compatibility-layers-drop-guarantees",
-        "text": "Ask learners which current requests depend on a compatibility guarantee, which provider documents that guarantee, and what contract test would detect its loss."
-      },
-      {
-        "id": "cue-dev-sdk-config",
-        "kind": "narration",
-        "sectionId": "configuration-and-state-policy",
-        "text": "Keep model ids, API surface, and storage policy in configuration, and let a contract test, not a code comment, prove them against the provider on the day you deploy."
-      },
-      {
-        "id": "cue-dev-sdk-config-pause",
-        "kind": "pause",
-        "sectionId": "configuration-and-state-policy",
-        "text": "Allow two minutes for learners to list every model id in their codebase and when each was last verified."
-      },
-      {
-        "id": "cue-dev-sdk-activity",
-        "kind": "learner-prompt",
-        "text": "Guide the three adapters, the Anthropic compatibility-layer probe, and the configuration contract test."
-      },
-      {
-        "id": "cue-dev-sdk-assessment",
+        "id": "cue-dev-sdk-assessment-1-1",
         "kind": "assessment-handoff",
-        "text": "Begin the check once learners can map a stop signal from each provider and distinguish Anthropic's documented compatibility limitations from Google's documented behavior."
+        "text": "Begin the knowledge check after learners\ncan explain status precedence and"
+      },
+      {
+        "id": "cue-dev-sdk-assessment-1-2",
+        "kind": "assessment-handoff",
+        "text": "tool-call readiness."
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-1",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "The starter performs 17 immutable checks.\nExactly one check fails: the incomplete"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-2",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "fixture is incorrectly classified as\n`tool_request`. The other 16 checks pass."
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-3",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "Edit only `adapter.mjs`. Move the\nincomplete-status branch before the"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-4",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "completed-response tool branch. Preserve\ntext extraction, raw diagnostics,"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-5",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "completed-message classification, refusal\nclassification, function-call validation,"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-6",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "exact `call_id` use, noncompleted call\nsuppression, and malformed-input handling."
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-7",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "After the repair, all 17 checks pass. The\nverifier covers `in_progress`, `queued`,"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-8",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "`failed`, and `cancelled` responses\ncontaining function calls. Each maps to"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-9",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "`other` and exposes no tool calls. It also\ncovers missing `call_id`, an unrelated"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-10",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "item `id`, malformed output shapes,\nmalformed message parts, partial text"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-11",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "under an unknown status, valid completion,\nvalid refusal, and a valid completed tool"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-12",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "request. The independent learner variation\nchanges the incomplete reason to"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-13",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "`content_filter`, changes the response id\nand partial text, and leaves a ready"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-14",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "call-shaped item present. The answer is\n`other`, the text remains available,"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-15",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "`rawStop` remains `content_filter`, and\n`toolCalls` remains empty. The causal"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-16",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "reason is that the response is still\nincomplete and this focused contract"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-17",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "establishes only `max_output_tokens` as a\ntruncation mapping. Recovery copies"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-18",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "`adapter.starter.mjs` over `adapter.mjs`.\nThe independent reference is in"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-19",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "`adapter.reference.mjs`. The verifier\nimports neither the starter copy nor"
+      },
+      {
+        "id": "provider-sdk-patterns-repair-lab-narration-20",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "the reference."
       }
     ],
-    "transcript": "Each SDK returns a different shape: content blocks, output Items, candidates, or steps. The application should depend on one internal contract and put each SDK behind an adapter. Map every native stop signal into your own outcome, fail closed on values you do not recognize, and keep the raw stop and usage values for audit. Anthropic documents that its OpenAI-compatible endpoint ignores strict tool schemas and response_format. Google's compatibility documentation describes different mappings and limitations, so do not assume the two routes drop the same guarantees. Keep model ids, API surface, and storage policy in configuration, and let a contract test, not a code comment, prove them against the provider on the day you deploy. Begin the check once learners can map a stop signal from each provider and distinguish Anthropic's documented compatibility limitations from Google's documented behavior.",
+    "transcript": "Contrast the four native shapes before\nintroducing the internal contract. Classify final state before accepting\nordinary text or authorizing a tool call. Walk through the incomplete fixture and\nexplain why the valid-looking call remains nonexecutable. Explain that Anthropic and Google document\ndifferent compatibility behavior. Keep model, surface, storage policy, and\nverification provenance in configuration. Separate model outcomes from transient\ntransport failures and mutation retries. Distinguish model families from runtimes\nand hosted APIs. State what the fixture proves and what\nonly a live integration can establish. Begin the knowledge check after learners\ncan explain status precedence and tool-call readiness. The starter performs 17 immutable checks.\nExactly one check fails: the incomplete fixture is incorrectly classified as\n`tool_request`. The other 16 checks pass. Edit only `adapter.mjs`. Move the\nincomplete-status branch before the completed-response tool branch. Preserve\ntext extraction, raw diagnostics, completed-message classification, refusal\nclassification, function-call validation, exact `call_id` use, noncompleted call\nsuppression, and malformed-input handling. After the repair, all 17 checks pass. The\nverifier covers `in_progress`, `queued`, `failed`, and `cancelled` responses\ncontaining function calls. Each maps to `other` and exposes no tool calls. It also\ncovers missing `call_id`, an unrelated item `id`, malformed output shapes,\nmalformed message parts, partial text under an unknown status, valid completion,\nvalid refusal, and a valid completed tool request. The independent learner variation\nchanges the incomplete reason to `content_filter`, changes the response id\nand partial text, and leaves a ready call-shaped item present. The answer is\n`other`, the text remains available, `rawStop` remains `content_filter`, and\n`toolCalls` remains empty. The causal reason is that the response is still\nincomplete and this focused contract establishes only `max_output_tokens` as a\ntruncation mapping. Recovery copies `adapter.starter.mjs` over `adapter.mjs`.\nThe independent reference is in `adapter.reference.mjs`. The verifier\nimports neither the starter copy nor the reference.",
     "captions": [
       {
-        "cueId": "cue-dev-sdk-shapes",
+        "cueId": "cue-dev-sdk-shapes-1-1",
         "startSeconds": 0,
-        "endSeconds": 12,
-        "text": "Each SDK returns a different shape: content blocks, output Items, candidates, or steps. The application should depend on one internal contract and put each SDK behind an adapter."
+        "endSeconds": 5,
+        "text": "Contrast the four native shapes before\nintroducing the internal contract."
       },
       {
-        "cueId": "cue-dev-sdk-stops",
-        "startSeconds": 12,
-        "endSeconds": 23,
-        "text": "Map every native stop signal into your own outcome, fail closed on values you do not recognize, and keep the raw stop and usage values for audit."
+        "cueId": "cue-dev-sdk-stops-1-1",
+        "startSeconds": 5,
+        "endSeconds": 11,
+        "text": "Classify final state before accepting\nordinary text or authorizing a tool call."
       },
       {
-        "cueId": "cue-dev-sdk-compat",
-        "startSeconds": 23,
-        "endSeconds": 42,
-        "text": "Anthropic documents that its OpenAI-compatible endpoint ignores strict tool schemas and response_format. Google's compatibility documentation describes different mappings and limitations, so do not assume the two routes drop the same guarantees."
+        "cueId": "cue-dev-sdk-worked-1-1",
+        "startSeconds": 11,
+        "endSeconds": 16,
+        "text": "Walk through the incomplete fixture and\nexplain why the valid-looking call"
       },
       {
-        "cueId": "cue-dev-sdk-config",
-        "startSeconds": 42,
-        "endSeconds": 54,
-        "text": "Keep model ids, API surface, and storage policy in configuration, and let a contract test, not a code comment, prove them against the provider on the day you deploy."
+        "cueId": "cue-dev-sdk-worked-1-2",
+        "startSeconds": 16,
+        "endSeconds": 17,
+        "text": "remains nonexecutable."
       },
       {
-        "cueId": "cue-dev-sdk-assessment",
-        "startSeconds": 54,
+        "cueId": "cue-dev-sdk-compat-1-1",
+        "startSeconds": 17,
+        "endSeconds": 21,
+        "text": "Explain that Anthropic and Google document\ndifferent compatibility behavior."
+      },
+      {
+        "cueId": "cue-dev-sdk-config-1-1",
+        "startSeconds": 21,
+        "endSeconds": 26,
+        "text": "Keep model, surface, storage policy, and\nverification provenance in configuration."
+      },
+      {
+        "cueId": "cue-dev-sdk-retries-1-1",
+        "startSeconds": 26,
+        "endSeconds": 31,
+        "text": "Separate model outcomes from transient\ntransport failures and mutation retries."
+      },
+      {
+        "cueId": "cue-dev-sdk-ecosystem-1-1",
+        "startSeconds": 31,
+        "endSeconds": 35,
+        "text": "Distinguish model families from runtimes\nand hosted APIs."
+      },
+      {
+        "cueId": "cue-dev-sdk-fixture-live-1-1",
+        "startSeconds": 35,
+        "endSeconds": 41,
+        "text": "State what the fixture proves and what\nonly a live integration can establish."
+      },
+      {
+        "cueId": "cue-dev-sdk-assessment-1-1",
+        "startSeconds": 41,
+        "endSeconds": 46,
+        "text": "Begin the knowledge check after learners\ncan explain status precedence and"
+      },
+      {
+        "cueId": "cue-dev-sdk-assessment-1-2",
+        "startSeconds": 46,
+        "endSeconds": 47,
+        "text": "tool-call readiness."
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-1",
+        "startSeconds": 47,
+        "endSeconds": 53,
+        "text": "The starter performs 17 immutable checks.\nExactly one check fails: the incomplete"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-2",
+        "startSeconds": 53,
+        "endSeconds": 58,
+        "text": "fixture is incorrectly classified as\n`tool_request`. The other 16 checks pass."
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-3",
+        "startSeconds": 58,
+        "endSeconds": 62,
+        "text": "Edit only `adapter.mjs`. Move the\nincomplete-status branch before the"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-4",
+        "startSeconds": 62,
         "endSeconds": 66,
-        "text": "Begin the check once learners can map a stop signal from each provider and distinguish Anthropic's documented compatibility limitations from Google's documented behavior."
+        "text": "completed-response tool branch. Preserve\ntext extraction, raw diagnostics,"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-5",
+        "startSeconds": 66,
+        "endSeconds": 69,
+        "text": "completed-message classification, refusal\nclassification, function-call validation,"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-6",
+        "startSeconds": 69,
+        "endSeconds": 73,
+        "text": "exact `call_id` use, noncompleted call\nsuppression, and malformed-input handling."
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-7",
+        "startSeconds": 73,
+        "endSeconds": 79,
+        "text": "After the repair, all 17 checks pass. The\nverifier covers `in_progress`, `queued`,"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-8",
+        "startSeconds": 79,
+        "endSeconds": 84,
+        "text": "`failed`, and `cancelled` responses\ncontaining function calls. Each maps to"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-9",
+        "startSeconds": 84,
+        "endSeconds": 90,
+        "text": "`other` and exposes no tool calls. It also\ncovers missing `call_id`, an unrelated"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-10",
+        "startSeconds": 90,
+        "endSeconds": 95,
+        "text": "item `id`, malformed output shapes,\nmalformed message parts, partial text"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-11",
+        "startSeconds": 95,
+        "endSeconds": 101,
+        "text": "under an unknown status, valid completion,\nvalid refusal, and a valid completed tool"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-12",
+        "startSeconds": 101,
+        "endSeconds": 106,
+        "text": "request. The independent learner variation\nchanges the incomplete reason to"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-13",
+        "startSeconds": 106,
+        "endSeconds": 112,
+        "text": "`content_filter`, changes the response id\nand partial text, and leaves a ready"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-14",
+        "startSeconds": 112,
+        "endSeconds": 117,
+        "text": "call-shaped item present. The answer is\n`other`, the text remains available,"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-15",
+        "startSeconds": 117,
+        "endSeconds": 121,
+        "text": "`rawStop` remains `content_filter`, and\n`toolCalls` remains empty. The causal"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-16",
+        "startSeconds": 121,
+        "endSeconds": 127,
+        "text": "reason is that the response is still\nincomplete and this focused contract"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-17",
+        "startSeconds": 127,
+        "endSeconds": 131,
+        "text": "establishes only `max_output_tokens` as a\ntruncation mapping. Recovery copies"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-18",
+        "startSeconds": 131,
+        "endSeconds": 135,
+        "text": "`adapter.starter.mjs` over `adapter.mjs`.\nThe independent reference is in"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-19",
+        "startSeconds": 135,
+        "endSeconds": 139,
+        "text": "`adapter.reference.mjs`. The verifier\nimports neither the starter copy nor"
+      },
+      {
+        "cueId": "provider-sdk-patterns-repair-lab-narration-20",
+        "startSeconds": 139,
+        "endSeconds": 140,
+        "text": "the reference."
       }
     ],
-    "reducedMotionAlternative": "Present the response-shape comparison and the stop-signal mapping as static tables with focus highlighting instead of animated sequences."
+    "reducedMotionAlternative": "Use static response tables, code listings, and terminal output. No animation is required."
   }
 }

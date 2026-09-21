@@ -8,7 +8,7 @@
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 52,
+  "estimatedMinutes": 75,
   "objectives": [
     "Design traces that connect agent, model, retrieval, tool, approval, handoff, and verification spans.",
     "Measure quality, safety, reliability, latency, token use, cost, and escalation by meaningful slices.",
@@ -24,7 +24,9 @@
       "title": "Use traces, metrics, logs, and evaluations together",
       "paragraphs": [
         "A trace reconstructs one run and its parent-child operations. Metrics reveal trends and service objectives. Logs capture discrete operational events. Evaluations judge behavior against a rubric. None replaces the others.",
-        "Start from decisions the team must make: detect a regression, locate a failed boundary, control spend, explain an escalation, or prove a postcondition. Collect only signals that support those decisions."
+        "Start from decisions the team must make: detect a regression, locate a failed boundary, control spend, explain an escalation, or prove a postcondition. Collect only signals that support those decisions.",
+        "For example, a quality metric can reveal that successful completion declined after a workflow release, but it cannot show which retrieval, approval, or tool boundary caused one run to fail. A trace can localize that run, while an evaluation determines whether its final behavior met the task rubric. A log may record the discrete event that an escalation packet was created.",
+        "Do not treat a synthetic trace as evidence that a production system is instrumented. The lab in this lesson operates on deterministic JSON fixtures. A real integration must create spans at actual workflow boundaries, propagate identifiers across asynchronous and external calls, record genuine provider and tool outcomes, and validate export behavior in the deployed environment."
       ]
     },
     {
@@ -32,7 +34,9 @@
       "title": "Preserve causal structure across the run",
       "paragraphs": [
         "Give the workflow a trace ID and each model call, retrieval, tool call, approval, guardrail, handoff, verifier, and recovery step a span with parent linkage and timing. Record stable workflow, agent, prompt, model, tool, policy, and content versions.",
-        "Use low-cardinality status and failure labels for aggregation, while keeping detailed evidence behind access-controlled references. Correlation IDs should connect provider requests and external side effects without storing secrets."
+        "Use low-cardinality status and failure labels for aggregation, while keeping detailed evidence behind access-controlled references. Correlation IDs should connect provider requests and external side effects without storing secrets.",
+        "A span contract states what must be true before and after an operation. A preparation tool may produce a non-executing action plan, an approval span may authorize or deny execution, and a verifier may confirm that no side effect occurred after denial. Status alone is not enough. Record a compact outcome such as prepared, denied, recovered, escalated, or verified_no_effect.",
+        "Use privacy-safe identifiers that are random or otherwise non-semantic. Do not place an email address, account number, prompt text, credential, or customer name inside a trace ID, span ID, metric label, or provider request correlation field."
       ],
       "code": {
         "language": "text",
@@ -45,7 +49,11 @@
       "title": "Measure outcomes, not activity alone",
       "paragraphs": [
         "Track task success and verified completion alongside policy violations, unsafe attempts, user corrections, escalations, abandonment, tool and retrieval failure, retry rate, latency percentiles, token use, and cost per successful task.",
-        "Segment by workflow version, model, tool, user journey, risk class, language, and other supported groups. Alert on error-budget burn, critical policy events, and material quality change rather than raw request volume alone."
+        "Segment by workflow version, model, tool, user journey, risk class, language, and other supported groups. Alert on error-budget burn, critical policy events, and material quality change rather than raw request volume alone.",
+        "Define every metric before graphing it. Outcome answers what happened to the task. Quality compares behavior with an explicit rubric. Safety records attempted and prevented policy violations separately. Reliability measures whether required boundaries completed and whether recovery restored a valid state. Latency must identify its population and percentile method. Token and cost fields must state whether they are provider-reported, locally counted, or estimated. Escalation records both the trigger and whether a human decision was requested.",
+        "For the supplied fixture, latency percentiles use the nearest-rank method across all eight spans, including the root agent span. Ordered latency values are 15, 20, 25, 30, 40, 60, 120, and 900 milliseconds. The fixture therefore has p50 latency of 30 milliseconds and p95 latency of 900 milliseconds. These are deterministic exercise results, not production service objectives.",
+        "The fixture defines estimated cost as 0.001 dollars multiplied by total tokens. It records 180 input tokens and 40 output tokens on the model span, so total tokens are 220 and estimated cost is 0.220 dollars. This rate is an exercise convention, not a provider price. Never represent a local estimate as a provider invoice.",
+        "Example policy thresholds must be selected by the product owner, not copied as universal standards. For this exercise, any clear-text approval argument is an immediate privacy alert, any executed action after a denial is an immediate safety alert, and any trace whose final verification is unknown enters human escalation. A team could separately choose a latency objective after measuring representative production traffic."
       ]
     },
     {
@@ -53,7 +61,10 @@
       "title": "Assume model and tool content is sensitive",
       "paragraphs": [
         "Inputs, outputs, tool arguments, results, retrieval queries, and documents can contain personal data, secrets, customer content, or protected business information. Default to metadata and secure references; capture content only for a documented purpose and permitted population.",
-        "Apply redaction before export, tenant isolation, encryption, role-based access, short retention, deletion propagation, regional controls, and audit logging. Sample based on risk and debugging need, not because storage is available."
+        "Apply redaction before export, tenant isolation, encryption, role-based access, short retention, deletion propagation, regional controls, and audit logging. Sample based on risk and debugging need, not because storage is available.",
+        "A complete telemetry policy answers eight questions. Purpose: which operational decision requires the field? Redaction: what transformation runs before export? Content capture: which approved population, if any, permits content? Sampling: which risk-based rule selects runs? Access: which role may read each class? Retention: when is each class removed? Deletion: how does a subject or tenant deletion propagate to telemetry and backups? Residency: in which approved region may collection, processing, and storage occur?",
+        "A concrete default for this lesson is metadata-only collection. Export operation names, opaque IDs, version references, status, duration, aggregate token counts, estimated cost, and redacted field-name summaries. Do not export full prompts, hidden reasoning, credentials, raw retrieval documents, tool argument values, or tool result bodies. Store detailed evidence only through an access-controlled reference when a documented incident purpose and authorization exist.",
+        "The exercise uses obvious synthetic canary values so a test can detect leakage. They are not real credentials or personal data. Production tests should also use synthetic canaries and must never insert a real secret merely to confirm that redaction works."
       ],
       "callout": "Observability that violates the product's data promises is an operational failure."
     },
@@ -62,7 +73,52 @@
       "title": "Review the first wrong transition",
       "paragraphs": [
         "Begin at the user-visible failure, then walk backward to the first span whose actual state diverged from the expected contract. Classify the failure before changing prompts: model, prompt, tool, retrieval, data, policy, infrastructure, or orchestration.",
-        "Escalate when a trace indicates unsafe action, cross-tenant data, repeated unknown outcomes, policy conflict, or impact beyond automated recovery. Give the human a redacted timeline, affected targets, containment status, evidence, and the decision required."
+        "Escalate when a trace indicates unsafe action, cross-tenant data, repeated unknown outcomes, policy conflict, or impact beyond automated recovery. Give the human a redacted timeline, affected targets, containment status, evidence, and the decision required.",
+        "The first visible failure and the first causal error are often different. In the supplied run, approval denial is expected safety behavior because the proposed destination is outside policy. Recovery, handoff, and verification then work as intended. The observability failure begins when the exporter serializes the approval span's toolArgs values instead of replacing them with a field-name summary. The failure class is telemetry_privacy at the approval export boundary, not model_failure and not approval_failure.",
+        "The concrete escalation packet is: trace tr_demo_7; workflow version wf-3; affected target synthetic account acct_demo_7; detected issue clear-text approval arguments in telemetry; containment disable affected exporter route and restrict trace access; verified workflow effect no external action executed; evidence approval span sp_approval_1 and verifier span sp_verify_1; requested decision authorize redacted re-export and deletion of the defective record. The packet excludes full prompts, hidden reasoning, and argument values."
+      ]
+    },
+    {
+      "id": "worked-failed-trace",
+      "title": "Worked example: diagnose a complete failed trace",
+      "paragraphs": [
+        "Open training/reliable-agent-workflows/agent-observability/lab/data/failed-trace.json. It contains eight causally linked spans: agent, model, retrieval, tool preparation, approval, recovery, handoff, and verification. All identifiers and content are synthetic. The model proposes a plan, retrieval returns a policy reference, and the tool prepares but does not execute an action. Approval denies the destination. Recovery marks the action cancelled, handoff requests human review, and verification confirms that no external effect occurred.",
+        "Walk from the final failed quality outcome backward. Verification says verified_no_effect, so containment succeeded. Handoff correctly requests a human decision. Recovery correctly cancels the pending action. Approval correctly denies the request under policy. However, the exported approval attributes contain accountId, destination, and apiKey values. The approval telemetry contract permits only the names of these fields and a redacted marker. This is the first wrong transition.",
+        "The run-level result is outcome escalated, quality fail because the requested task was not completed, safety pass because the unauthorized action was prevented, reliability recovered because the workflow reached a verified safe state, and escalation yes. Quality failure and safety success can coexist. Treating every denial as a safety failure would hide the value of the control.",
+        "By operation slice, the agent span is error at 900 milliseconds, model is ok at 120, retrieval is ok at 40, tool is ok at 60, approval is error at 20, recovery is ok at 30, handoff is ok at 15, and verify is ok at 25. Only the model span has tokens: 180 input and 40 output. At the exercise rate, that span costs 0.220 dollars and all other spans cost 0.000 dollars.",
+        "The diagnostic answer is therefore not to relax approval or change the model prompt. Repair the telemetry serialization boundary. Keep the denial and recovery behavior unchanged. After repair, the approval attributes must retain the safe structural summary {\"fields\":[\"accountId\",\"apiKey\",\"destination\"],\"redacted\":true}, while no argument value appears in exported JSON."
+      ]
+    },
+    {
+      "id": "repair-lab",
+      "title": "Repair one privacy defect with immutable tests",
+      "paragraphs": [
+        "Use the public repository entry [agent observability repair lab](training/reliable-agent-workflows/agent-observability/lab/README.md). From the repository root, run `node training/reliable-agent-workflows/agent-observability/lab/run.mjs`. Node 22 can execute these native ECMAScript modules without a bundler or third-party dependency. The exercise uses JSON fixtures and does not call a model, provider API, approval service, or external tool.",
+        "The only learner-editable file is training/reliable-agent-workflows/agent-observability/lab/redact.mjs. Its deliberate defect returns approval tool arguments unchanged. Modify sanitizeTrace so each approval span replaces attributes.toolArgs with a safe object containing the sorted top-level field names and redacted set to true. Preserve trace IDs, span IDs, parent links, operation, status, versions, timings, usage, and unrelated safe attributes.",
+        "Run the immutable tests with `node --test training/reliable-agent-workflows/agent-observability/lab/test/redact.test.mjs`. The tests use both the visible failed trace and an independent changed input. The changed input has different field names, nesting, values, IDs, and ordering. A hard-coded replacement for the visible example fails. Returning an empty object, deleting all spans, or denying all telemetry also fails because diagnosis requires safe metadata and field-name evidence.",
+        "Before repair, the focused runner prints exactly three lines: `TRACE tr_demo_7`, `APPROVAL_ARGS {\"accountId\":\"acct_demo_7\",\"destination\":\"ops@example.test\",\"apiKey\":\"SYNTHETIC_CANARY_KEY_7\"}`, and `RESULT FAIL privacy values exported`. Its exit code is 1. After a correct repair, it prints `TRACE tr_demo_7`, `APPROVAL_ARGS {\"fields\":[\"accountId\",\"apiKey\",\"destination\"],\"redacted\":true}`, and `RESULT PASS approval arguments redacted`. Its exit code is 0.",
+        "If you become stuck, inspect training/reliable-agent-workflows/agent-observability/lab/reference/redact.mjs without copying unrelated changes. To recover the exact reference on a shell with `cp`, run `cp training/reliable-agent-workflows/agent-observability/lab/reference/redact.mjs training/reliable-agent-workflows/agent-observability/lab/redact.mjs`, then rerun both commands. The reference implementation is separate from the immutable test file.",
+        "A complete submission earns credit only when the runner exits 0, every immutable test passes, the changed-input fixture passes, all required trace structure remains available, and no argument value is exported. Causal feedback is direct: a leaked sentinel means value redaction is missing; missing IDs or spans means the repair over-deleted telemetry; incorrect field names mean the code was hard-coded to one fixture; mutation of the input means the sanitizer can corrupt data reused by another observer."
+      ]
+    },
+    {
+      "id": "independent-variation",
+      "title": "Independent variation: reason about a changed approval shape",
+      "paragraphs": [
+        "Without editing the test or fixture, predict the result for data/changed-trace.json. Its approval arguments contain recipient, token, and nested. A general repair emits the sorted field list nested, recipient, token and removes all values, including the nested canary. The operation remains approval, status remains error, and the changed trace and span identifiers remain intact.",
+        "Run the immutable test suite after recording your prediction. If the baseline fixture passes but this variation fails, inspect whether your implementation listed fixed field names or redacted only strings at one known path. The required transformation summarizes the top-level shape of any approval toolArgs object and discards the entire value tree. Recursive value-by-value masking is unnecessary here because retaining value shape can itself disclose sensitive structure.",
+        "Answer key: the changed approval summary is `{\"fields\":[\"nested\",\"recipient\",\"token\"],\"redacted\":true}`. No string from the original toolArgs may appear in serialized output. The trace still contains two spans, and the non-approval model span retains its safe model identifier. This demonstrates that useful structural telemetry can survive without retaining argument values."
+      ]
+    },
+    {
+      "id": "live-integration-transfer",
+      "title": "Transfer the pattern to real runtimes and model families",
+      "paragraphs": [
+        "The lab is a fixture simulation. It proves only that one pure JavaScript transformation satisfies the supplied invariants. It does not prove that a live agent runtime creates spans, propagates context, reports provider usage accurately, redacts before network export, or honors deletion and residency controls. Validate those properties with runtime-specific integration tests and a telemetry collector configured for the deployed environment.",
+        "OpenAI Agents SDK tracing documents agent and model-call spans at https://openai.github.io/openai-agents-js/guides/tracing/. Google ADK provides agent observability documentation at https://adk.dev/observability/. OpenTelemetry publishes GenAI semantic attributes such as gen_ai.operation.name, gen_ai.model.id, and gen_ai.usage.prompt_token_count at https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md. The supplied source history last verified these pages on 2026-09-13; live availability is not verified in this drafting environment.",
+        "Keep four concepts separate when transferring the schema: a model family names weights or a related set of models; a runtime loads or serves a model; an API defines the request and response boundary; an agent framework coordinates model, retrieval, tool, approval, and handoff operations. Do not infer a common tool-calling, token-reporting, tracing, or approval capability merely because two systems can run language models.",
+        "For broader ecosystem study, consult the first-party repositories for Meta Llama models at https://github.com/meta-llama/llama-models, Qwen at https://github.com/QwenLM/Qwen3, DeepSeek at https://github.com/deepseek-ai/DeepSeek-V3, Mistral inference at https://github.com/mistralai/mistral-inference, and Microsoft Phi examples at https://github.com/microsoft/Phi-3CookBook. These links ground the family or runtime names only. Their live contents were not verified in this drafting environment, so this lesson makes no claim that they expose one shared observability API or identical agent capabilities.",
+        "A portable adapter should obtain model and usage metadata from the actual runtime or API response, normalize only fields with established semantics, preserve the native request identifier as a protected correlation value when permitted, and mark unavailable values as unknown rather than estimating them. Approval, tool execution, recovery, and human handoff usually belong to the surrounding workflow even when the selected model family changes."
       ]
     }
   ],
@@ -73,35 +129,57 @@
       "Create a trace schema for one workflow with agent, model, retrieval, tool, approval, handoff, verification, and recovery spans.",
       "Define quality, safety, reliability, latency, token, cost, and escalation metrics with dimensions and alert thresholds.",
       "Write the telemetry data policy covering collection purpose, redaction, content capture, sampling, access, retention, deletion, and residency.",
-      "Review one synthetic failed trace, identify the first wrong transition, assign a failure class, and prepare a human-escalation packet."
+      "Review one synthetic failed trace, identify the first wrong transition, assign a failure class, and prepare a human-escalation packet.",
+      "Run the focused repair lab, edit only redact.mjs, and make the immutable baseline and changed-input tests pass without deleting required telemetry.",
+      "Submit the repaired stdout, exit code, test result, changed-input approval summary, and a short causal explanation of why approval denial was not the telemetry defect."
     ],
     "evidence": [
       "A trace/span schema, metric catalog, service objectives, and alert rules tied to product decisions.",
-      "A privacy policy and trace-review artifact showing causal diagnosis, failure classification, containment status, and escalation evidence."
+      "A privacy policy and trace-review artifact showing causal diagnosis, failure classification, containment status, and escalation evidence.",
+      "A passing deterministic repair whose approval summary retains sorted field names but contains no argument values, while IDs, spans, statuses, and unrelated safe metadata remain intact.",
+      "A changed-input result proving the repair is general rather than hard-coded to the visible fixture."
     ],
     "reflectionPrompt": "Which telemetry field was useful for debugging but unjustified to retain in clear text?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 1560,
+    "estimatedSeconds": 90,
     "cues": [
       {
-        "id": "cue-observe-signals",
+        "id": "cue-observe-signals-1-1",
         "kind": "narration",
         "sectionId": "signals-answer-different-questions",
-        "text": "Combine traces, metrics, logs, and evaluations because each answers a different operational question."
+        "text": "Combine traces, metrics, logs, and\nevaluations because each answers a"
       },
       {
-        "id": "cue-observe-trace",
+        "id": "cue-observe-signals-1-2",
+        "kind": "narration",
+        "sectionId": "signals-answer-different-questions",
+        "text": "different operational question."
+      },
+      {
+        "id": "cue-observe-trace-1-1",
         "kind": "narration",
         "sectionId": "trace-the-agent-graph",
-        "text": "Connect model, retrieval, tool, approval, handoff, verification, and recovery spans in one causal trace."
+        "text": "Connect model, retrieval, tool, approval,\nhandoff, verification, and recovery spans"
       },
       {
-        "id": "cue-observe-measure",
+        "id": "cue-observe-trace-1-2",
+        "kind": "narration",
+        "sectionId": "trace-the-agent-graph",
+        "text": "in one causal trace."
+      },
+      {
+        "id": "cue-observe-measure-1-1",
         "kind": "narration",
         "sectionId": "measure-service-and-quality",
-        "text": "Measure verified outcomes, safety, reliability, latency, cost, and escalation by meaningful workflow slices."
+        "text": "Measure verified outcomes, safety,\nreliability, latency, cost, and escalation"
+      },
+      {
+        "id": "cue-observe-measure-1-2",
+        "kind": "narration",
+        "sectionId": "measure-service-and-quality",
+        "text": "by meaningful workflow slices."
       },
       {
         "id": "cue-observe-visual",
@@ -111,16 +189,28 @@
         "accessibilityAlternative": "A static trace table lists every span with quality, safety, latency, cost, and error-budget columns. Reduced-motion mode shows the full table."
       },
       {
-        "id": "cue-observe-privacy",
+        "id": "cue-observe-privacy-1-1",
         "kind": "narration",
         "sectionId": "privacy-preserving-telemetry",
-        "text": "Minimize and redact sensitive content before export, then enforce access, retention, deletion, and sampling policy."
+        "text": "Minimize and redact sensitive content\nbefore export, then enforce access,"
       },
       {
-        "id": "cue-observe-review",
+        "id": "cue-observe-privacy-1-2",
+        "kind": "narration",
+        "sectionId": "privacy-preserving-telemetry",
+        "text": "retention, deletion, and sampling policy."
+      },
+      {
+        "id": "cue-observe-review-1-1",
         "kind": "narration",
         "sectionId": "trace-review-and-escalation",
-        "text": "Find the first wrong transition, classify its boundary, contain impact, and give a human the decision-ready evidence."
+        "text": "Find the first wrong transition, classify\nits boundary, contain impact, and give a"
+      },
+      {
+        "id": "cue-observe-review-1-2",
+        "kind": "narration",
+        "sectionId": "trace-review-and-escalation",
+        "text": "human the decision-ready evidence."
       },
       {
         "id": "cue-observe-prompt",
@@ -141,50 +231,229 @@
         "text": "Check that the escalation packet contains no hidden reasoning or unnecessary customer content."
       },
       {
+        "id": "cue-observe-worked-1-1",
+        "kind": "narration",
+        "sectionId": "worked-failed-trace",
+        "text": "Walk backward from verification through\nhandoff, recovery, and approval. Emphasize"
+      },
+      {
+        "id": "cue-observe-worked-1-2",
+        "kind": "narration",
+        "sectionId": "worked-failed-trace",
+        "text": "that the denial protected safety and that\nclear-text telemetry export is the first"
+      },
+      {
+        "id": "cue-observe-worked-1-3",
+        "kind": "narration",
+        "sectionId": "worked-failed-trace",
+        "text": "contract violation."
+      },
+      {
+        "id": "cue-observe-lab-1-1",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "Demonstrate the failing runner, explain\nthe single editable file, and connect each"
+      },
+      {
+        "id": "cue-observe-lab-1-2",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "immutable assertion to a causal failure\nmode. Do not imply that fixture output is"
+      },
+      {
+        "id": "cue-observe-lab-1-3",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "a real provider trace."
+      },
+      {
+        "id": "cue-observe-variation-1-1",
+        "kind": "narration",
+        "sectionId": "independent-variation",
+        "text": "Have learners predict the changed\nfield-name summary before running tests."
+      },
+      {
+        "id": "cue-observe-variation-1-2",
+        "kind": "narration",
+        "sectionId": "independent-variation",
+        "text": "Use failure on the second fixture to\nreveal hard-coding or"
+      },
+      {
+        "id": "cue-observe-variation-1-3",
+        "kind": "narration",
+        "sectionId": "independent-variation",
+        "text": "incomplete redaction."
+      },
+      {
+        "id": "cue-observe-transfer-1-1",
+        "kind": "narration",
+        "sectionId": "live-integration-transfer",
+        "text": "Separate model family, runtime, API, and\nagent framework. Require runtime-specific"
+      },
+      {
+        "id": "cue-observe-transfer-1-2",
+        "kind": "narration",
+        "sectionId": "live-integration-transfer",
+        "text": "validation before claiming production\nobservability."
+      },
+      {
         "id": "cue-observe-activity",
         "kind": "learner-prompt",
-        "text": "Guide trace design, metric thresholds, privacy policy, causal review, and escalation."
+        "text": "Guide trace design, metric thresholds, privacy policy, causal review, escalation, repair, and changed-input validation."
       },
       {
-        "id": "cue-observe-assessment",
+        "id": "cue-observe-assessment-1-1",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can diagnose a run without over-collecting data."
+        "text": "Begin the check after the learner can\ndiagnose a run without over-collecting"
+      },
+      {
+        "id": "cue-observe-assessment-1-2",
+        "kind": "assessment-handoff",
+        "text": "data and can pass both deterministic\nfixtures."
       }
     ],
-    "transcript": "Combine traces, metrics, logs, and evaluations because each answers a different operational question. Connect model, retrieval, tool, approval, handoff, verification, and recovery spans in one causal trace. Measure verified outcomes, safety, reliability, latency, cost, and escalation by meaningful workflow slices. Minimize and redact sensitive content before export, then enforce access, retention, deletion, and sampling policy. Find the first wrong transition, classify its boundary, contain impact, and give a human the decision-ready evidence.",
+    "transcript": "Combine traces, metrics, logs, and\nevaluations because each answers a different operational question. Connect model, retrieval, tool, approval,\nhandoff, verification, and recovery spans in one causal trace. Measure verified outcomes, safety,\nreliability, latency, cost, and escalation by meaningful workflow slices. Minimize and redact sensitive content\nbefore export, then enforce access, retention, deletion, and sampling policy. Find the first wrong transition, classify\nits boundary, contain impact, and give a human the decision-ready evidence. Walk backward from verification through\nhandoff, recovery, and approval. Emphasize that the denial protected safety and that\nclear-text telemetry export is the first contract violation. Demonstrate the failing runner, explain\nthe single editable file, and connect each immutable assertion to a causal failure\nmode. Do not imply that fixture output is a real provider trace. Have learners predict the changed\nfield-name summary before running tests. Use failure on the second fixture to\nreveal hard-coding or incomplete redaction. Separate model family, runtime, API, and\nagent framework. Require runtime-specific validation before claiming production\nobservability. Begin the check after the learner can\ndiagnose a run without over-collecting data and can pass both deterministic\nfixtures.",
     "captions": [
       {
-        "cueId": "cue-observe-signals",
+        "cueId": "cue-observe-signals-1-1",
         "startSeconds": 0,
-        "endSeconds": 270,
-        "text": "Combine traces, metrics, logs, and evaluations because each answers a different operational question."
+        "endSeconds": 5,
+        "text": "Combine traces, metrics, logs, and\nevaluations because each answers a"
       },
       {
-        "cueId": "cue-observe-trace",
-        "startSeconds": 300,
-        "endSeconds": 570,
-        "text": "Connect model, retrieval, tool, approval, handoff, verification, and recovery spans in one causal trace."
+        "cueId": "cue-observe-signals-1-2",
+        "startSeconds": 5,
+        "endSeconds": 7,
+        "text": "different operational question."
       },
       {
-        "cueId": "cue-observe-measure",
-        "startSeconds": 600,
-        "endSeconds": 900,
-        "text": "Measure verified outcomes, safety, reliability, latency, cost, and escalation by meaningful workflow slices."
+        "cueId": "cue-observe-trace-1-1",
+        "startSeconds": 7,
+        "endSeconds": 12,
+        "text": "Connect model, retrieval, tool, approval,\nhandoff, verification, and recovery spans"
       },
       {
-        "cueId": "cue-observe-privacy",
-        "startSeconds": 930,
-        "endSeconds": 1200,
-        "text": "Minimize and redact sensitive content before export, then enforce access, retention, deletion, and sampling policy."
+        "cueId": "cue-observe-trace-1-2",
+        "startSeconds": 12,
+        "endSeconds": 14,
+        "text": "in one causal trace."
       },
       {
-        "cueId": "cue-observe-review",
-        "startSeconds": 1230,
-        "endSeconds": 1500,
-        "text": "Find the first wrong transition, classify its boundary, contain impact, and give a human the decision-ready evidence."
+        "cueId": "cue-observe-measure-1-1",
+        "startSeconds": 14,
+        "endSeconds": 18,
+        "text": "Measure verified outcomes, safety,\nreliability, latency, cost, and escalation"
+      },
+      {
+        "cueId": "cue-observe-measure-1-2",
+        "startSeconds": 18,
+        "endSeconds": 20,
+        "text": "by meaningful workflow slices."
+      },
+      {
+        "cueId": "cue-observe-privacy-1-1",
+        "startSeconds": 20,
+        "endSeconds": 25,
+        "text": "Minimize and redact sensitive content\nbefore export, then enforce access,"
+      },
+      {
+        "cueId": "cue-observe-privacy-1-2",
+        "startSeconds": 25,
+        "endSeconds": 28,
+        "text": "retention, deletion, and sampling policy."
+      },
+      {
+        "cueId": "cue-observe-review-1-1",
+        "startSeconds": 28,
+        "endSeconds": 34,
+        "text": "Find the first wrong transition, classify\nits boundary, contain impact, and give a"
+      },
+      {
+        "cueId": "cue-observe-review-1-2",
+        "startSeconds": 34,
+        "endSeconds": 36,
+        "text": "human the decision-ready evidence."
+      },
+      {
+        "cueId": "cue-observe-worked-1-1",
+        "startSeconds": 36,
+        "endSeconds": 41,
+        "text": "Walk backward from verification through\nhandoff, recovery, and approval. Emphasize"
+      },
+      {
+        "cueId": "cue-observe-worked-1-2",
+        "startSeconds": 41,
+        "endSeconds": 47,
+        "text": "that the denial protected safety and that\nclear-text telemetry export is the first"
+      },
+      {
+        "cueId": "cue-observe-worked-1-3",
+        "startSeconds": 47,
+        "endSeconds": 48,
+        "text": "contract violation."
+      },
+      {
+        "cueId": "cue-observe-lab-1-1",
+        "startSeconds": 48,
+        "endSeconds": 54,
+        "text": "Demonstrate the failing runner, explain\nthe single editable file, and connect each"
+      },
+      {
+        "cueId": "cue-observe-lab-1-2",
+        "startSeconds": 54,
+        "endSeconds": 60,
+        "text": "immutable assertion to a causal failure\nmode. Do not imply that fixture output is"
+      },
+      {
+        "cueId": "cue-observe-lab-1-3",
+        "startSeconds": 60,
+        "endSeconds": 62,
+        "text": "a real provider trace."
+      },
+      {
+        "cueId": "cue-observe-variation-1-1",
+        "startSeconds": 62,
+        "endSeconds": 67,
+        "text": "Have learners predict the changed\nfield-name summary before running tests."
+      },
+      {
+        "cueId": "cue-observe-variation-1-2",
+        "startSeconds": 67,
+        "endSeconds": 72,
+        "text": "Use failure on the second fixture to\nreveal hard-coding or"
+      },
+      {
+        "cueId": "cue-observe-variation-1-3",
+        "startSeconds": 72,
+        "endSeconds": 73,
+        "text": "incomplete redaction."
+      },
+      {
+        "cueId": "cue-observe-transfer-1-1",
+        "startSeconds": 73,
+        "endSeconds": 78,
+        "text": "Separate model family, runtime, API, and\nagent framework. Require runtime-specific"
+      },
+      {
+        "cueId": "cue-observe-transfer-1-2",
+        "startSeconds": 78,
+        "endSeconds": 81,
+        "text": "validation before claiming production\nobservability."
+      },
+      {
+        "cueId": "cue-observe-assessment-1-1",
+        "startSeconds": 81,
+        "endSeconds": 87,
+        "text": "Begin the check after the learner can\ndiagnose a run without over-collecting"
+      },
+      {
+        "cueId": "cue-observe-assessment-1-2",
+        "startSeconds": 87,
+        "endSeconds": 90,
+        "text": "data and can pass both deterministic\nfixtures."
       }
     ],
-    "reducedMotionAlternative": "Present the trace, metric, and privacy relationships as static tables with focus highlighting."
+    "reducedMotionAlternative": "Present the trace, metric, privacy, repair, and changed-input relationships as static tables with focus highlighting."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -248,6 +517,30 @@
         ],
         "answerIndex": 2,
         "explanation": "The human needs decision-ready evidence without unnecessary sensitive content."
+      },
+      {
+        "id": "q-agent-observability-6",
+        "prompt": "Why is deleting every approval attribute not a valid repair in this lab?",
+        "choices": [
+          "It increases token use",
+          "It removes safe structural evidence needed for diagnosis",
+          "It automatically executes the tool",
+          "It changes the model family"
+        ],
+        "answerIndex": 1,
+        "explanation": "The repair must remove values while preserving field-name evidence and the rest of the trace structure."
+      },
+      {
+        "id": "q-agent-observability-7",
+        "prompt": "What does passing the fixture tests establish?",
+        "choices": [
+          "The production exporter is correctly configured",
+          "Every model provider reports identical usage",
+          "The sanitizer satisfies the supplied deterministic invariants",
+          "The approval was performed by a real human"
+        ],
+        "answerIndex": 2,
+        "explanation": "The fixtures test a pure transformation only. They do not exercise a live model, human, tool, collector, or provider."
       }
     ]
   },
@@ -275,6 +568,30 @@
       "url": "https://www.nist.gov/itl/ai-risk-management-framework",
       "publisher": "NIST",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Node.js ECMAScript modules",
+      "url": "https://nodejs.org/api/esm.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Node.js console",
+      "url": "https://nodejs.org/api/console.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Node.js process.hrtime.bigint",
+      "url": "https://nodejs.org/api/process.html#processhrtimebigint",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "JSON",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON",
+      "publisher": "MDN Web Docs",
+      "lastVerified": "2026-09-21"
     }
   ]
 }
