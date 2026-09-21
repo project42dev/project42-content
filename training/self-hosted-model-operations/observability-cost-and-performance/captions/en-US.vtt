@@ -1,1132 +1,1405 @@
 WEBVTT
 
 1
-00:00:00.000 --> 00:00:06.000
-Welcome. Observability is not the act of
-collecting everything. It
+00:00:00.000 --> 00:00:04.000
+Welcome. Observability is not collecting
+everything. It is answering important
 
 2
-00:00:06.000 --> 00:00:12.000
-is the ability to answer important
+00:00:04.000 --> 00:00:08.000
 operational questions with justified,
+privacy-conscious evidence. In this
 
 3
-00:00:12.000 --> 00:00:18.000
-privacy-conscious evidence. In this class,
-you will define questions and
+00:00:08.000 --> 00:00:12.000
+lesson, you will define questions and
+objectives, correlate exact serving
 
 4
-00:00:18.000 --> 00:00:24.000
-objectives, correlate exact serving
+00:00:12.000 --> 00:00:16.000
 identities, minimize sensitive telemetry,
+interpret performance distributions and
 
 5
-00:00:24.000 --> 00:00:30.000
-interpret performance and cost
-distributions, and build alerts that lead
+00:00:16.000 --> 00:00:20.000
+cost, and build alerts that lead an
+accountable operator toward
 
 6
-00:00:30.000 --> 00:00:36.000
-an accountable operator toward safe action
-and recovery.
+00:00:20.000 --> 00:00:24.000
+safe action and recovery. The examples are
+synthetic teaching fixtures.
 
 7
-00:00:36.000 --> 00:00:42.250
+00:00:24.000 --> 00:00:28.000
+They are not live infrastructure results,
+provider prices, model benchmarks,
+
+8
+00:00:28.000 --> 00:00:32.000
+or deployment approval.
+
+9
+00:00:32.000 --> 00:00:36.450
 Start with questions an operator, product
 owner, security reviewer, or
 
-8
-00:00:42.250 --> 00:00:48.500
+10
+00:00:36.450 --> 00:00:40.900
 incident responder must answer. Is the
 approved model and runtime
 
-9
-00:00:48.500 --> 00:00:54.750
-bundle serving? Are users receiving valid
-outcomes? Which languages, accessibility
-
-10
-00:00:54.750 --> 00:01:01.000
-needs, workflows, or other important
-slices fail? Where is time
-
 11
-00:01:01.000 --> 00:01:07.250
-spent? What is queued, rejected, canceled,
-or retried? Which resource
+00:00:40.900 --> 00:00:45.350
+bundle serving? Are users receiving valid
+outcomes? Which bounded slices
 
 12
-00:01:07.250 --> 00:01:13.500
-is saturated? Did an update change
-quality, policy outcomes, latency,
+00:00:45.350 --> 00:00:49.800
+fail? Where is time spent? What is queued,
+rejected, canceled,
 
 13
-00:01:13.500 --> 00:01:19.750
-cost, or recovery? Can an incident be
-scoped and reproduced
+00:00:49.800 --> 00:00:54.250
+or retried? Which resource is saturated?
+Did an update change
 
 14
-00:01:19.750 --> 00:01:26.000
-without exposing unnecessary content?
-Translate those questions into indicators
+00:00:54.250 --> 00:00:58.700
+quality, policy outcomes, latency, cost,
+or recovery? Can an incident
 
 15
-00:01:26.000 --> 00:01:32.250
-and objectives for availability,
-successful outcomes, policy dispositions,
+00:00:58.700 --> 00:01:03.150
+be scoped and reproduced without exposing
+unnecessary content? Translate each
 
 16
-00:01:32.250 --> 00:01:38.500
-latency distributions, queue time,
-throughput, rejection, error, recovery,
+00:01:03.150 --> 00:01:07.600
+question into an indicator and objective.
+State the population, observation
 
 17
-00:01:38.500 --> 00:01:44.750
-and budget. State the population, window,
-threshold, owner, decision, and
+00:01:07.600 --> 00:01:12.050
+window, denominator, threshold, owner,
+decision, response, and retention period.
 
 18
-00:01:44.750 --> 00:01:51.000
-response. A dashboard panel with no
-question, owner, or decision
+00:01:12.050 --> 00:01:16.500
+For example, a synthetic
+interactive-latency objective can require
 
 19
-00:01:51.000 --> 00:01:57.250
-is decorative telemetry. NIST's
-generative-AI risk profile emphasizes
+00:01:16.500 --> 00:01:20.950
+at least 95 percent of valid requests to
+finish at
 
 20
-00:01:57.250 --> 00:02:03.500
-measurement and management across the
-lifecycle. Here, that becomes an
+00:01:20.950 --> 00:01:25.400
+or below 400 milliseconds in a five-minute
+window. The denominator
 
 21
-00:02:03.500 --> 00:02:09.750
-observability contract: every collected
-signal has an approved purpose, an
+00:01:25.400 --> 00:01:29.850
+is part of the contract. Missing
+measurements are unknown, not
 
 22
-00:02:09.750 --> 00:02:16.000
-accountable consumer, and a defined
-retention and response.
+00:01:29.850 --> 00:01:34.300
+successful outcomes. A dashboard panel
+with no owned decision is
 
 23
-00:02:16.000 --> 00:02:22.267
-Correlate the serving path with a bounded
-request or run
+00:01:34.300 --> 00:01:38.750
+decorative telemetry. A useful contract
+tells an owner what evidence
 
 24
-00:02:22.267 --> 00:02:28.533
-identifier. Connect gateway, application
-adapter, inference server, runtime,
+00:01:38.750 --> 00:01:43.200
+changes a decision, such as tuning,
+capacity adjustment, release hold,
 
 25
-00:02:28.533 --> 00:02:34.800
-policy, optional tool, and user-outcome
-events. Record an application-owned core:
+00:01:43.200 --> 00:01:47.650
+or rollback. NIST's generative artificial
+intelligence risk profile supports
 
 26
-00:02:34.800 --> 00:02:41.067
-service and instance identity, immutable
-model and runtime bundle, release,
+00:01:47.650 --> 00:01:52.100
+managing and measuring risk across the
+lifecycle. Here, that becomes
 
 27
-00:02:41.067 --> 00:02:47.333
-route, operation, status, stable error
-category, policy disposition, bounded
+00:01:52.100 --> 00:01:56.550
+a practical rule: every signal has an
+approved purpose, an
 
 28
-00:02:47.333 --> 00:02:53.600
-input and output size measures, queue
-time, processing time, resource
+00:01:56.550 --> 00:02:01.000
+accountable consumer, and a defined
+response and retention boundary.
 
 29
-00:02:53.600 --> 00:02:59.867
-observations, and a result or evaluation
-reference. OpenTelemetry semantic
+00:02:01.000 --> 00:02:05.294
+Correlate the serving path with a bounded
+application-owned request or
 
 30
-00:02:59.867 --> 00:03:06.133
-conventions provide shared names and
-stability metadata, but not every
+00:02:05.294 --> 00:02:09.588
+run identifier. Connect gateway, adapter,
+inference server, runtime, policy,
 
 31
-00:03:06.133 --> 00:03:12.400
-generative-AI field is stable or
-implemented identically across runtimes.
+00:02:09.588 --> 00:02:13.882
+optional tool, and user-outcome events.
+Record service and instance identity,
 
 32
-00:03:12.400 --> 00:03:18.667
-Version the convention and fields you
-adopt. Keep your product's
+00:02:13.882 --> 00:02:18.176
+exact model and runtime bundle, release,
+route, operation, status, bounded
 
 33
-00:03:18.667 --> 00:03:24.933
-core contract stable and map external
-conventions through explicit adapters.
+00:02:18.176 --> 00:02:22.471
+error category, policy disposition, input
+and output size measures, queue
 
 34
-00:03:24.933 --> 00:03:31.200
-Avoid using raw personal identifiers,
-prompts, or unbounded user values
+00:02:22.471 --> 00:02:26.765
+time, processing time, resource
+observations, and an evaluation or result
 
 35
-00:03:31.200 --> 00:03:37.467
-as correlation labels. Exact identities
-let an operator compare releases
+00:02:26.765 --> 00:02:31.059
+reference. OpenTelemetry Semantic
+Conventions provide shared names and
 
 36
-00:03:37.467 --> 00:03:43.733
-and reproduce failures. A friendly alias
-alone can hide that
+00:02:31.059 --> 00:02:35.353
+stability metadata, but a field exposed by
+one runtime is
 
 37
-00:03:43.733 --> 00:03:50.000
-two replicas served different artifacts,
-templates, runtimes, or policies.
+00:02:35.353 --> 00:02:39.647
+not proof that another provider exposes an
+equivalent field. Version
 
 38
-00:03:50.000 --> 00:03:55.000
+00:02:39.647 --> 00:02:43.941
+the core contract you own, then use
+explicit adapters for
+
+39
+00:02:43.941 --> 00:02:48.235
+external conventions. A request identifier
+can connect traces and logs,
+
+40
+00:02:48.235 --> 00:02:52.529
+but it must not become an unbounded metric
+label. Do
+
+41
+00:02:52.529 --> 00:02:56.824
+not use raw personal identifiers, prompts,
+or arbitrary user values
+
+42
+00:02:56.824 --> 00:03:01.118
+as labels. Exact model, tokenizer,
+runtime, configuration, adapter,
+
+43
+00:03:01.118 --> 00:03:05.412
+precision, and release identities let an
+operator compare releases and
+
+44
+00:03:05.412 --> 00:03:09.706
+reproduce failures. A friendly alias alone
+can hide that replicas
+
+45
+00:03:09.706 --> 00:03:14.000
+served different artifacts or policies.
+
+46
+00:03:14.000 --> 00:03:18.368
 Consider a synthetic assistant request
 that feels slow and returns
 
-39
-00:03:55.000 --> 00:04:00.000
-an invalid citation. The gateway event
-shows an approved caller,
-
-40
-00:04:00.000 --> 00:04:05.000
-route, release, and no policy denial. The
-adapter records a
-
-41
-00:04:05.000 --> 00:04:10.000
-bounded input-size class and output
-contract failure. The inference server
-
-42
-00:04:10.000 --> 00:04:15.000
-records two seconds of queue time, one
-second to first
-
-43
-00:04:15.000 --> 00:04:20.000
-output, and a completed stream. Runtime
-metrics show high accelerator
-
-44
-00:04:20.000 --> 00:04:25.000
-use but available host memory. The exact
-identity reveals that
-
-45
-00:04:25.000 --> 00:04:30.000
-one replica loaded the prior
-prompt-template bundle. A release
-
-46
-00:04:30.000 --> 00:04:35.000
-annotation shows the mismatch began during
-a partial rollout. No
-
 47
-00:04:35.000 --> 00:04:40.000
-raw prompt is needed to answer the first
-operational questions:
+00:03:18.368 --> 00:03:22.737
+an invalid citation. The gateway event
+shows an approved route
 
 48
-00:04:40.000 --> 00:04:45.000
-which build failed, where time
-accumulated, and which replica should
+00:03:22.737 --> 00:03:27.105
+and release with no policy denial. The
+adapter records a
 
 49
-00:04:45.000 --> 00:04:50.000
-leave service. An authorized evaluator can
-use a separately governed
+00:03:27.105 --> 00:03:31.474
+bounded input-size class and an output
+contract failure. The inference
 
 50
-00:04:50.000 --> 00:04:55.000
-fixture to reproduce citation quality. The
-operator removes the mismatched
+00:03:31.474 --> 00:03:35.842
+server records two seconds of queue time
+and one second
 
 51
-00:04:55.000 --> 00:05:00.000
-replica, verifies the approved bundle,
-repeats readiness and regression checks,
+00:03:35.842 --> 00:03:40.211
+to first output. Runtime metrics show high
+accelerator use but
 
 52
-00:05:00.000 --> 00:05:05.000
-and records the recovery. Correlation
-turned several signals into a
+00:03:40.211 --> 00:03:44.579
+available host memory. Exact identity
+reveals that one replica loaded
 
 53
-00:05:05.000 --> 00:05:10.000
-bounded diagnosis without copying learner
-content into every telemetry store.
+00:03:44.579 --> 00:03:48.947
+the prior prompt-template bundle. A
+release annotation shows the mismatch
 
 54
-00:05:10.000 --> 00:05:16.563
+00:03:48.947 --> 00:03:53.316
+began during a partial rollout. No raw
+prompt is needed
+
+55
+00:03:53.316 --> 00:03:57.684
+to answer the first questions: which build
+failed, where time
+
+56
+00:03:57.684 --> 00:04:02.053
+accumulated, and which replica should
+leave service. An authorized evaluator
+
+57
+00:04:02.053 --> 00:04:06.421
+can use a separately governed fixture to
+reproduce citation quality.
+
+58
+00:04:06.421 --> 00:04:10.789
+The operator isolates the mismatched
+replica, verifies the approved bundle,
+
+59
+00:04:10.789 --> 00:04:15.158
+repeats readiness and regression checks,
+and records recovery. Correlation turned
+
+60
+00:04:15.158 --> 00:04:19.526
+several signals into a bounded diagnosis
+without copying learner content
+
+61
+00:04:19.526 --> 00:04:23.895
+into every store. Notice the causal
+boundary. The evidence supports
+
+62
+00:04:23.895 --> 00:04:28.263
+a likely release mismatch and a safe
+investigation path. It
+
+63
+00:04:28.263 --> 00:04:32.632
+does not prove that every invalid citation
+has the same
+
+64
+00:04:32.632 --> 00:04:37.000
+cause.
+
+65
+00:04:37.000 --> 00:04:41.118
 Default to metadata and derived
 measurements, not raw prompts, responses,
 
-55
-00:05:16.563 --> 00:05:23.125
+66
+00:04:41.118 --> 00:04:45.235
 retrieved documents, credentials,
 authorization headers, personal
 
-56
-00:05:23.125 --> 00:05:29.688
+67
+00:04:45.235 --> 00:04:49.353
 identifiers, or tool secrets. Classify
-each proposed field as required
+every proposed field as required
 
-57
-00:05:29.688 --> 00:05:36.250
+68
+00:04:49.353 --> 00:04:53.471
 metadata, derived measurement, optional
 sensitive content, or prohibited secret.
 
-58
-00:05:36.250 --> 00:05:42.813
+69
+00:04:53.471 --> 00:04:57.588
 For approved content sampling, document
 purpose and authority, minimize and
 
-59
-00:05:42.813 --> 00:05:49.375
+70
+00:04:57.588 --> 00:05:01.706
 redact, encrypt in transit and storage,
 restrict access, audit use,
 
-60
-00:05:49.375 --> 00:05:55.938
+71
+00:05:01.706 --> 00:05:05.824
 set short retention, and test deletion.
 Sampling reduces volume; it
 
-61
-00:05:55.938 --> 00:06:02.500
+72
+00:05:05.824 --> 00:05:09.941
 does not remove sensitivity. Threat-model
-the whole telemetry path: instrumentation,
+instrumentation, collectors, exporters,
 
-62
-00:06:02.500 --> 00:06:09.063
-collectors, exporters, queues, stores,
-dashboards, alerts, exemplars, support
+73
+00:05:09.941 --> 00:05:14.059
+queues, stores, dashboards, alerts,
+exemplars, support bundles, backups, and
 
-63
-00:06:09.063 --> 00:06:15.625
-bundles, backups, and analyst exports. A
-securely encrypted inference request
+74
+00:05:14.059 --> 00:05:18.176
+analyst exports. An encrypted inference
+request can still be disclosed
 
-64
-00:06:15.625 --> 00:06:22.188
-can still be disclosed by a verbose
-exception, trace body,
+75
+00:05:18.176 --> 00:05:22.294
+by a verbose exception, trace body, metric
+label, screenshot, or
 
-65
-00:06:22.188 --> 00:06:28.750
-metric label, screenshot, or copied
-support archive. Control cardinality as
+76
+00:05:22.294 --> 00:05:26.412
+copied support archive. Control
+cardinality as both a reliability and
 
-66
-00:06:28.750 --> 00:06:35.313
-both a reliability and privacy concern.
-Unbounded request, user, prompt,
+77
+00:05:26.412 --> 00:05:30.529
+privacy concern. Unbounded request, user,
+prompt, or document values can
 
-67
-00:06:35.313 --> 00:06:41.875
-or document values can overwhelm metric
-systems and create searchable
+78
+00:05:30.529 --> 00:05:34.647
+overwhelm metric systems and create
+searchable copies. Test rejected requests
 
-68
-00:06:41.875 --> 00:06:48.438
-data copies. Detect unauthorized field
-appearance with fixtures and scans,
+79
+00:05:34.647 --> 00:05:38.765
+and exception paths because they may copy
+input content. Detect
 
-69
-00:06:48.438 --> 00:06:55.000
-and make telemetry access itself an
-audited privilege.
+80
+00:05:38.765 --> 00:05:42.882
+unauthorized field appearance with
+fixtures and scans, and audit telemetry
 
-70
-00:06:55.000 --> 00:07:02.000
+81
+00:05:42.882 --> 00:05:47.000
+access itself.
+
+82
+00:05:47.000 --> 00:05:51.250
 Checkpoint. Inference transport is
 encrypted, but a trace exporter copies
 
-71
-00:07:02.000 --> 00:07:09.000
+83
+00:05:51.250 --> 00:05:55.500
 full prompts, retrieved passages,
 authorization headers, and responses into
 
-72
-00:07:09.000 --> 00:07:16.000
+84
+00:05:55.500 --> 00:05:59.750
 a broadly accessible support store for
 ninety days. Is the
 
-73
-00:07:16.000 --> 00:07:23.000
+85
+00:05:59.750 --> 00:06:04.000
 serving data boundary protected, and what
 must change?
 
-74
-00:08:38.000 --> 00:08:43.889
+86
+00:07:19.000 --> 00:07:23.333
 The boundary is not protected. Encryption
 on the inference hop
 
-75
-00:08:43.889 --> 00:08:49.778
+87
+00:07:23.333 --> 00:07:27.667
 does not authorize a second copy in
 telemetry. Stop exporting
 
-76
-00:08:49.778 --> 00:08:55.667
+88
+00:07:27.667 --> 00:07:32.000
 authorization headers and unjustified raw
-content, revoke any exposed credentials,
+content, revoke exposed credentials,
 
-77
-00:08:55.667 --> 00:09:01.556
+89
+00:07:32.000 --> 00:07:36.333
 restrict the store, assess access, delete
 existing copies under the
 
-78
-00:09:01.556 --> 00:09:07.444
+90
+00:07:36.333 --> 00:07:40.667
 incident and retention process, and verify
 deletion. If approved content
 
-79
-00:09:07.444 --> 00:09:13.333
+91
+00:07:40.667 --> 00:07:45.000
 sampling is genuinely required, create a
 separate minimized, redacted, encrypted,
 
-80
-00:09:13.333 --> 00:09:19.222
+92
+00:07:45.000 --> 00:07:49.333
 access-controlled, short-lived, audited
 path. If your answer only encrypted the
 
-81
-00:09:19.222 --> 00:09:25.111
-support store, revisit data minimization:
-protection begins by not collecting
-
-82
-00:09:25.111 --> 00:09:31.000
-what the operational question does not
-require.
-
-83
-00:09:31.000 --> 00:09:37.471
-Measure latency and size as distributions
-with appropriate histogram resolution,
-
-84
-00:09:37.471 --> 00:09:43.941
-not only averages. Preserve event counts,
-failures, and the population
-
-85
-00:09:43.941 --> 00:09:50.412
-behind each percentile. Prometheus
-explains that precomputed summary
-
-86
-00:09:50.412 --> 00:09:56.882
-quantiles generally cannot be aggregated
-across replicas, while histograms support
-
-87
-00:09:56.882 --> 00:10:03.353
-later aggregation subject to their buckets
-or representation. Do not
-
-88
-00:10:03.353 --> 00:10:09.824
-average three p95 values and call the
-result a fleet
-
-89
-00:10:09.824 --> 00:10:16.294
-p95. Aggregate the underlying histogram
-observations correctly. Separate queue
-
-90
-00:10:16.294 --> 00:10:22.765
-time, time to first output, processing
-time, streaming duration, and
-
-91
-00:10:22.765 --> 00:10:29.235
-total duration. Track throughput,
-concurrency, rejections, cancellations,
-
-92
-00:10:29.235 --> 00:10:35.706
-retries, cache behavior, accelerator and
-host utilization, memory headroom,
-
 93
-00:10:35.706 --> 00:10:42.176
-storage, network, and energy or cloud
-charges when available. Kubernetes
+00:07:49.333 --> 00:07:53.667
+support store, revisit minimization.
+Protection begins by not collecting what
 
 94
-00:10:42.176 --> 00:10:48.647
-resource-monitoring guidance distinguishes
-pipeline and full-metrics approaches;
+00:07:53.667 --> 00:07:58.000
+the operational question does not require.
 
 95
-00:10:48.647 --> 00:10:55.118
-choose signals that support your questions
-and capacity actions. Attribute
+00:07:58.000 --> 00:08:02.313
+Measure latency and size as distributions
+with suitable histogram resolution,
 
 96
-00:10:55.118 --> 00:11:01.588
-cost by bounded tenant class, workload,
-route, model, and release.
+00:08:02.313 --> 00:08:06.625
+not only averages. Preserve counts,
+failures, and the population behind
 
 97
-00:11:01.588 --> 00:11:08.059
-Avoid unbounded labels. Include idle
-capacity, failed work, retries, data
+00:08:06.625 --> 00:08:10.938
+every percentile. Prometheus explains that
+precomputed summary quantiles generally
 
 98
-00:11:08.059 --> 00:11:14.529
-transfer, storage, telemetry, and
-operational labor where relevant, and
+00:08:10.938 --> 00:08:15.250
+cannot be aggregated across replicas,
+while compatible histogram buckets can
 
 99
-00:11:14.529 --> 00:11:21.000
-state what the estimate excludes.
+00:08:15.250 --> 00:08:19.563
+be aggregated. Do not average three p95
+values and call
 
 100
-00:11:21.000 --> 00:11:27.571
+00:08:19.563 --> 00:08:23.875
+that a fleet p95. Aggregate the underlying
+observations, then estimate
+
+101
+00:08:23.875 --> 00:08:28.188
+once. Separate queue time, time to first
+output, processing time,
+
+102
+00:08:28.188 --> 00:08:32.500
+streaming duration, and total duration.
+Track throughput, concurrency, rejections,
+
+103
+00:08:32.500 --> 00:08:36.813
+cancellations, retries, cache behavior,
+accelerator and host utilization, memory
+
+104
+00:08:36.813 --> 00:08:41.125
+headroom, storage, network, and energy or
+cloud charges where available.
+
+105
+00:08:41.125 --> 00:08:45.438
+Use bounded workload, route, model,
+release, and tenant-class dimensions.
+
+106
+00:08:45.438 --> 00:08:49.750
+Kubernetes resource monitoring is general
+deployment guidance, not proof that
+
+107
+00:08:49.750 --> 00:08:54.063
+a particular deployment exports or
+enforces a measurement. Attribute cost
+
+108
+00:08:54.063 --> 00:08:58.375
+with explicit inputs and denominators.
+State what the estimate includes
+
+109
+00:08:58.375 --> 00:09:02.688
+and excludes. A number without its
+population, window, and allocation
+
+110
+00:09:02.688 --> 00:09:07.000
+rule is not decision-ready evidence.
+
+111
+00:09:07.000 --> 00:09:11.429
+Work the supplied baseline. The bucket
+bounds are 100, 200,
+
+112
+00:09:11.429 --> 00:09:15.857
+400, and 800 milliseconds. Replica one has
+cumulative counts 50,
+
+113
+00:09:15.857 --> 00:09:20.286
+90, 100, 100. Replica two has 5, 15, 35,
+
+114
+00:09:20.286 --> 00:09:24.714
+40. Replica three has 1, 2, 8, 10. Add
+
+115
+00:09:24.714 --> 00:09:29.143
+matching buckets: 50 plus 5 plus 1 is 56;
+
+116
+00:09:29.143 --> 00:09:33.571
+90 plus 15 plus 2 is 107; 100 plus 35
+
+117
+00:09:33.571 --> 00:09:38.000
+plus 8 is 143; and 100 plus 40 plus 10
+
+118
+00:09:38.000 --> 00:09:42.429
+is 150. For p95, rank equals 0.95 times
+150, or
+
+119
+00:09:42.429 --> 00:09:46.857
+142.5. That rank lies in the 200-to-400
+millisecond bucket. Linear
+
+120
+00:09:46.857 --> 00:09:51.286
+interpolation gives 200 plus ((142.5 minus
+107) divided by (143
+
+121
+00:09:51.286 --> 00:09:55.714
+minus 107)) times 200, which is 397.22
+milliseconds. This is
+
+122
+00:09:55.714 --> 00:10:00.143
+an estimate, assuming observations are
+spread within the bucket. The
+
+123
+00:10:00.143 --> 00:10:04.571
+fixture has 143 of 150 requests at or
+below 400
+
+124
+00:10:04.571 --> 00:10:09.000
+milliseconds, or 95.333 percent, so it
+passes a synthetic 95
+
+125
+00:10:09.000 --> 00:10:13.429
+percent latency objective by about 0.333
+percentage points. If two
+
+126
+00:10:13.429 --> 00:10:17.857
+of the same 150 requests were
+unsuccessful, 148 divided by
+
+127
+00:10:17.857 --> 00:10:22.286
+150 equals 98.667 percent, which fails a
+separate 99 percent
+
+128
+00:10:22.286 --> 00:10:26.714
+success objective. Do not remove failures
+from a denominator unless
+
+129
+00:10:26.714 --> 00:10:31.143
+the indicator contract explicitly
+justifies it. The synthetic cost example
+
+130
+00:10:31.143 --> 00:10:35.571
+is three replicas for half an hour, at a
+
+131
+00:10:35.571 --> 00:10:40.000
+fictional accelerator rate of two dollars
+per replica-hour and fictional
+
+132
+00:10:40.000 --> 00:10:44.429
+host rate of forty cents per replica-hour.
+Accelerator cost is
+
+133
+00:10:44.429 --> 00:10:48.857
+3 times 0.5 times 2, or 3 dollars. Host
+
+134
+00:10:48.857 --> 00:10:53.286
+cost is 3 times 0.5 times 0.40, or 0.60
+
+135
+00:10:53.286 --> 00:10:57.714
+dollars. Add fictional storage of 0.05 and
+network of 0.10
+
+136
+00:10:57.714 --> 00:11:02.143
+to get 3.75 dollars. For 15,000 completed
+requests, 3.75 divided
+
+137
+00:11:02.143 --> 00:11:06.571
+by 15,000 is 0.00025 dollars per request.
+These are teaching
+
+138
+00:11:06.571 --> 00:11:11.000
+inputs, not provider prices or production
+measurements.
+
+139
+00:11:11.000 --> 00:11:15.389
 Alert on symptoms that require action:
 user-visible objective burn, critical
 
-101
-00:11:27.571 --> 00:11:34.143
+140
+00:11:15.389 --> 00:11:19.778
 safety or security outcomes, sustained
-queueing or rejection, error growth,
+queueing or rejection, memory pressure,
 
-102
-00:11:34.143 --> 00:11:40.714
-memory pressure, unavailable replicas,
-exact-model identity mismatch, telemetry
+141
+00:11:19.778 --> 00:11:24.167
+unavailable replicas, exact identity
+mismatch, telemetry loss, cost anomalies,
 
-103
-00:11:40.714 --> 00:11:47.286
-loss, cost anomalies, and failed backup or
-rollback checks. Every
+142
+00:11:24.167 --> 00:11:28.556
+and failed recovery checks. Every alert
+needs a symptom, owner,
 
-104
-00:11:47.286 --> 00:11:53.857
-alert needs an owner, severity,
-population, threshold and duration, safe
+143
+00:11:28.556 --> 00:11:32.944
+severity, population, threshold and
+duration, safe first action, runbook,
 
-105
-00:11:53.857 --> 00:12:00.429
-first action, runbook, evidence links,
-escalation, and recovery condition. Test
+144
+00:11:32.944 --> 00:11:37.333
+evidence links, escalation, and recovery
+condition. Five paper-tested examples are
 
-106
-00:12:00.429 --> 00:12:07.000
-firing, routing, deduplication,
-suppression, escalation, acknowledgment,
+145
+00:11:37.333 --> 00:11:41.722
+useful. A latency burn alert routes to
+serving on-call and
 
-107
-00:12:07.000 --> 00:12:13.571
-and resolution. Attach baseline and
-deployment annotations so the investigator
+146
+00:11:41.722 --> 00:11:46.111
+checks queueing and saturation before
+scaling or rollback. A policy-deny
 
-108
-00:12:13.571 --> 00:12:20.143
-can compare before and after a change.
-Missing telemetry is
+147
+00:11:46.111 --> 00:11:50.500
+anomaly routes to safety and security with
+policy version and
 
-109
-00:12:20.143 --> 00:12:26.714
-not proof of health. Create a separate
-signal for absent
+148
+00:11:50.500 --> 00:11:54.889
+disposition counts, without content. A
+queue alert fires only when
 
-110
-00:12:26.714 --> 00:12:33.286
-expected observations, stalled exporters,
-dropped spans, delayed metrics, and
+149
+00:11:54.889 --> 00:11:59.278
+p95 queue time and rejection rate are both
+elevated for
 
-111
-00:12:33.286 --> 00:12:39.857
-inconsistent replica counts. Dashboards
-should move from service symptom to
+150
+00:11:59.278 --> 00:12:03.667
+ten minutes. An identity mismatch alert
+fires on any artifact,
 
-112
-00:12:39.857 --> 00:12:46.429
-slice, release, serving layer, saturation,
-and recovery evidence without requiring
+151
+00:12:03.667 --> 00:12:08.056
+runtime, configuration, or release digest
+outside the approved route manifest.
 
-113
-00:12:46.429 --> 00:12:53.000
-broad access to sensitive content.
+152
+00:12:08.056 --> 00:12:12.444
+A telemetry-loss or cost anomaly alert
+includes missing-series evidence and
 
-114
-00:12:53.000 --> 00:12:59.222
+153
+00:12:12.444 --> 00:12:16.833
+allocation inputs. Test firing, routing,
+deduplication, planned-maintenance
+
+154
+00:12:16.833 --> 00:12:21.222
+suppression, escalation timers,
+permissions, and recovery notifications.
+
+155
+00:12:21.222 --> 00:12:25.611
+Missing telemetry is not proof of health.
+Recovery must test
+
+156
+00:12:25.611 --> 00:12:30.000
+affected outcomes, not merely the
+existence of a rollback command.
+
+157
+00:12:30.000 --> 00:12:34.455
 Now build the privacy-conscious
 observability contract. Write ten operator
 
-115
-00:12:59.222 --> 00:13:05.444
+158
+00:12:34.455 --> 00:12:38.909
 questions and map each to signals, exact
 identities, bounded dimensions,
 
-116
-00:13:05.444 --> 00:13:11.667
+159
+00:12:38.909 --> 00:12:43.364
 owner, decision, and retention. Define
 request, model, release, policy, latency,
 
-117
-00:13:11.667 --> 00:13:17.889
+160
+00:12:43.364 --> 00:12:47.818
 queue, error, saturation, and cost fields
 with stability and cardinality
 
-118
-00:13:17.889 --> 00:13:24.111
+161
+00:12:47.818 --> 00:12:52.273
 limits. Classify every field as required
 metadata, derived measurement, optional
 
-119
-00:13:24.111 --> 00:13:30.333
+162
+00:12:52.273 --> 00:12:56.727
 sensitive content, or prohibited secret.
 Design latency and size histograms,
 
-120
-00:13:30.333 --> 00:13:36.556
+163
+00:12:56.727 --> 00:13:01.182
 objective calculations, and cost
 allocation for three replicas without
 
-121
-00:13:36.556 --> 00:13:42.778
-averaging quantiles. Create five alerts,
-then paper-test firing, routing, evidence,
+164
+00:13:01.182 --> 00:13:05.636
+averaging quantiles. Create five alerts
+and paper-test firing, routing, evidence,
 
-122
-00:13:42.778 --> 00:13:49.000
+165
+00:13:05.636 --> 00:13:10.091
 safe first action, runbook, escalation,
 telemetry-loss behavior, and recovery.
 
-123
-00:16:49.000 --> 00:16:53.333
-Instructor narration: Map ten questions to
-bounded evidence. 1. Approved
-
-124
-00:16:53.333 --> 00:16:57.667
-build: startup inventory and request
-identity; exact model, tokenizer, runtime,
-
-125
-00:16:57.667 --> 00:17:02.000
-configuration, adapter, and release
-identities; dimensions environment, route,
-
-126
-00:17:02.000 --> 00:17:06.333
-release; release owner isolates or rolls
-back; example retention inventory
-
-127
-00:17:06.333 --> 00:17:10.667
-90 days and request metadata 30 days. 2.
-Valid outcomes:
-
-128
-00:17:10.667 --> 00:17:15.000
-status and outcome counters; route,
-operation, model, release, and bounded
-
-129
-00:17:15.000 --> 00:17:19.333
-outcome; product SRE retains or halts a
-release; 30 days.
-
-130
-00:17:19.333 --> 00:17:23.667
-3. Failing reviewed slice: evaluation and
-outcome counters; evaluation-set version
-
-131
-00:17:23.667 --> 00:17:28.000
-and release; bounded locale, route, and
-workload class; evaluation lead
-
-132
-00:17:28.000 --> 00:17:32.333
-blocks promotion or commissions tests; 90
-days. 4. Time spent:
-
-133
-00:17:32.333 --> 00:17:36.667
-gateway, queue, first-output, processing,
-tool, and end-to-end histograms plus
-
-134
-00:17:36.667 --> 00:17:41.000
-request-linked traces; service, operation,
-runtime, and release; performance owner
-
-135
-00:17:41.000 --> 00:17:45.333
-tunes the measured stage; metrics 90 days
-and sampled traces
-
-136
-00:17:45.333 --> 00:17:49.667
-7 days. 5. Queued or rejected: queue
-histogram, depth gauge,
-
-137
-00:17:49.667 --> 00:17:54.000
-and rejection counter; service, instance,
-route, release, and bounded rejection
-
-138
-00:17:54.000 --> 00:17:58.333
-reason; capacity owner shapes traffic or
-adds reviewed capacity; 30
-
-139
-00:17:58.333 --> 00:18:02.667
-days. 6. Saturated resource: accelerator
-and host utilization, memory headroom,
-
-140
-00:18:02.667 --> 00:18:07.000
-storage and network activity; node,
-instance, runtime, release, resource type,
-
-141
-00:18:07.000 --> 00:18:11.333
-and bounded pool; infrastructure owner
-changes placement or limits; 30
-
-142
-00:18:11.333 --> 00:18:15.667
-days. 7. Quality or security change:
-before-and-after outcome, policy, and
-
-143
-00:18:15.667 --> 00:18:20.000
-evaluation fixtures; old and new exact
-bundles plus policy version;
-
-144
-00:18:20.000 --> 00:18:24.333
-bounded test suite and disposition; safety
-and release owners promote
-
-145
-00:18:24.333 --> 00:18:28.667
-or roll back; 180 days. 8. Cost change:
-metered resource
-
-146
-00:18:28.667 --> 00:18:33.000
-time and charge allocation; workload,
-route, model, release, and bounded
-
-147
-00:18:33.000 --> 00:18:37.333
-tenant class; finance operations
-investigates or adjusts capacity; 13
-
-148
-00:18:37.333 --> 00:18:41.667
-months subject to policy. 9. Recovery
-objective: backup, restore, rollback,
-
-149
-00:18:41.667 --> 00:18:46.000
-and probe events with elapsed-time
-histogram; artifact, runtime,
-
-150
-00:18:46.000 --> 00:18:50.333
-configuration, release, and recovery-plan
-version; resilience owner accepts or
-
-151
-00:18:50.333 --> 00:18:54.667
-remediates; 180 days. 10. Incident scope
-and reproduction: correlated metadata,
-
-152
-00:18:54.667 --> 00:18:59.000
-governed traces, deployment events, and
-deterministic probes; request or run
-
-153
-00:18:59.000 --> 00:19:03.333
-ID plus exact bundle; route, status, and
-bounded error category;
-
-154
-00:19:03.333 --> 00:19:07.667
-incident commander scopes traffic and
-commissions reproduction; request metadata
-
-155
-00:19:07.667 --> 00:19:12.000
-30 days and incident evidence under the
-approved schedule. Field
-
-156
-00:19:12.000 --> 00:19:16.333
-contract obs-contract/v1: request_id is
-required application-stable metadata and
-
-157
-00:19:16.333 --> 00:19:20.667
-prohibited as a metric label. Build
-digests and release_id are
-
-158
-00:19:20.667 --> 00:19:25.000
-required metadata with at most 20 active
-values per environment.
-
-159
-00:19:25.000 --> 00:19:29.333
-policy_disposition is limited to allow,
-deny, review, error, and unknown,
-
-160
-00:19:29.333 --> 00:19:33.667
-with at most 20 active policy versions.
-latency_ms and queue_ms
-
-161
-00:19:33.667 --> 00:19:38.000
-are finite derived measurements from 0
-through 3,600,000 ms represented
-
-162
-00:19:38.000 --> 00:19:42.333
-by configured buckets. error_category is
-limited to none, timeout, overload,
-
-163
-00:19:42.333 --> 00:19:46.667
-invalid_request, policy, dependency,
-internal, and unknown. saturation_ratio is
-
-164
-00:19:46.667 --> 00:19:51.000
-finite from 0 through 1.
-allocated_cost_usd is finite and
-
-165
-00:19:51.000 --> 00:19:55.333
-nonnegative. Unknown enums and types are
-rejected or mapped explicitly
-
 166
-00:19:55.333 --> 00:19:59.667
-to unknown at the adapter boundary.
-Cardinality alarms compare active
+00:13:10.091 --> 00:13:14.545
+Your work is complete only when it answers
+all ten
 
 167
-00:19:59.667 --> 00:20:04.000
-series with the contract budget. Privacy
-review covers access, retention,
+00:13:14.545 --> 00:13:19.000
+questions and states field type,
+stability, enum, range, and cardinality.
 
 168
-00:20:04.000 --> 00:20:08.333
-redaction, encryption, sampling, deletion,
-audit, and support bundles. Rubric:
+00:16:19.000 --> 00:16:23.400
+Here is a worked contract. For approved
+build, use startup
 
 169
-00:20:08.333 --> 00:20:12.667
-complete work answers all ten questions
-with signals, exact identity,
+00:16:23.400 --> 00:16:27.800
+inventory and request identity, exact
+model, tokenizer, runtime, configuration,
 
 170
-00:20:12.667 --> 00:20:17.000
-bounded dimensions, owner, decision, and
-retention; versions every field and
+00:16:27.800 --> 00:16:32.200
+adapter, and release identities, with
+environment, route, and release
 
 171
-00:20:17.000 --> 00:20:21.333
-states type, stability, enum, range, and
-cardinality; classifies every field
+00:16:32.200 --> 00:16:36.600
+dimensions. The release owner isolates or
+rolls back; example retention
 
 172
-00:20:21.333 --> 00:20:25.667
-and documents controls; aggregates
-compatible cumulative histograms without
+00:16:36.600 --> 00:16:41.000
+is 90 days for inventory and 30 days for
 
 173
-00:20:25.667 --> 00:20:30.000
-averaging quantiles; shows objective and
-cost arithmetic with denominators; and
+00:16:41.000 --> 00:16:45.400
+request metadata. For valid outcomes, use
+status and outcome counters
 
 174
-00:20:30.000 --> 00:20:34.333
-defines five alerts with firing, routing,
-evidence, runbook, escalation, and
+00:16:45.400 --> 00:16:49.800
+by route, operation, model, release, and
+bounded outcome; product reliability
 
 175
-00:20:34.333 --> 00:20:38.667
-recovery. Deny-all, removed validation, or
-an unowned dashboard does not
+00:16:49.800 --> 00:16:54.200
+staff retain or halt a release for 30
+days. For
 
 176
-00:20:38.667 --> 00:20:43.000
-pass.
+00:16:54.200 --> 00:16:58.600
+a failing reviewed slice, use evaluation
+and outcome counters with
 
 177
-00:20:43.000 --> 00:20:47.432
-The focused defect averages per-replica
-p95 estimates. Unequal traffic means
+00:16:58.600 --> 00:17:03.000
+evaluation-set version, release, bounded
+locale, route, and workload class; the
 
 178
-00:20:47.432 --> 00:20:51.864
-equal replica weighting does not represent
-the combined request population.
+00:17:03.000 --> 00:17:07.400
+evaluation lead blocks promotion or
+commissions tests for 90 days.
 
 179
-00:20:51.864 --> 00:20:56.295
-The repair must validate compatible
-cumulative buckets, sum matching counts,
+00:17:07.400 --> 00:17:11.800
+For time spent, use gateway, queue,
+first-output, processing, tool, and
 
 180
-00:20:56.295 --> 00:21:00.727
-and estimate p95 once. Real integration
-and fixture simulation are
+00:17:11.800 --> 00:17:16.200
+end-to-end histograms plus request-linked
+traces. The performance owner tunes the
 
 181
-00:21:00.727 --> 00:21:05.159
-separate. The fixtures do not prove that
-Meta Llama, Qwen,
+00:17:16.200 --> 00:17:20.600
+measured stage; metrics remain 90 days and
+sampled traces 7
 
 182
-00:21:05.159 --> 00:21:09.591
-DeepSeek, Mistral, Microsoft Phi, NVIDIA
-TensorRT-LLM, a hosted API, a
+00:17:20.600 --> 00:17:25.000
+days. For queued or rejected work, use
+queue histograms, depth
 
 183
-00:21:09.591 --> 00:21:14.023
-serving runtime, cloud billing, or
-production telemetry works. A live
+00:17:25.000 --> 00:17:29.400
+gauges, and rejection counters with
+bounded rejection reasons; the capacity
 
 184
-00:21:14.023 --> 00:21:18.455
-integration would collect authenticated
-telemetry from the deployed gateway,
+00:17:29.400 --> 00:17:33.800
+owner shapes traffic or adds reviewed
+capacity for 30 days.
 
 185
-00:21:18.455 --> 00:21:22.886
-adapter, runtime, and metrics backend,
-then preserve exact identities and
+00:17:33.800 --> 00:17:38.200
+For saturation, use accelerator and host
+utilization, memory headroom, storage,
 
 186
-00:21:22.886 --> 00:21:27.318
-validate exporter behavior. Passing this
-lab is not deployment approval.
+00:17:38.200 --> 00:17:42.600
+and network activity; the infrastructure
+owner changes placement or limits
 
 187
-00:21:27.318 --> 00:21:31.750
-Prediction before execution: baseline
-replicas contain 100, 40, and 10
+00:17:42.600 --> 00:17:47.000
+for 30 days. For quality or security
+change, retain before-and-after
 
 188
-00:21:31.750 --> 00:21:36.182
-requests. Predict whether equal weighting
-of replica p95 values overstates
+00:17:47.000 --> 00:17:51.400
+outcomes, policy and evaluation fixtures,
+old and new exact bundles,
 
 189
-00:21:36.182 --> 00:21:40.614
-or understates the combined p95, and
-explain why. Then run
+00:17:51.400 --> 00:17:55.800
+policy version, bounded test suite, and
+disposition for 180 days.
 
 190
-00:21:40.614 --> 00:21:45.045
-the root-relative command in README.
-Supplied Node 22 run evidence
+00:17:55.800 --> 00:18:00.200
+For cost change, use metered resource time
+and charge allocation
 
 191
-00:21:45.045 --> 00:21:49.477
-requires starter tests to exit 1 with
-empty stderr and
+00:18:00.200 --> 00:18:04.600
+by workload, route, model, release, and
+bounded tenant class; finance
 
 192
-00:21:49.477 --> 00:21:53.909
-stdout: FAIL baseline aggregate: expected
-397.22, received 546.67; FAIL
+00:18:04.600 --> 00:18:09.000
+operations investigates for 13 months
+subject to policy. For recovery,
 
 193
-00:21:53.909 --> 00:21:58.341
-changed-input aggregate: expected 375.00,
-received 391.67; PASS 6 tests; RESULT
+00:18:09.000 --> 00:18:13.400
+use backup, restore, rollback, and probe
+events with elapsed-time histograms;
 
 194
-00:21:58.341 --> 00:22:02.773
-failed=2 passed=6. The repaired tests exit
-0 with empty stderr
+00:18:13.400 --> 00:18:17.800
+the resilience owner accepts or remediates
+for 180 days. For
 
 195
-00:22:02.773 --> 00:22:07.205
-and stdout: PASS 8 tests; RESULT failed=0
-passed=8. Learner activity:
+00:18:17.800 --> 00:18:22.200
+incident scope and reproduction, correlate
+governed traces, deployment events,
 
 196
-00:22:07.205 --> 00:22:11.636
-edit only src/aggregate.mjs. Preserve
-export aggregateP95(input) and its result
+00:18:22.200 --> 00:18:26.600
+deterministic probes, request or run
+identifiers, exact bundles, route, status,
 
 197
-00:22:11.636 --> 00:22:16.068
-schema. Do not edit validator, fixtures,
-or immutable tests. The
+00:18:26.600 --> 00:18:31.000
+and bounded error category under the
+approved incident schedule. The
 
 198
-00:22:16.068 --> 00:22:20.500
-unchanged validator checks schema, unit,
-window, exact identities, unknown fields,
+00:18:31.000 --> 00:18:35.400
+field contract is obs-contract/v1. The
+request identifier is required application
 
 199
-00:22:20.500 --> 00:22:24.932
-finite ranges, monotonic cumulative
-counts, duplicate replica IDs, missing
+00:18:35.400 --> 00:18:39.800
+metadata and prohibited as a metric label.
+Build digests and
 
 200
-00:22:24.932 --> 00:22:29.364
-records, and compatible bucket bounds. A
-constant, deny-all result, discarded
+00:18:39.800 --> 00:18:44.200
+release identifiers have at most 20 active
+values per environment.
 
 201
-00:22:29.364 --> 00:22:33.795
-traffic, removed validation, or changed
-test is not a repair.
+00:18:44.200 --> 00:18:48.600
+Policy disposition is limited to allow,
+deny, review, error, and
 
 202
-00:22:33.795 --> 00:22:38.227
-Changed-input prediction: inspect
-changed.json before running tests. Replica
+00:18:48.600 --> 00:18:53.000
+unknown, with at most 20 active policy
+versions. Latency and
 
 203
-00:22:38.227 --> 00:22:42.659
-3 has most of its 25 requests in the first
+00:18:53.000 --> 00:18:57.400
+queue measurements are finite from 0
+through 3,600,000 milliseconds and
 
 204
-00:22:42.659 --> 00:22:47.091
-two buckets, while replicas 1 and 2 have
-slower tails.
+00:18:57.400 --> 00:19:01.800
+use configured buckets. Error category is
+limited to none, timeout,
 
 205
-00:22:47.091 --> 00:22:51.523
-Predict how traffic-weighted aggregation
-differs from equal averaging. The repaired
+00:19:01.800 --> 00:19:06.200
+overload, invalid request, policy,
+dependency, internal, and unknown.
 
 206
-00:22:51.523 --> 00:22:55.955
-result is 375.00 ms. If baseline passes
-but changed input
+00:19:06.200 --> 00:19:10.600
+Saturation is finite from 0 through 1.
+Allocated cost is
 
 207
-00:22:55.955 --> 00:23:00.386
-fails, the implementation likely memorized
-the baseline or retained replica-level
+00:19:10.600 --> 00:19:15.000
+finite and nonnegative. Unknown enums and
+types are rejected or
 
 208
-00:23:00.386 --> 00:23:04.818
-weighting. Answer key: baseline sums to
-[56,107,143,150]. Rank is 142.5,
+00:19:15.000 --> 00:19:19.400
+mapped explicitly to unknown at the
+adapter boundary. Cardinality alarms
 
 209
-00:23:04.818 --> 00:23:09.250
-in the 200-to-400 ms bucket, producing
-397.22 ms by linear
+00:19:19.400 --> 00:19:23.800
+compare active series with the contract
+budget. Privacy review covers
 
 210
-00:23:09.250 --> 00:23:13.682
-interpolation. Changed sums to
-[29,47,53,55]. Rank is 52.25, producing
+00:19:23.800 --> 00:19:28.200
+access, retention, redaction, encryption,
+sampling, deletion, audit, and support
 
 211
-00:23:13.682 --> 00:23:18.114
-375.00 ms in the 200-to-400 ms bucket. The
-finite final
+00:19:28.200 --> 00:19:32.600
+bundles. Deny-all, removed validation, or
+an unowned dashboard does not
 
 212
-00:23:18.114 --> 00:23:22.545
-bound covers all observations in these
-fixtures. Production histograms need
+00:19:32.600 --> 00:19:37.000
+pass.
 
 213
-00:23:22.545 --> 00:23:26.977
-complete overflow or count evidence and
-this finite-fixture simplification is
+00:19:37.000 --> 00:19:41.500
+Before seeing the answer, inspect
+changed.json. Write down its cumulative
 
 214
-00:23:26.977 --> 00:23:31.409
-not a general ingestion contract. Local
-values are not production
+00:19:41.500 --> 00:19:46.000
+bucket totals and predict whether
+traffic-weighted aggregation will be
 
 215
-00:23:31.409 --> 00:23:35.841
-claims. Provider transfer: Meta Llama,
-Qwen, DeepSeek, Mistral, and Microsoft
+00:19:46.000 --> 00:19:50.500
+higher or lower than equal averaging of
+replica p95 estimates.
 
 216
-00:23:35.841 --> 00:23:40.273
-Phi are distinct model families and
-artifacts. NVIDIA TensorRT-LLM is
+00:19:50.500 --> 00:19:55.000
+Explain your prediction using the fact
+that replica three carries
 
 217
-00:23:40.273 --> 00:23:44.705
-a runtime project, not a model-family
-synonym. These projects do
+00:19:55.000 --> 00:19:59.500
+25 requests and places most of them in the
 
 218
-00:23:44.705 --> 00:23:49.136
-not establish a shared telemetry, API,
-tokenizer, quantization, security, or
+00:19:59.500 --> 00:20:04.000
+first two buckets. Then state the
+postcondition your repair must
 
 219
-00:23:49.136 --> 00:23:53.568
-runtime contract. Capture the actual model
-artifact, runtime, adapter, configuration,
+00:20:04.000 --> 00:20:08.500
+preserve: validation remains active, all
+compatible traffic remains in the
 
 220
-00:23:53.568 --> 00:23:58.000
-and release identities for each
-deployment.
+00:20:08.500 --> 00:20:13.000
+population, and p95 is estimated once from
+summed cumulative buckets.
 
 221
-00:23:58.000 --> 00:24:04.250
-Begin the check when you can start from
-operational questions,
+00:21:28.000 --> 00:21:32.378
+This deterministic Node 22 native module
+lab has no dependencies,
 
 222
-00:24:04.250 --> 00:24:10.500
-preserve exact release identity, defend
-content minimization, interpret latency
+00:21:32.378 --> 00:21:36.757
+network calls, model calls, or live
+integration. The focused defect
 
 223
-00:24:10.500 --> 00:24:16.750
-distributions, avoid averaging replica
-quantiles, and design an actionable alert.
+00:21:36.757 --> 00:21:41.135
+averages per-replica p95 estimates.
+Unequal traffic means equal replica
 
 224
-00:24:16.750 --> 00:24:23.000
-The check starts only when you choose
-Begin knowledge check.
+00:21:41.135 --> 00:21:45.514
+weighting does not represent the combined
+request population. The repair
 
 225
-00:24:23.000 --> 00:24:29.000
-Remember: collect only signals that answer
-owned questions, connect them
+00:21:45.514 --> 00:21:49.892
+must validate compatible cumulative
+buckets, sum matching counts, and estimate
 
 226
-00:24:29.000 --> 00:24:35.000
-to the exact serving build, protect the
-data boundary, measure
+00:21:49.892 --> 00:21:54.270
+p95 once. Preserve the export aggregateP95
+and its result schema.
 
 227
-00:24:35.000 --> 00:24:41.000
-distributions and cost honestly, and test
-every alert through recovery.
+00:21:54.270 --> 00:21:58.649
+Edit only the aggregate implementation. Do
+not edit the validator,
+
+228
+00:21:58.649 --> 00:22:03.027
+fixtures, or immutable tests. The
+validator checks schema, unit, window,
+
+229
+00:22:03.027 --> 00:22:07.405
+exact identities, unknown fields, finite
+ranges, monotonic cumulative counts,
+
+230
+00:22:07.405 --> 00:22:11.784
+duplicate replica identifiers, missing
+records, and compatible bucket bounds. A
+
+231
+00:22:11.784 --> 00:22:16.162
+constant, deny-all result, discarded
+traffic, removed validation, or changed
+
+232
+00:22:16.162 --> 00:22:20.541
+test is not a repair. The root-relative
+starter command is
+
+233
+00:22:20.541 --> 00:22:24.919
+shown visually. Supplied starter evidence
+is exit 1 with empty
+
+234
+00:22:24.919 --> 00:22:29.297
+standard error and standard output: FAIL
+baseline aggregate: expected 397.22,
+
+235
+00:22:29.297 --> 00:22:33.676
+received 546.67; FAIL changed-input
+aggregate: expected 375.00, received
+
+236
+00:22:33.676 --> 00:22:38.054
+391.67; PASS 6 tests; RESULT failed=2
+passed=6. The repaired tests
+
+237
+00:22:38.054 --> 00:22:42.432
+exit 0 with empty standard error and
+standard output: PASS
+
+238
+00:22:42.432 --> 00:22:46.811
+8 tests; RESULT failed=0 passed=8. The
+baseline input has replicas
+
+239
+00:22:46.811 --> 00:22:51.189
+with 100, 40, and 10 requests and
+cumulative counts [50,90,100,100],
+
+240
+00:22:51.189 --> 00:22:55.568
+[5,15,35,40], and [1,2,8,10]. The changed
+input has cumulative sums [29,47,53,55].
+
+241
+00:22:55.568 --> 00:22:59.946
+Its third replica has most of 25 requests
+in the
+
+242
+00:22:59.946 --> 00:23:04.324
+first two buckets, while replicas one and
+two have slower
+
+243
+00:23:04.324 --> 00:23:08.703
+tails. The changed answer is 375.00
+milliseconds. If baseline passes
+
+244
+00:23:08.703 --> 00:23:13.081
+but changed input fails, the
+implementation likely memorized the
+
+245
+00:23:13.081 --> 00:23:17.459
+baseline or retained replica-level
+weighting. The answer key is: baseline
+
+246
+00:23:17.459 --> 00:23:21.838
+sums [56,107,143,150], rank 142.5,
+estimate 397.22 milliseconds. Changed sums
+
+247
+00:23:21.838 --> 00:23:26.216
+[29,47,53,55], rank 52.25, estimate 375.00
+milliseconds in the 200-to-400 millisecond
+
+248
+00:23:26.216 --> 00:23:30.595
+bucket. The finite final bound covers
+these fixtures only. Production
+
+249
+00:23:30.595 --> 00:23:34.973
+ingestion needs complete overflow or count
+evidence. These local values
+
+250
+00:23:34.973 --> 00:23:39.351
+are not production claims. Real
+integration would collect authenticated
+
+251
+00:23:39.351 --> 00:23:43.730
+telemetry from a deployed gateway,
+adapter, runtime, and metrics backend,
+
+252
+00:23:43.730 --> 00:23:48.108
+preserve exact identities, and validate
+exporter behavior. The lab does
+
+253
+00:23:48.108 --> 00:23:52.486
+not establish that any model family,
+runtime, hosted service, billing
+
+254
+00:23:52.486 --> 00:23:56.865
+system, or production telemetry works.
+Distinct model families and a
+
+255
+00:23:56.865 --> 00:24:01.243
+runtime project also do not share a
+telemetry or security
+
+256
+00:24:01.243 --> 00:24:05.622
+contract. Capture actual artifact,
+runtime, adapter, configuration, and
+
+257
+00:24:05.622 --> 00:24:10.000
+release identities for each deployment.
+
+258
+00:24:10.000 --> 00:24:14.188
+Now compare your reasoning with the
+supplied answer. The changed
+
+259
+00:24:14.188 --> 00:24:18.375
+cumulative buckets sum to 29, 47, 53, and
+55. The
+
+260
+00:24:18.375 --> 00:24:22.563
+p95 rank is 0.95 times 55, or 52.25. It
+
+261
+00:24:22.563 --> 00:24:26.750
+lies in the 200-to-400 millisecond bucket.
+Linear interpolation gives 200
+
+262
+00:24:26.750 --> 00:24:30.938
+plus ((52.25 minus 47) divided by (53
+minus 47)) times
+
+263
+00:24:30.938 --> 00:24:35.125
+200, which equals 375.00 milliseconds. The
+result is lower than
+
+264
+00:24:35.125 --> 00:24:39.313
+the defective 391.67 millisecond average
+because the busiest replica has
+
+265
+00:24:39.313 --> 00:24:43.500
+the faster distribution. Equal weighting
+gives each replica one vote,
+
+266
+00:24:43.500 --> 00:24:47.688
+but the combined population gives each
+request one vote. A
+
+267
+00:24:47.688 --> 00:24:51.875
+correct implementation also rejects
+malformed input, preserves compatible
+
+268
+00:24:51.875 --> 00:24:56.063
+observations, and keeps the final
+finite-bound postcondition for these
+
+269
+00:24:56.063 --> 00:25:00.250
+fixtures. Deny-all is not a repair because
+it discards valid
+
+270
+00:25:00.250 --> 00:25:04.438
+traffic and hides operational behavior.
+Removing validation is not a
+
+271
+00:25:04.438 --> 00:25:08.625
+repair because malformed or incompatible
+inputs can corrupt the distribution.
+
+272
+00:25:08.625 --> 00:25:12.813
+The result is a causal explanation, not
+merely a memorized
+
+273
+00:25:12.813 --> 00:25:17.000
+number.
+
+274
+00:25:17.000 --> 00:25:21.000
+Begin the knowledge check when you can
+start from operational
+
+275
+00:25:21.000 --> 00:25:25.000
+questions, preserve exact release
+identity, defend content minimization,
+
+276
+00:25:25.000 --> 00:25:29.000
+interpret latency distributions, avoid
+averaging replica quantiles, and design an
+
+277
+00:25:29.000 --> 00:25:33.000
+actionable alert. The check uses the six
+supplied questions. Choose
+
+278
+00:25:33.000 --> 00:25:37.000
+Begin knowledge check when you are ready.
+It will not
+
+279
+00:25:37.000 --> 00:25:41.000
+start or submit automatically.
+
+280
+00:25:41.000 --> 00:25:45.667
+Remember the operating rule: collect only
+signals that answer owned
+
+281
+00:25:45.667 --> 00:25:50.333
+questions, connect them to the exact
+serving build, protect the
+
+282
+00:25:50.333 --> 00:25:55.000
+data boundary, measure distributions and
+cost honestly, preserve denominators and
+
+283
+00:25:55.000 --> 00:25:59.667
+validation, and test every alert through
+recovery. Synthetic arithmetic can
+
+284
+00:25:59.667 --> 00:26:04.333
+teach reasoning, but it cannot prove a
+production integration. Use
+
+285
+00:26:04.333 --> 00:26:09.000
+evidence that is bounded, attributable,
+and sufficient for the decision.

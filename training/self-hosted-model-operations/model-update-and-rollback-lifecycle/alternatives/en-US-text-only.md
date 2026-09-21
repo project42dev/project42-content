@@ -5,46 +5,72 @@ and assessment handoff without requiring audio, video, or animation.
 
 ## Welcome: Welcome And Outcomes
 
-Welcome. A model update is a release of a complete serving system, not a new label attached to weights. In this class, you will version the whole change unit, qualify the exact candidate, bound its exposure, rehearse rollback as another controlled release, and preserve evidence so approved and rejected combinations remain reconstructable.
+Welcome. This lesson treats a model update as a release of a complete serving system, not as a new label attached to model weights. We will version the entire serving unit, qualify the exact candidate before traffic, stage it with bounded exposure, treat rollback as a tested release, and close the lifecycle with evidence. We will then repair a small local decision program whose deliberate defect allows an incompatible rollback state to promote. The examples are synthetic fixtures. They do not represent live infrastructure, provider execution, authenticated people, production approvals, or rendered media.
+
+Visual alternative: The lesson covers complete serving-unit inventory, candidate gates, bounded rollout, tested rollback, evidence, and a repair lab.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
 
 ## Narration: Change Unit Narration
 
-Version the entire serving unit. Record the immutable model revision and digest together with the tokenizer, prompt template, retrieval configuration, runtime, accelerator libraries, container image, application adapter, gateway contract, safety and authorization policy, infrastructure configuration, evaluation set, and telemetry schema. Any one of these can change quality, latency, memory, security, privacy, compatibility, or recovery. Give the assembled candidate one release identity and produce a machine-readable difference report against the approved baseline. Separate intentional changes from drift discovered during assembly. SLSA provenance describes verifiable information about where, when, and how an artifact was produced. Apply that evidence discipline to every artifact you can, and document governed alternatives where signing or provenance is unavailable. Retain manifests, immutable artifacts or recoverable locations, policy references, and deployment procedures for both baseline and candidate. If neither stack can be reconstructed without guessing at a mutable tag, external file, or operator memory, the release is not reversible.
+Version the entire serving unit. Start with the immutable model revision and digest, but do not stop there. Record the tokenizer, runtime, accelerator libraries, container image, adapters, prompt templates, stop conditions, safety policy, gateway contract, infrastructure configuration, evaluation set, telemetry schema, and state schema. Include data dependencies that can affect serving behavior or recovery. Any one of these can change quality, latency, memory use, security, observability, or compatibility. Give the assembled candidate one release identity and compare it with the currently approved baseline. For every difference, record whether it is intentional, tested, and owned. Unexplained drift is not a harmless detail. It is missing release evidence. Retain the manifests, artifacts, immutable locations, policy references, and deployment procedures needed to reconstruct both releases. A mutable image tag or a remembered command is not enough. SLSA provenance can describe where, when, and how an artifact was produced, but provenance does not prove quality, safety, capacity, or rollback compatibility. Those claims need their own evidence. Required arrays in the operating packet are deliberately nonempty. Accelerator libraries, adapters, prompt templates, stop conditions, and drain conditions must not silently disappear as unknown evidence. If a component is genuinely absent, represent that fact explicitly in the production schema rather than disguising absence as an empty value. Finally, do not infer capabilities from a model-family or software-project name. Meta Llama, Qwen, DeepSeek, Mistral, Microsoft Phi, and NVIDIA software occupy different project surfaces. Inventory the exact artifacts and runtime actually deployed, including their contracts and recovery behavior.
 
-Visual alternative: Baseline and candidate columns show exact versions, digests, provenance status, intentional differences, detected drift, and retained recovery locations.
+Visual alternative: Baseline and candidate columns list exact artifacts, contracts, policies, schemas, differences, owners, and retained locations.
 
 Sources:
 
 - <https://slsa.dev/spec/v1.2/provenance>
 - <https://www.nist.gov/itl/ai-risk-management-framework>
+- <https://github.com/meta-llama/llama-models>
+- <https://github.com/QwenLM/Qwen>
+- <https://github.com/deepseek-ai/DeepSeek-V3>
+- <https://github.com/mistralai/mistral-inference>
+- <https://github.com/microsoft/PhiCookBook>
+- <https://github.com/triton-inference-server/server>
 
 ## Demonstration: Manifest Demonstration
 
-Consider a synthetic upgrade described only as model version two. The manifest reveals four additional changes: a new tokenizer, an inference-server image update, a revised safety template, and a telemetry field rename. The candidate passes a simple response check but fails the old client's streaming parser, uses more accelerator memory, and makes rollback telemetry appear incomplete because the dashboard expects the renamed field. The operator now divides the change. First, restore the application-owned telemetry contract through an adapter. Second, test the client parser against the new server. Third, include tokenizer and memory behavior in the evaluation and capacity gates. The exact difference report transformed one vague model update into four testable changes and prevented a model-tag rollback from leaving incompatible surrounding components.
+Here is a worked synthetic demonstration. The proposed change is initially described as model version two. The complete difference report reveals four additional changes: a new tokenizer, an inference-server image update, a revised safety template, and a telemetry field rename. A simple response check passes, but the old client streaming parser breaks. Accelerator memory also increases, and the dashboard appears incomplete because it expects the old telemetry field. The arithmetic is simple but important. Suppose the baseline uses 8 gigabytes for the serving process and the candidate uses 9.2 gigabytes. The increase is 9.2 minus 8, which is 1.2 gigabytes. Dividing 1.2 by 8 gives 0.15, or a 15 percent increase. That is a capacity input, not a promotion decision. We now split the work into gates. First, restore the application-owned telemetry contract through a tested adapter. Second, test the old client parser against the new server. Third, measure the tokenizer and memory changes in representative quality and capacity cases. Fourth, record the revised safety template as an intentional policy difference. The release identity is therefore not merely model version two. It is the exact assembly and its evidence. The lesson is causal: omitting surrounding dependencies hides the very changes that can make rollback incomplete.
 
-Visual alternative: The worked example exposes a streaming incompatibility, memory increase, and telemetry-contract drift that a model tag alone would hide.
+Visual alternative: The candidate adds a tokenizer, server image, safety template, and telemetry rename; memory rises from 8 to 9.2 gigabytes, a 15 percent increase.
 
 Sources:
 
 - <https://slsa.dev/spec/v1.2/provenance>
-- <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
+- <https://docs.docker.com/engine/containers/resource_constraints/>
 
 ## Narration: Qualify Candidate Narration
 
-Qualify the exact candidate before user traffic. Verify artifact provenance, license disposition, signatures or documented alternatives, dependency inventory, vulnerability findings, configuration policy, environment and driver compatibility, secret references, and required resource availability. Then run the same representative quality, safety, authorization, API compatibility, load, cost, failure, backup, rollback, and recovery cases that approved the baseline. Compare candidate and baseline by case and operational slice, not one average. Predeclare hard failures, allowed deltas, uncertainty, required reviewer roles, and waiver authority before opening the results. The NIST AI Risk Management Framework organizes work around governing, mapping, measuring, and managing risk. A release gate makes those responsibilities concrete: evidence informs the decision, while authorized humans retain promotion authority. A newer model name, larger parameter count, or stronger public benchmark does not override a failed safety, compatibility, privacy, capacity, or recovery gate.
+Qualification asks whether this exact assembly can replace the baseline in this exact environment. Verify provenance, license disposition, signatures or documented alternatives, dependency inventory, vulnerability findings, configuration policy, environment compatibility, secret-handling evidence, and required resource availability. Then test representative quality, safety, API compatibility, load, cost, failure, and recovery cases. Use seven explicit gates. Quality covers representative tasks and operational slices. Safety covers approved cases and hard prohibitions. Security covers provenance, dependencies, vulnerabilities, secret handling, and deployed configuration. Compatibility covers the API, tokenizer, prompt, telemetry, runtime, and state contracts. Capacity covers bounded load, latency, queues, memory, and failure behavior. Cost compares measured resource use with a declared ceiling. Recovery proves that the retained known-good unit and compatible state can be restored and read back. Compare candidate and baseline by case and slice rather than relying on one average. Define hard failures, allowed deltas, uncertainty, owners, and waiver authority before seeing results. Unknown, missing, placeholder, or contradictory evidence does not count as a pass. A newer model-family name cannot override a failed gate. The risk-management framework from NIST helps organize governance and measurement, but a deployment still needs concrete thresholds and accountable decision authority. A process that starts is not a capacity result. Docker documents that containers have no resource constraints by default, so CPU, memory, accelerator allocation, and host capacity belong in tested configuration. Similarly, a security checklist is guidance, not proof that a cluster enforces a setting. For latency distributions, aggregate histogram buckets rather than averaging precomputed quantiles. The lab values are deterministic fixture values, not benchmark claims.
 
-Visual alternative: Each gate compares baseline and candidate by case and slice and names hard failures, uncertainty, reviewer roles, and waiver authority.
+Visual alternative: Quality, safety, security, compatibility, capacity, cost, and recovery each have explicit evidence, thresholds, owners, and dispositions.
 
 Sources:
 
 - <https://www.nist.gov/itl/ai-risk-management-framework>
+- <https://docs.docker.com/engine/containers/resource_constraints/>
+- <https://kubernetes.io/docs/concepts/security/security-checklist/>
+- <https://prometheus.io/docs/practices/histograms/>
 - <https://slsa.dev/spec/v1.2/provenance>
+
+## Demonstration: Qualify Arithmetic Demonstration
+
+Let us make a gate decision from supplied fixture values. The safety guardrail observes a refusal-rate delta of 0.05 and allows a maximum of 0.02. Subtracting the maximum from the observed value gives 0.05 minus 0.02, which equals 0.03 above the limit. Equivalently, 0.05 is 2.5 times 0.02. The result is safety FAIL, not pass. Now consider a cost ceiling of 100 units per observation window. A candidate total of 96 is below the ceiling by 4 units, so cost passes this fixture. That one pass cannot cancel the safety failure. Seven pass labels are also not sufficient when compatibility evidence contradicts rollback evidence. The decision function must inspect the evidence and the gate statuses together. A missing state conversion, a false compatibility claim, or a complete-manifest mismatch remains a recovery failure even if the other six rows pass.
+
+Visual alternative: The observed safety value 0.05 exceeds the maximum 0.02 by 0.03, while cost 96 is below ceiling 100 by 4.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+- <https://prometheus.io/docs/practices/histograms/>
 
 ## Narration: Stage Release Narration
 
-Choose a rollout that matches the environment and consequence. A workstation may use an offline replacement with an explicit restore point. Containers can run baseline and candidate side by side with a controlled route switch. A cluster can use a rolling update, bounded canary, or blue-green service. A shadow comparison can observe candidate behavior only when it cannot create user-visible or external effects and its data use is approved. Kubernetes Deployments support declarative rollout and rollback mechanics, but the application still owns exact model identity, quality gates, mixed-version behavior, and state compatibility. Define maximum users or traffic, observation window, success and guardrail indicators, cost ceiling, required approver, and automatic or manual stop conditions. Verify artifact identity, readiness, warm-up, policy, telemetry, and rollback availability before exposure. Drain old capacity deliberately. Record exact request routing so mixed versions cannot hide which build produced an outcome.
+A rollout converts qualification evidence into bounded exposure. Choose the strategy for the actual environment and consequence. Options include offline replacement, explicit route switching, rolling replacement, canary traffic, blue-green service, and shadow comparison that cannot create user-visible effects. Retain exact request-routing identity in telemetry. The supplied worked packet declares a one percent simulated canary, a ten-minute observation window, a 120-second drain timeout, a cost ceiling, stop conditions, drain conditions, a decision owner, and an executor. The names are synthetic exercise data, not authenticated people or production approvals. Stop on any hard gate failure, unknown serving identity, incompatible state, guardrail breach, or cost-ceiling breach. Draining means stopping new candidate routing, allowing bounded in-flight completion, handling remaining work under a declared policy, and restoring routes only after baseline readiness and identity verification. Kubernetes Deployment mechanics can change a workload template, but the application still owns exact model identity, mixed-version behavior, state compatibility, and postconditions. A shadow comparison is not automatically harmless. Its data use, side effects, and policy must be approved. This local lab reads JSON fixtures only. It invokes no model server, container runtime, cluster API, cloud API, artifact store, approval service, database, or telemetry backend. Passing the lab proves only that local decision code handles supplied evidence consistently. A real integration must resolve retained artifact identities, verify provenance and required signatures, exercise the deployed runtime, read actual routing and telemetry, and obtain authorization through the approved organizational system.
 
-Visual alternative: Each environment has a controlled strategy; no candidate receives traffic before exact identity, warm-up, telemetry, and rollback checks pass.
+Visual alternative: A one percent simulated canary has a ten-minute observation window and a 120-second drain timeout; identity and readiness precede exposure.
 
 Sources:
 
@@ -53,9 +79,9 @@ Sources:
 
 ## Checkpoint: Hard Gate Checkpoint
 
-Checkpoint. A newer candidate improves average quality, but it fails one predeclared safety gate and breaks a required client behavior during the canary. The model name is newer and the rollout has used only five percent of traffic. What happens next?
+Checkpoint. A newer candidate improves average quality, but it fails one predeclared safety gate and breaks a required client behavior during a canary. Exposure is only five percent. What happens next, and what evidence must be retained?
 
-Learner action: Stop candidate exposure, preserve exact routing and failure evidence, restore or retain the approved baseline, reconcile affected work, and require authorized review before any revised release.
+Learner action: State that exposure stops, candidate traffic is removed or drained, the approved baseline is verified, exact identities and failure evidence are retained, and authorized review is required before any revised release.
 
 Sources:
 
@@ -64,11 +90,15 @@ Sources:
 
 ## Pause: Checkpoint Response Time
 
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
 ## Feedback: Hard Gate Feedback
 
-Stop the rollout. Five-percent exposure limits blast radius; it does not convert a hard failure into an acceptable result. Preserve candidate and baseline identities, exact routed requests, the safety failure, compatibility trace, decision, and any affected state without copying unnecessary content. Remove candidate traffic, verify the approved baseline, reconcile in-flight work, and issue a hold or reject disposition. A revised candidate must return through the qualification gates. If your answer continued because the model is newer or the average improved, restore the authority of predeclared safety and compatibility gates.
+The correct action is to stop the rollout. Five percent limits blast radius; it does not convert a hard failure into an acceptable result. Preserve candidate and baseline identities, exact routed requests or approved summaries, the safety failure, the compatibility trace, the decision, and affected-state evidence without retaining secrets or unnecessary request content. Remove candidate traffic, verify the approved baseline, reconcile bounded in-flight work, and issue a hold or reject disposition. A revised candidate must return through qualification. If you continued because the candidate is newer or its average improved, the causal error was allowing aggregate improvement to override predeclared safety and compatibility gates.
 
-If correct: You honored the hard gates, stopped exposure, preserved evidence, and restored the approved baseline.
+If correct: You stopped exposure, honored hard gates, preserved evidence, and restored or verified the approved baseline.
 
 If retrying: Novelty and aggregate improvement cannot override predeclared safety or compatibility failures.
 
@@ -79,9 +109,9 @@ Sources:
 
 ## Narration: Rollback Release Narration
 
-Treat rollback as a tested release of the complete known-good unit. Retain model, tokenizer, runtime, image, adapters, prompt and safety policy, infrastructure configuration, secret references, telemetry contract, and deployment procedure. Identify state that may have changed during the candidate: database schemas, queue formats, caches, tool side effects, evaluation records, or user-visible work. For every forward-only change, provide a compatible reader, restore procedure, migration reversal, or documented compensating path. Rehearse rollback before production using the same authorization, provenance, artifact verification, readiness, warm-up, routing, and postcondition checks as an update. During reversal, stop candidate admission, drain or reconcile bounded in-flight work, restore the complete baseline, and verify exact identity, representative quality, endpoint contract, authorization, queue state, telemetry, cost, and user-visible recovery. Changing an alias to old weights while leaving a new incompatible tokenizer or schema is not a complete rollback.
+Treat rollback as a controlled release whose target is the retained known-good serving unit. Retain the model and tokenizer artifacts, runtime and accelerator dependencies, image, adapters, prompt templates, policy, gateway and infrastructure configuration, evaluation identity, telemetry schema, state schema, secret references, and recovery procedure. A Kubernetes Deployment revision rollback changes the workload template managed by the Deployment controller. It does not automatically restore an external database, undo a schema migration, recreate a queue or vector index, recover an object store, restore deleted artifacts, or make forward-written state readable by an older runtime. State restoration and compatibility therefore need separate evidence and procedures. The validator binds rollback evidence to the actual baseline and candidate state schemas. Baseline state schema evidence must equal the baseline manifest value, and candidate evidence must equal the candidate manifest value. A compatible-rollback claim must agree with a passing recovery gate and non-placeholder compatibility evidence. A false claim must agree with a failed recovery gate. Consider the supplied worked example. Baseline release svc-2026-09-01 uses conversation-v1. Candidate release svc-2026-09-20 uses conversation-v2. There is no tested reverse conversion, so rollback compatibility is false and recovery fails. Six other gates pass. The deliberate defect discards recovery while collecting failures, so the starter promotes. The repaired predicate collects every gate whose status is not pass. The repaired result rejects and reports recovery. During the simulated rehearsal, the safety value is 0.05 and the maximum is 0.02, so 0.05 is greater than 0.02. The guardrail is FAIL and the action is STOP_AND_DRAIN. The exposure is one percent, the observation window is ten minutes, and the drain timeout is 120 seconds. The rollback target and readback release are both svc-2026-09-01. Readiness is true. The complete readback manifest equals the immutable baseline, so READBACK_COMPLETE_MANIFEST_MATCH is true and ROLLBACK_VERIFIED is true. That comparison covers release ID, model, tokenizer, runtime, accelerator libraries, image, adapters, prompt templates, safety policy, gateway contract, infrastructure configuration, evaluation set, telemetry schema, and state schema. One matching model digest is not enough. This is simulated fixture processing, not proof that live traffic was exposed, a drain occurred, external state was restored, artifacts were recovered, or an approval was issued.
 
-Visual alternative: A model alias change alone fails the test; exact identity, behavior, authorization, queues, telemetry, cost, and recovery must all be verified.
+Visual alternative: The baseline uses conversation-v1 and the candidate uses conversation-v2; no reverse conversion exists, so recovery fails until the complete baseline readback is verified.
 
 Sources:
 
@@ -89,11 +119,21 @@ Sources:
 - <https://kubernetes.io/docs/tutorials/kubernetes-basics/update/update-intro/>
 - <https://slsa.dev/spec/v1.2/provenance>
 
+## Demonstration: Rollback Postcondition Demonstration
+
+Let us distinguish identity from postcondition. Matching the baseline model digest proves only that one artifact was selected. It does not prove that the tokenizer, runtime, image, adapters, policy, gateway, infrastructure, evaluation identity, telemetry schema, or state schema match. It also does not prove readiness. The correct logical result requires every required comparison to be true. If there are fourteen independent identity and readiness checks and thirteen are true, the complete match is false, not thirteen fourteenths acceptable. Rollback is a conjunction, not an average. The same reasoning applies to state. If the candidate wrote conversation-v2 and the baseline reads conversation-v1, a route switch alone leaves a postcondition boundary unresolved. Provide a tested conversion, a compatible reader, restoration, or a documented compensating path. Otherwise recovery fails and promotion must be blocked.
+
+Visual alternative: A matching model digest alone is insufficient; all serving dependencies, schemas, and readiness must match the retained baseline.
+
+Sources:
+
+- <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
+
 ## Narration: Evidence Improvement Narration
 
-Close the lifecycle with an evidence ledger. Record who proposed, reviewed, approved, executed, paused, rolled back, and verified the change. Preserve timestamps, immutable versions, test outputs, traffic exposure, stop conditions, decisions, exceptions, expiry, and residual risks without storing secrets or unnecessary request content. Link every decision to reproducible evidence. Feed release and rollback findings back into evaluation cases, thresholds, capacity assumptions, compatibility manifests, state-migration tests, and runbooks. Retain rejected candidates under policy with an explicit disposition and failed gates. That record prevents the same unsafe combination from being rediscovered and promoted later without context. Evidence also expires: when infrastructure, traffic, policy, data, grader, or dependency conditions change, rerun the affected gates rather than treating an old approval as permanent.
+Close the lifecycle with an evidence ledger. Record who proposed, reviewed, approved, executed, paused, rolled back, and verified a change, while distinguishing synthetic exercise records from authenticated organizational records. Retain timestamps, immutable identities, test outputs, exposure, decisions, residual risks, exceptions, expiry, and follow-up without retaining secrets or unnecessary request content. Evidence must make successful and failed decisions reconstructable. Keep rejected candidate combinations with an explicit disposition and failed gates. Use those failures to update evaluation cases, thresholds, capacity assumptions, compatibility manifests, state-migration tests, and runbooks. A test log is evidence about software behavior, not authorization to expose users. Evidence also expires. When infrastructure, traffic, policy, data, graders, or dependencies change, rerun affected gates instead of treating an old approval as permanent. A complete activity preserves complete baseline and candidate manifests, all seven gates, bounded exposure, observation, stop, drain, cost, owner, executor, rollback verification, and residual risks. It rejects contradictory rollback evidence. A deny-all implementation, a hardcoded release identifier, a weakened validator, altered immutable tests, placeholder evidence, or partial readback does not satisfy the activity.
 
-Visual alternative: Approved and rejected candidates remain distinguishable; findings update evaluation, compatibility, capacity, migration, and recovery evidence.
+Visual alternative: Approved and rejected candidates remain distinguishable, and findings update evaluation, compatibility, capacity, migration, and recovery evidence.
 
 Sources:
 
@@ -102,7 +142,7 @@ Sources:
 
 ## Learner Prompt: Activity Transition
 
-Now plan and rehearse the reversible update. Create baseline and candidate manifests for the model, tokenizer, runtime, image, adapters, policies, configuration, infrastructure, evaluation set, and telemetry schema using immutable identities. Define quality, safety, security, compatibility, capacity, cost, and recovery comparisons with hard gates and authorized reviewers. Choose a workstation, container, on-premises, edge, or cloud rollout and specify exposure, observation, stop, drain, routing, and approval controls. Force one guardrail failure in a tabletop or isolated rehearsal, execute rollback, verify the restored endpoint and state, then issue a release, reject, or revise decision with residual risks and follow-up.
+Now plan and rehearse a reversible update. Create baseline and candidate manifests that identify the model, tokenizer, runtime, image, adapters, policies, configuration, infrastructure, evaluation set, telemetry schema, and state schema by immutable identity. Define quality, safety, security, compatibility, capacity, cost, and recovery comparisons with hard gates and authorized reviewers. Select a workstation, container, on-premises, edge, or cloud rollout pattern. Specify exposure, observation, stop, drain, routing, cost, and approval controls. Force one guardrail failure in a tabletop or isolated rehearsal. Execute the rollback procedure and verify the restored endpoint, complete manifest, state compatibility, telemetry, and service postconditions. Then issue a release, reject, or revise decision and record residual risks and follow-up. Use the activity worksheet, not memory, for every identity and control.
 
 Learner action: Complete immutable baseline and candidate manifests, qualification gates, bounded rollout, forced-stop and rollback rehearsal, restored postconditions, human disposition, residual risks, and follow-up evidence.
 
@@ -115,9 +155,53 @@ Sources:
 
 ## Pause: Activity Work Time
 
-## Narration: Repair Lab Lab Narration
+Sources:
 
-Instructor narration: This Node.js 22 native-ESM lab contains one deliberate learner-facing defect. The shared validator and independent reference are already sound and must not be edited. In `src/decision.mjs`, the starter excludes the recovery gate while collecting failures. As a result, the incompatible packet is promoted even though recovery failed. Edit only `src/decision.mjs` so every failed gate blocks promotion. Do not add dependencies, network calls, model APIs, identifier-specific exceptions, or a rule that rejects every input. Prediction before answer: inspect `fixtures/packet.json`. Predict the starter decision from the six passing gates, failed recovery gate, and false compatibility evidence. Then inspect `fixtures/changed-compatible.json`, whose identifiers are different, state schemas agree, rollback evidence is compatible, and all seven gates pass. Predict why a general repair must promote the changed input. Write both predictions and their causal evidence before opening `reference/decision.mjs`. Expected starter result for the first command is exactly `DECISION: PROMOTE`, `ROLLBACK_COMPATIBLE: false`, and `FAILED_GATES: none`, on separate lines, with exit code 0. The starter test run has 29 tests: 28 pass, only `incompatible rollback state blocks promotion` fails, and the process exits 1. TAP durations and ordering across files can vary, so those counts, the failing test name, and the assertion that expected `reject` but received `promote` are the stable expectations. These are expected results derived from the supplied code, not a claim that this corrected artifact was executed. Learner activity: edit only `src/decision.mjs`, preserving its export and return shape. The repaired packet command must print `DECISION: REJECT`, `ROLLBACK_COMPATIBLE: false`, and `FAILED_GATES: recovery`, with exit code 2. The tests must report 29 passing tests, zero failures, and exit 0. The changed fixture must print `DECISION: PROMOTE`, `ROLLBACK_COMPATIBLE: true`, and `FAILED_GATES: none`, with exit code 0. The renamed positive case rules out hardcoded identifiers and deny-all behavior. Answer key and causal feedback: the faulty predicate explicitly excludes the gate named `recovery`. Replace it with a predicate that selects every gate whose status is not `pass`. If the incompatible packet still promotes, recovery is still discarded or overridden. If the renamed compatible packet rejects, the implementation is deny-all or coupled to the original identifiers. If contradictory compatibility evidence, malformed digests, missing fields, unknown enums, empty required arrays, non-finite ranges, or any complete-manifest readback mismatch is accepted, validation or recovery verification was weakened outside the focused defect. Recovery: copy `src/decision.mjs` to `.lab-tmp/decision.backup.mjs` before editing. The README provides bounded commands that touch only that named file under the lab. Restore the backup if needed, or copy `reference/decision.mjs` over the learner file after attempting the exercise. Tests create and remove only `.lab-tmp/changed-input.json`; they do not use the operating-system temporary directory.
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+
+## Learner Prompt: Repair Lab Prediction Pause
+
+Pause here and write two predictions before opening the reference. For the incompatible packet, state the decision, exit code, rollback compatibility value, failed-gate list, and the causal evidence from the state schemas and recovery gate. For the renamed compatible packet, state the decision, exit code, compatibility value, and why different identifiers require a general rule. Also write one malformed-input case that must be rejected. Do not read the answer until you have recorded all three predictions.
+
+Learner action: Record both predictions and one malformed-input rejection rationale before revealing the answer key.
+
+Sources:
+
+- <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
+
+## Pause: Repair Lab Answer Pause
+
+Sources:
+
+- <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
+
+## Narration: Repair Lab Narration
+
+The focused repair lab is a deterministic Node.js 22 native-ESM exercise. It uses local JSON fixtures only. There are no dependencies, network calls, live models, containers, clusters, approval services, databases, or telemetry services. All identities, observations, people, and approvals in the fixtures are synthetic. Passing the lab is not production approval. First inspect fixtures/packet.json and fixtures/changed-compatible.json before opening the reference. Predict the starter decision for the packet with a failed recovery gate. The packet has six passing gates, a false rollback-compatible claim, and state-schema evidence that does not support recovery. The starter is expected to print DECISION: PROMOTE, ROLLBACK_COMPATIBLE: false, and FAILED_GATES: none, each on its own line, with exit code 0. This is supplied expected behavior, not a claim that this artifact was executed live. The supplied starter test evidence reports 29 discovered tests, 28 passing, one failure named incompatible rollback state blocks promotion, and exit code 1. The stable assertion expected reject but received promote. Before the answer, predict the renamed compatible fixture too. Its identifiers differ, its state schemas agree, its rollback evidence is compatible, and all seven gates pass. A general repair must promote it. Rejecting both cases would be deny-all behavior. Back up only src/decision.mjs into the lab's bounded temporary directory. Edit only src/decision.mjs, preserve its export and return shape, and do not modify validation, fixtures, tests, or the independent reference. The defect is precise: the starter predicate excludes the gate named recovery while collecting failed gates. Replace that logic with a predicate selecting every gate whose status is not pass. The repaired packet must print DECISION: REJECT, ROLLBACK_COMPATIBLE: false, and FAILED_GATES: recovery, with exit code 2. The supplied repaired evidence reports 29 passing tests, zero failures, and exit code 0. The changed fixture must print DECISION: PROMOTE, ROLLBACK_COMPATIBLE: true, and FAILED_GATES: none, with exit code 0. The renamed positive case rules out both hardcoded identifiers and deny-all behavior. Causal testing matters. If the incompatible packet still promotes, recovery is still discarded or overridden. If the renamed compatible packet rejects, the repair is identity-specific or deny-all. If malformed digests, missing fields, unknown values, empty required arrays, non-finite ranges, contradictory compatibility evidence, or complete-manifest readback mismatches are accepted, the shared validator or recovery verification was weakened outside the focused defect. The activity also requires teaching malformed-input rejection and the postcondition boundary. A deny-all repair is not valid because promotion of the changed valid case is itself a requirement.
+
+Visual alternative: The learner repairs only src/decision.mjs; the incompatible fixture must reject on recovery, while the renamed compatible fixture must promote.
+
+Sources:
+
+- <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
+
+## Feedback: Repair Lab Feedback
+
+Now compare your predictions with the supplied answer. The incompatible packet must reject because recovery is false and the state evidence does not establish a compatible return to the baseline. Its failed-gate output is recovery, not none. The renamed compatible packet must promote because all seven gates pass, the state schemas agree, and its compatible evidence is valid despite different identifiers. The repair is therefore the general predicate that selects every gate whose status is not pass. It is not a release-name exception and it is not a rule that rejects every packet. The exact repaired packet output is DECISION: REJECT, ROLLBACK_COMPATIBLE: false, FAILED_GATES: recovery, with exit code 2. The supplied evidence reports 29 pass and zero fail for the repaired test suite. The changed fixture output is DECISION: PROMOTE, ROLLBACK_COMPATIBLE: true, FAILED_GATES: none, with exit code 0. Malformed digests, missing fields, unknown enums, empty required arrays, non-finite ranges, contradictory compatibility evidence, and any complete readback mismatch must continue to be rejected by the sound shared validator and recovery checks. Do not weaken those controls to fix this one defect. The causal boundary is clear: promotion depends on every failed gate being retained, while rollback verification depends on complete identity, compatible state, and readiness. The lab processes fixtures only. It does not prove a live rollback, external-state restoration, traffic exposure, or approval.
+
+If correct: You predicted both outcomes, connected rejection to failed recovery evidence, and preserved promotion for the renamed valid case.
+
+If retrying: A repair must retain every non-pass gate while leaving shared validation, independent tests, and complete readback verification intact.
+
+Sources:
+
+- <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
+
+## Demonstration: Repair Lab Commands
+
+Use the repository-root commands supplied by the lab README. The first command runs the local decision program against the incompatible packet. The second runs both immutable test files. The third runs the renamed compatible fixture. The fourth runs the simulated guardrail and rollback rehearsal. The selectable command block contains the full root-relative paths. The supplied rehearsal output is simulation-only, exposure is one percent, observation is ten minutes, the guardrail observes 0.05 against a maximum of 0.02, and the action is STOP_AND_DRAIN with a 120-second drain timeout. It reports baseline readback, readiness true, complete manifest match true, and rollback verified true. Those outputs are fixture processing. They must never be narrated as live infrastructure results. To recover the workspace, restore the named backup or copy the independent reference over the learner file using the bounded README commands. The tests create and remove only the lab-local changed-input file.
+
+Visual alternative: All commands are root-relative and bounded to the named lab; no live service or external integration is invoked.
 
 Sources:
 
@@ -125,8 +209,19 @@ Sources:
 
 ## Assessment Handoff: Assessment Handoff
 
-Begin the check when you can define the complete serving unit, compare candidate and baseline by case and slice, preserve exact canary routing, stop on a hard gate, prove complete rollback, and retain rejected-candidate evidence. The check starts only when you choose Begin knowledge check.
+Begin the knowledge check when you can define the complete serving unit, compare candidate and baseline by case and slice, identify all seven qualification gates, preserve exact canary routing, stop on a hard gate, distinguish deployment revision rollback from external state restoration, verify complete baseline readback, and retain rejected-candidate evidence. The check contains six questions. It opens only when you choose Begin knowledge check. Nothing is submitted automatically.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
+- <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
 
 ## Closing: Class Closing
 
-Remember: version the whole serving unit, qualify what will actually run, bound every rollout, and rehearse the complete compatible baseline as a release before you need it.
+Remember the lifecycle rule: version the whole serving unit, qualify exactly what will run, bound every rollout, and rehearse the complete compatible baseline as a release before you need it. Preserve the evidence for both promotion and rejection. A rollback is complete only when identity, state, readiness, behavior, and postconditions are verified.
+
+Visual alternative: Version, qualify, bound, rehearse, and verify the complete serving unit and its evidence.
+
+Sources:
+
+- <https://www.nist.gov/itl/ai-risk-management-framework>
