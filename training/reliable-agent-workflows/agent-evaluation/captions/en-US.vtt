@@ -475,30 +475,272 @@ thresholds, and add one failure to the
 regression set.
 
 97
-00:14:19.000 --> 00:14:26.000
+00:14:19.000 --> 00:14:23.345
+A release gate is only meaningful over a
+defined numeric
+
+98
+00:14:23.345 --> 00:14:27.690
+domain. JavaScript addition can
+concatenate strings, comparisons with NaN
+
+99
+00:14:27.690 --> 00:14:32.034
+are false, and malformed string thresholds
+can make every comparison
+
+100
+00:14:32.034 --> 00:14:36.379
+false. A generic mean function must
+therefore require a non-empty
+
+101
+00:14:36.379 --> 00:14:40.724
+array of finite numbers rather than
+relying on coercion. The
+
+102
+00:14:40.724 --> 00:14:45.069
+prior defective boundary behavior was
+measured explicitly. A string total
+
+103
+00:14:45.069 --> 00:14:49.414
+of not-a-score produced a NaN average but
+still yielded SHIP.
+
+104
+00:14:49.414 --> 00:14:53.759
+A total of 101 exceeded the 100-point
+rubric but still
+
+105
+00:14:53.759 --> 00:14:58.103
+yielded SHIP. String thresholds caused
+zero-score cases to yield SHIP.
+
+106
+00:14:58.103 --> 00:15:02.448
+A negative total happened to produce HOLD,
+but the decision
+
+107
+00:15:02.448 --> 00:15:06.793
+did not make the malformed input valid.
+All four inputs
+
+108
+00:15:06.793 --> 00:15:11.138
+must now be rejected before release
+aggregation. Validation checks each
+
+109
+00:15:11.138 --> 00:15:15.483
+fixed ID and its corresponding slice,
+required strings, non-empty string
+
+110
+00:15:15.483 --> 00:15:19.828
+trajectories, Boolean critical flags,
+finite score fields, component ranges,
+
+111
+00:15:19.828 --> 00:15:24.172
+total range, exact score sum, nonnegative
+finite latency and cost
+
+112
+00:15:24.172 --> 00:15:28.517
+evidence, human and model scores in the 0
+to 100
+
+113
+00:15:28.517 --> 00:15:32.862
+domain, unique IDs, finite threshold
+ranges, and maxCriticalPolicyFailures
+
+114
+00:15:32.862 --> 00:15:37.207
+exactly equal to zero. When the full
+contract is requested,
+
+115
+00:15:37.207 --> 00:15:41.552
+it also requires all ten stable IDs and
+all four
+
+116
+00:15:41.552 --> 00:15:45.897
+slices. The starter and reference gates
+share schema-validation.mjs. This is
+
+117
+00:15:45.897 --> 00:15:50.241
+intentional. The learner is repairing only
+the release decision, not
+
+118
+00:15:50.241 --> 00:15:54.586
+rediscovering input validation. The sole
+starter defect is that detected
+
+119
+00:15:54.586 --> 00:15:58.931
+critical failures are not added to the
+reasons array. Failing
+
+120
+00:15:58.931 --> 00:16:03.276
+closed means malformed evidence cannot
+produce SHIP. The evaluator throws
+
+121
+00:16:03.276 --> 00:16:07.621
+a validation error, and the command-line
+wrapper catches it, prints
+
+122
+00:16:07.621 --> 00:16:11.966
+a validation HOLD, and exits 1. Tests pass
+only when
+
+123
+00:16:11.966 --> 00:16:16.310
+a specified malformed input is rejected
+with a matching validation
+
+124
+00:16:16.310 --> 00:16:20.655
+error. An unexpected exception is a failed
+test, not a
+
+125
+00:16:20.655 --> 00:16:25.000
+pass.
+
+126
+00:16:25.000 --> 00:16:29.450
+After the worked repair, evaluate the
+independent recovery fixture without
+
+127
+00:16:29.450 --> 00:16:33.900
+changing the original ten cases. It
+overrides only ADV-01 candidate
+
+128
+00:16:33.900 --> 00:16:38.350
+evidence. The unsafe account write is
+replaced by escalate_to_human, policy
+
+129
+00:16:38.350 --> 00:16:42.800
+rises from 0 to 20, the total rises from
+
+130
+00:16:42.800 --> 00:16:47.250
+80 to 100, and the critical flag becomes
+false. Predict
+
+131
+00:16:47.250 --> 00:16:51.700
+the result before running it.
+Representative remains 93.00, boundary
+
+132
+00:16:51.700 --> 00:16:56.150
+remains 87.00, adversarial becomes 95.00,
+regression remains 90.00, and the
+
+133
+00:16:56.150 --> 00:17:00.600
+overall mean becomes 91.60. Because
+validation passes, all numeric gates
+
+134
+00:17:00.600 --> 00:17:05.050
+pass, and there are no critical failures,
+the result must
+
+135
+00:17:05.050 --> 00:17:09.500
+be SHIP with exit 0. This supplies causal
+feedback. If
+
+136
+00:17:09.500 --> 00:17:13.950
+the original and recovery both HOLD, the
+repair may be
+
+137
+00:17:13.950 --> 00:17:18.400
+deny-all. If both SHIP, the zero-tolerance
+condition is still absent.
+
+138
+00:17:18.400 --> 00:17:22.850
+If malformed evidence SHIPs, validation is
+incomplete. Only HOLD for
+
+139
+00:17:22.850 --> 00:17:27.300
+the original, SHIP for recovery, and
+rejection of malformed variants
+
+140
+00:17:27.300 --> 00:17:31.750
+demonstrates the intended behavior. Create
+a second learner-owned variation by
+
+141
+00:17:31.750 --> 00:17:36.200
+lowering both adversarial totals to 79
+while raising the other
+
+142
+00:17:36.200 --> 00:17:40.650
+eight valid totals to 100. Keep component
+sums valid. Its
+
+143
+00:17:40.650 --> 00:17:45.100
+overall mean is 95.80, but its adversarial
+mean is 79.00.
+
+144
+00:17:45.100 --> 00:17:49.550
+Predict HOLD. This proves that a strong
+overall score does
+
+145
+00:17:49.550 --> 00:17:54.000
+not override a weak required slice.
+
+146
+00:17:54.000 --> 00:18:01.000
 When ready, begin the knowledge check. You
 will place thresholds
 
-98
-00:14:26.000 --> 00:14:33.000
+147
+00:18:01.000 --> 00:18:08.000
 before results, score agent trajectories,
 calibrate model graders, enforce critical
 
-99
-00:14:33.000 --> 00:14:40.000
+148
+00:18:08.000 --> 00:18:15.000
 slices, and identify the versions required
 for reproducibility.
 
-100
-00:14:40.000 --> 00:14:44.667
+149
+00:18:15.000 --> 00:18:19.667
 Predeclare the claim, cover reality and
 failure, score outcome and
 
-101
-00:14:44.667 --> 00:14:49.333
+150
+00:18:19.667 --> 00:18:24.333
 trajectory, compare identical cases, honor
 critical gates, and preserve every
 
-102
-00:14:49.333 --> 00:14:54.000
+151
+00:18:24.333 --> 00:18:29.000
 version needed to reproduce the decision.

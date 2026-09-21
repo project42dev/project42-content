@@ -1,22 +1,23 @@
 {
   "id": "structured-outputs-mastery",
   "title": "Guaranteed Structured Outputs & Schemas",
-  "summary": "Write one JSON Schema that survives three constrained decoders: what OpenAI, Claude, and Gemini structured outputs actually guarantee, the schema subset all three accept, SDK helpers that rewrite your schema, and the refusal, truncation, and casing failures a guarantee does not cover.",
+  "summary": "Write one portable JSON Schema for three provider APIs, then defend the application boundary against ambiguous JSON, unknown fields, exceptional completion states, invalid trusted context, ungrounded evidence, violated business invariants, and unauthorized actions.",
   "level": "intermediate",
   "reviewCadenceDays": 30,
-  "lastVerified": "2026-09-13",
+  "lastVerified": "2026-09-21",
   "providers": [
     "provider-neutral",
     "anthropic",
     "openai",
     "google"
   ],
-  "estimatedMinutes": 50,
+  "estimatedMinutes": 95,
   "objectives": [
-    "State precisely what constrained decoding guarantees on each provider -- schema-shaped output -- and what it leaves to the application.",
-    "Design a schema inside the subset that OpenAI strict mode, Claude structured outputs, and Gemini structured output all accept, and enforce the constraints they drop with local validation.",
-    "Use Zod or Pydantic SDK helpers without letting the schema the model sees drift away from the schema your code enforces.",
-    "Detect and handle refusals, truncation, enum-casing drift, and inputs that cannot produce a valid answer."
+    "Explain that constrained decoding guarantees schema-shaped output, not factual correctness, evidence support, or authorization.",
+    "Design a schema inside a conservative subset shared by OpenAI Structured Outputs, Claude structured outputs, and Gemini structured output.",
+    "Distinguish the schema sent to a provider from the stronger validation performed locally by an SDK or application.",
+    "Handle refusals, truncation, malformed trusted context, duplicate decoded keys, unknown fields, evidence failures, unsafe numeric values, and failed authorization without coercion.",
+    "Identify the exact model, runtime, and API before transferring provider-specific structured-output claims to another deployment."
   ],
   "prerequisites": [
     "provider-sdk-patterns"
@@ -24,153 +25,258 @@
   "sections": [
     {
       "id": "what-the-guarantee-covers",
-      "title": "What 'guaranteed' actually guarantees",
+      "title": "What the guarantee covers",
       "paragraphs": [
-        "All three providers can now constrain generation to a JSON Schema you supply. OpenAI Structured Outputs makes the response adhere to the schema, so the model cannot omit a required key or invent an enum value; in the Responses API it is enabled with a `text.format` of type `json_schema` and `strict: true`. OpenAI recommends it over the older JSON mode, which guarantees valid JSON but not schema adherence. Claude structured outputs use constrained decoding: `output_config.format` with type `json_schema` returns JSON matching your schema in the response's text block, and `strict: true` on a tool definition applies the same guarantee to tool inputs. Gemini produces responses that adhere to a supplied JSON Schema when you request `application/json` output with a schema.",
-        "The guarantee is about shape. OpenAI notes that Structured Outputs can still contain mistakes, and that the model will always try to fit the schema -- which can produce hallucinated values when the input has nothing to do with it. Google's best-practice list says the same thing more briefly: the output is syntactically correct JSON, so always validate the values in your application.",
-        "Two operational details follow from how Claude builds the guarantee. It compiles each schema into a grammar: the first request with a new schema pays compilation latency, compiled grammars stay cached for 24 hours from last use, and changing the schema's structure invalidates that cache while changing only names or descriptions does not. Anthropic also injects a system prompt describing the expected format, which costs input tokens. And because schemas are cached separately from message content, Anthropic states that PHI must not appear in schema property names, `enum` or `const` values, or `pattern` expressions."
+        "OpenAI Structured Outputs uses a `text.format` object of type `json_schema` with `strict: true`. For a supported strict schema, this constrains generated output to requirements such as required properties, enum values, and `additionalProperties: false`. Claude structured outputs use `output_config.format` with type `json_schema`; `strict: true` on a Claude tool constrains tool inputs. Gemini requests structured JSON with an `application/json` response MIME type and a schema. These are distinct provider contracts, not a universal capability of every model or runtime.",
+        "A schema-valid value can still identify the wrong account, cite an unrelated transaction, exceed a refundable balance, or request an action the caller cannot perform. The application must therefore answer four separate questions: Did generation finish normally? Is there one unambiguous JSON document? Does it satisfy local structural and business rules? Is the proposed action grounded and independently authorized? Success at one boundary does not establish success at the next.",
+        "The lab uses deterministic normalized response fixtures. It does not call a provider and cannot establish live provider behavior. A real integration must map documented provider status and content fields into the normalized envelope before invoking the same application-side gate."
       ],
-      "callout": "Schema-valid is a statement about syntax and types. Correct, grounded, and authorized are still your job.",
+      "callout": "Schema-valid means that a value has the requested shape. It does not mean that the value is true, supported, safe, or authorized.",
       "code": {
         "language": "typescript",
-        "label": "One schema, three request shapes",
-        "code": "const schema = { type: \"object\", properties: { /* ... */ }, required: [/* ... */], additionalProperties: false };\n\n// OpenAI Responses API\nconst openaiRequest = {\n  model, input,\n  text: { format: { type: \"json_schema\", name: \"ticket\", strict: true, schema } },\n};\n\n// Claude Messages API\nconst claudeRequest = {\n  model, max_tokens: 1024, messages,\n  output_config: { format: { type: \"json_schema\", schema } },\n};\n\n// Gemini Interactions API. (Google's migration guide shows generateContent using\n// responseMimeType and responseSchema inside config for the same purpose.)\nconst geminiRequest = {\n  model, input,\n  response_format: { type: \"text\", mime_type: \"application/json\", schema },\n};\n\n// model comes from configuration -- see the provider SDK patterns module."
+        "label": "Provider-specific request shapes",
+        "code": "const schema = {\n  type: \"object\",\n  properties: { /* portable properties */ },\n  required: [/* every property */],\n  additionalProperties: false,\n};\n\nconst openaiRequest = {\n  model,\n  input,\n  text: { format: { type: \"json_schema\", name: \"ticket\", strict: true, schema } },\n};\n\nconst claudeRequest = {\n  model,\n  max_tokens: 1024,\n  messages,\n  output_config: { format: { type: \"json_schema\", schema } },\n};\n\nconst geminiInteraction = {\n  model,\n  input,\n  response_format: { type: \"text\", mime_type: \"application/json\", schema },\n};"
       }
     },
     {
       "id": "portable-schema-subset",
-      "title": "The schema subset all three will accept",
+      "title": "Use a conservative portable schema subset",
       "paragraphs": [
-        "Each provider accepts a different subset of JSON Schema, and the differences are not cosmetic. OpenAI strict mode requires every property to appear in `required` (emulate an optional field with a type union such as `[\"string\", \"null\"]`), requires `additionalProperties: false` on every object, forbids a root-level `anyOf`, and supports `$defs` and recursive schemas as well as `pattern`, `format`, `minimum`/`maximum`, and `minItems`/`maxItems`. It does not support `allOf`, `not`, or `if`/`then`/`else`, and it caps a schema at 5,000 object properties and 10 levels of nesting.",
-        "Claude structured outputs allow optional properties but count them: at most 24 optional parameters and 16 union-typed parameters across all strict schemas in one request, and at most 20 strict tools. `additionalProperties` must be `false`; recursive schemas, numeric constraints such as `minimum` and `maximum`, string length constraints, and array constraints beyond a `minItems` of 0 or 1 are not supported and return a 400. Property order follows the schema except that required properties come first. Gemini documents `enum`, `format`, `minimum`/`maximum`, `minItems`/`maxItems`, `prefixItems`, and nullable type arrays, lets `additionalProperties` be a boolean or a schema, and warns that very large or deeply nested schemas may be rejected.",
-        "The portable core is therefore narrow and predictable: an object at the root; every property required, with `null` in a type union where a value may be absent; `additionalProperties: false` on every object; string enums; `$defs` only where reuse needs it, and no recursion; and no numeric or length constraints in the schema you send. Keep those constraints -- they are real business rules -- but enforce them in a local validation step after the response arrives. Making every property required also settles ordering: OpenAI emits keys in schema order and Claude emits required keys first, so an all-required schema comes back in one order from both."
+        "The three providers document different JSON Schema subsets. OpenAI strict mode requires every property to be listed in `required`, represents an optional value with a null union, and requires `additionalProperties: false` on objects. It does not permit a root `anyOf` or keywords such as `allOf`, `not`, and `if` with `then` and `else`. Its documented limits include 5,000 object properties and 10 nesting levels.",
+        "Claude permits optional properties but requires `additionalProperties: false`. Its structured-output documentation excludes recursion, numeric constraints, string-length constraints, and most array constraints. Gemini documents support for enum, format, numeric and item bounds, `prefixItems`, nullable values, and boolean or schema-valued `additionalProperties`, while warning that sufficiently large or complex schemas can be rejected.",
+        "A conservative intersection is a root object, all properties required, null unions for absent values, `additionalProperties: false` on every object, string enums, nonrecursive definitions when needed, and no numeric or length constraints in the provider schema. This is a portability strategy derived from the cited provider documentation. It is not a restriction imposed by JSON Schema itself.",
+        "Rules omitted from the portable schema do not disappear. Positive safe-integer amounts, string lengths, evidence relationships, and authorization limits must be checked by local code with negative tests."
       ],
       "code": {
         "language": "json",
-        "label": "A schema inside the portable subset",
-        "code": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": { \"type\": \"string\", \"enum\": [\"billing\", \"access\", \"bug\", \"other\"] },\n    \"priority\": { \"type\": \"string\", \"enum\": [\"low\", \"normal\", \"urgent\"] },\n    \"customer_email\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"The sender's email address, or null when the message contains none.\"\n    },\n    \"summary\": { \"type\": \"string\", \"description\": \"One sentence, under 200 characters.\" },\n    \"needs_human\": { \"type\": \"boolean\" }\n  },\n  \"required\": [\"category\", \"priority\", \"customer_email\", \"summary\", \"needs_human\"],\n  \"additionalProperties\": false\n}"
+        "label": "Portable ticket schema",
+        "code": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": { \"type\": \"string\", \"enum\": [\"billing\", \"access\", \"bug\", \"other\"] },\n    \"priority\": { \"type\": \"string\", \"enum\": [\"low\", \"normal\", \"urgent\"] },\n    \"customer_email\": { \"type\": [\"string\", \"null\"] },\n    \"summary\": { \"type\": \"string\", \"description\": \"One sentence, under 200 characters.\" },\n    \"needs_human\": { \"type\": \"boolean\" }\n  },\n  \"required\": [\"category\", \"priority\", \"customer_email\", \"summary\", \"needs_human\"],\n  \"additionalProperties\": false\n}"
       }
     },
     {
       "id": "sdk-helpers-and-local-validation",
-      "title": "SDK helpers rewrite your schema -- validate against the original",
+      "title": "Validate against the original local contract",
       "paragraphs": [
-        "Hand-maintained JSON Schema drifts away from the types your code actually uses. OpenAI strongly recommends the SDKs' native Pydantic (Python) and Zod (JavaScript) support, or a CI step that regenerates the schema from the types or the other way round. The helpers look alike across providers: OpenAI's JavaScript SDK pairs `responses.parse` with `zodTextFormat` and returns `output_parsed`; Anthropic's TypeScript SDK pairs `messages.parse` with `zodOutputFormat` (or `jsonSchemaOutputFormat` without Zod) and returns `parsed_output`; Google's structured output guide shows the same pattern with Pydantic in Python and Zod in JavaScript, parsing the returned text locally.",
-        "Read what a helper does before trusting it. Anthropic documents that its Python, TypeScript, Ruby, and PHP SDKs transform a schema that uses unsupported features: they remove constraints such as `minimum` and `maxLength`, append each removed constraint to the field description, add `additionalProperties: false` to every object, filter string formats to the supported list, and then validate the response against your original schema. The model sees the relaxed schema; your code still enforces the strict one. OpenAI takes the opposite approach with `strict: true` and rejects an unsupported schema with an error -- which is why a Zod discriminated union, which produces a root-level `anyOf`, fails there.",
-        "Your own validator needs the same scrutiny. In JSON Schema 2020-12, `format` is an annotation by default: the specification requires implementations that can assert formats to keep that behavior disabled unless it is switched on, so a local validator may accept `\"not-an-email\"` for `format: \"email\"` without complaint. Omitting `additionalProperties` allows any extra property, and `required` asserts only that the named keys are present. Decide explicitly which of these your local check enforces, then prove it with a deliberately bad payload."
+        "OpenAI's JavaScript SDK supports `responses.parse` with `zodTextFormat` and exposes `output_parsed`. Anthropic's TypeScript SDK supports `zodOutputFormat` and `jsonSchemaOutputFormat`. Anthropic documents that its helpers can remove unsupported constraints such as minimum and maximum string length from the schema sent to the model, add `additionalProperties: false`, place removed constraints in descriptions, and validate returned data against the original local definition.",
+        "Gemini's structured-output documentation shows parsing returned structured text in application code. Regardless of helper, retain a clear distinction between the provider-facing schema and the local validator. Add a negative test for every business constraint that is weakened or omitted in the provider-facing representation.",
+        "JSON Schema 2020-12 defines `format` as annotation behavior by default. Format assertion is optional. A schema containing `format: \"email\"` therefore does not prove that a particular validator configuration rejects an invalid email. Establish that behavior with the validator's documentation and tests."
       ],
       "code": {
         "language": "typescript",
-        "label": "One source of truth, enforced after the response",
-        "code": "import { z } from \"zod\";\n\n// The API receives a relaxed JSON Schema; this object still enforces\n// the rules the API could not (email format, 200-character summary).\nconst Ticket = z.strictObject({\n  category: z.enum([\"billing\", \"access\", \"bug\", \"other\"]),\n  priority: z.enum([\"low\", \"normal\", \"urgent\"]),\n  customer_email: z.nullable(z.email()),\n  summary: z.string().max(200),\n  needs_human: z.boolean(),\n});\n\n// OpenAI:    client.responses.parse({ ..., text: { format: zodTextFormat(Ticket, \"ticket\") } })\n//            -> response.output_parsed\n// Anthropic: client.messages.parse({ ..., output_config: { format: zodOutputFormat(Ticket) } })\n//            -> response.parsed_output\n// Gemini:    send the JSON Schema, then parse the returned text yourself:\nconst ticket = Ticket.parse(JSON.parse(outputText));"
+        "label": "Local validation remains authoritative",
+        "code": "const Ticket = z.strictObject({\n  category: z.enum([\"billing\", \"access\", \"bug\", \"other\"]),\n  priority: z.enum([\"low\", \"normal\", \"urgent\"]),\n  customer_email: z.nullable(z.email()),\n  summary: z.string().max(200),\n  needs_human: z.boolean(),\n});\n\n// OpenAI can return response.output_parsed through responses.parse.\n// Anthropic can return parsed_output through messages.parse.\n// For Gemini structured text, parse the JSON and then apply the local validator.\nconst ticket = Ticket.parse(JSON.parse(outputText));"
       }
     },
     {
       "id": "failures-the-guarantee-leaves",
-      "title": "Refusals, truncation, and casing: what still reaches your code",
+      "title": "Check exceptional completion states first",
       "paragraphs": [
-        "Constrained decoding cannot stop the model from refusing or from running out of tokens, and either one produces output that does not match your schema. Claude signals a safety refusal with `stop_reason: \"refusal\"` and HTTP 200, bills the tokens it generated, and lets the refusal message take precedence over the schema; a cut-off response has `stop_reason: \"max_tokens\"` and may be incomplete, and Anthropic's remedy is to retry with a higher `max_tokens`. OpenAI returns a `refusal` content item in place of schema output, and marks truncation with `status: \"incomplete\"` and an `incomplete_details.reason` of `max_output_tokens`. Check these signals before you parse, not after the parser throws.",
-        "Some drift is quieter. Anthropic documents that structured outputs do not guarantee the capitalization of string `enum` and `const` values: the model may return a value that differs from the schema only in case -- typically the first letter of a word after a space -- with no error and no special stop reason. Never define two values that differ only by case. If your domain permits case-insensitive matching, explicitly map known values to canonical spellings before local validation; otherwise reject the mismatch. The strict reader below takes the rejection path. Anthropic also lists structured outputs as incompatible with citations (a 400) and with message prefilling.",
-        "Finally, give the model a legitimate way out. Because the model always tries to satisfy the schema, OpenAI advises telling it in the prompt what to return when the input cannot produce a valid response. Build that answer into the schema itself -- an `\"other\"` category, a null field, a `needs_human` flag -- so that 'this email is not a support ticket' does not come back as a confidently filled-in ticket."
+        "Claude can return `stop_reason: \"refusal\"` with HTTP 200 and can report token truncation with `stop_reason: \"max_tokens\"`. OpenAI can return a refusal content item, or `status: \"incomplete\"` with an `incomplete_details.reason` such as `max_output_tokens`. Check these signals before selecting or parsing JSON text.",
+        "A refusal is not malformed JSON, and truncation is not a schema-validation error. Recovery must preserve those distinct outcomes. A policy might send a refusal to human review or retry genuine truncation with a larger output allowance. Parsing partial text is not a substitute for handling the completion state.",
+        "Anthropic also documents that enum and const capitalization is not guaranteed. Normalize only through a closed, domain-approved mapping. Never silently lowercase identifiers, evidence IDs, account IDs, action names, or authorization scopes."
       ],
-      "callout": "Look at stop_reason, status, and refusal items first. JSON.parse is the last step, not the error handler.",
+      "callout": "Inspect completion and refusal metadata before parsing output text.",
       "code": {
         "language": "typescript",
         "label": "Check the stop signal, then parse, then validate",
         "code": "type Read<T> =\n  | { ok: true; value: T }\n  | { ok: false; reason: \"refused\" | \"truncated\" | \"invalid\"; detail: string };\ntype Part = { type: string; text?: string; refusal?: string };\n\nfunction parseAndValidate(parts: Part[], textType: string): Read<unknown> {\n  const texts = parts.filter((p) => p.type === textType);\n  // This extraction contract expects exactly one schema document, not several messages.\n  if (texts.length !== 1 || typeof texts[0].text !== \"string\" || !texts[0].text.trim())\n    return { ok: false, reason: \"invalid\", detail: \"Expected one non-empty JSON text block.\" };\n  try {\n    const value = JSON.parse(texts[0].text);\n    return { ok: true, value: Ticket.parse(value) }; // full local schema, including extra-key rejection\n  } catch {\n    return { ok: false, reason: \"invalid\", detail: \"Malformed JSON or local schema violation.\" };\n  }\n}\n\nfunction readClaude(msg: { stop_reason: string | null; content: Part[] }): Read<unknown> {\n  if (msg.stop_reason === \"refusal\") return { ok: false, reason: \"refused\", detail: \"Safety refusal.\" };\n  if (msg.stop_reason === \"max_tokens\") return { ok: false, reason: \"truncated\", detail: \"Token limit reached.\" };\n  if (msg.stop_reason !== \"end_turn\") return { ok: false, reason: \"invalid\", detail: \"Extraction did not finish normally.\" };\n  return parseAndValidate(msg.content, \"text\");\n}\n\nfunction readResponses(r: { status: string; incomplete_details?: { reason?: string }; output: { type: string; content?: Part[] }[] }): Read<unknown> {\n  const parts = r.output.filter((i) => i.type === \"message\").flatMap((i) => i.content ?? []);\n  if (parts.some((p) => p.type === \"refusal\")) return { ok: false, reason: \"refused\", detail: \"Safety refusal.\" };\n  if (r.status === \"incomplete\") return { ok: false, reason: \"truncated\", detail: r.incomplete_details?.reason ?? \"Incomplete response.\" };\n  if (r.status !== \"completed\") return { ok: false, reason: \"invalid\", detail: \"Response is not completed.\" };\n  return parseAndValidate(parts, \"output_text\");\n}\n\n// Ticket is the strict schema from the preceding example. No failed result is persisted.\n// A casing mismatch is rejected here. If the domain permits normalization, map only\n// known enum values to canonical spelling before Ticket.parse; never bypass validation."
       }
+    },
+    {
+      "id": "semantic-truth-evidence-and-authorization",
+      "title": "Bind every claim to trusted context",
+      "paragraphs": [
+        "The refund gate validates both generated output and trusted application context. Trusted request IDs, subject IDs, evidence records, authorization actions, refundable amounts, and authorization limits must have exact expected types. Numeric values must be positive safe integers. Strings such as `\"40\"` and `\"unlimited\"`, missing values, `NaN`, infinity, and integers beyond JavaScript's safe range are rejected rather than coerced.",
+        "Every cited evidence ID must be nonempty and unique. Every cited record must exist, belong to the requested subject, and use the output currency. The evidence registry itself must also have unique IDs. Building a `Map` directly from unchecked records would silently keep the last duplicate, so the gate detects a duplicate registry ID before constructing its lookup.",
+        "This lesson gives refund evidence a nonambiguous meaning: exactly one cited transaction supplies the refundable amount. The output amount must not exceed that transaction's trusted refundable amount. Multiple citations are not automatically summed. If every cited record is otherwise correctly bound, multiple records are rejected as `evidence_aggregation_unsupported` because the application has no rule allocating or aggregating their balances.",
+        "Authorization is independent of evidence. The caller's trusted authorization must name the same subject, include the exact `refund` action, and contain a positive safe-integer maximum at least as large as the requested amount. A model-generated field cannot grant permission."
+      ],
+      "callout": "A citation is not enough. Check every cited record, the registry, the amount semantics, and authorization."
+    },
+    {
+      "id": "worked-evidence-example",
+      "title": "Worked example with causal checks",
+      "paragraphs": [
+        "Consider output for request `req-100`, subject `acct-7`, action `refund`, amount 25 USD, and evidence ID `tx-9`. The trusted request names `req-100` and `acct-7`. The evidence registry contains exactly one `tx-9` record for `acct-7`, in USD, with a refundable amount of 25. The caller may refund `acct-7` up to 50. Every comparison succeeds, so the gate returns the recommendation `APPROVE refund request=req-100 subject=acct-7 amount=25 USD evidence=tx-9`. The gate does not execute a refund.",
+        "Change only the cited evidence to a transaction belonging to `acct-other`. JSON syntax and output shape still pass, but evidence binding fails. Change only authorization `max_refund` to the string `\"unlimited\"`. JavaScript comparisons could accidentally treat some malformed values permissively, so the corrected gate validates the trusted type first and fails closed with `trusted_context_invalid`. Add a second cross-account citation and the gate checks that second record rather than consulting only the first citation.",
+        "The causal sequence matters. Duplicate-key rejection preserves information before parsing. Shape checks reject unknown generated fields. Trusted-context checks prevent coercion. Request binding links the output to the current operation. Evidence checks establish support. The task invariant limits the amount. Authorization is checked last. A rejection should identify the boundary that failed."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Worked result",
+        "code": "APPROVE refund request=req-100 subject=acct-7 amount=25 USD evidence=tx-9"
+      }
+    },
+    {
+      "id": "duplicate-keys-and-unknown-fields",
+      "title": "Reject duplicate decoded keys before JSON.parse",
+      "paragraphs": [
+        "`JSON.parse` accepts duplicate object member names and retains the last value. Parsing `{\"action\":\"deny\",\"action\":\"refund\"}` produces an object whose `action` is `refund`; the evidence that two conflicting members existed is gone. Post-parse schema validation cannot recover it.",
+        "Member names must be compared after JSON string decoding. The keys `\"action\"` and `\"act\\u0069on\"` decode to the same string and are duplicates. Each nested object needs its own set of decoded names. Repeated array values are not duplicate object keys.",
+        "The learner's single intended defect is an implementation of `parseUniqueJson` that immediately calls `JSON.parse`. All other output validation, trusted-context validation, evidence checks, numeric-domain checks, and authorization checks are already implemented in shared code. The repair is therefore focused on preserving duplicate-key evidence before parsing.",
+        "Unknown fields are a separate boundary. After unique parsing, exact-key validation rejects unexpected output and trusted-context properties. This mirrors the intent of `additionalProperties: false` and remains useful for fixtures, unconstrained runtimes, transformed schemas, and defense in depth."
+      ],
+      "code": {
+        "language": "javascript",
+        "label": "Single deliberate starter defect",
+        "code": "function parseUniqueJson(text) {\n  // DEFECT: duplicate-key evidence is lost here.\n  return JSON.parse(text);\n}"
+      }
+    },
+    {
+      "id": "model-family-runtime-and-api-transfer",
+      "title": "Separate model family, runtime, and API",
+      "paragraphs": [
+        "The OpenAI, Anthropic, and Google documentation cited here establishes guarantees for their documented APIs. Names such as Llama, Qwen, DeepSeek, Mistral, and Phi identify model families or projects. A family name alone does not establish support for a JSON Schema keyword, constrained decoding, or provider-specific refusal metadata.",
+        "For an open-weight or self-hosted deployment, record three separate facts: the exact model and revision, the runtime or serving engine, and the API adapter. For example, llama.cpp documents grammar-constrained generation, but that runtime capability does not establish that every Llama-family deployment exposes the same API. Test the exact deployed combination.",
+        "Application-side controls transfer even when decoder support differs: inspect the runtime's actual completion metadata, preserve raw output at the parsing boundary, reject duplicate keys and unknown fields, validate trusted types without coercion, bind every citation, define aggregation semantics, and check authorization outside the model."
+      ],
+      "callout": "If only the model family is known, the deployment's structured-output capability is UNKNOWN."
+    },
+    {
+      "id": "repair-lab",
+      "title": "Focused repair lab",
+      "paragraphs": [
+        "From the repository root, run `cd training/developer-and-practitioner-ai/structured-outputs-mastery/lab && npm test`. The lab requires Node 22, native ESM, no dependencies, no API keys, and deterministic fixtures. It makes no network request and does not test a live provider.",
+        "The expected starter aggregate is 23 tests: 20 pass and 3 fail. The three failures are the ordinary duplicate, Unicode-escaped duplicate, and nested duplicate cases. Timing lines are intentionally not specified because they are nondeterministic. These are expected results, not a claim that this draft executed the commands.",
+        "Run `node src/cli.mjs fixtures/duplicate-action.json`. Before repair, expected stdout is `APPROVE refund request=req-100 subject=acct-7 amount=25 USD evidence=tx-9` followed by a newline, with exit code 0. The retained last value passes every later check, which demonstrates that information loss at `JSON.parse` is the cause.",
+        "Repair only `parseUniqueJson` and supporting scanner code in `src/gate.mjs`. After repair, the same command must print `REJECT duplicate_key path=$.action` followed by a newline and exit 2. The expected repaired test aggregate is 23 tests: 23 pass and 0 fail, with exit code 0.",
+        "The independent variation is `node src/cli.mjs fixtures/valid-changed.json`. It changes the request to `req-101`, amount to 40, and evidence to `tx-10`. A correct repair prints `APPROVE refund request=req-101 subject=acct-7 amount=40 USD evidence=tx-10` followed by a newline and exits 0. If a learner rejects every input or hard-codes the worked fixture, this case fails and explains why.",
+        "The immutable tests also cover malformed authorization values including `\"unlimited\"` and a missing limit, safe-integer boundaries, a second cross-account citation, a second wrong-currency citation, duplicate cited IDs, conflicting duplicate evidence registry IDs, unsupported multi-record aggregation, unknown fields, refusal, incompleteness, request binding, amount limits, and authorization.",
+        "Recovery commands are `npm run reset` to restore the deliberate defect and `npm run solution` to install the complete reference parser. Both copy local files only. Run `npm test` after either command. Do not edit `test/gate.test.mjs` or weaken `src/policy.mjs`."
+      ]
     }
   ],
   "activity": {
     "id": "structured-outputs-mastery-activity",
-    "title": "Port one extraction schema across three providers",
+    "title": "Repair duplicate-key handling without weakening the gate",
     "instructions": [
-      "Take one real extraction task and write its schema once, inside the portable subset: object root, every field required with null unions for absent values, additionalProperties false, string enums, and no numeric or length constraints.",
-      "Move every dropped constraint (lengths, ranges, formats) into a local validator generated from the same source of truth, and prove that it rejects a payload with a malformed email, an over-length summary, and an extra property.",
-      "Send the schema through OpenAI strict mode, Claude output_config.format, and Gemini structured output. Record every 400 error and the schema change that fixed it.",
-      "Force each failure path in a test: a request that should be refused, a max-token limit too low to finish, an input unrelated to the schema, and an enum value returned in the wrong case.",
-      "Unit-test malformed JSON, missing or multiple text blocks, a refusal after a text block or in a later message, and queued, failed, or cancelled responses. Verify that every failure returns a typed result without persisting data or throwing a parse error."
+      "Change into `training/developer-and-practitioner-ai/structured-outputs-mastery/lab` and run `npm test`. Compare the aggregate with the expected 23 tests, 20 passing and 3 failing.",
+      "Run the worked duplicate fixture and explain why `JSON.parse` retains `refund` while discarding evidence of `deny`.",
+      "Edit only `parseUniqueJson` and supporting scanner code in `src/gate.mjs`. Compare decoded member names separately within every object before calling `JSON.parse`.",
+      "Do not modify `src/policy.mjs`, tests, or fixtures. The shared policy already implements trusted-context, safe-integer, evidence, invariant, and authorization validation.",
+      "Run `npm test`. A correct repair has the expected aggregate of 23 passing and 0 failing.",
+      "Run the worked duplicate fixture and independent changed fixture. Verify the exact stdout and exit codes documented in the lesson.",
+      "Use `npm run reset` for recovery or `npm run solution` to install the reference, then rerun the tests.",
+      "Optional real integration: map one documented provider's live response fields into the normalized envelope. Keep API-key and network work outside the deterministic suite, record the exact model and API version, and do not describe fixture results as provider results."
     ],
     "evidence": [
-      "The single-source schema, the relaxed schema actually sent to each provider, and the local validator, with the three rejected test payloads.",
-      "A failure-path table listing provider, induced failure, the exact signal observed (stop_reason, status, refusal item, or casing), and how the code handled it."
+      "A repaired `src/gate.mjs` with the immutable tests and shared policy unchanged.",
+      "Terminal output showing the expected failing starter aggregate and passing repaired aggregate.",
+      "Exact command results for both `duplicate-action.json` and `valid-changed.json`.",
+      "A causal explanation that identifies duplicate-key information loss before `JSON.parse`, rather than blaming evidence or authorization."
     ],
-    "reflectionPrompt": "Which constraint in your schema was the model never shown, and what would have reached your database if your local validator had not enforced it?"
+    "reflectionPrompt": "Which application checks remain necessary when a provider guarantees schema adherence, and why do neither successful parsing nor an existing evidence ID authorize an action?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
     "questions": [
       {
         "id": "q-dev-so-1",
-        "prompt": "What does OpenAI Structured Outputs with strict: true guarantee that JSON mode does not?",
+        "prompt": "What does OpenAI Structured Outputs with strict true add beyond valid JSON syntax?",
         "choices": [
-          "Valid JSON syntax",
-          "Adherence to the supplied schema, such as required keys and enum values",
-          "Factually correct values",
-          "Lower latency"
+          "Factual correctness",
+          "Adherence to a supported supplied schema",
+          "Independent authorization",
+          "Evidence verification"
         ],
         "answerIndex": 1,
-        "explanation": "Both produce valid JSON; only Structured Outputs ensures schema adherence. Neither guarantees that the values are correct."
+        "explanation": "Strict Structured Outputs constrains shape according to the supported schema. It does not establish truth, evidence support, or permission."
       },
       {
         "id": "q-dev-so-2",
-        "prompt": "A schema uses maxLength on a string and minimum on an integer. What happens when Anthropic's TypeScript SDK sends it through zodOutputFormat?",
+        "prompt": "What can happen when Anthropic's TypeScript helper receives unsupported local constraints?",
         "choices": [
-          "The API enforces both constraints during decoding",
-          "The SDK removes the unsupported constraints from the sent schema, notes them in the descriptions, and validates the response against the original schema",
-          "The constraints are ignored everywhere",
-          "The SDK falls back to JSON mode"
+          "It guarantees the decoder enforces them",
+          "It can remove them from the sent schema, describe them, and validate against the original locally",
+          "It disables all validation",
+          "It converts every value to a string"
         ],
         "answerIndex": 1,
-        "explanation": "Anthropic documents this transformation for its Python, TypeScript, Ruby, and PHP SDKs: the model sees a relaxed schema while the SDK still enforces the original constraints."
+        "explanation": "The provider-facing schema can be weaker than the original local validator, so both artifacts must be understood."
       },
       {
         "id": "q-dev-so-3",
-        "prompt": "Which schema pattern is portable to OpenAI strict mode, Claude structured outputs, and Gemini structured output?",
+        "prompt": "Which pattern belongs to the conservative portable subset taught here?",
         "choices": [
-          "Optional properties left out of required",
-          "A root-level anyOf discriminated union",
-          "Every property required, with null in a type union for values that may be absent, and additionalProperties false",
-          "A recursive schema that references the root"
+          "A root anyOf",
+          "Recursive objects",
+          "All properties required, null unions for absence, and additionalProperties false",
+          "Provider-independent numeric bounds"
         ],
         "answerIndex": 2,
-        "explanation": "OpenAI requires every property to be required and forbids a root anyOf, and Claude does not support recursion. The required-plus-nullable pattern is accepted by all three."
+        "explanation": "The narrow intersection avoids features whose documented support differs."
       },
       {
         "id": "q-dev-so-4",
-        "prompt": "Claude returns stop_reason \"refusal\" with HTTP 200 on a structured-output request. What is true?",
+        "prompt": "Claude returns stop_reason refusal with HTTP 200. What should happen before JSON parsing?",
         "choices": [
-          "The text block is still guaranteed to match the schema",
-          "The output may not match the schema, the generated tokens are billed, and the application must handle the refusal before parsing",
-          "The request was not billed",
-          "Retrying with a higher max_tokens fixes it"
+          "Treat the response as a refusal",
+          "Approve if text looks valid",
+          "Increase the token limit",
+          "Lowercase all enum values"
         ],
-        "answerIndex": 1,
-        "explanation": "The refusal message takes precedence over schema constraints. A higher max_tokens addresses max_tokens truncation, not a refusal."
+        "answerIndex": 0,
+        "explanation": "Completion and refusal metadata must be handled before attempting to parse schema output."
       },
       {
         "id": "q-dev-so-5",
-        "prompt": "Your local JSON Schema validator accepts \"not-an-email\" for a field declared with format: \"email\". Why can that be correct behavior?",
+        "prompt": "Why might a validator accept an invalid value for JSON Schema format email?",
         "choices": [
-          "format is always an assertion in JSON Schema",
-          "In JSON Schema 2020-12, format is an annotation by default and assertion has to be enabled explicitly",
-          "email is not a defined format",
-          "Validators never check strings"
+          "Email is never a format",
+          "Format is annotation behavior by default unless assertion is enabled",
+          "additionalProperties disables format",
+          "All strings are valid emails"
         ],
         "answerIndex": 1,
-        "explanation": "The validation specification requires format-assertion behavior to be disabled by default, so enable it or check the format in code."
+        "explanation": "JSON Schema 2020-12 does not make format assertion universally active by default."
       },
       {
         "id": "q-dev-so-6",
-        "prompt": "Claude returns \"Access\" for a string enum declared as [\"billing\", \"access\", \"bug\", \"other\"]. What does Anthropic advise?",
+        "prompt": "Why must duplicate object keys be detected before JSON.parse?",
         "choices": [
-          "Treat it as a schema violation and retry until the case matches",
-          "Compare enum values case-insensitively, and avoid enum values that differ only by case",
-          "Switch the field to free text",
-          "Add a pattern to force lower case"
+          "JSON.parse always throws on duplicates",
+          "JSON.parse retains one value and loses evidence of the duplicate",
+          "Schemas cannot contain object properties",
+          "Repeated array elements are duplicate keys"
         ],
         "answerIndex": 1,
-        "explanation": "Structured outputs do not guarantee the capitalization of enum and const values, and the response completes normally with no error or special stop reason."
+        "explanation": "After ordinary parsing, the object does not record that two decoded member names were present."
+      },
+      {
+        "id": "q-dev-so-7",
+        "prompt": "An output cites two evidence records and the first is valid. What must the gate do?",
+        "choices": [
+          "Approve using only the first",
+          "Build a Map and accept the last duplicate",
+          "Check every citation, then apply an explicit aggregation rule",
+          "Sum all numeric fields automatically"
+        ],
+        "answerIndex": 2,
+        "explanation": "Every citation must be bound and aggregation must have explicit semantics. This lesson permits exactly one contributing transaction."
+      },
+      {
+        "id": "q-dev-so-8",
+        "prompt": "Why is authorization max_refund equal to the string unlimited rejected?",
+        "choices": [
+          "Strings are always unsafe",
+          "The trusted contract requires a positive safe integer and performs no coercion",
+          "The model omitted a confidence value",
+          "USD cannot be refunded"
+        ],
+        "answerIndex": 1,
+        "explanation": "Malformed trusted context must fail closed rather than relying on JavaScript comparison coercion."
+      },
+      {
+        "id": "q-dev-so-9",
+        "prompt": "What follows from the model-family name Qwen, Llama, DeepSeek, Mistral, or Phi alone?",
+        "choices": [
+          "It uses OpenAI's strict schema subset",
+          "It uses Claude stop reasons",
+          "Nothing definitive about a deployment's constrained-output API",
+          "It rejects duplicate JSON keys"
+        ],
+        "answerIndex": 2,
+        "explanation": "Capability depends on the exact model, runtime, and API adapter."
       }
     ]
   },
@@ -216,29 +322,135 @@
       "url": "https://zod.dev/api",
       "publisher": "Zod",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "ECMAScript Language Specification",
+      "url": "https://tc39.es/ecma262/",
+      "publisher": "Ecma International",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Llama models",
+      "url": "https://github.com/meta-llama/llama-models",
+      "publisher": "Meta",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Qwen3",
+      "url": "https://github.com/QwenLM/Qwen3",
+      "publisher": "Qwen",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "DeepSeek-V3",
+      "url": "https://github.com/deepseek-ai/DeepSeek-V3",
+      "publisher": "DeepSeek",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Mistral inference",
+      "url": "https://github.com/mistralai/mistral-inference",
+      "publisher": "Mistral AI",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Phi-3 Cookbook",
+      "url": "https://github.com/microsoft/Phi-3CookBook",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "GBNF grammars",
+      "url": "https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md",
+      "publisher": "ggml-org",
+      "lastVerified": "2026-09-21"
     }
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 57,
+    "estimatedSeconds": 278,
     "cues": [
       {
-        "id": "cue-dev-so-guarantee",
+        "id": "cue-dev-so-guarantee-1-1",
         "kind": "narration",
         "sectionId": "what-the-guarantee-covers",
-        "text": "Constrained decoding guarantees the shape of the output, not its truth; OpenAI, Claude, and Gemini all tell you to keep validating values in your own code."
+        "text": "Constrained decoding guarantees supported\noutput shape, not truth, grounding,"
+      },
+      {
+        "id": "cue-dev-so-guarantee-1-2",
+        "kind": "narration",
+        "sectionId": "what-the-guarantee-covers",
+        "text": "or authorization."
       },
       {
         "id": "cue-dev-so-guarantee-prompt",
         "kind": "learner-prompt",
         "sectionId": "what-the-guarantee-covers",
-        "text": "Ask learners for one field in their own schemas that could be schema-valid and still wrong."
+        "text": "Ask for one schema-valid value that could still be wrong in the learner's domain."
       },
       {
-        "id": "cue-dev-so-subset",
+        "id": "cue-dev-so-subset-1-1",
         "kind": "narration",
         "sectionId": "portable-schema-subset",
-        "text": "Write schemas in the portable subset -- an object root, every field required with null unions, additionalProperties false, string enums -- and enforce numeric and length rules locally."
+        "text": "Use the documented conservative\nintersection for provider requests and"
+      },
+      {
+        "id": "cue-dev-so-subset-1-2",
+        "kind": "narration",
+        "sectionId": "portable-schema-subset",
+        "text": "enforce omitted business rules locally."
+      },
+      {
+        "id": "cue-dev-so-helpers-1-1",
+        "kind": "narration",
+        "sectionId": "sdk-helpers-and-local-validation",
+        "text": "Compare the schema sent to the decoder\nwith the original local validator."
+      },
+      {
+        "id": "cue-dev-so-failures-1-1",
+        "kind": "narration",
+        "sectionId": "failures-the-guarantee-leaves",
+        "text": "Inspect refusal and completion state\nbefore parsing text."
+      },
+      {
+        "id": "cue-dev-so-semantics-1-1",
+        "kind": "narration",
+        "sectionId": "semantic-truth-evidence-and-authorization",
+        "text": "Validate trusted types without coercion,\ninspect every citation, define amount"
+      },
+      {
+        "id": "cue-dev-so-semantics-1-2",
+        "kind": "narration",
+        "sectionId": "semantic-truth-evidence-and-authorization",
+        "text": "semantics, and authorize independently."
+      },
+      {
+        "id": "cue-dev-so-duplicates-1-1",
+        "kind": "narration",
+        "sectionId": "duplicate-keys-and-unknown-fields",
+        "text": "Reject duplicate decoded keys before\nJSON.parse destroys the evidence."
+      },
+      {
+        "id": "cue-dev-so-ecosystem-1-1",
+        "kind": "narration",
+        "sectionId": "model-family-runtime-and-api-transfer",
+        "text": "Keep model family, runtime, and API claims\nseparate."
+      },
+      {
+        "id": "cue-dev-so-lab",
+        "kind": "learner-prompt",
+        "sectionId": "repair-lab",
+        "text": "Repair only the duplicate-key parser and prove both rejection and acceptance with immutable tests."
+      },
+      {
+        "id": "cue-dev-so-assessment-1-1",
+        "kind": "assessment-handoff",
+        "text": "Begin the check after learners can\ndistinguish parse success, evidence"
+      },
+      {
+        "id": "cue-dev-so-assessment-1-2",
+        "kind": "assessment-handoff",
+        "text": "support, and authorization."
       },
       {
         "id": "cue-dev-so-subset-visual",
@@ -248,73 +460,639 @@
         "accessibilityAlternative": "A static table lists each schema feature in a row with OpenAI, Claude, and Gemini support in three columns; the rows that belong to the portable core are marked with the word \"portable\". Reduced-motion mode shows the table without highlighting animation."
       },
       {
-        "id": "cue-dev-so-helpers",
-        "kind": "narration",
-        "sectionId": "sdk-helpers-and-local-validation",
-        "text": "SDK helpers rewrite your schema before sending it, so keep one source of truth and validate the response against the original, remembering that format is only an annotation by default."
-      },
-      {
-        "id": "cue-dev-so-helpers-pause",
-        "kind": "pause",
-        "sectionId": "sdk-helpers-and-local-validation",
-        "text": "Allow two minutes for learners to find one constraint in their schema that their provider would drop."
-      },
-      {
-        "id": "cue-dev-so-failures",
-        "kind": "narration",
-        "sectionId": "failures-the-guarantee-leaves",
-        "text": "Refusals, truncation, and enum casing still produce output that breaks the schema, so check the stop signal before parsing and give the model a legitimate way to say the input does not fit."
-      },
-      {
         "id": "cue-dev-so-failures-checkpoint",
         "kind": "checkpoint",
         "sectionId": "failures-the-guarantee-leaves",
         "text": "Check that learners' parsing code inspects the refusal and truncation signals before it calls JSON.parse."
       },
       {
-        "id": "cue-dev-so-activity",
-        "kind": "learner-prompt",
-        "text": "Guide the single-source schema, the local validator, the three provider runs, and the forced failure paths."
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-1",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "Consider output for request `req-100`,\nsubject `acct-7`, action `refund`, amount"
       },
       {
-        "id": "cue-dev-so-assessment",
-        "kind": "assessment-handoff",
-        "text": "Begin the check once learners can name the portable schema subset and the signals that precede a parse."
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-2",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "25 USD, and evidence ID `tx-9`. The\ntrusted request names `req-100` and"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-3",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "`acct-7`. The evidence registry contains\nexactly one `tx-9` record for `acct-7`, in"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-4",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "USD, with a refundable amount of 25. The\ncaller may refund `acct-7` up to"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-5",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "50. Every comparison succeeds, so the gate\nreturns the recommendation `APPROVE refund"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-6",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "request=req-100 subject=acct-7 amount=25\nUSD evidence=tx-9`. The gate does not"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-7",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "execute a refund. Change only the cited\nevidence to a transaction belonging to"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-8",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "`acct-other`. JSON syntax and output shape\nstill pass, but evidence binding fails."
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-9",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "Change only authorization `max_refund` to\nthe string `\"unlimited\"`. JavaScript"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-10",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "comparisons could accidentally treat some\nmalformed values permissively, so the"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-11",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "corrected gate validates the trusted type\nfirst and fails closed with"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-12",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "`trusted_context_invalid`. Add a second\ncross-account citation and the gate checks"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-13",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "that second record rather than consulting\nonly the first citation. The causal"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-14",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "sequence matters. Duplicate-key rejection\npreserves information before parsing."
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-15",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "Shape checks reject unknown generated\nfields. Trusted-context checks prevent"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-16",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "coercion. Request binding links the output\nto the current operation. Evidence checks"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-17",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "establish support. The task invariant\nlimits the amount. Authorization is"
+      },
+      {
+        "id": "structured-outputs-mastery-worked-evidence-example-narration-18",
+        "kind": "narration",
+        "sectionId": "worked-evidence-example",
+        "text": "checked last. A rejection should identify\nthe boundary that failed."
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-1",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "The lab requires Node 22, native ESM, no\ndependencies, no API keys, and"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-2",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "deterministic fixtures. It makes no\nnetwork request and does not test a live"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-3",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "provider. The expected starter aggregate\nis 23 tests: 20 pass and 3 fail. The"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-4",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "three failures are the ordinary duplicate,\nUnicode-escaped duplicate, and nested"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-5",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "duplicate cases. Timing lines are\nintentionally not specified because they"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-6",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "are nondeterministic. These are expected\nresults, not a claim that this draft"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-7",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "executed the commands. Run `node\nsrc/cli.mjs"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-8",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "fixtures/duplicate-action.json`. Before\nrepair, expected stdout is `APPROVE refund"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-9",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "request=req-100 subject=acct-7 amount=25\nUSD evidence=tx-9` followed by a newline,"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-10",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "with exit code 0. The retained last value\npasses every later check, which"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-11",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "demonstrates that information loss at\n`JSON.parse` is the cause. Repair only"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-12",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "`parseUniqueJson` and supporting scanner\ncode in `src/gate.mjs`. After repair, the"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-13",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "same command must print `REJECT\nduplicate_key path=$.action` followed by a"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-14",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "newline and exit 2. The expected repaired\ntest aggregate is 23 tests: 23 pass"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-15",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "and 0 fail, with exit code 0. The\nindependent variation is `node src/cli.mjs"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-16",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "fixtures/valid-changed.json`. It changes\nthe request to `req-101`, amount to 40,"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-17",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "and evidence to `tx-10`. A correct repair\nprints `APPROVE refund request=req-101"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-18",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "subject=acct-7 amount=40 USD\nevidence=tx-10` followed by a newline and"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-19",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "exits 0. If a learner rejects every input\nor hard-codes the worked fixture, this"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-20",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "case fails and explains why. The immutable\ntests also cover malformed authorization"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-21",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "values including `\"unlimited\"` and a\nmissing limit, safe-integer boundaries, a"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-22",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "second cross-account citation, a second\nwrong-currency citation, duplicate cited"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-23",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "IDs, conflicting duplicate evidence\nregistry IDs, unsupported multi-record"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-24",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "aggregation, unknown fields, refusal,\nincompleteness, request binding, amount"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-25",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "limits, and authorization. Recovery\ncommands are `npm run reset` to restore"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-26",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "the deliberate defect and `npm run\nsolution` to install the complete"
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-27",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "reference parser. Both copy local files\nonly. Run `npm test` after either command."
+      },
+      {
+        "id": "structured-outputs-mastery-repair-lab-narration-28",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "Do not edit `test/gate.test.mjs` or weaken\n`src/policy.mjs`."
       }
     ],
-    "transcript": "Constrained decoding guarantees the shape of the output, not its truth; OpenAI, Claude, and Gemini all tell you to keep validating values in your own code. Write schemas in the portable subset -- an object root, every field required with null unions, additionalProperties false, string enums -- and enforce numeric and length rules locally. SDK helpers rewrite your schema before sending it, so keep one source of truth and validate the response against the original, remembering that format is only an annotation by default. Refusals, truncation, and enum casing still produce output that breaks the schema, so check the stop signal before parsing and give the model a legitimate way to say the input does not fit. Begin the check once learners can name the portable schema subset and the signals that precede a parse.",
+    "transcript": "Constrained decoding guarantees supported\noutput shape, not truth, grounding, or authorization. Use the documented conservative\nintersection for provider requests and enforce omitted business rules locally. Compare the schema sent to the decoder\nwith the original local validator. Inspect refusal and completion state\nbefore parsing text. Validate trusted types without coercion,\ninspect every citation, define amount semantics, and authorize independently. Reject duplicate decoded keys before\nJSON.parse destroys the evidence. Keep model family, runtime, and API claims\nseparate. Begin the check after learners can\ndistinguish parse success, evidence support, and authorization. Consider output for request `req-100`,\nsubject `acct-7`, action `refund`, amount 25 USD, and evidence ID `tx-9`. The\ntrusted request names `req-100` and `acct-7`. The evidence registry contains\nexactly one `tx-9` record for `acct-7`, in USD, with a refundable amount of 25. The\ncaller may refund `acct-7` up to 50. Every comparison succeeds, so the gate\nreturns the recommendation `APPROVE refund request=req-100 subject=acct-7 amount=25\nUSD evidence=tx-9`. The gate does not execute a refund. Change only the cited\nevidence to a transaction belonging to `acct-other`. JSON syntax and output shape\nstill pass, but evidence binding fails. Change only authorization `max_refund` to\nthe string `\"unlimited\"`. JavaScript comparisons could accidentally treat some\nmalformed values permissively, so the corrected gate validates the trusted type\nfirst and fails closed with `trusted_context_invalid`. Add a second\ncross-account citation and the gate checks that second record rather than consulting\nonly the first citation. The causal sequence matters. Duplicate-key rejection\npreserves information before parsing. Shape checks reject unknown generated\nfields. Trusted-context checks prevent coercion. Request binding links the output\nto the current operation. Evidence checks establish support. The task invariant\nlimits the amount. Authorization is checked last. A rejection should identify\nthe boundary that failed. The lab requires Node 22, native ESM, no\ndependencies, no API keys, and deterministic fixtures. It makes no\nnetwork request and does not test a live provider. The expected starter aggregate\nis 23 tests: 20 pass and 3 fail. The three failures are the ordinary duplicate,\nUnicode-escaped duplicate, and nested duplicate cases. Timing lines are\nintentionally not specified because they are nondeterministic. These are expected\nresults, not a claim that this draft executed the commands. Run `node\nsrc/cli.mjs fixtures/duplicate-action.json`. Before\nrepair, expected stdout is `APPROVE refund request=req-100 subject=acct-7 amount=25\nUSD evidence=tx-9` followed by a newline, with exit code 0. The retained last value\npasses every later check, which demonstrates that information loss at\n`JSON.parse` is the cause. Repair only `parseUniqueJson` and supporting scanner\ncode in `src/gate.mjs`. After repair, the same command must print `REJECT\nduplicate_key path=$.action` followed by a newline and exit 2. The expected repaired\ntest aggregate is 23 tests: 23 pass and 0 fail, with exit code 0. The\nindependent variation is `node src/cli.mjs fixtures/valid-changed.json`. It changes\nthe request to `req-101`, amount to 40, and evidence to `tx-10`. A correct repair\nprints `APPROVE refund request=req-101 subject=acct-7 amount=40 USD\nevidence=tx-10` followed by a newline and exits 0. If a learner rejects every input\nor hard-codes the worked fixture, this case fails and explains why. The immutable\ntests also cover malformed authorization values including `\"unlimited\"` and a\nmissing limit, safe-integer boundaries, a second cross-account citation, a second\nwrong-currency citation, duplicate cited IDs, conflicting duplicate evidence\nregistry IDs, unsupported multi-record aggregation, unknown fields, refusal,\nincompleteness, request binding, amount limits, and authorization. Recovery\ncommands are `npm run reset` to restore the deliberate defect and `npm run\nsolution` to install the complete reference parser. Both copy local files\nonly. Run `npm test` after either command. Do not edit `test/gate.test.mjs` or weaken\n`src/policy.mjs`.",
     "captions": [
       {
-        "cueId": "cue-dev-so-guarantee",
+        "cueId": "cue-dev-so-guarantee-1-1",
         "startSeconds": 0,
-        "endSeconds": 11,
-        "text": "Constrained decoding guarantees the shape of the output, not its truth; OpenAI, Claude, and Gemini all tell you to keep validating values in your own code."
+        "endSeconds": 4,
+        "text": "Constrained decoding guarantees supported\noutput shape, not truth, grounding,"
       },
       {
-        "cueId": "cue-dev-so-subset",
-        "startSeconds": 11,
-        "endSeconds": 23,
-        "text": "Write schemas in the portable subset -- an object root, every field required with null unions, additionalProperties false, string enums -- and enforce numeric and length rules locally."
+        "cueId": "cue-dev-so-guarantee-1-2",
+        "startSeconds": 4,
+        "endSeconds": 5,
+        "text": "or authorization."
       },
       {
-        "cueId": "cue-dev-so-helpers",
-        "startSeconds": 23,
-        "endSeconds": 35,
-        "text": "SDK helpers rewrite your schema before sending it, so keep one source of truth and validate the response against the original, remembering that format is only an annotation by default."
+        "cueId": "cue-dev-so-subset-1-1",
+        "startSeconds": 5,
+        "endSeconds": 9,
+        "text": "Use the documented conservative\nintersection for provider requests and"
       },
       {
-        "cueId": "cue-dev-so-failures",
-        "startSeconds": 35,
+        "cueId": "cue-dev-so-subset-1-2",
+        "startSeconds": 9,
+        "endSeconds": 12,
+        "text": "enforce omitted business rules locally."
+      },
+      {
+        "cueId": "cue-dev-so-helpers-1-1",
+        "startSeconds": 12,
+        "endSeconds": 18,
+        "text": "Compare the schema sent to the decoder\nwith the original local validator."
+      },
+      {
+        "cueId": "cue-dev-so-failures-1-1",
+        "startSeconds": 18,
+        "endSeconds": 22,
+        "text": "Inspect refusal and completion state\nbefore parsing text."
+      },
+      {
+        "cueId": "cue-dev-so-semantics-1-1",
+        "startSeconds": 22,
+        "endSeconds": 27,
+        "text": "Validate trusted types without coercion,\ninspect every citation, define amount"
+      },
+      {
+        "cueId": "cue-dev-so-semantics-1-2",
+        "startSeconds": 27,
+        "endSeconds": 29,
+        "text": "semantics, and authorize independently."
+      },
+      {
+        "cueId": "cue-dev-so-duplicates-1-1",
+        "startSeconds": 29,
+        "endSeconds": 33,
+        "text": "Reject duplicate decoded keys before\nJSON.parse destroys the evidence."
+      },
+      {
+        "cueId": "cue-dev-so-ecosystem-1-1",
+        "startSeconds": 33,
+        "endSeconds": 37,
+        "text": "Keep model family, runtime, and API claims\nseparate."
+      },
+      {
+        "cueId": "cue-dev-so-assessment-1-1",
+        "startSeconds": 37,
+        "endSeconds": 42,
+        "text": "Begin the check after learners can\ndistinguish parse success, evidence"
+      },
+      {
+        "cueId": "cue-dev-so-assessment-1-2",
+        "startSeconds": 42,
+        "endSeconds": 44,
+        "text": "support, and authorization."
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-1",
+        "startSeconds": 44,
         "endSeconds": 49,
-        "text": "Refusals, truncation, and enum casing still produce output that breaks the schema, so check the stop signal before parsing and give the model a legitimate way to say the input does not fit."
+        "text": "Consider output for request `req-100`,\nsubject `acct-7`, action `refund`, amount"
       },
       {
-        "cueId": "cue-dev-so-assessment",
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-2",
         "startSeconds": 49,
-        "endSeconds": 57,
-        "text": "Begin the check once learners can name the portable schema subset and the signals that precede a parse."
+        "endSeconds": 55,
+        "text": "25 USD, and evidence ID `tx-9`. The\ntrusted request names `req-100` and"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-3",
+        "startSeconds": 55,
+        "endSeconds": 61,
+        "text": "`acct-7`. The evidence registry contains\nexactly one `tx-9` record for `acct-7`, in"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-4",
+        "startSeconds": 61,
+        "endSeconds": 67,
+        "text": "USD, with a refundable amount of 25. The\ncaller may refund `acct-7` up to"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-5",
+        "startSeconds": 67,
+        "endSeconds": 73,
+        "text": "50. Every comparison succeeds, so the gate\nreturns the recommendation `APPROVE refund"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-6",
+        "startSeconds": 73,
+        "endSeconds": 77,
+        "text": "request=req-100 subject=acct-7 amount=25\nUSD evidence=tx-9`. The gate does not"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-7",
+        "startSeconds": 77,
+        "endSeconds": 83,
+        "text": "execute a refund. Change only the cited\nevidence to a transaction belonging to"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-8",
+        "startSeconds": 83,
+        "endSeconds": 89,
+        "text": "`acct-other`. JSON syntax and output shape\nstill pass, but evidence binding fails."
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-9",
+        "startSeconds": 89,
+        "endSeconds": 93,
+        "text": "Change only authorization `max_refund` to\nthe string `\"unlimited\"`. JavaScript"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-10",
+        "startSeconds": 93,
+        "endSeconds": 98,
+        "text": "comparisons could accidentally treat some\nmalformed values permissively, so the"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-11",
+        "startSeconds": 98,
+        "endSeconds": 103,
+        "text": "corrected gate validates the trusted type\nfirst and fails closed with"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-12",
+        "startSeconds": 103,
+        "endSeconds": 108,
+        "text": "`trusted_context_invalid`. Add a second\ncross-account citation and the gate checks"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-13",
+        "startSeconds": 108,
+        "endSeconds": 114,
+        "text": "that second record rather than consulting\nonly the first citation. The causal"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-14",
+        "startSeconds": 114,
+        "endSeconds": 118,
+        "text": "sequence matters. Duplicate-key rejection\npreserves information before parsing."
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-15",
+        "startSeconds": 118,
+        "endSeconds": 122,
+        "text": "Shape checks reject unknown generated\nfields. Trusted-context checks prevent"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-16",
+        "startSeconds": 122,
+        "endSeconds": 128,
+        "text": "coercion. Request binding links the output\nto the current operation. Evidence checks"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-17",
+        "startSeconds": 128,
+        "endSeconds": 133,
+        "text": "establish support. The task invariant\nlimits the amount. Authorization is"
+      },
+      {
+        "cueId": "structured-outputs-mastery-worked-evidence-example-narration-18",
+        "startSeconds": 133,
+        "endSeconds": 138,
+        "text": "checked last. A rejection should identify\nthe boundary that failed."
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-1",
+        "startSeconds": 138,
+        "endSeconds": 144,
+        "text": "The lab requires Node 22, native ESM, no\ndependencies, no API keys, and"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-2",
+        "startSeconds": 144,
+        "endSeconds": 150,
+        "text": "deterministic fixtures. It makes no\nnetwork request and does not test a live"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-3",
+        "startSeconds": 150,
+        "endSeconds": 156,
+        "text": "provider. The expected starter aggregate\nis 23 tests: 20 pass and 3 fail. The"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-4",
+        "startSeconds": 156,
+        "endSeconds": 161,
+        "text": "three failures are the ordinary duplicate,\nUnicode-escaped duplicate, and nested"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-5",
+        "startSeconds": 161,
+        "endSeconds": 166,
+        "text": "duplicate cases. Timing lines are\nintentionally not specified because they"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-6",
+        "startSeconds": 166,
+        "endSeconds": 172,
+        "text": "are nondeterministic. These are expected\nresults, not a claim that this draft"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-7",
+        "startSeconds": 172,
+        "endSeconds": 175,
+        "text": "executed the commands. Run `node\nsrc/cli.mjs"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-8",
+        "startSeconds": 175,
+        "endSeconds": 179,
+        "text": "fixtures/duplicate-action.json`. Before\nrepair, expected stdout is `APPROVE refund"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-9",
+        "startSeconds": 179,
+        "endSeconds": 183,
+        "text": "request=req-100 subject=acct-7 amount=25\nUSD evidence=tx-9` followed by a newline,"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-10",
+        "startSeconds": 183,
+        "endSeconds": 189,
+        "text": "with exit code 0. The retained last value\npasses every later check, which"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-11",
+        "startSeconds": 189,
+        "endSeconds": 194,
+        "text": "demonstrates that information loss at\n`JSON.parse` is the cause. Repair only"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-12",
+        "startSeconds": 194,
+        "endSeconds": 199,
+        "text": "`parseUniqueJson` and supporting scanner\ncode in `src/gate.mjs`. After repair, the"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-13",
+        "startSeconds": 199,
+        "endSeconds": 204,
+        "text": "same command must print `REJECT\nduplicate_key path=$.action` followed by a"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-14",
+        "startSeconds": 204,
+        "endSeconds": 210,
+        "text": "newline and exit 2. The expected repaired\ntest aggregate is 23 tests: 23 pass"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-15",
+        "startSeconds": 210,
+        "endSeconds": 216,
+        "text": "and 0 fail, with exit code 0. The\nindependent variation is `node src/cli.mjs"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-16",
+        "startSeconds": 216,
+        "endSeconds": 221,
+        "text": "fixtures/valid-changed.json`. It changes\nthe request to `req-101`, amount to 40,"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-17",
+        "startSeconds": 221,
+        "endSeconds": 226,
+        "text": "and evidence to `tx-10`. A correct repair\nprints `APPROVE refund request=req-101"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-18",
+        "startSeconds": 226,
+        "endSeconds": 230,
+        "text": "subject=acct-7 amount=40 USD\nevidence=tx-10` followed by a newline and"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-19",
+        "startSeconds": 230,
+        "endSeconds": 236,
+        "text": "exits 0. If a learner rejects every input\nor hard-codes the worked fixture, this"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-20",
+        "startSeconds": 236,
+        "endSeconds": 242,
+        "text": "case fails and explains why. The immutable\ntests also cover malformed authorization"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-21",
+        "startSeconds": 242,
+        "endSeconds": 247,
+        "text": "values including `\"unlimited\"` and a\nmissing limit, safe-integer boundaries, a"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-22",
+        "startSeconds": 247,
+        "endSeconds": 251,
+        "text": "second cross-account citation, a second\nwrong-currency citation, duplicate cited"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-23",
+        "startSeconds": 251,
+        "endSeconds": 255,
+        "text": "IDs, conflicting duplicate evidence\nregistry IDs, unsupported multi-record"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-24",
+        "startSeconds": 255,
+        "endSeconds": 259,
+        "text": "aggregation, unknown fields, refusal,\nincompleteness, request binding, amount"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-25",
+        "startSeconds": 259,
+        "endSeconds": 264,
+        "text": "limits, and authorization. Recovery\ncommands are `npm run reset` to restore"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-26",
+        "startSeconds": 264,
+        "endSeconds": 269,
+        "text": "the deliberate defect and `npm run\nsolution` to install the complete"
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-27",
+        "startSeconds": 269,
+        "endSeconds": 275,
+        "text": "reference parser. Both copy local files\nonly. Run `npm test` after either command."
+      },
+      {
+        "cueId": "structured-outputs-mastery-repair-lab-narration-28",
+        "startSeconds": 275,
+        "endSeconds": 278,
+        "text": "Do not edit `test/gate.test.mjs` or weaken\n`src/policy.mjs`."
       }
     ],
-    "reducedMotionAlternative": "Present the provider schema-support comparison and the parse-order flow as static tables with focus highlighting instead of animated sequences."
+    "reducedMotionAlternative": "Present the provider comparison, validation sequence, evidence rules, and duplicate-key walkthrough as static tables and code panels."
   }
 }

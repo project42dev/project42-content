@@ -117,6 +117,38 @@ Open the trace review activity. Define spans for agent, model, retrieval, tool, 
 
 ## Pause: Activity Work Time
 
+## Narration: Worked Failed Trace Lab Narration
+
+It contains eight causally linked spans: agent, model, retrieval, tool preparation, approval, recovery, handoff, and verification. All identifiers and content are synthetic. The model proposes a plan, retrieval returns a policy reference, and the tool prepares but does not execute an action. Approval denies the destination. Recovery marks the action cancelled, handoff requests human review, and verification confirms that no external effect occurred. Walk from the final failed quality outcome backward. Verification says verified_no_effect, so containment succeeded. Handoff correctly requests a human decision. Recovery correctly cancels the pending action. Approval correctly denies the request under policy. The approval telemetry contract permits only the names of these fields and a redacted marker. This is the first wrong transition. The run-level result is outcome escalated, quality fail because the requested task was not completed, safety pass because the unauthorized action was prevented, reliability recovered because the workflow reached a verified safe state, and escalation yes. Quality failure and safety success can coexist. Treating every denial as a safety failure would hide the value of the control. By operation slice, the agent span is error at 900 milliseconds, model is ok at 120, retrieval is ok at 40, tool is ok at 60, approval is error at 20, recovery is ok at 30, handoff is ok at 15, and verify is ok at 25. Only the model span has tokens: 180 input and 40 output. At the exercise rate, that span costs 0.220 dollars and all other spans cost 0.000 dollars. The diagnostic answer is therefore not to relax approval or change the model prompt. Repair the telemetry serialization boundary. Keep the denial and recovery behavior unchanged.
+
+Sources:
+
+- <https://openai.github.io/openai-agents-js/guides/tracing/>
+
+## Narration: Repair Lab Lab Narration
+
+Node 22 can execute these native ECMAScript modules without a bundler or third-party dependency. The exercise uses JSON fixtures and does not call a model, provider API, approval service, or external tool. Its deliberate defect returns approval tool arguments unchanged. Modify sanitizeTrace so each approval span replaces attributes.toolArgs with a safe object containing the sorted top-level field names and redacted set to true. Preserve trace IDs, span IDs, parent links, operation, status, versions, timings, usage, and unrelated safe attributes. The tests use both the visible failed trace and an independent changed input. The changed input has different field names, nesting, values, IDs, and ordering. A hard-coded replacement for the visible example fails. Returning an empty object, deleting all spans, or denying all telemetry also fails because diagnosis requires safe metadata and field-name evidence. Its exit code is 1. Its exit code is 0. The reference implementation is separate from the immutable test file. A complete submission earns credit only when the runner exits 0, every immutable test passes, the changed-input fixture passes, all required trace structure remains available, and no argument value is exported. Causal feedback is direct: a leaked sentinel means value redaction is missing; missing IDs or spans means the repair over-deleted telemetry; incorrect field names mean the code was hard-coded to one fixture; mutation of the input means the sanitizer can corrupt data reused by another observer.
+
+Sources:
+
+- <https://openai.github.io/openai-agents-js/guides/tracing/>
+
+## Narration: Independent Variation Lab Narration
+
+Without editing the test or fixture, predict the result for data/changed-trace.json. Its approval arguments contain recipient, token, and nested. A general repair emits the sorted field list nested, recipient, token and removes all values, including the nested canary. The operation remains approval, status remains error, and the changed trace and span identifiers remain intact. Run the immutable test suite after recording your prediction. If the baseline fixture passes but this variation fails, inspect whether your implementation listed fixed field names or redacted only strings at one known path. The required transformation summarizes the top-level shape of any approval toolArgs object and discards the entire value tree. Recursive value-by-value masking is unnecessary here because retaining value shape can itself disclose sensitive structure. No string from the original toolArgs may appear in serialized output. The trace still contains two spans, and the non-approval model span retains its safe model identifier. This demonstrates that useful structural telemetry can survive without retaining argument values.
+
+Sources:
+
+- <https://openai.github.io/openai-agents-js/guides/tracing/>
+
+## Narration: Live Integration Transfer Lab Narration
+
+The lab is a fixture simulation. It proves only that one pure JavaScript transformation satisfies the supplied invariants. It does not prove that a live agent runtime creates spans, propagates context, reports provider usage accurately, redacts before network export, or honors deletion and residency controls. Validate those properties with runtime-specific integration tests and a telemetry collector configured for the deployed environment. Google ADK provides agent observability documentation at https://adk.dev/observability/. The supplied source history last verified these pages on 2026-09-13; live availability is not verified in this drafting environment. Keep four concepts separate when transferring the schema: a model family names weights or a related set of models; a runtime loads or serves a model; an API defines the request and response boundary; an agent framework coordinates model, retrieval, tool, approval, and handoff operations. Do not infer a common tool-calling, token-reporting, tracing, or approval capability merely because two systems can run language models. These links ground the family or runtime names only. Their live contents were not verified in this drafting environment, so this lesson makes no claim that they expose one shared observability API or identical agent capabilities. A portable adapter should obtain model and usage metadata from the actual runtime or API response, normalize only fields with established semantics, preserve the native request identifier as a protected correlation value when permitted, and mark unavailable values as unknown rather than estimating them. Approval, tool execution, recovery, and human handoff usually belong to the surrounding workflow even when the selected model family changes.
+
+Sources:
+
+- <https://openai.github.io/openai-agents-js/guides/tracing/>
+
 ## Assessment Handoff: Assessment Handoff
 
 When ready, begin the knowledge check. You will choose linked traces for causal review, relate cost to successful outcomes, minimize raw content, find the first wrong transition, and build a safe escalation packet.
