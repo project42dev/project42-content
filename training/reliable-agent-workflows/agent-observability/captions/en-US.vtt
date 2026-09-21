@@ -1,982 +1,1226 @@
 WEBVTT
 
 1
-00:00:00.000 --> 00:00:05.600
+00:00:00.000 --> 00:00:04.286
 Welcome. This class shows how to observe
 an agent system
 
 2
-00:00:05.600 --> 00:00:11.200
+00:00:04.286 --> 00:00:08.571
 without turning telemetry into an
 uncontrolled copy of user data.
 
 3
-00:00:11.200 --> 00:00:16.800
+00:00:08.571 --> 00:00:12.857
 You will connect causal spans, measure
 useful outcomes, minimize sensitive
 
 4
-00:00:16.800 --> 00:00:22.400
+00:00:12.857 --> 00:00:17.143
 content, diagnose the first wrong
-transition, and prepare decision-ready
+transition, repair one deterministic
 
 5
-00:00:22.400 --> 00:00:28.000
-human escalation.
+00:00:17.143 --> 00:00:21.429
+privacy defect, and prepare a
+decision-ready human escalation. The
 
 6
-00:00:28.000 --> 00:00:33.077
+00:00:21.429 --> 00:00:25.714
+examples are synthetic. A passing exercise
+is not evidence that
+
+7
+00:00:25.714 --> 00:00:30.000
+a production system is instrumented
+safely.
+
+8
+00:00:30.000 --> 00:00:34.333
 Use traces, metrics, logs, and evaluations
 together because each answers
 
-7
-00:00:33.077 --> 00:00:38.154
+9
+00:00:34.333 --> 00:00:38.667
 a different question. A trace reconstructs
 one run and its
 
-8
-00:00:38.154 --> 00:00:43.231
-parent-child operations. Metrics reveal
-trends, distributions, and
-
-9
-00:00:43.231 --> 00:00:48.308
-service-objective performance across many
-runs. Logs record discrete operational
-
 10
-00:00:48.308 --> 00:00:53.385
-events. Evaluations judge behavior against
-cases and rubrics. None replaces
+00:00:38.667 --> 00:00:43.000
+parent-child operations. Metrics reveal
+trends, distributions, and service
 
 11
-00:00:53.385 --> 00:00:58.462
-the others. Begin with decisions the team
-must make: detect
+00:00:43.000 --> 00:00:47.333
+objectives across many runs. Logs record
+discrete operational events. Evaluations
 
 12
-00:00:58.462 --> 00:01:03.538
-a quality regression, locate a failed
-boundary, control spend, prove
+00:00:47.333 --> 00:00:51.667
+judge behavior against an explicit rubric.
+None replaces the others.
 
 13
-00:01:03.538 --> 00:01:08.615
-an external postcondition, explain an
-escalation, or decide whether automated
+00:00:51.667 --> 00:00:56.000
+Begin with a decision the team must make.
+Perhaps you
 
 14
-00:01:08.615 --> 00:01:13.692
-recovery is safe. Collect a signal only
-when it supports
+00:00:56.000 --> 00:01:00.333
+need to detect a regression, locate a
+failed boundary, control
 
 15
-00:01:13.692 --> 00:01:18.769
-a named decision, control, or obligation.
-Request volume alone does
+00:01:00.333 --> 00:01:04.667
+spend, explain an escalation, or prove
+that a postcondition held.
 
 16
-00:01:18.769 --> 00:01:23.846
-not reveal useful outcomes. A full
-transcript alone does not
+00:01:04.667 --> 00:01:09.000
+Collect only signals that support a named
+decision, control, or
 
 17
-00:01:23.846 --> 00:01:28.923
-reveal aggregate reliability and may
-violate data promises. Purpose should
+00:01:09.000 --> 00:01:13.333
+obligation. A quality metric can show that
+successful completion declined
 
 18
-00:01:28.923 --> 00:01:34.000
-determine collection, resolution, access,
-retention, and deletion.
+00:01:13.333 --> 00:01:17.667
+after a workflow release, but it cannot
+localize the retrieval,
 
 19
-00:01:34.000 --> 00:01:39.500
-Preserve causal structure across the run.
-Assign the workflow a
+00:01:17.667 --> 00:01:22.000
+approval, or tool boundary that failed in
+one run. A
 
 20
-00:01:39.500 --> 00:01:45.000
-trace identifier. Give every agent step,
-model call, retrieval, tool
+00:01:22.000 --> 00:01:26.333
+trace can localize that run. An evaluation
+can judge whether
 
 21
-00:01:45.000 --> 00:01:50.500
-call, approval, guardrail, handoff,
-verifier, and recovery action a span
+00:01:26.333 --> 00:01:30.667
+the final behavior met the task rubric. A
+log can
 
 22
-00:01:50.500 --> 00:01:56.000
-with its own identifier, parent linkage,
-timing, status, and failure
+00:01:30.667 --> 00:01:35.000
+record that an escalation packet was
+created. Request volume alone
 
 23
-00:01:56.000 --> 00:02:01.500
-class. Record stable references to
-workflow, prompt, model, tool, policy,
+00:01:35.000 --> 00:01:39.333
+is not an outcome, and a full transcript
+alone is
 
 24
-00:02:01.500 --> 00:02:07.000
-content, adapter, and evaluation versions.
-Add low-cardinality fields for aggregation
+00:01:39.333 --> 00:01:43.667
+not aggregate reliability. Also remember
+the boundary of this lesson.
 
 25
-00:02:07.000 --> 00:02:12.500
-such as operation type and terminal state.
-Keep detailed evidence
+00:01:43.667 --> 00:01:48.000
+The lab uses deterministic JSON fixtures.
+It does not prove
 
 26
-00:02:12.500 --> 00:02:18.000
-behind access-controlled references rather
-than copying it into searchable labels.
+00:01:48.000 --> 00:01:52.333
+that a deployed system creates spans at
+real workflow boundaries,
 
 27
-00:02:18.000 --> 00:02:23.500
-Correlation and idempotency identifiers
-should connect provider requests and
+00:01:52.333 --> 00:01:56.667
+propagates identifiers across external
+calls, or exports genuine provider and
 
 28
-00:02:23.500 --> 00:02:29.000
-external effects without containing
-credentials or personal data. A portable
+00:01:56.667 --> 00:02:01.000
+tool outcomes.
 
 29
-00:02:29.000 --> 00:02:34.500
-span envelope lets different provider
-frameworks feed one product-level trace
+00:02:01.000 --> 00:02:05.450
+Preserve causal structure across the run.
+Give the workflow a
 
 30
-00:02:34.500 --> 00:02:40.000
-while preserving adapter-specific request
-IDs and feature limitations.
+00:02:05.450 --> 00:02:09.900
+trace identifier. Give each agent step,
+model call, retrieval, tool
 
 31
-00:02:40.000 --> 00:02:45.077
-Measure outcomes, not activity alone.
-Track task success and independently
+00:02:09.900 --> 00:02:14.350
+call, approval, handoff, verifier, and
+recovery step a span with
 
 32
-00:02:45.077 --> 00:02:50.154
-verified completion beside policy
-violations, unsafe attempts, user
+00:02:14.350 --> 00:02:18.800
+its own identifier, parent linkage,
+timing, status, and failure class.
 
 33
-00:02:50.154 --> 00:02:55.231
-correction, escalation, abandonment, tool
-and retrieval failures, retry rate, and
+00:02:18.800 --> 00:02:23.250
+Record stable references to workflow,
+prompt, model, tool, policy, and
 
 34
-00:02:55.231 --> 00:03:00.308
-unresolved outcomes. Measure latency as
-distributions and stage-level spans, not
+00:02:23.250 --> 00:02:27.700
+content versions. A portable span envelope
+includes the trace identifier,
 
 35
-00:03:00.308 --> 00:03:05.385
-one average. Relate token use and
-estimated cost to verified
+00:02:27.700 --> 00:02:32.150
+span identifier, parent identifier,
+operation, version references, start and
 
 36
-00:03:05.385 --> 00:03:10.462
-successful tasks so optimization does not
-reward cheap failures. Segment
+00:02:32.150 --> 00:02:36.600
+end times, status, failure class, usage,
+retries, estimated cost, and
 
 37
-00:03:10.462 --> 00:03:15.538
-by workflow and policy version, model,
-tool, journey, risk class,
+00:02:36.600 --> 00:02:41.050
+a redacted evidence reference. Use
+low-cardinality fields such as operation
 
 38
-00:03:15.538 --> 00:03:20.615
-supported language, and other meaningful
-populations. Avoid high-cardinality labels
+00:02:41.050 --> 00:02:45.500
+type and terminal state for aggregation.
+Keep detailed evidence behind
 
 39
-00:03:20.615 --> 00:03:25.692
-that expose sensitive content or make
-metrics unusable. Alert on
+00:02:45.500 --> 00:02:49.950
+access-controlled references. A span
+contract says what must be true
 
 40
-00:03:25.692 --> 00:03:30.769
-error-budget burn, critical policy events,
-duplicate-effect attempts, unresolved
+00:02:49.950 --> 00:02:54.400
+before and after an operation. Preparation
+may produce a non-executing
 
 41
-00:03:30.769 --> 00:03:35.846
-reconciliation, missing trace segments,
-and material quality changes. A healthy
+00:02:54.400 --> 00:02:58.850
+action plan. Approval may authorize or
+deny it. Verification may
 
 42
-00:03:35.846 --> 00:03:40.923
-endpoint and growing request count can
-coexist with user harm,
+00:02:58.850 --> 00:03:03.300
+confirm that no side effect occurred after
+denial. Status alone
 
 43
-00:03:40.923 --> 00:03:46.000
-excessive cost, or declining completion.
+00:03:03.300 --> 00:03:07.750
+is not enough. Record a compact outcome
+such as prepared,
 
 44
-00:03:46.000 --> 00:03:50.857
+00:03:07.750 --> 00:03:12.200
+denied, recovered, escalated, or verified
+no effect. Correlation identifiers can
+
+45
+00:03:12.200 --> 00:03:16.650
+connect provider requests and external
+effects, but they must be
+
+46
+00:03:16.650 --> 00:03:21.100
+random or otherwise non-semantic. Do not
+put an email address,
+
+47
+00:03:21.100 --> 00:03:25.550
+account number, customer name, prompt
+text, or sensitive value in
+
+48
+00:03:25.550 --> 00:03:30.000
+an identifier or metric label.
+
+49
+00:03:30.000 --> 00:03:34.357
+Measure outcomes, not activity alone.
+Track task success and verified
+
+50
+00:03:34.357 --> 00:03:38.714
+completion beside policy violations,
+unsafe attempts, user corrections,
+
+51
+00:03:38.714 --> 00:03:43.071
+escalations, abandonment, tool and
+retrieval failures, retries, latency,
+
+52
+00:03:43.071 --> 00:03:47.429
+token use, and cost per successful task.
+Segment these measures
+
+53
+00:03:47.429 --> 00:03:51.786
+by workflow version, model, tool, user
+journey, risk class, language,
+
+54
+00:03:51.786 --> 00:03:56.143
+and other supported groups. Define every
+metric before graphing it.
+
+55
+00:03:56.143 --> 00:04:00.500
+Outcome says what happened to the task.
+Quality compares behavior
+
+56
+00:04:00.500 --> 00:04:04.857
+with a rubric. Safety records attempted
+and prevented violations separately.
+
+57
+00:04:04.857 --> 00:04:09.214
+Reliability records whether required
+boundaries completed and whether recovery
+
+58
+00:04:09.214 --> 00:04:13.571
+restored a valid state. Escalation records
+both the trigger and
+
+59
+00:04:13.571 --> 00:04:17.929
+whether a human decision was requested.
+State whether token and
+
+60
+00:04:17.929 --> 00:04:22.286
+cost fields are provider-reported, locally
+counted, or estimated. For the
+
+61
+00:04:22.286 --> 00:04:26.643
+supplied fixture, use nearest rank across
+all eight spans, including
+
+62
+00:04:26.643 --> 00:04:31.000
+the root agent span. The ordered latency
+values are 15,
+
+63
+00:04:31.000 --> 00:04:35.357
+20, 25, 30, 40, 60, 120, and 900
+milliseconds. The
+
+64
+00:04:35.357 --> 00:04:39.714
+fourth value is the nearest rank for eight
+observations at
+
+65
+00:04:39.714 --> 00:04:44.071
+the fiftieth percentile, so p50 is 30
+milliseconds. The nearest
+
+66
+00:04:44.071 --> 00:04:48.429
+rank for the ninety-fifth percentile is
+the eighth value, so
+
+67
+00:04:48.429 --> 00:04:52.786
+p95 is 900 milliseconds. These are
+exercise results, not production
+
+68
+00:04:52.786 --> 00:04:57.143
+objectives. The exercise cost convention
+is 0.001 dollars per token.
+
+69
+00:04:57.143 --> 00:05:01.500
+The model span has 180 input tokens plus
+40 output
+
+70
+00:05:01.500 --> 00:05:05.857
+tokens, for 220 total tokens. Multiply
+0.001 by 220: the
+
+71
+00:05:05.857 --> 00:05:10.214
+estimated cost is 0.220 dollars. This is a
+local exercise
+
+72
+00:05:10.214 --> 00:05:14.571
+estimate, not a provider invoice. Any
+clear-text approval argument is
+
+73
+00:05:14.571 --> 00:05:18.929
+an immediate privacy alert in this
+exercise. An action after
+
+74
+00:05:18.929 --> 00:05:23.286
+denial is an immediate safety alert. An
+unknown final verification
+
+75
+00:05:23.286 --> 00:05:27.643
+enters human escalation. Product owners
+must select real thresholds from
+
+76
+00:05:27.643 --> 00:05:32.000
+representative traffic.
+
+77
+00:05:32.000 --> 00:05:36.450
 Assume model and tool content is
 sensitive. Inputs, outputs, retrieval
 
-45
-00:03:50.857 --> 00:03:55.714
+78
+00:05:36.450 --> 00:05:40.900
 queries, documents, tool arguments,
 results, and approval notes may contain
 
-46
-00:03:55.714 --> 00:04:00.571
-personal data, credentials, customer
-content, or protected business
+79
+00:05:40.900 --> 00:05:45.350
+personal data, secrets, customer content,
+or protected business information. Default
 
-47
-00:04:00.571 --> 00:04:05.429
-information. Default to metadata, bounded
-classifications, hashes, and secure
+80
+00:05:45.350 --> 00:05:49.800
+to metadata and secure references. The
+lesson default exports operation
 
-48
-00:04:05.429 --> 00:04:10.286
-references. Capture raw content only for a
-documented purpose, permitted
+81
+00:05:49.800 --> 00:05:54.250
+names, opaque identifiers, version
+references, status, duration, aggregate
 
-49
-00:04:10.286 --> 00:04:15.143
-population, and controlled duration.
-Redact before export, isolate tenants,
+82
+00:05:54.250 --> 00:05:58.700
+token counts, estimated cost, and redacted
+field-name summaries. It does
 
-50
-00:04:15.143 --> 00:04:20.000
-encrypt data, enforce role-based access,
-audit viewing, sample by risk
+83
+00:05:58.700 --> 00:06:03.150
+not export full prompts, hidden reasoning,
+credentials, raw retrieval documents,
 
-51
-00:04:20.000 --> 00:04:24.857
-and debugging need, and propagate
-deletion. Define residency and regional
+84
+00:06:03.150 --> 00:06:07.600
+argument values, or result bodies. A
+complete telemetry policy answers
 
-52
-00:04:24.857 --> 00:04:29.714
-transfer rules where required. Short
-retention is a control, not
+85
+00:06:07.600 --> 00:06:12.050
+eight questions. What purpose requires
+each field? What redaction runs
 
-53
-00:04:29.714 --> 00:04:34.571
-an inconvenience. Never collect hidden
-reasoning as an operational requirement.
+86
+00:06:12.050 --> 00:06:16.500
+before export? Which approved population,
+if any, permits content capture?
 
-54
-00:04:34.571 --> 00:04:39.429
-A concise decision summary, tool record,
-evidence reference, and policy
+87
+00:06:16.500 --> 00:06:20.950
+What risk-based sampling rule selects
+runs? Which role may read
 
-55
-00:04:39.429 --> 00:04:44.286
-result support diagnosis without asking a
-model to reveal private
+88
+00:06:20.950 --> 00:06:25.400
+each data class? When is each class
+removed? How does
 
-56
-00:04:44.286 --> 00:04:49.143
-internal reasoning. Observability that
-violates the product's data promises is
+89
+00:06:25.400 --> 00:06:29.850
+subject or tenant deletion propagate to
+telemetry and backups? Which
 
-57
-00:04:49.143 --> 00:04:54.000
-itself an incident.
+90
+00:06:29.850 --> 00:06:34.300
+approved region permits collection,
+processing, and storage? Apply redaction
 
-58
-00:04:54.000 --> 00:04:59.231
-Diagnose from the visible failure backward
-to the first wrong
+91
+00:06:34.300 --> 00:06:38.750
+before export, isolate tenants, encrypt
+data, enforce role-based access, audit
 
-59
-00:04:59.231 --> 00:05:04.462
-transition. Compare each span's actual
-input, output, authority, postcondition,
+92
+00:06:38.750 --> 00:06:43.200
+access, use short retention, propagate
+deletion, and apply regional controls.
 
-60
-00:05:04.462 --> 00:05:09.692
-and state with its contract. Classify the
-first divergence before
+93
+00:06:43.200 --> 00:06:47.650
+Sample because of risk and debugging need,
+not merely because
 
-61
-00:05:09.692 --> 00:05:14.923
-changing a prompt: model, prompt,
-retrieval, data, tool, policy,
+94
+00:06:47.650 --> 00:06:52.100
+storage is available. Synthetic canaries
+can test leakage. Never insert
 
-62
-00:05:14.923 --> 00:05:20.154
-orchestration, or infrastructure. A wrong
-final answer may begin with
+95
+00:06:52.100 --> 00:06:56.550
+a real secret to test redaction.
+Observability that violates the
 
-63
-00:05:20.154 --> 00:05:25.385
-stale retrieval. A duplicate write may
-begin with a lost
+96
+00:06:56.550 --> 00:07:01.000
+product's data promises is an operational
+failure.
 
-64
-00:05:25.385 --> 00:05:30.615
-idempotency key. Contain ongoing risk and
-preserve redacted evidence. Escalate
+97
+00:07:01.000 --> 00:07:05.474
+Begin at the user-visible failure, then
+walk backward to the
 
-65
-00:05:30.615 --> 00:05:35.846
-when a trace indicates unsafe action,
-cross-tenant data, repeated unknown
+98
+00:07:05.474 --> 00:07:09.947
+first span whose actual state diverged
+from its expected contract.
 
-66
-00:05:35.846 --> 00:05:41.077
-outcomes, policy conflict, or impact
-beyond automated recovery. The human
+99
+00:07:09.947 --> 00:07:14.421
+Compare input, output, authority,
+postcondition, and state at each boundary.
 
-67
-00:05:41.077 --> 00:05:46.308
-packet should contain a redacted timeline,
-affected targets, versions, confirmed
+100
+00:07:14.421 --> 00:07:18.895
+Classify the first divergence before
+changing a prompt. Possible classes
 
-68
-00:05:46.308 --> 00:05:51.538
-facts, containment status, evidence
-references, remaining uncertainty, and the
+101
+00:07:18.895 --> 00:07:23.368
+include model, prompt, tool, retrieval,
+data, policy, infrastructure, and
 
-69
-00:05:51.538 --> 00:05:56.769
-exact decision required. It should not
-contain secrets, unnecessary customer
+102
+00:07:23.368 --> 00:07:27.842
+orchestration. Escalate when the trace
+indicates an unsafe action, cross-tenant
 
-70
-00:05:56.769 --> 00:06:02.000
-content, unsupported blame, or hidden
-reasoning.
+103
+00:07:27.842 --> 00:07:32.316
+data, repeated unknown outcomes, policy
+conflict, or impact beyond automated
 
-71
-00:06:02.000 --> 00:06:07.333
+104
+00:07:32.316 --> 00:07:36.789
+recovery. Give the human a redacted
+timeline, affected targets, containment
+
+105
+00:07:36.789 --> 00:07:41.263
+status, evidence references, confirmed
+facts, remaining uncertainty, and the
+
+106
+00:07:41.263 --> 00:07:45.737
+exact decision required. Do not include
+secrets, unnecessary customer content,
+
+107
+00:07:45.737 --> 00:07:50.211
+unsupported blame, or hidden reasoning.
+For this synthetic case, the
+
+108
+00:07:50.211 --> 00:07:54.684
+packet identifies trace tr demo seven,
+workflow version wf three,
+
+109
+00:07:54.684 --> 00:07:59.158
+and a synthetic account target. The issue
+is clear-text approval
+
+110
+00:07:59.158 --> 00:08:03.632
+arguments in telemetry. Containment is to
+disable the affected exporter
+
+111
+00:08:03.632 --> 00:08:08.105
+route and restrict trace access. The
+verified workflow effect is
+
+112
+00:08:08.105 --> 00:08:12.579
+no external action. Evidence references
+are the approval span and
+
+113
+00:08:12.579 --> 00:08:17.053
+verifier span. The requested decision is
+to authorize a redacted
+
+114
+00:08:17.053 --> 00:08:21.526
+re-export and deletion of the defective
+record. The packet excludes
+
+115
+00:08:21.526 --> 00:08:26.000
+full prompts, hidden reasoning, and
+argument values.
+
+116
+00:08:26.000 --> 00:08:30.333
 A support agent claims a policy exception.
 The final model
 
-72
-00:06:07.333 --> 00:06:12.667
+117
+00:08:30.333 --> 00:08:34.667
 span looks fluent and the tool span
 succeeded. Walking backward
 
-73
-00:06:12.667 --> 00:06:18.000
+118
+00:08:34.667 --> 00:08:39.000
 reveals that retrieval selected an expired
 policy because the content-version
 
-74
-00:06:18.000 --> 00:06:23.333
+119
+00:08:39.000 --> 00:08:43.333
 filter was missing. The verifier checked
 citation format but not
 
-75
-00:06:23.333 --> 00:06:28.667
+120
+00:08:43.333 --> 00:08:47.667
 effective date. Classify the first
 divergence as retrieval or data
 
-76
-00:06:28.667 --> 00:06:34.000
+121
+00:08:47.667 --> 00:08:52.000
 freshness, not model style. Disable the
 affected route, preserve the
 
-77
-00:06:34.000 --> 00:06:39.333
+122
+00:08:52.000 --> 00:08:56.333
 content and workflow version references,
 add a dated-policy regression case,
 
-78
-00:06:39.333 --> 00:06:44.667
+123
+00:08:56.333 --> 00:09:00.667
 and give the reviewer a redacted timeline.
 Changing temperature would
 
-79
-00:06:44.667 --> 00:06:50.000
+124
+00:09:00.667 --> 00:09:05.000
 not repair the failed boundary.
 
-80
-00:06:50.000 --> 00:06:55.500
+125
+00:09:05.000 --> 00:09:09.000
 Choose one raw telemetry field from an
 agent workflow. State
 
-81
-00:06:55.500 --> 00:07:01.000
-the operator decision it supports, then
+126
+00:09:09.000 --> 00:09:13.000
+the operator decision it supports. Then
 replace it with the
 
-82
-00:07:01.000 --> 00:07:06.500
+127
+00:09:13.000 --> 00:09:17.000
 least sensitive metadata, classification,
 hash, or secure reference that still
 
-83
-00:07:06.500 --> 00:07:12.000
-supports that decision.
+128
+00:09:17.000 --> 00:09:21.000
+supports that decision. Include who may
+access it, how long
 
-84
-00:08:42.000 --> 00:08:48.000
+129
+00:09:21.000 --> 00:09:25.000
+it is retained, and how deletion reaches
+backups. Do not
+
+130
+00:09:25.000 --> 00:09:29.000
+use a real secret or personal data in your
+
+131
+00:09:29.000 --> 00:09:33.000
+answer.
+
+132
+00:11:03.000 --> 00:11:07.667
 Checkpoint. Should a human escalation
 packet include full customer prompts
 
-85
-00:08:48.000 --> 00:08:54.000
+133
+00:11:07.667 --> 00:11:12.333
 and hidden model reasoning by default so
 the reviewer has
 
-86
-00:08:54.000 --> 00:09:00.000
-every detail?
-
-87
-00:10:00.000 --> 00:10:05.714
-No. Give the reviewer a redacted timeline,
-targets, versions, containment,
-
-88
-00:10:05.714 --> 00:10:11.429
-evidence references, uncertainty, and
-required decision. Include content only
-
-89
-00:10:11.429 --> 00:10:17.143
-when policy, purpose, permission, access,
-and retention justify it. Hidden
-
-90
-00:10:17.143 --> 00:10:22.857
-reasoning is not required for operational
-accountability. If you chose
-
-91
-00:10:22.857 --> 00:10:28.571
-full capture for convenience, return to
-data minimization. If you
-
-92
-00:10:28.571 --> 00:10:34.286
-removed every detail, add enough governed
-evidence to reproduce the
-
-93
-00:10:34.286 --> 00:10:40.000
-state transition and decide containment or
-recovery.
-
-94
-00:10:40.000 --> 00:10:46.400
-Open the trace review activity. Define
-spans for agent, model,
-
-95
-00:10:46.400 --> 00:10:52.800
-retrieval, tool, approval, handoff,
-verification, and recovery. Add quality,
-
-96
-00:10:52.800 --> 00:10:59.200
-safety, reliability, latency, token, cost,
-and escalation metrics. Write the
-
-97
-00:10:59.200 --> 00:11:05.600
-telemetry policy, diagnose one failed
-trace, and prepare the redacted
-
-98
-00:11:05.600 --> 00:11:12.000
-human-escalation packet.
-
-99
-00:14:12.000 --> 00:14:16.464
-It contains eight causally linked spans:
-agent, model, retrieval, tool
-
-100
-00:14:16.464 --> 00:14:20.929
-preparation, approval, recovery, handoff,
-and verification. All identifiers and
-
-101
-00:14:20.929 --> 00:14:25.393
-content are synthetic. The model proposes
-a plan, retrieval returns
-
-102
-00:14:25.393 --> 00:14:29.857
-a policy reference, and the tool prepares
-but does not
-
-103
-00:14:29.857 --> 00:14:34.321
-execute an action. Approval denies the
-destination. Recovery marks the
-
-104
-00:14:34.321 --> 00:14:38.786
-action cancelled, handoff requests human
-review, and verification confirms that
-
-105
-00:14:38.786 --> 00:14:43.250
-no external effect occurred. Walk from the
-final failed quality
-
-106
-00:14:43.250 --> 00:14:47.714
-outcome backward. Verification says
-verified_no_effect, so containment
-
-107
-00:14:47.714 --> 00:14:52.179
-succeeded. Handoff correctly requests a
-human decision. Recovery correctly cancels
-
-108
-00:14:52.179 --> 00:14:56.643
-the pending action. Approval correctly
-denies the request under policy.
-
-109
-00:14:56.643 --> 00:15:01.107
-The approval telemetry contract permits
-only the names of these
-
-110
-00:15:01.107 --> 00:15:05.571
-fields and a redacted marker. This is the
-first wrong
-
-111
-00:15:05.571 --> 00:15:10.036
-transition. The run-level result is
-outcome escalated, quality fail because
-
-112
-00:15:10.036 --> 00:15:14.500
-the requested task was not completed,
-safety pass because the
-
-113
-00:15:14.500 --> 00:15:18.964
-unauthorized action was prevented,
-reliability recovered because the workflow
-
-114
-00:15:18.964 --> 00:15:23.429
-reached a verified safe state, and
-escalation yes. Quality failure
-
-115
-00:15:23.429 --> 00:15:27.893
-and safety success can coexist. Treating
-every denial as a
-
-116
-00:15:27.893 --> 00:15:32.357
-safety failure would hide the value of the
-control. By
-
-117
-00:15:32.357 --> 00:15:36.821
-operation slice, the agent span is error
-at 900 milliseconds,
-
-118
-00:15:36.821 --> 00:15:41.286
-model is ok at 120, retrieval is ok at 40,
-
-119
-00:15:41.286 --> 00:15:45.750
-tool is ok at 60, approval is error at 20,
-
-120
-00:15:45.750 --> 00:15:50.214
-recovery is ok at 30, handoff is ok at 15,
-
-121
-00:15:50.214 --> 00:15:54.679
-and verify is ok at 25. Only the model
-
-122
-00:15:54.679 --> 00:15:59.143
-span has tokens: 180 input and 40 output.
-At the
-
-123
-00:15:59.143 --> 00:16:03.607
-exercise rate, that span costs 0.220
-dollars and all other
-
-124
-00:16:03.607 --> 00:16:08.071
-spans cost 0.000 dollars. The diagnostic
-answer is therefore not
-
-125
-00:16:08.071 --> 00:16:12.536
-to relax approval or change the model
-prompt. Repair the
-
-126
-00:16:12.536 --> 00:16:17.000
-telemetry serialization boundary. Keep the
-denial and recovery behavior unchanged.
-
-127
-00:16:17.000 --> 00:16:21.565
-Node 22 can execute these native
-ECMAScript modules without a
-
-128
-00:16:21.565 --> 00:16:26.130
-bundler or third-party dependency. The
-exercise uses JSON fixtures and
-
-129
-00:16:26.130 --> 00:16:30.696
-does not call a model, provider API,
-approval service, or
-
-130
-00:16:30.696 --> 00:16:35.261
-external tool. Its deliberate defect
-returns approval tool arguments unchanged.
-
-131
-00:16:35.261 --> 00:16:39.826
-Modify sanitizeTrace so each approval span
-replaces attributes.toolArgs with a
-
-132
-00:16:39.826 --> 00:16:44.391
-safe object containing the sorted
-top-level field names and redacted
-
-133
-00:16:44.391 --> 00:16:48.957
-set to true. Preserve trace IDs, span IDs,
-parent links,
-
 134
-00:16:48.957 --> 00:16:53.522
-operation, status, versions, timings,
-usage, and unrelated safe attributes. The
+00:11:12.333 --> 00:11:17.000
+every detail? Pause and decide before
+hearing the explanation.
 
 135
-00:16:53.522 --> 00:16:58.087
-tests use both the visible failed trace
-and an independent
+00:12:17.000 --> 00:12:21.000
+No. The default packet contains a redacted
+timeline, affected targets,
 
 136
-00:16:58.087 --> 00:17:02.652
-changed input. The changed input has
-different field names, nesting,
+00:12:21.000 --> 00:12:25.000
+versions, containment, evidence
+references, uncertainty, and the required
 
 137
-00:17:02.652 --> 00:17:07.217
-values, IDs, and ordering. A hard-coded
-replacement for the visible
+00:12:25.000 --> 00:12:29.000
+decision. Include content only when
+purpose, permission, access, retention,
 
 138
-00:17:07.217 --> 00:17:11.783
-example fails. Returning an empty object,
-deleting all spans, or
+00:12:29.000 --> 00:12:33.000
+and deletion policy justify it. Hidden
+reasoning is not required
 
 139
-00:17:11.783 --> 00:17:16.348
-denying all telemetry also fails because
-diagnosis requires safe metadata
+00:12:33.000 --> 00:12:37.000
+for operational accountability. If you
+chose full capture for convenience,
 
 140
-00:17:16.348 --> 00:17:20.913
-and field-name evidence. Its exit code is
-1. Its exit
+00:12:37.000 --> 00:12:41.000
+return to data minimization. If you
+removed every detail, restore
 
 141
-00:17:20.913 --> 00:17:25.478
-code is 0. The reference implementation is
-separate from the
+00:12:41.000 --> 00:12:45.000
+enough governed evidence to understand the
+state transition and decide
 
 142
-00:17:25.478 --> 00:17:30.043
-immutable test file. A complete submission
-earns credit only when
+00:12:45.000 --> 00:12:49.000
+containment or recovery.
 
 143
-00:17:30.043 --> 00:17:34.609
-the runner exits 0, every immutable test
-passes, the changed-input
+00:12:49.000 --> 00:12:53.000
+Open the trace review activity. Create a
+schema for agent,
 
 144
-00:17:34.609 --> 00:17:39.174
-fixture passes, all required trace
-structure remains available, and no
+00:12:53.000 --> 00:12:57.000
+model, retrieval, tool, approval, handoff,
+verification, and recovery spans. Define
 
 145
-00:17:39.174 --> 00:17:43.739
-argument value is exported. Causal
-feedback is direct: a leaked
+00:12:57.000 --> 00:13:01.000
+quality, safety, reliability, latency,
+token, cost, and escalation metrics with
 
 146
-00:17:43.739 --> 00:17:48.304
-sentinel means value redaction is missing;
-missing IDs or spans
+00:13:01.000 --> 00:13:05.000
+dimensions and product-owned alert
+thresholds. Write the eight-part telemetry
 
 147
-00:17:48.304 --> 00:17:52.870
-means the repair over-deleted telemetry;
-incorrect field names mean the
+00:13:05.000 --> 00:13:09.000
+policy. Review the synthetic failed trace,
+identify the first wrong
 
 148
-00:17:52.870 --> 00:17:57.435
-code was hard-coded to one fixture;
-mutation of the input
+00:13:09.000 --> 00:13:13.000
+transition, prepare the redacted
+escalation packet, and repair the exporter
 
 149
-00:17:57.435 --> 00:18:02.000
-means the sanitizer can corrupt data
-reused by another observer.
+00:13:13.000 --> 00:13:17.000
+defect.
 
 150
-00:18:02.000 --> 00:18:06.294
-Without editing the test or fixture,
-predict the result for
+00:16:17.000 --> 00:16:21.429
+The repair lab is deliberately small. The
+only learner-editable file
 
 151
-00:18:06.294 --> 00:18:10.588
-data/changed-trace.json. Its approval
-arguments contain recipient, token, and
+00:16:21.429 --> 00:16:25.857
+is redact dot m j s. From the repository
 
 152
-00:18:10.588 --> 00:18:14.882
-nested. A general repair emits the sorted
-field list nested,
+00:16:25.857 --> 00:16:30.286
+root, run the focused runner with the
+supplied training path.
 
 153
-00:18:14.882 --> 00:18:19.176
-recipient, token and removes all values,
-including the nested canary.
+00:16:30.286 --> 00:16:34.714
+Then run the immutable Node test command
+with the supplied
 
 154
-00:18:19.176 --> 00:18:23.471
-The operation remains approval, status
-remains error, and the changed
+00:16:34.714 --> 00:16:39.143
+training path. Node 22 executes these
+native modules without a
 
 155
-00:18:23.471 --> 00:18:27.765
-trace and span identifiers remain intact.
-Run the immutable test
+00:16:39.143 --> 00:16:43.571
+bundler, third-party dependency, network
+call, model, provider API, approval
 
 156
-00:18:27.765 --> 00:18:32.059
-suite after recording your prediction. If
-the baseline fixture passes
+00:16:43.571 --> 00:16:48.000
+service, or external tool. Before repair,
+the runner prints three
 
 157
-00:18:32.059 --> 00:18:36.353
-but this variation fails, inspect whether
-your implementation listed fixed
+00:16:48.000 --> 00:16:52.429
+lines: trace tr demo seven; an approval
+argument object containing
 
 158
-00:18:36.353 --> 00:18:40.647
-field names or redacted only strings at
-one known path.
+00:16:52.429 --> 00:16:56.857
+unredacted values; and result fail,
+privacy values exported. Its exit
 
 159
-00:18:40.647 --> 00:18:44.941
-The required transformation summarizes the
-top-level shape of any approval
+00:16:56.857 --> 00:17:01.286
+code is one. After repair, it prints trace
+tr demo
 
 160
-00:18:44.941 --> 00:18:49.235
-toolArgs object and discards the entire
-value tree. Recursive value-by-value
+00:17:01.286 --> 00:17:05.714
+seven; an object with a sorted list of the
 
 161
-00:18:49.235 --> 00:18:53.529
-masking is unnecessary here because
-retaining value shape can itself
+00:17:05.714 --> 00:17:10.143
+three top-level field names and redacted
+true; and result pass,
 
 162
-00:18:53.529 --> 00:18:57.824
-disclose sensitive structure. No string
-from the original toolArgs may
+00:17:10.143 --> 00:17:14.571
+approval arguments redacted. Its exit code
+is zero. The sanitizer
 
 163
-00:18:57.824 --> 00:19:02.118
-appear in serialized output. The trace
-still contains two spans,
+00:17:14.571 --> 00:17:19.000
+must replace every approval span's
+argument value tree, preserve trace
 
 164
-00:19:02.118 --> 00:19:06.412
-and the non-approval model span retains
-its safe model identifier.
+00:17:19.000 --> 00:17:23.429
+and span identifiers, parent links,
+operation, status, versions, timings,
 
 165
-00:19:06.412 --> 00:19:10.706
-This demonstrates that useful structural
-telemetry can survive without retaining
+00:17:23.429 --> 00:17:27.857
+usage, and unrelated safe attributes, and
+avoid mutating the input.
 
 166
-00:19:10.706 --> 00:19:15.000
-argument values.
+00:17:27.857 --> 00:17:32.286
+A leaked canary means value removal is
+incomplete. Missing spans
 
 167
-00:19:15.000 --> 00:19:19.423
-The lab is a fixture simulation. It proves
-only that
+00:17:32.286 --> 00:17:36.714
+or identifiers means the repair
+over-deleted telemetry. Wrong field names
 
 168
-00:19:19.423 --> 00:19:23.846
-one pure JavaScript transformation
-satisfies the supplied invariants. It does
+00:17:36.714 --> 00:17:41.143
+on a changed input mean the code was
+hard-coded. A
 
 169
-00:19:23.846 --> 00:19:28.269
-not prove that a live agent runtime
-creates spans, propagates
+00:17:41.143 --> 00:17:45.571
+changed source fixture means the sanitizer
+mutated shared input. These
 
 170
-00:19:28.269 --> 00:19:32.692
-context, reports provider usage
-accurately, redacts before network export,
+00:17:45.571 --> 00:17:50.000
+are causal diagnoses, not merely test
+messages.
 
 171
-00:19:32.692 --> 00:19:37.115
-or honors deletion and residency controls.
-Validate those properties with
+00:17:50.000 --> 00:17:54.462
+Implement the general transformation in
+sanitize trace. For each approval
 
 172
-00:19:37.115 --> 00:19:41.538
-runtime-specific integration tests and a
-telemetry collector configured for the
+00:17:54.462 --> 00:17:58.923
+span, inspect the top-level keys of its
+argument object, sort
 
 173
-00:19:41.538 --> 00:19:45.962
-deployed environment. Google ADK provides
-agent observability documentation at
+00:17:58.923 --> 00:18:03.385
+those keys, and replace the complete value
+tree with the
 
 174
-00:19:45.962 --> 00:19:50.385
-https://adk.dev/observability/. The
-supplied source history last verified
+00:18:03.385 --> 00:18:07.846
+sorted field list and a redacted marker.
+Do not copy
 
 175
-00:19:50.385 --> 00:19:54.808
-these pages on 2026-09-13; live
-availability is not verified in
+00:18:07.846 --> 00:18:12.308
+the visible example into the code. Do not
+return an
 
 176
-00:19:54.808 --> 00:19:59.231
-this drafting environment. Keep four
-concepts separate when transferring the
+00:18:12.308 --> 00:18:16.769
+empty object. Do not delete all spans or
+all attributes.
 
 177
-00:19:59.231 --> 00:20:03.654
-schema: a model family names weights or a
-related set
+00:18:16.769 --> 00:18:21.231
+The immutable tests check both the visible
+trace and an
 
 178
-00:20:03.654 --> 00:20:08.077
-of models; a runtime loads or serves a
-model; an
+00:18:21.231 --> 00:18:25.692
+independent changed input. A correct
+repair retains useful structural telemetry
 
 179
-00:20:08.077 --> 00:20:12.500
-API defines the request and response
-boundary; an agent framework
+00:18:25.692 --> 00:18:30.154
+while exporting no argument value. The
+supplied execution evidence records
 
 180
-00:20:12.500 --> 00:20:16.923
-coordinates model, retrieval, tool,
-approval, and handoff operations. Do not
+00:18:30.154 --> 00:18:34.615
+the repaired runner with exit code zero
+and both immutable
 
 181
-00:20:16.923 --> 00:20:21.346
-infer a common tool-calling,
-token-reporting, tracing, or approval
+00:18:34.615 --> 00:18:39.077
+tests passing. It also records the starter
+runner and tests
 
 182
-00:20:21.346 --> 00:20:25.769
-capability merely because two systems can
-run language models. These
+00:18:39.077 --> 00:18:43.538
+failing before repair. This exercise
+behavior demonstrates one pure
 
 183
-00:20:25.769 --> 00:20:30.192
-links ground the family or runtime names
-only. Their live
+00:18:43.538 --> 00:18:48.000
+transformation only. It is not live
+deployment verification.
 
 184
-00:20:30.192 --> 00:20:34.615
-contents were not verified in this
-drafting environment, so this
+00:18:48.000 --> 00:18:52.333
+Now change the case, without editing the
+fixture or test.
 
 185
-00:20:34.615 --> 00:20:39.038
-lesson makes no claim that they expose one
-shared observability
+00:18:52.333 --> 00:18:56.667
+The approval arguments have three
+top-level fields: recipient, token, and
 
 186
-00:20:39.038 --> 00:20:43.462
-API or identical agent capabilities. A
-portable adapter should obtain
+00:18:56.667 --> 00:19:01.000
+nested. The general repair emits the
+sorted field list nested,
 
 187
-00:20:43.462 --> 00:20:47.885
-model and usage metadata from the actual
-runtime or API
+00:19:01.000 --> 00:19:05.333
+recipient, token, with redacted true. It
+removes all values, including
 
 188
-00:20:47.885 --> 00:20:52.308
-response, normalize only fields with
-established semantics, preserve the native
+00:19:05.333 --> 00:19:09.667
+the nested canary. The operation remains
+approval. The status remains
 
 189
-00:20:52.308 --> 00:20:56.731
-request identifier as a protected
-correlation value when permitted, and
+00:19:09.667 --> 00:19:14.000
+error. The changed trace and span
+identifiers remain intact. The
 
 190
-00:20:56.731 --> 00:21:01.154
+00:19:14.000 --> 00:19:18.333
+trace still has two spans, and the
+non-approval model span
+
+191
+00:19:18.333 --> 00:19:22.667
+retains its safe model identifier. If the
+baseline passes but
+
+192
+00:19:22.667 --> 00:19:27.000
+this variation fails, inspect for fixed
+field names or masking
+
+193
+00:19:27.000 --> 00:19:31.333
+at only one known path. The required
+transformation discards the
+
+194
+00:19:31.333 --> 00:19:35.667
+entire value tree. Recursive
+value-by-value masking is unnecessary
+
+195
+00:19:35.667 --> 00:19:40.000
+because retaining value shape can itself
+disclose sensitive structure. The
+
+196
+00:19:40.000 --> 00:19:44.333
+changed-case answer is exactly a sorted
+list of nested, recipient,
+
+197
+00:19:44.333 --> 00:19:48.667
+and token, with redacted true. No original
+argument string may
+
+198
+00:19:48.667 --> 00:19:53.000
+appear in serialized output.
+
+199
+00:19:53.000 --> 00:19:57.000
+Before reviewing the answer, write down
+four checks. What fields
+
+200
+00:19:57.000 --> 00:20:01.000
+should remain? What values must disappear,
+including nested values? Which
+
+201
+00:20:01.000 --> 00:20:05.000
+identifiers and statuses must remain? What
+evidence would show that
+
+202
+00:20:05.000 --> 00:20:09.000
+the input object was not mutated? Then
+compare your prediction
+
+203
+00:20:09.000 --> 00:20:13.000
+with the changed-case answer.
+
+204
+00:21:43.000 --> 00:21:47.444
+The answer is the sorted field list
+nested, recipient, token,
+
+205
+00:21:47.444 --> 00:21:51.889
+with redacted true. All values, including
+the nested value, are
+
+206
+00:21:51.889 --> 00:21:56.333
+absent. The approval operation and error
+status remain. The trace
+
+207
+00:21:56.333 --> 00:22:00.778
+and span identifiers remain. The unrelated
+model metadata remains. If
+
+208
+00:22:00.778 --> 00:22:05.222
+your answer retained a value, the
+transformation stopped too early.
+
+209
+00:22:05.222 --> 00:22:09.667
+If it lost identifiers or spans, it
+removed too much.
+
+210
+00:22:09.667 --> 00:22:14.111
+If it used the visible example's fields,
+it was hard-coded.
+
+211
+00:22:14.111 --> 00:22:18.556
+If the source changed, the sanitizer
+mutated shared data. Each
+
+212
+00:22:18.556 --> 00:22:23.000
+result points to a different causal
+defect.
+
+213
+00:22:23.000 --> 00:22:27.318
+Transfer the pattern carefully. The lab
+proves only that one
+
+214
+00:22:27.318 --> 00:22:31.636
+pure JavaScript transformation satisfies
+the supplied fixture invariants. It does
+
+215
+00:22:31.636 --> 00:22:35.955
+not prove that a live runtime creates
+spans, propagates context,
+
+216
+00:22:35.955 --> 00:22:40.273
+reports provider usage accurately, redacts
+before network export, or honors
+
+217
+00:22:40.273 --> 00:22:44.591
+deletion and residency controls. Validate
+those properties with runtime-specific
+
+218
+00:22:44.591 --> 00:22:48.909
+integration tests and a collector
+configured for the deployed environment.
+
+219
+00:22:48.909 --> 00:22:53.227
+The supplied module cites first-party
+tracing documentation for OpenAI Agents,
+
+220
+00:22:53.227 --> 00:22:57.545
+agent observability documentation for
+Google ADK, and OpenTelemetry semantic
+
+221
+00:22:57.545 --> 00:23:01.864
+conventions for generative AI attributes.
+Their source history was last
+
+222
+00:23:01.864 --> 00:23:06.182
+verified on September 13, 2026, but live
+availability is not
+
+223
+00:23:06.182 --> 00:23:10.500
+verified in this drafting environment.
+Keep four concepts separate. A
+
+224
+00:23:10.500 --> 00:23:14.818
+model family names related weights or
+models. A runtime loads
+
+225
+00:23:14.818 --> 00:23:19.136
+or serves a model. An API defines a
+request and
+
+226
+00:23:19.136 --> 00:23:23.455
+response boundary. An agent framework
+coordinates model, retrieval, tool,
+
+227
+00:23:23.455 --> 00:23:27.773
+approval, and handoff operations. Do not
+infer common tool calling,
+
+228
+00:23:27.773 --> 00:23:32.091
+token reporting, tracing, or approval
+capabilities merely because systems can
+
+229
+00:23:32.091 --> 00:23:36.409
+run language models. A portable adapter
+should obtain metadata from
+
+230
+00:23:36.409 --> 00:23:40.727
+the actual runtime or response, normalize
+only established meanings, preserve
+
+231
+00:23:40.727 --> 00:23:45.045
+a native request identifier as protected
+correlation when permitted, and
+
+232
+00:23:45.045 --> 00:23:49.364
 mark unavailable values as unknown rather
 than estimating them. Approval,
 
-191
-00:21:01.154 --> 00:21:05.577
+233
+00:23:49.364 --> 00:23:53.682
 tool execution, recovery, and human
 handoff usually belong to the
 
-192
-00:21:05.577 --> 00:21:10.000
-surrounding workflow even when the
-selected model family changes.
+234
+00:23:53.682 --> 00:23:58.000
+surrounding workflow.
 
-193
-00:21:10.000 --> 00:21:15.500
+235
+00:23:58.000 --> 00:24:02.000
 When ready, begin the knowledge check. You
 will choose linked
 
-194
-00:21:15.500 --> 00:21:21.000
+236
+00:24:02.000 --> 00:24:06.000
 traces for causal review, relate cost to
-successful outcomes, minimize
+verified success, minimize
 
-195
-00:21:21.000 --> 00:21:26.500
+237
+00:24:06.000 --> 00:24:10.000
 raw content, find the first wrong
-transition, and build a
+transition, preserve diagnostic structure,
 
-196
-00:21:26.500 --> 00:21:32.000
-safe escalation packet.
+238
+00:24:10.000 --> 00:24:14.000
+and build a safe escalation packet. The
+knowledge check is
 
-197
-00:21:32.000 --> 00:21:36.667
-Collect signals for decisions, preserve
-causal structure, measure outcomes,
+239
+00:24:14.000 --> 00:24:18.000
+not a claim that a human approval or live
 
-198
-00:21:36.667 --> 00:21:41.333
-minimize sensitive data, find the first
-wrong transition, and escalate
+240
+00:24:18.000 --> 00:24:22.000
+provider call occurred.
 
-199
-00:21:41.333 --> 00:21:46.000
-with redacted evidence.
+241
+00:24:22.000 --> 00:24:26.250
+Collect signals for decisions. Preserve
+causal structure and preconditions and
+
+242
+00:24:26.250 --> 00:24:30.500
+postconditions. Measure outcomes, safety,
+reliability, latency, tokens, cost, and
+
+243
+00:24:30.500 --> 00:24:34.750
+escalation by meaningful slices. Minimize
+sensitive telemetry and govern exceptional
+
+244
+00:24:34.750 --> 00:24:39.000
+capture. Walk backward to the first wrong
+transition. Keep safe
+
+245
+00:24:39.000 --> 00:24:43.250
+structure while removing values. Escalate
+with redacted evidence, containment,
+
+246
+00:24:43.250 --> 00:24:47.500
+uncertainty, and a precise decision.
+Finally, distinguish deterministic
+
+247
+00:24:47.500 --> 00:24:51.750
+exercise behavior from real deployment
+verification. Those habits make
+
+248
+00:24:51.750 --> 00:24:56.000
+observability useful without making it a
+sensitive-data archive.
