@@ -6,12 +6,9 @@
   "reviewCadenceDays": 30,
   "lastVerified": "2026-09-13",
   "providers": [
-    "provider-neutral",
-    "anthropic",
-    "openai",
-    "google"
+    "provider-neutral"
   ],
-  "estimatedMinutes": 150,
+  "estimatedMinutes": 210,
   "objectives": [
     "Design an agent architecture with explicit state, tools, trust boundaries, and authority.",
     "Build an evaluation set and failure tests that measure outcomes, safety, and recovery.",
@@ -30,9 +27,12 @@
       "paragraphs": [
         "Choose a useful workflow whose effects can be simulated or safely reversed. Define the user, desired outcome, inputs, non-goals, acceptance criteria, and the conditions that stop execution. The capstone evaluates reliability, not task size.",
         "Write the state transitions before selecting a model. At minimum, distinguish intake, planning, authorization, execution, verification, reconciliation, completion, and failure. Name the durable record that proves each transition occurred.",
-        "The architecture must keep portable responsibilities separate from provider adapters. Anthropic, OpenAI, and Google examples may differ in tool or tracing syntax, but none may silently redefine the workflow's authority or evidence contract."
+        "The architecture must keep portable responsibilities separate from provider adapters. Anthropic, OpenAI, and Google examples may differ in tool or tracing syntax, but none may silently redefine the workflow's authority or evidence contract.",
+        "Follow one synthetic support case across the state diagram. At intake, record a case ID and immutable input hash. Planning may propose a response, but authorization must produce a separate approval record. Execution uses a durable operation key. Verification reads back the simulated destination. Reconciliation decides whether an uncertain write occurred. Completion is allowed only after the observed postcondition matches the authorized case and operation key.",
+        "Model families and execution products are not interchangeable concepts. Meta Llama, Qwen, DeepSeek, Mistral, and Microsoft Phi name model families or projects, while a local runtime, hosted API, and agent framework provide different operational contracts. Preserve the provider-neutral workflow and validate each adapter instead of assuming common tool calling, authorization, telemetry, or structured-output behavior. First-party project references include https://github.com/meta-llama/llama-models, https://github.com/QwenLM/Qwen3, https://github.com/deepseek-ai/DeepSeek-V3, https://github.com/mistralai/mistral-inference, and https://github.com/microsoft/Phi-3CookBook.",
+        "Instructor narration: begin with the state machine rather than a vendor selection. Ask learners to point to the evidence record for every arrow. Then replace one adapter label with another and verify that state, authority, and evidence requirements remain unchanged. This demonstrates portability without claiming that model families, runtimes, or APIs have identical capabilities."
       ],
-      "callout": "A workflow is not ready to automate until a reviewer can say what it may change, how it stops, and how completion is proven.",
+      "callout": "Checkpoint: a workflow is not ready to automate until a reviewer can identify every allowed transition, its durable evidence, the stop conditions, and the system that alone may authorize an effect.",
       "code": {
         "language": "typescript",
         "label": "Explicit workflow states and transitions",
@@ -45,9 +45,12 @@
       "paragraphs": [
         "Inventory every model, tool, data source, credential, human role, and destination. For each tool, record the allowed operation, denied operation, input validation, approval requirement, execution limit, postcondition, and audit event.",
         "Draw trust boundaries around untrusted user input, retrieved content, model output, MCP servers, secret-bearing executors, and external systems. Treat instructions inside data as data until a trusted control plane validates them.",
-        "Threat-model prompt injection, confused-deputy behavior, excessive permission, secret exposure, replay, duplicate writes, poisoned memory, unsafe delegation, and misleading success claims. Every material threat needs prevention, detection, containment, and recovery."
+        "Threat-model prompt injection, confused-deputy behavior, excessive permission, secret exposure, replay, duplicate writes, poisoned memory, unsafe delegation, and misleading success claims. Every material threat needs prevention, detection, containment, and recovery.",
+        "In the lab, ticket text is deterministic fixture data and the destination is a directory of local files. No model runs and no message is sent. A live deployment would require separate qualification of authentication, authorization, provider behavior, rate limits, data handling, network failures, and real destination reconciliation. Passing the fixture tests does not establish any of those properties.",
+        "Visual cue: draw three boxes labeled untrusted input, model output or fixture, and trusted executor. Put schema validation, permission checks, and any required approval record at the boundary before the executor. The arrow from proposed output to an external effect must never bypass that boundary.",
+        "Instructor narration: use the permission matrix to distinguish proposing from executing. Read the adversarial fixture as untrusted data, not as an instruction. Emphasize that an executor grants authority only after deterministic policy checks and, where required, genuine external approval. The lab creates no such approval and performs no external effect."
       ],
-      "callout": "Model confidence never grants authority; only the trusted executor can authorize an effect.",
+      "callout": "Checkpoint: model confidence never grants authority. A deny-all policy also fails the exercise because the revised, correctly bound package must be accepted.",
       "code": {
         "language": "typescript",
         "label": "A tool permission matrix",
@@ -60,9 +63,12 @@
       "paragraphs": [
         "Define the minimum context packet for each step: objective, constraints, authoritative evidence, current state, tool contract, output schema, and escalation rule. Exclude stale, irrelevant, or secret material.",
         "Separate working context from durable memory. State what may be remembered, who can read it, how it expires, how corrections propagate, and which source remains authoritative when memory conflicts with current evidence.",
-        "For MCP or multi-agent work, document capability discovery, identity, authorization, input and output validation, delegation limits, timeouts, idempotency, and handoff acceptance. A receiving agent must be able to reject an incomplete handoff without guessing."
+        "For MCP or multi-agent work, document capability discovery, identity, authorization, input and output validation, delegation limits, timeouts, idempotency, and handoff acceptance. A receiving agent must be able to reject an incomplete handoff without guessing.",
+        "Use the package binding as a concrete handoff contract. Attempt ID says which submission is under review, version identifies its revision, case ID identifies the evaluated input, and outcome identifies the observed result. If a referenced artifact belongs to another attempt, the receiver must reject the handoff even when that file exists.",
+        "Visual cue: show two packets with identical filenames. Mark the packet whose attempt, version, case, and outcome match the manifest as accepted. Mark the stale packet as rejected. Filenames establish location, not provenance.",
+        "Instructor narration: compare the failed architecture file with the manifest one field at a time. The filename exists, but attemptId is stale. Repeat with the failed results file, whose outcome conflicts with the manifest. Ask learners why either mismatch prevents the artifact from supporting awarded points."
       ],
-      "callout": "A handoff is a contract with evidence, not a conversational promise.",
+      "callout": "Checkpoint: a handoff is a contract with evidence, not a conversational promise or a directory-existence check.",
       "code": {
         "language": "typescript",
         "label": "Accept or reject a handoff packet",
@@ -75,9 +81,12 @@
       "paragraphs": [
         "Create a representative evaluation set with routine cases, boundary cases, adversarial inputs, and known failure modes. Define deterministic checks where possible and calibrated human review where judgment is necessary.",
         "Run failure tests for tool denial, malformed output, timeouts, partial writes, duplicate requests, stale context, poisoned instructions, provider unavailability, and missing telemetry. Record expected containment and the actual observed result.",
-        "Do not retry until the workflow reconciles external state. A retry must be idempotent or protected by a durable operation key, and the recovery test must prove that it did not duplicate or conceal an effect."
+        "Do not retry until the workflow reconciles external state. A retry must be idempotent or protected by a durable operation key, and the recovery test must prove that it did not duplicate or conceal an effect.",
+        "The executable lab adds deterministic checks for exact criterion IDs, integer score ranges, total arithmetic, evidence-reference syntax, file existence, and binding to attempt, version, case, and outcome. Those checks answer whether a package is structurally self-consistent. They do not decide whether prose is genuinely safe, useful, or truthful. Those judgments still require calibrated review and, for a live agent, qualification against the real integration.",
+        "Visual cue: place routine, adversarial, malformed, uncertain-write, and changed-input cases in separate rows. For each row, display expected containment and observed result. A green result requires both the expected decision and the expected evidence.",
+        "Instructor narration: first classify each check as deterministic, live-integration, or human judgment. Next run the malformed-score and stale-binding cases. Explain the causal signal: accepting a malformed score points to shared score validation, while accepting stale evidence after existence checks points specifically to missing provenance comparison."
       ],
-      "callout": "A happy-path demo proves possibility; a failure test provides evidence of control.",
+      "callout": "Checkpoint: a happy-path demo proves possibility. A failure test supplies evidence of control, and a changed-input test helps reveal a hard-coded repair.",
       "code": {
         "language": "typescript",
         "label": "A failure-injection test harness",
@@ -90,9 +99,12 @@
       "paragraphs": [
         "Design traces that correlate workflow, agent, model, tool, handoff, approval, and outcome events. Capture versions, latency, error class, state transitions, and evaluation results while redacting prompts, secrets, personal data, and sensitive tool payloads.",
         "Write an operating runbook covering detection, triage, containment, reconciliation, safe retry, rollback, escalation, communication, recovery verification, and post-incident improvement. Name the owner and evidence required at each decision point.",
-        "Define service indicators and alert thresholds that reveal user harm or control failure, not just infrastructure health. Include evaluation regressions, policy denials, incomplete traces, duplicate-effect attempts, unresolved reconciliations, and badge or transcript integrity failures."
+        "Define service indicators and alert thresholds that reveal user harm or control failure, not just infrastructure health. Include evaluation regressions, policy denials, incomplete traces, duplicate-effect attempts, unresolved reconciliations, and badge or transcript integrity failures.",
+        "The lab trace is intentionally small: validator version, package path, decision code, score, and pass status. Do not copy ticket bodies or fictional approvals into operational telemetry. NIST SP 800-61r3 frames incident response as part of preparation, detection, response, and recovery risk management; it does not specify this synthetic validator. See https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf.",
+        "Visual cue: display a redacted trace beside a prohibited trace. The redacted trace contains correlation IDs and decision codes. The prohibited trace contains credentials, personal data, full prompts, or hidden reasoning.",
+        "Instructor narration: walk through false credit as an incident. Detect the unexpected VALID result, contain it by stopping acceptance, preserve the original package, diagnose the binding mismatch, repair the validator, verify recovery on revised and changed inputs, and record residual limits. Do not describe fixture text as an actual approval or operational decision."
       ],
-      "callout": "Useful telemetry answers what happened and what to do next without becoming a second data leak.",
+      "callout": "Checkpoint: useful telemetry answers what happened and what to do next without becoming a second data leak.",
       "code": {
         "language": "typescript",
         "label": "Redacted operational trace",
@@ -105,13 +117,55 @@
       "paragraphs": [
         "Submit all eight required artifacts and map every rubric criterion to one or more artifact references or knowledge-check result references. A score without a traceable evidence reference is invalid, even when the conclusion seems reasonable.",
         "Review the complete and deliberately flawed exemplars before self-scoring. Compare the evidence, not the polish: the flawed package sounds confident but lacks bounded authority, representative tests, reconciliation, privacy controls, and an actionable handoff.",
-        "A first submission may fail. Use criterion feedback to revise the weakest evidence, resubmit the capstone, and preserve both attempts. Completion requires a passing knowledge check and a capstone score of at least eighty percent."
+        "A first submission may fail. Use criterion feedback to revise the weakest evidence, resubmit the capstone, and preserve both attempts. Completion requires a passing knowledge check and a capstone score of at least eighty percent.",
+        "The six criteria total 100 points: reliable-capstone-correctness 20, reliable-capstone-safety 20, reliable-capstone-evidence 15, reliable-capstone-reliability 20, reliable-capstone-maintainability 15, and reliable-capstone-communication 10. The pass threshold is 80 percent. The complete calibration exemplar scores 100 percent, while the flawed calibration exemplar scores 31 percent. Automated arithmetic may verify those numbers, but criterion quality remains a review judgment.",
+        "Visual cue: compare three columns labeled failed attempt, feedback, and revised attempt. Preserve the failed package. Draw links from each feedback item to the changed artifact and from every awarded criterion to evidence carrying the revised binding.",
+        "Instructor narration: read the six criterion IDs and weights before inspecting scores. Verify exact membership, point types, maximums, evidence references, and arithmetic. Then inspect evidence quality manually. A structurally valid 80-point fixture is a parser result, not proof that a human reviewer agrees with the prose."
       ],
-      "callout": "Revision is part of the assessed workflow; do not overwrite the evidence of what changed.",
+      "callout": "Checkpoint: revision is assessed work. Do not overwrite the failed attempt, accept an unbound reference, or represent a fictional teaching decision as real approval.",
       "code": {
         "language": "typescript",
         "label": "Validate that every criterion has evidence",
         "code": "interface CriterionEvidence {\n  criterionId: string;\n  pointsAwarded: number;\n  evidenceRefs: string[];\n}\n\nfunction validateEvidenceMap(scores: CriterionEvidence[]): string[] {\n  return scores.filter((s) => s.evidenceRefs.length === 0).map((s) => s.criterionId);\n}"
+      }
+    },
+    {
+      "id": "capstone-worked-repair",
+      "title": "Worked example: repair evidence binding rather than suppressing failure",
+      "paragraphs": [
+        "The failed fixture declares attempt-1, version 1.0.0, case support-017, outcome failed, and an 80-point score. Several referenced files actually carry bindings from attempt-0, version 0.9.0, or outcome passed. The starter validator checks all shared package rules and confirms each referenced filename exists, but deliberately omits binding equality. It therefore prints VALID score=80 pass=true and exits 0. That is unearned credit because existence does not prove that evidence supports the submission being scored.",
+        "Trace the cause before editing. Shared validation already rejects unknown criterion IDs, malformed points, bad sums, unsafe references, missing files, malformed manifests, and incorrect criterion membership. The only intended defect is that the starter supplies no evidence-binding validator to the shared package logic. The missing invariant is provenance equality: each referenced artifact must bind to the manifest's attemptId, version, caseId, and outcome.",
+        "The focused repair adds a binding callback that parses the first line of each Markdown artifact and compares all four keys. The evaluation JSON uses its binding object. The validator rejects stale, missing, or mismatched evidence after confirming safe reference syntax and file existence. It still accepts the revised and complete packages, so deny-all is not a valid repair.",
+        "Recovery is a new attempt, not a retry that overwrites history. The revised fixture uses attempt-2, version 1.1.0, case support-017, outcome passed. Its artifacts describe a bounded draft-only executor, approval requirements for any future live effect, timeout reconciliation, privacy-aware traces, and revision handoff. All references carry the new binding.",
+        "Exact trace after the focused repair: the starter CLI on `failed` still prints `VALID score=80 pass=true` and exits 0 because the starter validator does not bind evidence to the manifest. The real shared validation is used by the test runner, without dependency injection or replacement of the shared rules module. Therefore the starter tests reject only the stale-binding case and end with `TESTS total=8 passed=7 failed=1`, exit 1. The unknown-criterion, malformed-points, and bad-sum cases are rejected by the actual `shared/package-validation.mjs` rules, not by a simulated adversarial substitute. A correct repair imports the shared module with the ordinary relative import used by this ESM project and supplies the evidence-binding callback required by `validatePackageCore`. The repaired CLI on `failed` prints `INVALID E_BINDING architecture-and-state-model.md:attemptId` and exits 1. The repaired CLI on `revised` prints `VALID score=80 pass=true` and exits 0. Reference tests end with `TESTS total=8 passed=8 failed=0` and exit 0. To test your understanding, change only the binding in one of the eight artifacts while leaving its filename, criterion IDs, integer points, declared sum, safe local references, manifest schema, case ID, version, outcome, and provider metadata unchanged. The causal result should be a binding error naming that artifact and the first mismatched key, while the other seven artifacts remain valid. This demonstrates why evidence existence alone is insufficient: the validator must compare each artifact's `attemptId`, `version`, `caseId`, and `outcome` with the manifest. The eight-artifact package remains an offline structural check, not a model-quality evaluation, live approval, or human signature.",
+        "The changed-input test copies the revised eight-file package, changes caseId from support-017 to support-099 in the manifest and every binding, and changes the synthetic input text. Acceptance proves that the repair compares values rather than hard-coding support-017. Rejection of the stale fixture plus acceptance of revised, complete, and changed fixtures supplies causal evidence against both permissive and deny-all repairs.",
+        "This exercise is fixture simulation. No API, model, MCP server, human approver, external ticket system, or real write is invoked. The strings describing approvals and decisions are teaching records, not signed approvals. Node.js native ECMAScript module behavior is documented at https://nodejs.org/api/esm.html.",
+        "Instructor narration: reproduce before editing, read the failed package's first lines, and identify the first mismatch. Show that the shared rules are used by starter and reference. Then add only the binding parser and comparator. Close by running both rejection and acceptance cases and asking which claims still need live testing or human review."
+      ],
+      "callout": "Learner checkpoint: explain why checking file existence is necessary but insufficient, identify the exact equality invariant, then demonstrate both rejection of stale evidence and acceptance of independently changed valid evidence.",
+      "code": {
+        "language": "javascript",
+        "label": "Reference binding invariant",
+        "code": "for (const key of [\"attemptId\", \"version\", \"caseId\", \"outcome\"]) {\n  if (artifactBinding[key] !== manifest[key]) {\n    return { code: \"E_BINDING\", detail: `${ref}:${key}` };\n  }\n}"
+      }
+    },
+    {
+      "id": "capstone-lab-activity",
+      "title": "Independent repair and changed-input challenge",
+      "paragraphs": [
+        "From the repository root, run the starter CLI against the failed fixture and record its incorrect successful decision. Then run the immutable tests. The exact starter count is four passes and four failures. Unknown criterion, malformed point string, bad sum, and stale binding all pass the starter validator and therefore fail their rejection tests.",
+        "Edit only `training/reliable-agent-workflows/reliable-agent-capstone/lab/starter/validator.mjs`. Do not change fixtures, shared logic, or tests. Implement the same binding validation contract demonstrated by the reference, but write and explain your own code before comparison. All shared score, type, criterion, manifest, sum, and path validation remains in `shared/package-validation.mjs`.",
+        "Run the tests again. A complete repair must reject stale binding, unknown criterion IDs, non-integer or excessive points, bad sums, unsafe references, and missing evidence. It must accept the revised fixture, the complete fixture, and generated support-099 changed input. Returning invalid for every package fails the acceptance tests.",
+        "Inspect all eight files in failed and revised. Write a short causal handoff containing defect, violated invariant, containment decision, changed code, revision evidence, residual limits, and commands run. State explicitly that the result qualifies an offline package validator, not a live agent or a human safety judgment.",
+        "Recovery procedure: if an edit breaks imports or parsing, restore the starter file from `starter/validator.original.mjs`, rerun the baseline commands, and make one focused change. To inspect a known-good implementation without overwriting your attempt, compare against `reference/validator.mjs`. Preserve the failed fixture and do not repair evidence by rewriting history.",
+        "Visual cue: use a four-step panel labeled reproduce, localize, repair, recover. At each step, retain the command, exact output, exit code, and evidence path.",
+        "Instructor narration: require a prediction before each run. If malformed-score tests fail, inspect whether the shared validator was bypassed. If revised or support-099 fails with E_BINDING, inspect whether all four keys and the evaluation JSON binding are handled. If every package fails, the repair is deny-all rather than provenance validation."
+      ],
+      "callout": "Completion checkpoint: immutable tests pass, failed evidence remains preserved, revised and changed inputs pass, and the handoff distinguishes deterministic validation from human and live-system qualification.",
+      "code": {
+        "language": "text",
+        "label": "Root-relative commands and expected results",
+        "code": "node training/reliable-agent-workflows/reliable-agent-capstone/lab/starter/cli.mjs training/reliable-agent-workflows/reliable-agent-capstone/lab/fixtures/failed\n# stdout: VALID score=80 pass=true\n# exit: 0\n\nnode training/reliable-agent-workflows/reliable-agent-capstone/lab/test/run-tests.mjs starter/validator.mjs\n# final stdout: TESTS total=8 passed=7 failed=1\n# exit: 1\n\nnode training/reliable-agent-workflows/reliable-agent-capstone/lab/reference/cli.mjs training/reliable-agent-workflows/reliable-agent-capstone/lab/fixtures/failed\n# stdout: INVALID E_BINDING architecture-and-state-model.md:attemptId\n# exit: 1\n\nnode training/reliable-agent-workflows/reliable-agent-capstone/lab/reference/cli.mjs training/reliable-agent-workflows/reliable-agent-capstone/lab/fixtures/revised\n# stdout: VALID score=80 pass=true\n# exit: 0\n\nnode training/reliable-agent-workflows/reliable-agent-capstone/lab/test/run-tests.mjs reference/validator.mjs\n# final stdout: TESTS total=8 passed=8 failed=0\n# exit: 0"
       }
     }
   ],
@@ -124,15 +178,19 @@
       "Build a representative evaluation set and execute normal, adversarial, and failure-recovery tests.",
       "Define privacy-aware telemetry and write the operating runbook.",
       "Assemble the eight artifacts, map rubric criteria to evidence, and self-score against both calibration exemplars.",
-      "Submit, use criterion feedback to revise any failing evidence, and preserve the original and revised attempt."
+      "Run the Node.js repair lab, preserve the failed result, repair the single evidence-binding defect, and pass the immutable changed-input tests.",
+      "Submit, use criterion feedback to revise any failing evidence, and preserve the original and revised attempt.",
+      "In the final handoff, separate deterministic fixture evidence, live-integration qualification still required, and judgments that require a human reviewer."
     ],
     "evidence": [
       "Eight versioned capstone artifacts with stable references.",
       "A 100-point criterion score where every judgment maps to an artifact or assessment result.",
       "Failure-test results that demonstrate containment, reconciliation, and safe recovery.",
-      "A preserved revision trail and final operational handoff."
+      "A preserved revision trail and final operational handoff.",
+      "Exact starter and repaired command results, including exit codes.",
+      "A passing independent changed-input test that rejects deny-all and hard-coded repairs."
     ],
-    "reflectionPrompt": "Which control changed most after failure testing, and what evidence now makes the workflow safer to operate?"
+    "reflectionPrompt": "Which control changed most after failure testing, why did the original check permit unearned credit, and what evidence now makes the workflow safer to operate?"
   },
   "capstone": {
     "id": "capstone-reliable-agent-operating-package",
@@ -438,26 +496,44 @@
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 3600,
+    "estimatedSeconds": 77,
     "cues": [
       {
-        "id": "cue-reliable-capstone-mission",
+        "id": "cue-reliable-capstone-mission-1",
         "kind": "narration",
         "sectionId": "capstone-mission",
-        "text": "Frame the capstone as proof that one bounded agent workflow can be understood, constrained, tested, recovered, and handed off."
+        "text": "Frame the capstone as proof that one\nbounded agent workflow can be understood,"
+      },
+      {
+        "id": "cue-reliable-capstone-mission-2",
+        "kind": "narration",
+        "sectionId": "capstone-mission",
+        "text": "constrained, tested, recovered, and handed\noff."
       },
       {
         "id": "cue-reliable-capstone-mission-visual",
         "kind": "visual",
         "sectionId": "capstone-mission",
         "text": "Reveal the workflow states from intake through reconciliation and completion, with failure paths branching to containment.",
-        "accessibilityAlternative": "A static state list shows intake, validation, planning, authorization, execution, verification, reconciliation, completion, and failure-to-containment transitions."
+        "accessibilityAlternative": "A static state list shows intake, planning, authorization, execution, verification, reconciliation, completion, and failure-to-containment transitions."
       },
       {
-        "id": "cue-reliable-capstone-tools",
+        "id": "cue-reliable-capstone-mission-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "capstone-mission",
+        "text": "Ask the learner to name the evidence proving each transition."
+      },
+      {
+        "id": "cue-reliable-capstone-tools-1",
         "kind": "narration",
         "sectionId": "capstone-tools-trust",
-        "text": "Show how the permission matrix and threat model turn model suggestions into bounded executor decisions."
+        "text": "Show how the permission matrix and threat\nmodel turn model suggestions into bounded"
+      },
+      {
+        "id": "cue-reliable-capstone-tools-2",
+        "kind": "narration",
+        "sectionId": "capstone-tools-trust",
+        "text": "executor decisions."
       },
       {
         "id": "cue-reliable-capstone-tools-prompt",
@@ -466,28 +542,78 @@
         "text": "Ask learners to name the most dangerous effect their workflow could attempt and the control that prevents it."
       },
       {
-        "id": "cue-reliable-capstone-context",
+        "id": "cue-reliable-capstone-tools-visual",
+        "kind": "visual",
+        "sectionId": "capstone-tools-trust",
+        "text": "Show untrusted input, proposer, control plane, and executor as separate trust zones.",
+        "accessibilityAlternative": "Four labeled boxes show data crossing validation and authorization boundaries before reaching an executor."
+      },
+      {
+        "id": "cue-reliable-capstone-context-1",
         "kind": "narration",
         "sectionId": "capstone-context-handoffs",
-        "text": "Connect context, memory, MCP, and agent handoffs through explicit authority, provenance, validation, and acceptance contracts."
+        "text": "Connect context, memory, MCP, and agent\nhandoffs through explicit authority,"
       },
       {
-        "id": "cue-reliable-capstone-evaluation",
+        "id": "cue-reliable-capstone-context-2",
+        "kind": "narration",
+        "sectionId": "capstone-context-handoffs",
+        "text": "provenance, validation, and acceptance\ncontracts."
+      },
+      {
+        "id": "cue-reliable-capstone-context-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "capstone-context-handoffs",
+        "text": "Have learners reject a handoff whose evidence belongs to an earlier attempt."
+      },
+      {
+        "id": "cue-reliable-capstone-evaluation-1",
         "kind": "narration",
         "sectionId": "capstone-evaluation",
-        "text": "Demonstrate why routine cases, adversarial cases, failure injection, reconciliation, and idempotency belong in one evaluation plan."
+        "text": "Demonstrate why routine cases, adversarial\ncases, failure injection, reconciliation,"
       },
       {
-        "id": "cue-reliable-capstone-observability",
+        "id": "cue-reliable-capstone-evaluation-2",
+        "kind": "narration",
+        "sectionId": "capstone-evaluation",
+        "text": "and idempotency belong in one evaluation\nplan."
+      },
+      {
+        "id": "cue-reliable-capstone-evaluation-visual",
+        "kind": "visual",
+        "sectionId": "capstone-evaluation",
+        "text": "Display expected and observed containment for each case class.",
+        "accessibilityAlternative": "A table lists routine, adversarial, malformed, timeout, partial-write, and changed-input cases with expected and observed outcomes."
+      },
+      {
+        "id": "cue-reliable-capstone-observability-1",
         "kind": "narration",
         "sectionId": "capstone-observability",
-        "text": "Build an observability and runbook package that explains what happened without retaining secrets, personal data, or hidden reasoning."
+        "text": "Build an observability and runbook package\nthat explains what happened without"
       },
       {
-        "id": "cue-reliable-capstone-evidence",
+        "id": "cue-reliable-capstone-observability-2",
+        "kind": "narration",
+        "sectionId": "capstone-observability",
+        "text": "retaining secrets, personal data, or\nhidden reasoning."
+      },
+      {
+        "id": "cue-reliable-capstone-observability-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "capstone-observability",
+        "text": "Ask which trace fields support recovery and which fields must be excluded."
+      },
+      {
+        "id": "cue-reliable-capstone-evidence-1",
         "kind": "narration",
         "sectionId": "capstone-evidence-revision",
-        "text": "Compare the complete and flawed exemplars, map every criterion to evidence, and treat revision as assessed operational work."
+        "text": "Compare the complete and flawed exemplars,\nmap every criterion to evidence, and treat"
+      },
+      {
+        "id": "cue-reliable-capstone-evidence-2",
+        "kind": "narration",
+        "sectionId": "capstone-evidence-revision",
+        "text": "revision as assessed operational work."
       },
       {
         "id": "cue-reliable-capstone-checkpoint",
@@ -496,56 +622,182 @@
         "text": "Confirm that the learner has eight artifacts, six evidence-mapped criteria, a preserved revision trail, and an explicit residual-risk handoff."
       },
       {
+        "id": "cue-reliable-capstone-repair-1",
+        "kind": "narration",
+        "sectionId": "capstone-worked-repair",
+        "text": "Reproduce the false pass, localize it to\nmissing evidence provenance checks, and"
+      },
+      {
+        "id": "cue-reliable-capstone-repair-2",
+        "kind": "narration",
+        "sectionId": "capstone-worked-repair",
+        "text": "show why a binding-aware validator both\nrejects stale evidence and permits a"
+      },
+      {
+        "id": "cue-reliable-capstone-repair-3",
+        "kind": "narration",
+        "sectionId": "capstone-worked-repair",
+        "text": "genuine revision."
+      },
+      {
+        "id": "cue-reliable-capstone-repair-visual",
+        "kind": "visual",
+        "sectionId": "capstone-worked-repair",
+        "text": "Compare manifest and artifact bindings field by field.",
+        "accessibilityAlternative": "A table compares attempt ID, version, case ID, and outcome. Mismatched cells are labeled rejected."
+      },
+      {
+        "id": "cue-reliable-capstone-lab-1",
+        "kind": "narration",
+        "sectionId": "capstone-lab-activity",
+        "text": "Guide learners through immutable tests, an\nindependent changed input, exact command"
+      },
+      {
+        "id": "cue-reliable-capstone-lab-2",
+        "kind": "narration",
+        "sectionId": "capstone-lab-activity",
+        "text": "results, and a causal operational handoff."
+      },
+      {
+        "id": "cue-reliable-capstone-lab-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "capstone-lab-activity",
+        "text": "Require rejection of the failed package and acceptance of revised and changed valid packages."
+      },
+      {
         "id": "cue-reliable-capstone-activity",
         "kind": "learner-prompt",
-        "text": "Guide the learner through the operating package, failure tests, self-score, submission, feedback, and revision."
+        "text": "Guide the learner through the operating package, failure tests, self-score, repair, feedback, and revision."
       },
       {
-        "id": "cue-reliable-capstone-assessment",
+        "id": "cue-reliable-capstone-assessment-1",
         "kind": "assessment-handoff",
-        "text": "Begin the knowledge check and then collect the versioned capstone submission with criterion-level evidence references."
+        "text": "Begin the knowledge check and then collect\nthe versioned capstone submission with"
+      },
+      {
+        "id": "cue-reliable-capstone-assessment-2",
+        "kind": "assessment-handoff",
+        "text": "criterion-level evidence references."
       }
     ],
-    "transcript": "Frame the capstone as proof that one bounded agent workflow can be understood, constrained, tested, recovered, and handed off.\n\nShow how the permission matrix and threat model turn model suggestions into bounded executor decisions.\n\nConnect context, memory, MCP, and agent handoffs through explicit authority, provenance, validation, and acceptance contracts.\n\nDemonstrate why routine cases, adversarial cases, failure injection, reconciliation, and idempotency belong in one evaluation plan.\n\nBuild an observability and runbook package that explains what happened without retaining secrets, personal data, or hidden reasoning.\n\nCompare the complete and flawed exemplars, map every criterion to evidence, and treat revision as assessed operational work.",
+    "transcript": "Frame the capstone as proof that one\nbounded agent workflow can be understood, constrained, tested, recovered, and handed\noff. Show how the permission matrix and threat\nmodel turn model suggestions into bounded executor decisions. Connect context, memory, MCP, and agent\nhandoffs through explicit authority, provenance, validation, and acceptance\ncontracts. Demonstrate why routine cases, adversarial\ncases, failure injection, reconciliation, and idempotency belong in one evaluation\nplan. Build an observability and runbook package\nthat explains what happened without retaining secrets, personal data, or\nhidden reasoning. Compare the complete and flawed exemplars,\nmap every criterion to evidence, and treat revision as assessed operational work. Reproduce the false pass, localize it to\nmissing evidence provenance checks, and show why a binding-aware validator both\nrejects stale evidence and permits a genuine revision. Guide learners through immutable tests, an\nindependent changed input, exact command results, and a causal operational handoff. Begin the knowledge check and then collect\nthe versioned capstone submission with criterion-level evidence references.",
     "captions": [
       {
-        "cueId": "cue-reliable-capstone-mission",
+        "cueId": "cue-reliable-capstone-mission-1",
         "startSeconds": 0,
-        "endSeconds": 420,
-        "text": "Frame the capstone as proof that one bounded agent workflow can be understood, constrained, tested, recovered, and handed off."
+        "endSeconds": 6,
+        "text": "Frame the capstone as proof that one\nbounded agent workflow can be understood,"
       },
       {
-        "cueId": "cue-reliable-capstone-tools",
-        "startSeconds": 450,
-        "endSeconds": 930,
-        "text": "Show how the permission matrix and threat model turn model suggestions into bounded executor decisions."
+        "cueId": "cue-reliable-capstone-mission-2",
+        "startSeconds": 6,
+        "endSeconds": 9,
+        "text": "constrained, tested, recovered, and handed\noff."
       },
       {
-        "cueId": "cue-reliable-capstone-context",
-        "startSeconds": 960,
-        "endSeconds": 1440,
-        "text": "Connect context, memory, MCP, and agent handoffs through explicit authority, provenance, validation, and acceptance contracts."
+        "cueId": "cue-reliable-capstone-tools-1",
+        "startSeconds": 9,
+        "endSeconds": 15,
+        "text": "Show how the permission matrix and threat\nmodel turn model suggestions into bounded"
       },
       {
-        "cueId": "cue-reliable-capstone-evaluation",
-        "startSeconds": 1470,
-        "endSeconds": 2070,
-        "text": "Demonstrate why routine cases, adversarial cases, failure injection, reconciliation, and idempotency belong in one evaluation plan."
+        "cueId": "cue-reliable-capstone-tools-2",
+        "startSeconds": 15,
+        "endSeconds": 16,
+        "text": "executor decisions."
       },
       {
-        "cueId": "cue-reliable-capstone-observability",
-        "startSeconds": 2100,
-        "endSeconds": 2700,
-        "text": "Build an observability and runbook package that explains what happened without retaining secrets, personal data, or hidden reasoning."
+        "cueId": "cue-reliable-capstone-context-1",
+        "startSeconds": 16,
+        "endSeconds": 21,
+        "text": "Connect context, memory, MCP, and agent\nhandoffs through explicit authority,"
       },
       {
-        "cueId": "cue-reliable-capstone-evidence",
-        "startSeconds": 2730,
-        "endSeconds": 3330,
-        "text": "Compare the complete and flawed exemplars, map every criterion to evidence, and treat revision as assessed operational work."
+        "cueId": "cue-reliable-capstone-context-2",
+        "startSeconds": 21,
+        "endSeconds": 24,
+        "text": "provenance, validation, and acceptance\ncontracts."
+      },
+      {
+        "cueId": "cue-reliable-capstone-evaluation-1",
+        "startSeconds": 24,
+        "endSeconds": 28,
+        "text": "Demonstrate why routine cases, adversarial\ncases, failure injection, reconciliation,"
+      },
+      {
+        "cueId": "cue-reliable-capstone-evaluation-2",
+        "startSeconds": 28,
+        "endSeconds": 31,
+        "text": "and idempotency belong in one evaluation\nplan."
+      },
+      {
+        "cueId": "cue-reliable-capstone-observability-1",
+        "startSeconds": 31,
+        "endSeconds": 36,
+        "text": "Build an observability and runbook package\nthat explains what happened without"
+      },
+      {
+        "cueId": "cue-reliable-capstone-observability-2",
+        "startSeconds": 36,
+        "endSeconds": 39,
+        "text": "retaining secrets, personal data, or\nhidden reasoning."
+      },
+      {
+        "cueId": "cue-reliable-capstone-evidence-1",
+        "startSeconds": 39,
+        "endSeconds": 45,
+        "text": "Compare the complete and flawed exemplars,\nmap every criterion to evidence, and treat"
+      },
+      {
+        "cueId": "cue-reliable-capstone-evidence-2",
+        "startSeconds": 45,
+        "endSeconds": 48,
+        "text": "revision as assessed operational work."
+      },
+      {
+        "cueId": "cue-reliable-capstone-repair-1",
+        "startSeconds": 48,
+        "endSeconds": 54,
+        "text": "Reproduce the false pass, localize it to\nmissing evidence provenance checks, and"
+      },
+      {
+        "cueId": "cue-reliable-capstone-repair-2",
+        "startSeconds": 54,
+        "endSeconds": 60,
+        "text": "show why a binding-aware validator both\nrejects stale evidence and permits a"
+      },
+      {
+        "cueId": "cue-reliable-capstone-repair-3",
+        "startSeconds": 60,
+        "endSeconds": 61,
+        "text": "genuine revision."
+      },
+      {
+        "cueId": "cue-reliable-capstone-lab-1",
+        "startSeconds": 61,
+        "endSeconds": 66,
+        "text": "Guide learners through immutable tests, an\nindependent changed input, exact command"
+      },
+      {
+        "cueId": "cue-reliable-capstone-lab-2",
+        "startSeconds": 66,
+        "endSeconds": 69,
+        "text": "results, and a causal operational handoff."
+      },
+      {
+        "cueId": "cue-reliable-capstone-assessment-1",
+        "startSeconds": 69,
+        "endSeconds": 75,
+        "text": "Begin the knowledge check and then collect\nthe versioned capstone submission with"
+      },
+      {
+        "cueId": "cue-reliable-capstone-assessment-2",
+        "startSeconds": 75,
+        "endSeconds": 77,
+        "text": "criterion-level evidence references."
       }
     ],
-    "reducedMotionAlternative": "Show the complete state model, permission matrix, threat table, evaluation plan, telemetry policy, runbook flow, rubric, and exemplar comparison as static ordered panels with no animated transitions."
+    "reducedMotionAlternative": "Show the complete state model, permission matrix, threat table, handoff binding table, evaluation plan, telemetry policy, runbook flow, rubric, exemplar comparison, failing trace, repaired trace, and changed-input result as static ordered panels with no animated transitions."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -576,15 +828,15 @@
       },
       {
         "id": "q-reliable-capstone-3",
-        "prompt": "Which capstone score is valid?",
+        "prompt": "Which capstone score is structurally valid?",
         "choices": [
-          "A score where every criterion maps to submitted artifacts or assessment evidence",
+          "A score where every criterion maps to submitted artifacts or assessment evidence with matching attempt, version, case, and outcome",
           "A score based on reviewer confidence",
           "A score copied from the complete exemplar",
           "A score with one overall screenshot"
         ],
         "answerIndex": 0,
-        "explanation": "Criterion-level evidence makes the judgment reviewable and portable."
+        "explanation": "Criterion-level, correctly bound evidence makes the score reviewable and prevents stale artifacts from earning credit. Human review still determines substantive quality."
       },
       {
         "id": "q-reliable-capstone-4",
@@ -609,6 +861,30 @@
         ],
         "answerIndex": 1,
         "explanation": "Completion requires both conceptual understanding and passing applied evidence; failed submissions remain available for revision."
+      },
+      {
+        "id": "q-reliable-capstone-6",
+        "prompt": "Why is checking that an evidence file exists insufficient?",
+        "choices": [
+          "Files are never useful evidence",
+          "The file may belong to a different attempt, version, case, or outcome",
+          "Only URLs can be evidence",
+          "Scores need no evidence"
+        ],
+        "answerIndex": 1,
+        "explanation": "Existence establishes location, not provenance or relevance to the scored submission."
+      },
+      {
+        "id": "q-reliable-capstone-7",
+        "prompt": "What does passing the offline Node.js lab establish?",
+        "choices": [
+          "The live agent is approved for production",
+          "A human has signed the operating decision",
+          "The validator handles the tested deterministic package invariants",
+          "Every model family has identical capabilities"
+        ],
+        "answerIndex": 2,
+        "explanation": "The lab qualifies only the tested offline validator behavior. Live integrations and human judgments require separate evidence."
       }
     ]
   },
@@ -642,6 +918,42 @@
       "url": "https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf",
       "publisher": "NIST",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Node.js ECMAScript modules",
+      "url": "https://nodejs.org/api/esm.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Meta Llama models",
+      "url": "https://github.com/meta-llama/llama-models",
+      "publisher": "Meta",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Qwen3",
+      "url": "https://github.com/QwenLM/Qwen3",
+      "publisher": "Qwen",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "DeepSeek-V3",
+      "url": "https://github.com/deepseek-ai/DeepSeek-V3",
+      "publisher": "DeepSeek",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Mistral inference",
+      "url": "https://github.com/mistralai/mistral-inference",
+      "publisher": "Mistral AI",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Phi-3 Cookbook",
+      "url": "https://github.com/microsoft/Phi-3CookBook",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-21"
     }
   ]
 }

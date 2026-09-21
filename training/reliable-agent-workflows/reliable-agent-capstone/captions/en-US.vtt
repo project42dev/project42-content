@@ -623,36 +623,529 @@ final operational handoff with residual
 risk.
 
 127
-00:17:48.000 --> 00:17:55.000
+00:17:48.000 --> 00:17:52.424
+The failed fixture declares attempt-1,
+version 1.0.0, case support-017, outcome
+
+128
+00:17:52.424 --> 00:17:56.848
+failed, and an 80-point score. Several
+referenced files actually carry
+
+129
+00:17:56.848 --> 00:18:01.273
+bindings from attempt-0, version 0.9.0, or
+outcome passed. The starter
+
+130
+00:18:01.273 --> 00:18:05.697
+validator checks all shared package rules
+and confirms each referenced
+
+131
+00:18:05.697 --> 00:18:10.121
+filename exists, but deliberately omits
+binding equality. It therefore prints
+
+132
+00:18:10.121 --> 00:18:14.545
+VALID score=80 pass=true and exits 0. That
+is unearned credit
+
+133
+00:18:14.545 --> 00:18:18.970
+because existence does not prove that
+evidence supports the submission
+
+134
+00:18:18.970 --> 00:18:23.394
+being scored. Trace the cause before
+editing. Shared validation already
+
+135
+00:18:23.394 --> 00:18:27.818
+rejects unknown criterion IDs, malformed
+points, bad sums, unsafe references,
+
+136
+00:18:27.818 --> 00:18:32.242
+missing files, malformed manifests, and
+incorrect criterion membership. The only
+
+137
+00:18:32.242 --> 00:18:36.667
+intended defect is that the starter
+supplies no evidence-binding validator
+
+138
+00:18:36.667 --> 00:18:41.091
+to the shared package logic. The missing
+invariant is provenance
+
+139
+00:18:41.091 --> 00:18:45.515
+equality: each referenced artifact must
+bind to the manifest's attemptId,
+
+140
+00:18:45.515 --> 00:18:49.939
+version, caseId, and outcome. The focused
+repair adds a binding
+
+141
+00:18:49.939 --> 00:18:54.364
+callback that parses the first line of
+each Markdown artifact
+
+142
+00:18:54.364 --> 00:18:58.788
+and compares all four keys. The evaluation
+JSON uses its
+
+143
+00:18:58.788 --> 00:19:03.212
+binding object. The validator rejects
+stale, missing, or mismatched evidence
+
+144
+00:19:03.212 --> 00:19:07.636
+after confirming safe reference syntax and
+file existence. It still
+
+145
+00:19:07.636 --> 00:19:12.061
+accepts the revised and complete packages,
+so deny-all is not
+
+146
+00:19:12.061 --> 00:19:16.485
+a valid repair. Recovery is a new attempt,
+not a
+
+147
+00:19:16.485 --> 00:19:20.909
+retry that overwrites history. The revised
+fixture uses attempt-2, version
+
+148
+00:19:20.909 --> 00:19:25.333
+1.1.0, case support-017, outcome passed.
+Its artifacts describe a bounded
+
+149
+00:19:25.333 --> 00:19:29.758
+draft-only executor, approval requirements
+for any future live effect, timeout
+
+150
+00:19:29.758 --> 00:19:34.182
+reconciliation, privacy-aware traces, and
+revision handoff. All references carry the
+
+151
+00:19:34.182 --> 00:19:38.606
+new binding. Exact trace after the focused
+repair: the starter
+
+152
+00:19:38.606 --> 00:19:43.030
+CLI on `failed` still prints `VALID
+score=80 pass=true` and exits
+
+153
+00:19:43.030 --> 00:19:47.455
+0 because the starter validator does not
+bind evidence to
+
+154
+00:19:47.455 --> 00:19:51.879
+the manifest. The real shared validation
+is used by the
+
+155
+00:19:51.879 --> 00:19:56.303
+test runner, without dependency injection
+or replacement of the shared
+
+156
+00:19:56.303 --> 00:20:00.727
+rules module. Therefore the starter tests
+reject only the stale-binding
+
+157
+00:20:00.727 --> 00:20:05.152
+case and end with `TESTS total=8 passed=7
+failed=1`, exit 1.
+
+158
+00:20:05.152 --> 00:20:09.576
+The unknown-criterion, malformed-points,
+and bad-sum cases are rejected by the
+
+159
+00:20:09.576 --> 00:20:14.000
+actual `shared/package-validation.mjs`
+rules, not by a simulated adversarial
+
+160
+00:20:14.000 --> 00:20:18.424
+substitute. A correct repair imports the
+shared module with the
+
+161
+00:20:18.424 --> 00:20:22.848
+ordinary relative import used by this ESM
+project and supplies
+
+162
+00:20:22.848 --> 00:20:27.273
+the evidence-binding callback required by
+`validatePackageCore`. The repaired CLI on
+
+163
+00:20:27.273 --> 00:20:31.697
+`failed` prints `INVALID E_BINDING
+architecture-and-state-model.md:attemptId`
+
+164
+00:20:31.697 --> 00:20:36.121
+and exits 1. The repaired CLI on `revised`
+prints `VALID
+
+165
+00:20:36.121 --> 00:20:40.545
+score=80 pass=true` and exits 0. Reference
+tests end with `TESTS
+
+166
+00:20:40.545 --> 00:20:44.970
+total=8 passed=8 failed=0` and exit 0. To
+test your understanding,
+
+167
+00:20:44.970 --> 00:20:49.394
+change only the binding in one of the
+eight artifacts
+
+168
+00:20:49.394 --> 00:20:53.818
+while leaving its filename, criterion IDs,
+integer points, declared sum,
+
+169
+00:20:53.818 --> 00:20:58.242
+safe local references, manifest schema,
+case ID, version, outcome, and
+
+170
+00:20:58.242 --> 00:21:02.667
+provider metadata unchanged. The causal
+result should be a binding
+
+171
+00:21:02.667 --> 00:21:07.091
+error naming that artifact and the first
+mismatched key, while
+
+172
+00:21:07.091 --> 00:21:11.515
+the other seven artifacts remain valid.
+This demonstrates why evidence
+
+173
+00:21:11.515 --> 00:21:15.939
+existence alone is insufficient: the
+validator must compare each artifact's
+
+174
+00:21:15.939 --> 00:21:20.364
+`attemptId`, `version`, `caseId`, and
+`outcome` with the manifest. The
+
+175
+00:21:20.364 --> 00:21:24.788
+eight-artifact package remains an offline
+structural check, not a model-quality
+
+176
+00:21:24.788 --> 00:21:29.212
+evaluation, live approval, or human
+signature. The changed-input test copies
+
+177
+00:21:29.212 --> 00:21:33.636
+the revised eight-file package, changes
+caseId from support-017 to support-099
+
+178
+00:21:33.636 --> 00:21:38.061
+in the manifest and every binding, and
+changes the synthetic
+
+179
+00:21:38.061 --> 00:21:42.485
+input text. Acceptance proves that the
+repair compares values rather
+
+180
+00:21:42.485 --> 00:21:46.909
+than hard-coding support-017. Rejection of
+the stale fixture plus acceptance
+
+181
+00:21:46.909 --> 00:21:51.333
+of revised, complete, and changed fixtures
+supplies causal evidence against
+
+182
+00:21:51.333 --> 00:21:55.758
+both permissive and deny-all repairs. This
+exercise is fixture simulation.
+
+183
+00:21:55.758 --> 00:22:00.182
+No API, model, MCP server, human approver,
+external ticket system,
+
+184
+00:22:00.182 --> 00:22:04.606
+or real write is invoked. The strings
+describing approvals and
+
+185
+00:22:04.606 --> 00:22:09.030
+decisions are teaching records, not signed
+approvals. Node.js native ECMAScript
+
+186
+00:22:09.030 --> 00:22:13.455
+module behavior is documented at
+https://nodejs.org/api/esm.html.
+
+187
+00:22:13.455 --> 00:22:17.879
+Instructor narration: reproduce before
+editing, read the failed package's first
+
+188
+00:22:17.879 --> 00:22:22.303
+lines, and identify the first mismatch.
+Show that the shared
+
+189
+00:22:22.303 --> 00:22:26.727
+rules are used by starter and reference.
+Then add only
+
+190
+00:22:26.727 --> 00:22:31.152
+the binding parser and comparator. Close
+by running both rejection
+
+191
+00:22:31.152 --> 00:22:35.576
+and acceptance cases and asking which
+claims still need live
+
+192
+00:22:35.576 --> 00:22:40.000
+testing or human review.
+
+193
+00:22:40.000 --> 00:22:44.303
+From the repository root, run the starter
+CLI against the
+
+194
+00:22:44.303 --> 00:22:48.606
+failed fixture and record its incorrect
+successful decision. Then run
+
+195
+00:22:48.606 --> 00:22:52.909
+the immutable tests. The exact starter
+count is four passes
+
+196
+00:22:52.909 --> 00:22:57.212
+and four failures. Unknown criterion,
+malformed point string, bad sum,
+
+197
+00:22:57.212 --> 00:23:01.515
+and stale binding all pass the starter
+validator and therefore
+
+198
+00:23:01.515 --> 00:23:05.818
+fail their rejection tests. Do not change
+fixtures, shared logic,
+
+199
+00:23:05.818 --> 00:23:10.121
+or tests. Implement the same binding
+validation contract demonstrated by
+
+200
+00:23:10.121 --> 00:23:14.424
+the reference, but write and explain your
+own code before
+
+201
+00:23:14.424 --> 00:23:18.727
+comparison. All shared score, type,
+criterion, manifest, sum, and path
+
+202
+00:23:18.727 --> 00:23:23.030
+validation remains in
+`shared/package-validation.mjs`. Run the
+
+203
+00:23:23.030 --> 00:23:27.333
+tests again. A complete repair must reject
+stale binding, unknown
+
+204
+00:23:27.333 --> 00:23:31.636
+criterion IDs, non-integer or excessive
+points, bad sums, unsafe references,
+
+205
+00:23:31.636 --> 00:23:35.939
+and missing evidence. It must accept the
+revised fixture, the
+
+206
+00:23:35.939 --> 00:23:40.242
+complete fixture, and generated
+support-099 changed input. Returning
+
+207
+00:23:40.242 --> 00:23:44.545
+invalid for every package fails the
+acceptance tests. Inspect all
+
+208
+00:23:44.545 --> 00:23:48.848
+eight files in failed and revised. Write a
+short causal
+
+209
+00:23:48.848 --> 00:23:53.152
+handoff containing defect, violated
+invariant, containment decision, changed
+
+210
+00:23:53.152 --> 00:23:57.455
+code, revision evidence, residual limits,
+and commands run. State explicitly
+
+211
+00:23:57.455 --> 00:24:01.758
+that the result qualifies an offline
+package validator, not a
+
+212
+00:24:01.758 --> 00:24:06.061
+live agent or a human safety judgment.
+Recovery procedure: if
+
+213
+00:24:06.061 --> 00:24:10.364
+an edit breaks imports or parsing, restore
+the starter file
+
+214
+00:24:10.364 --> 00:24:14.667
+from `starter/validator.original.mjs`,
+rerun the baseline commands, and make one
+
+215
+00:24:14.667 --> 00:24:18.970
+focused change. To inspect a known-good
+implementation without overwriting your
+
+216
+00:24:18.970 --> 00:24:23.273
+attempt, compare against
+`reference/validator.mjs`. Preserve the
+
+217
+00:24:23.273 --> 00:24:27.576
+failed fixture and do not repair evidence
+by rewriting history.
+
+218
+00:24:27.576 --> 00:24:31.879
+Visual cue: use a four-step panel labeled
+reproduce, localize, repair,
+
+219
+00:24:31.879 --> 00:24:36.182
+recover. At each step, retain the command,
+exact output, exit
+
+220
+00:24:36.182 --> 00:24:40.485
+code, and evidence path. Instructor
+narration: require a prediction before
+
+221
+00:24:40.485 --> 00:24:44.788
+each run. If malformed-score tests fail,
+inspect whether the shared
+
+222
+00:24:44.788 --> 00:24:49.091
+validator was bypassed. If revised or
+support-099 fails with E_BINDING,
+
+223
+00:24:49.091 --> 00:24:53.394
+inspect whether all four keys and the
+evaluation JSON binding
+
+224
+00:24:53.394 --> 00:24:57.697
+are handled. If every package fails, the
+repair is deny-all
+
+225
+00:24:57.697 --> 00:25:02.000
+rather than provenance validation.
+
+226
+00:25:02.000 --> 00:25:09.000
 When ready, begin the knowledge check. You
 will prove writes
 
-128
-00:17:55.000 --> 00:18:02.000
+227
+00:25:09.000 --> 00:25:16.000
 with durable evidence, reconcile timeouts,
 require criterion-level references, use
 
-129
-00:18:02.000 --> 00:18:09.000
+228
+00:25:16.000 --> 00:25:23.000
 the flawed exemplar for calibration, and
 apply the dual eighty-percent
 
-130
-00:18:09.000 --> 00:18:16.000
+229
+00:25:23.000 --> 00:25:30.000
 completion gate. Then return to the
 versioned capstone submission.
 
-131
-00:18:16.000 --> 00:18:22.000
+230
+00:25:30.000 --> 00:25:36.000
 A reliable agent is bounded by state,
 authority, evidence, evaluation,
 
-132
-00:18:22.000 --> 00:18:28.000
+231
+00:25:36.000 --> 00:25:42.000
 privacy-aware observability, and tested
 recovery. Preserve failed and revised
 
-133
-00:18:28.000 --> 00:18:34.000
+232
+00:25:42.000 --> 00:25:48.000
 attempts so mastery reflects improvement,
 not hidden replacement.

@@ -1,0 +1,3 @@
+Evidence-Binding: {"attemptId":"complete-1","version":"2.0.0","caseId":"support-017","outcome":"passed"}
+# Trust boundary and threat model
+Untrusted ticket and model output remain outside the executor boundary. Controls cover injection, confused deputy, replay, duplicate write, poisoned context, secret leakage, unsafe delegation, and false success, each with prevention, detection, containment, and recovery.

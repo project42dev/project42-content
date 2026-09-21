@@ -24,41 +24,78 @@
       "title": "Prove compatibility across the complete stack",
       "paragraphs": [
         "Record the model architecture, artifact and tensor formats, precision or quantization, tokenizer, template, maximum tested context, runtime and version, execution backend, operating system, CPU architecture, accelerator model, accelerator count, driver, compute library, container base, and required extensions. Verify support from current runtime and hardware documentation and then load the exact artifact in quarantine.",
-        "A runtime may support an architecture but not a specific conversion, quantization, kernel, device, platform, or feature combination. Automatic fallback can silently move work to a slower backend or change behavior. Make fallback visible, measured, and either accepted or rejected."
-      ]
+        "A runtime may support an architecture but not a specific conversion, quantization, kernel, device, platform, or feature combination. Automatic fallback can silently move work to a slower backend or change behavior. Make fallback visible, measured, and either accepted or rejected.",
+        "Use one of four evidence labels for every cell. Documented means a cited source describes the exact value or support claim. Measured means the exact build produced retained evidence. Inferred means a calculation or analogy suggests the value but has not established it. Unknown means the evidence is absent. An architecture name or model-family name never upgrades an exact runtime, quantization, kernel, or device combination from unknown to compatible.",
+        "Worked synthetic matrix for build caplab-1: model architecture = exercise transformer [documented by fixture specification]; artifact revision and digest = synthetic-capacity-artifact@sha256:fixture-only [documented, not a real model]; tensor format = synthetic packed tensors [documented]; precision or quantization = 4 bits per parameter plus 0.5 GiB metadata [documented]; tokenizer = fixture-tokenizer-v1 [documented]; prompt template = fixture-chat-v1 [documented]; maximum context = 4,000 input-plus-output tokens in the accepted slice [measured only by deterministic fixture arithmetic, not by a model]; runtime = Node.js 22 native ESM calculator [measured by the offline test when run]; execution backend = arithmetic fixture, no inference backend [documented]; operating system = learner host [unknown until recorded]; CPU architecture = learner host [unknown until recorded]; accelerator model and count = proposed single 24 GiB-class device [inferred sizing target, exact model unknown]; driver and compute library = not used by the fixture and unknown for a real deployment [unknown]; container base = none in the exercise [documented]; extensions = none [documented]. Because accelerator, driver, model artifact, and inference runtime compatibility are unknown, this matrix cannot approve a real deployment.",
+        "Transfer record for broader self-hosted ecosystems: Meta Llama, Qwen, DeepSeek, Mistral, Microsoft Phi, and NVIDIA software each have distinct model artifacts, licenses, templates, runtime paths, and hardware constraints. Their official repositories in the source list are discovery evidence, not proof that one common runtime or API supports every family. For each candidate, copy the full matrix and leave exact artifact/runtime/backend/driver/accelerator compatibility UNKNOWN until documentation and a quarantine load of that exact combination establish it. NVIDIA can name a hardware or software ecosystem, while Meta, Qwen, DeepSeek, Mistral, and Phi can name model families; none of those names alone specifies an interchangeable API or a verified serving build.",
+        "Causal checkpoint: if a learner marks the proposed accelerator combination measured merely because the arithmetic fits under 24 GiB, return to the evidence labels. Capacity arithmetic addresses size, while compatibility requires the exact artifact to load and execute on the exact stack. The correction is to retain UNKNOWN compatibility and schedule a quarantined integration test."
+      ],
+      "callout": "Family-level support is not exact-stack compatibility. Unknown combinations are excluded from the final realistic deployment decision."
     },
     {
       "id": "estimate-memory-and-storage",
       "title": "Estimate memory and storage before measuring",
       "paragraphs": [
         "Begin with the exact artifact sizes and a rough weight-memory estimate from parameter count and bits per parameter, then add quantization metadata, embeddings, runtime workspace, graph or kernel caches, temporary buffers, loaded replicas, and safety headroom. Dynamic memory also depends on concurrent sequences, context and output lengths, cache representation, batching, and runtime behavior.",
-        "Include host memory for the runtime, tokenizer, request queues, observability, page cache, staging, and failure handling. Include local and remote storage for immutable artifacts, container layers, caches, logs, evaluation data, backups, and rollback bundles. Treat every calculation as a hypothesis to validate on the intended build."
+        "Include host memory for the runtime, tokenizer, request queues, observability, page cache, staging, and failure handling. Include local and remote storage for immutable artifacts, container layers, caches, logs, evaluation data, backups, and rollback bundles. Treat every calculation as a hypothesis to validate on the intended build.",
+        "Keep decimal GB and binary GiB explicit. One GB is 1,000,000,000 bytes and one GiB is 1,073,741,824 bytes. Do not add GB and GiB without conversion. Accelerator memory, host memory, and storage are separate ledgers. A free accelerator GiB does not compensate for exhausted host memory or storage.",
+        "Synthetic assumptions fixed before results: 16 billion parameters at 4 bits each gives 16,000,000,000 × 4 ÷ 8 = 8,000,000,000 bytes, or 8 GB and approximately 7.451 GiB. The exercise rounds the loaded static allocation upward to 10 GiB to include metadata and runtime allocations. Add 2 GiB workspace and 2 GiB accelerator safety headroom. The synthetic dynamic cache rate is 0.5 GiB per concurrent request per 1,000 maximum tokens. This rate is a fixture assumption, not a statement about any real model or runtime.",
+        "Three reproducible scenarios use accelerator total GiB = 10 static + 2 workspace + 2 safety + concurrency × maximum tokens ÷ 1,000 × 0.5. Scenario A, 2 concurrent requests at 2,000 tokens: dynamic = 2 × 2 × 0.5 = 2 GiB and total = 16 GiB. Scenario B, 4 concurrent requests at 4,000 tokens: dynamic = 4 × 4 × 0.5 = 8 GiB and total = 22 GiB. Scenario C, 5 concurrent requests at 4,000 tokens: dynamic = 5 × 4 × 0.5 = 10 GiB and total = 24 GiB. Against the predeclared 23 GiB admission ceiling, A and B fit while C must be rejected. The deliberate lab defect incorrectly reports 14 GiB for all three by omitting the dynamic term.",
+        "The independent host ledger is 6 GiB runtime and tokenizer + 2 GiB queues + 1 GiB observability + 2 GiB page cache + 2 GiB staging + 2 GiB failure handling + 3 GiB recovery headroom = 18 GiB against a 24 GiB host limit. The storage ledger is 12 GiB artifacts + 4 GiB container layers + 6 GiB caches + 5 GiB logs + 3 GiB evaluation data + 12 GiB backup + 12 GiB rollback copy = 54 GiB against an 80 GiB limit. Rollback is a separate retained copy, not an assumption that the active artifact can be overwritten.",
+        "The startup transfer fixture uses decimal units: 12 GB ÷ 1.5 GB/s = 8 seconds under an idealized constant-bandwidth assumption. This excludes authentication, latency, decompression, checksum verification, filesystem contention, and runtime initialization, so it is an estimate rather than a measured startup time. The cost fixture is USD 2.40 per replica-hour × 24 hours = USD 57.60 per replica-day. It excludes tax, storage, network, support, idle reserve, and regional variation and is not a cloud quote.",
+        "Causal checkpoint: if Scenario C is admitted, inspect whether cache is multiplied by both maximum tokens and concurrent requests. Deny-all is also incorrect because Scenario B is genuinely under the 23 GiB ceiling. A valid repair changes only the missing dynamic cache term and preserves validation, host, storage, startup, and cost calculations."
       ],
-      "callout": "A model that fits at startup may still fail under long contexts, concurrency, batching, or recovery."
+      "callout": "A model that fits at startup may still fail under long contexts, concurrency, batching, or recovery.",
+      "code": {
+        "language": "text",
+        "label": "Run from the repository root",
+        "code": "node training/self-hosted-model-operations/hardware-runtime-and-capacity-planning/lab/capacity.mjs training/self-hosted-model-operations/hardware-runtime-and-capacity-planning/lab/fixtures/base.json\nnode training/self-hosted-model-operations/hardware-runtime-and-capacity-planning/lab/capacity.mjs training/self-hosted-model-operations/hardware-runtime-and-capacity-planning/lab/fixtures/changed-overload.json\nnode training/self-hosted-model-operations/hardware-runtime-and-capacity-planning/lab/test/capacity.test.mjs"
+      }
     },
     {
       "id": "measure-representative-load",
       "title": "Measure a representative request distribution",
       "paragraphs": [
         "Version a load profile containing warm and cold starts, input and output token distributions, modalities, concurrency steps, bursts, cancellations, timeouts, malformed requests, maximum allowed context, and recovery after pressure. Measure time to ready, time to first output, inter-output latency where applicable, end-to-end latency percentiles, throughput, queue time, error and rejection rates, accelerator and host memory, compute utilization, storage and network behavior, power where relevant, and restart time.",
-        "Hold the artifact, runtime, configuration, hardware, prompt template, and cases constant when comparing builds. Published benchmark results can help frame methods and candidate hardware, but they do not replace measurements of the exact workload, software stack, quality target, and service policy."
-      ]
+        "Hold the artifact, runtime, configuration, hardware, prompt template, and cases constant when comparing builds. Published benchmark results can help frame methods and candidate hardware, but they do not replace measurements of the exact workload, software stack, quality target, and service policy.",
+        "Thresholds are fixed before inspecting the synthetic traces. For the supported steady and burst slices: nearest-rank p95 end-to-end latency must be at most 800 ms, nearest-rank p95 queue time at most 100 ms, successful throughput at least 8 requests/s, internal error rate at most 1 percent, accelerator allocation at most 23 GiB, and host allocation at most 24 GiB. The maximum-context boundary has a separate throughput floor of 4 requests/s. Controlled admission rejection during overload is expected, but admitted requests must have zero internal errors in this small fixture. Restart time to ready must be at most 60 seconds, and the recovery case must pass the steady thresholds.",
+        "Arithmetic contract: sort all observations ascending and select nearest-rank p95 at rank ceiling(0.95 × n), using one-based ranks. Successful throughput is completed requests divided by duration seconds. Internal error rate is internal errors divided by admitted requests; a zero admitted denominator is invalid rather than reported as zero. Rejection rate is rejected requests divided by offered requests. Cancellations requested by clients are recorded separately from internal errors.",
+        "Exact synthetic trace load-profile-v1: warmup offers 2 requests at concurrency 1 after a cold start, with latencies [1800,1200] ms, queue times [0,0] ms, 2 completions, 0 errors, 0 rejections, and 45 seconds to ready; warmup is excluded from steady latency SLOs. Steady state offers 10 requests over 1 second at concurrency 4 with sorted latencies [420,440,460,470,490,510,540,580,620,700] ms, sorted queue times [5,8,10,12,15,18,20,25,30,40] ms, 10 completions, 0 errors, accelerator 22 GiB, and host 18 GiB. Its p95 ranks are both 10, so p95 latency is 700 ms, p95 queue is 40 ms, throughput is 10 requests/s, and error rate is 0 percent: pass.",
+        "Burst offers 10 requests over 1 second at concurrency 4 with latencies [500,520,540,560,590,610,650,700,740,780] ms and queue times [10,15,20,25,30,40,50,60,75,90] ms, 10 completions, 0 errors, accelerator 22 GiB, and host 18 GiB. P95 latency is 780 ms, p95 queue is 90 ms, and throughput is 10 requests/s: pass. Maximum context offers 5 requests over 1 second at concurrency 4 and 4,000 tokens, with latencies [620,680,720,760,790] ms, queue times [20,30,40,60,80] ms, 5 completions, 0 errors, and 22 GiB accelerator allocation. P95 latency is 790 ms and throughput is 5 requests/s: pass its declared boundary thresholds.",
+        "Overload offers 10 requests at concurrency 5 and 4,000 tokens. Correct pre-execution arithmetic requires 24 GiB, so all 10 are rejected before model execution, no request is admitted, and no internal error rate is computed because its denominator would be zero. The rejection rate is 10 ÷ 10 = 100 percent and the reason is capacity_limit. Cancellation offers 5 at concurrency 4, records 1 client cancellation, 4 completions, 0 internal errors, and 0 capacity rejections. Restart records 45 seconds to ready, below the 60-second limit. Recovery then offers 10 requests over 1 second at concurrency 4 with latency p95 720 ms, queue p95 45 ms, 10 completions, 0 errors, accelerator 22 GiB, and host 18 GiB: pass.",
+        "These are deterministic fixture traces, not executions of Meta Llama, Qwen, DeepSeek, Mistral, Phi, NVIDIA software, an accelerator, Docker, Kubernetes, or a cloud API. A real integration must replace fixture values with timestamped measurements from the exact artifact, runtime, backend, driver, accelerator, host, container, and request corpus. No model download, API key, deployment approval, or cloud charge is part of this lesson.",
+        "Causal checkpoint: if the learner reports overload as a 0 percent internal error rate, point to the zero admitted denominator. The correct result is not applicable for that rate, alongside a 100 percent controlled rejection rate. If warmup latency is silently mixed into steady state, the learner has changed the declared population and must recompute or restore the versioned profile."
+      ],
+      "callout": "Fixture simulation teaches the measurement contract. It does not certify real-model latency, throughput, quality, power, compatibility, or recovery."
     },
     {
       "id": "find-saturation-and-protect-host",
       "title": "Find saturation and design overload behavior",
       "paragraphs": [
         "Increase concurrency and request size gradually until latency, queueing, memory, errors, power, or quality crosses a declared boundary. Record the first limiting resource and the failure mode. Repeat after restarts and with neighboring workloads if resources are shared.",
-        "Set container or scheduler requests and limits from evidence, leaving headroom for the host and recovery. Docker documents that containers have no resource constraints by default, and memory pressure can trigger out-of-memory termination. Admission control, bounded queues, maximum context and output limits, rate or concurrency limits, timeouts, load shedding, and clear retry behavior are part of capacity—not afterthoughts."
-      ]
+        "Set container or scheduler requests and limits from evidence, leaving headroom for the host and recovery. Docker documents that containers have no resource constraints by default, and memory pressure can trigger out-of-memory termination. Admission control, bounded queues, maximum context and output limits, rate or concurrency limits, timeouts, load shedding, and clear retry behavior are part of capacity—not afterthoughts.",
+        "Synthetic saturation sweep: concurrency 2 at 2,000 tokens requires 16 GiB and is admitted; concurrency 4 at 4,000 tokens requires 22 GiB and is admitted; concurrency 5 at 4,000 tokens requires 24 GiB and crosses the fixed 23 GiB ceiling. The first fixture boundary is therefore accelerator admission memory, specifically dynamic per-concurrent-request cache. This is arithmetic evidence only, not an observed out-of-memory event or hardware benchmark.",
+        "The policy admits at most 4 concurrent requests when each may reach 4,000 tokens under these fixture assumptions. It validates token and unit fields, uses a bounded queue outside the calculator, rejects over-limit work before allocation with reason capacity_limit, does not retry nontransient capacity rejections automatically, and preserves 1 GiB between the 23 GiB admission ceiling and a nominal 24 GiB device class. Real queue length, timeout, output-token cap, cancellation cleanup, and retry-after values remain UNKNOWN until exact-build tests establish them.",
+        "Docker resource limits and Kubernetes requests and limits are deployment controls, not proofs of application fit. Docker documents that containers have no resource constraints by default, that hard memory limits and softer reservations differ, and that swap can impose performance costs. Kubernetes distinguishes scheduling requests from enforced limits. Preserve the 3 GiB host recovery headroom and test restart behavior rather than assigning every host byte to the serving process.",
+        "Causal checkpoint: if the learner fixes overload by always returning admit false, run the base scenario. It must remain admitted at 22 GiB. If the learner raises the ceiling instead, the changed workload still exceeds the predeclared policy and the repair has changed requirements rather than correcting the causal omission."
+      ],
+      "callout": "Protecting the host requires separate accelerator, host, storage, queue, and recovery controls. One limit cannot substitute for the others."
     },
     {
       "id": "issue-capacity-decision",
       "title": "Issue a capacity and cost decision with expiry",
       "paragraphs": [
         "State supported workload slices, tested concurrency, latency and throughput distributions, quality gates, resource reservations and limits, minimum headroom, overload behavior, replica assumptions, startup and recovery time, storage, power or cloud cost assumptions, monitoring thresholds, and excluded cases. Separate measured facts from extrapolation.",
-        "Re-benchmark after changing model revision, quantization, runtime, driver, accelerator, host, operating system, container, context policy, batching, template, feature flags, traffic distribution, telemetry, or service objective. Capacity evidence expires when the workload or stack it measured no longer matches production."
-      ]
+        "Re-benchmark after changing model revision, quantization, runtime, driver, accelerator, host, operating system, container, context policy, batching, template, feature flags, traffic distribution, telemetry, or service objective. Capacity evidence expires when the workload or stack it measured no longer matches production.",
+        "Worked decision dated 2026-09-21: the offline calculator accepts the synthetic Scenario B slice of at most 4 concurrent requests and 4,000 maximum tokens because its calculated accelerator allocation is 22 GiB against a 23 GiB admission ceiling. It rejects Scenario C at 5 concurrent requests because the calculated allocation is 24 GiB. Host requirement is 18 GiB against 24 GiB, storage requirement is 54 GiB against 80 GiB, idealized artifact transfer is 8 seconds, restart fixture is 45 seconds, and illustrative per-replica daily cost is USD 57.60.",
+        "The decision does not approve a real deployment. Exact model/runtime/accelerator compatibility is UNKNOWN, and the latency, throughput, memory-rate, power, quality, startup, and recovery values are synthetic. A realistic decision excludes all real model families and hardware combinations until an exact-stack quarantine load and representative benchmark replace the unknowns. For Meta Llama, Qwen, DeepSeek, Mistral, Phi, or NVIDIA-related candidates, issue separate evidence rather than transferring this fixture result by family name.",
+        "Operational limits for the fixture are a 23 GiB accelerator admission ceiling, 24 GiB host limit with 3 GiB explicitly reserved in the host calculation for recovery, 80 GiB storage ceiling including backup and rollback copies, maximum 4,000 tokens, and maximum concurrency 4 for that token boundary. Controlled overload returns capacity_limit before allocation. Monitoring alarms should precede the declared ceilings; exact warning values are UNKNOWN until noise and measurement error are characterized on a real build.",
+        "Cost assumptions are USD 2.40 per replica-hour for 24 hours, yielding USD 57.60 per day before storage, network, taxes, support, idle reserve, or regional adjustments. This is an exercise input, not a price quote. Re-benchmark on any model revision, artifact digest, quantization, tokenizer, template, runtime, backend, driver, compute library, accelerator, host, OS, container, batching policy, context/output policy, feature flag, telemetry, traffic distribution, neighboring workload, quality gate, cost basis, or service-objective change. Review is also due within the module's 60-day cadence.",
+        "Rubric: complete evidence retains all four original deliverables. A proficient submission has a field-complete compatibility matrix with documented, measured, inferred, or unknown labels; all three accelerator scenarios plus separate host, storage, rollback, startup, bandwidth, workspace, and cost ledgers; a versioned load profile covering warmup, steady, burst, maximum context, overload, cancellation, restart, and recovery; thresholds declared before results; correct percentile, throughput, rejection, and saturation arithmetic; a passing focused repair without weakening validation or denying safe work; and a dated decision that states limits, costs, exclusions, recovery evidence, and re-benchmark triggers. Missing unknown labels, presenting fixtures as hardware measurements, or deleting host and rollback evidence requires revision.",
+        "Causal checkpoint: if the conclusion says deployment approved, compare it with the UNKNOWN compatibility cells. The only supported conclusion is that the deterministic capacity policy behaves as specified. Real approval requires the exact integration measurements that this offline lab intentionally does not perform.",
+        "Repository entry: [Open the offline capacity repair lab](/training/self-hosted-model-operations/hardware-runtime-and-capacity-planning/lab/README.md). From the repository root, run `node training/self-hosted-model-operations/hardware-runtime-and-capacity-planning/lab/capacity.mjs training/self-hosted-model-operations/hardware-runtime-and-capacity-planning/lab/fixtures/base.json` and `node training/self-hosted-model-operations/hardware-runtime-and-capacity-planning/lab/test/capacity.test.mjs`."
+      ],
+      "callout": "A capacity decision is versioned evidence with exclusions and expiry, not a permanent approval."
     }
   ],
   "activity": {
@@ -69,119 +106,356 @@
       "Estimate model, dynamic cache, workspace, host, storage, and rollback capacity for three context and concurrency scenarios.",
       "Design a versioned load profile with warm-up, steady state, burst, maximum context, overload, cancellation, restart, and recovery cases.",
       "Declare pass thresholds and stop conditions before reviewing synthetic results, then identify the first saturated resource and safe admission policy.",
-      "Write a capacity decision with supported slices, limits, headroom, costs, overload behavior, excluded cases, and re-benchmark triggers."
+      "Write a capacity decision with supported slices, limits, headroom, costs, overload behavior, excluded cases, and re-benchmark triggers.",
+      "Run the starter CLI on fixtures/base.json and fixtures/changed-overload.json. Record the exact outputs and explain why both are incorrectly admitted by the starter when only the changed workload should be rejected.",
+      "Edit only capacity.mjs. Replace the defective zero dynamic-cache assignment with the formula implied by the input. Do not edit validation.mjs, the fixtures, the independent reference, or the tests. Do not hardcode scenario names, fixture totals, or unconditional denial.",
+      "Run the immutable test command. Use its causal failures to distinguish a missing per-concurrent-request cache term from a changed limit or deny-all workaround. Then rerun both CLI fixtures and compare the results with the explained answer key in the lab README.",
+      "For an independent variation, copy changed-overload.json to a new repository-local workspace, change concurrency to 3 without changing the scenario's other numeric inputs, predict dynamic = 6 GiB and total = 20 GiB, then run the repaired CLI. The expected decision is admit true. Explain why this changed input defeats hardcoded handling of only the supplied scenario names."
     ],
     "evidence": [
       "An exact-stack compatibility matrix and calculation sheet with uncertainty labels.",
       "A versioned load profile, metric contract, threshold table, and synthetic saturation results.",
-      "A dated capacity decision with resource and admission controls, recovery evidence, costs, exclusions, and expiry triggers."
+      "A dated capacity decision with resource and admission controls, recovery evidence, costs, exclusions, and expiry triggers.",
+      "The repaired capacity.mjs, exact base and changed-workload outputs, passing immutable test output, and the learner-created concurrency-3 variation showing dynamic 6 GiB, total 20 GiB, and admit true."
     ],
     "reflectionPrompt": "Which capacity assumption would cause the most harm if it were wrong, and what measurement resolves it?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 1680,
+    "estimatedSeconds": 119,
     "cues": [
       {
-        "id": "cue-capacity-compatibility",
+        "id": "cue-capacity-compatibility-1",
         "kind": "narration",
         "sectionId": "build-compatibility-matrix",
-        "text": "Bind the exact artifact, runtime, backend, operating system, accelerator, driver, container, and feature set in one compatibility matrix."
+        "text": "Bind the exact artifact, runtime, backend,\noperating system, accelerator, driver,"
+      },
+      {
+        "id": "cue-capacity-compatibility-2",
+        "kind": "narration",
+        "sectionId": "build-compatibility-matrix",
+        "text": "container, and feature set in one\ncompatibility matrix. Require a"
+      },
+      {
+        "id": "cue-capacity-compatibility-3",
+        "kind": "narration",
+        "sectionId": "build-compatibility-matrix",
+        "text": "documented, measured, inferred, or unknown\nlabel for every field. Point out that Meta"
+      },
+      {
+        "id": "cue-capacity-compatibility-4",
+        "kind": "narration",
+        "sectionId": "build-compatibility-matrix",
+        "text": "Llama, Qwen, DeepSeek, Mistral, Phi, and\nNVIDIA-related candidates are distinct"
+      },
+      {
+        "id": "cue-capacity-compatibility-5",
+        "kind": "narration",
+        "sectionId": "build-compatibility-matrix",
+        "text": "ecosystems, not proof of one\ninterchangeable runtime or API."
       },
       {
         "id": "cue-capacity-visual",
         "kind": "visual",
         "sectionId": "estimate-memory-and-storage",
-        "text": "Stack weights, metadata, workspace, caches, concurrent sequences, replicas, host services, storage, and safety headroom.",
-        "accessibilityAlternative": "A static capacity ledger lists each memory and storage component, its formula or measurement, uncertainty, and owner."
+        "text": "Stack weights, metadata, workspace, caches, concurrent sequences, replicas, host services, storage, rollback copies, and safety headroom. Keep accelerator GiB, host GiB, storage GiB, and decimal transfer GB visibly separate.",
+        "accessibilityAlternative": "A static capacity ledger lists each memory and storage component, its formula or measurement, units, uncertainty, and owner. Three rows show 16 GiB admitted, 22 GiB admitted, and 24 GiB rejected against a 23 GiB accelerator ceiling."
       },
       {
-        "id": "cue-capacity-estimate",
+        "id": "cue-capacity-estimate-1",
         "kind": "narration",
         "sectionId": "estimate-memory-and-storage",
-        "text": "Treat memory and storage calculations as hypotheses that include dynamic load and recovery, not proof that the service fits."
+        "text": "Treat memory and storage calculations as\nhypotheses that include dynamic load and"
       },
       {
-        "id": "cue-capacity-load",
+        "id": "cue-capacity-estimate-2",
+        "kind": "narration",
+        "sectionId": "estimate-memory-and-storage",
+        "text": "recovery, not proof that the service fits.\nWalk through concurrency multiplied by"
+      },
+      {
+        "id": "cue-capacity-estimate-3",
+        "kind": "narration",
+        "sectionId": "estimate-memory-and-storage",
+        "text": "maximum tokens and cache per thousand\ntokens. If a learner gets 14 GiB for"
+      },
+      {
+        "id": "cue-capacity-estimate-4",
+        "kind": "narration",
+        "sectionId": "estimate-memory-and-storage",
+        "text": "every scenario, identify the omitted\ndynamic term rather than changing"
+      },
+      {
+        "id": "cue-capacity-estimate-5",
+        "kind": "narration",
+        "sectionId": "estimate-memory-and-storage",
+        "text": "the ceiling."
+      },
+      {
+        "id": "cue-capacity-load-1",
         "kind": "narration",
         "sectionId": "measure-representative-load",
-        "text": "Measure cold and warm starts, realistic length distributions, concurrency, bursts, cancellations, overload, restarts, and recovery on the exact build."
+        "text": "Measure cold and warm starts, realistic\nlength distributions, concurrency, bursts,"
+      },
+      {
+        "id": "cue-capacity-load-2",
+        "kind": "narration",
+        "sectionId": "measure-representative-load",
+        "text": "cancellations, overload, restarts, and\nrecovery on the exact build. In this"
+      },
+      {
+        "id": "cue-capacity-load-3",
+        "kind": "narration",
+        "sectionId": "measure-representative-load",
+        "text": "lesson, label every supplied trace\nsynthetic and compute nearest-rank"
+      },
+      {
+        "id": "cue-capacity-load-4",
+        "kind": "narration",
+        "sectionId": "measure-representative-load",
+        "text": "percentiles, throughput, errors, and\nrejection rates without pretending that a"
+      },
+      {
+        "id": "cue-capacity-load-5",
+        "kind": "narration",
+        "sectionId": "measure-representative-load",
+        "text": "model ran."
       },
       {
         "id": "cue-capacity-checkpoint",
         "kind": "checkpoint",
         "sectionId": "measure-representative-load",
-        "text": "Ask why a published throughput number cannot establish capacity for a different request distribution and quality gate."
+        "text": "Ask why a published throughput number cannot establish capacity for a different request distribution and quality gate. Correct feedback: the artifact, runtime, hardware, lengths, batching, quality gate, and policy can change the causal bottleneck, so exact-build measurement is required."
       },
       {
-        "id": "cue-capacity-saturation",
+        "id": "cue-capacity-saturation-1",
         "kind": "narration",
         "sectionId": "find-saturation-and-protect-host",
-        "text": "Find the first saturated resource, preserve host headroom, and define bounded queues, admission, rejection, and retry behavior."
+        "text": "Find the first saturated resource,\npreserve host headroom, and define bounded"
       },
       {
-        "id": "cue-capacity-decision",
+        "id": "cue-capacity-saturation-2",
+        "kind": "narration",
+        "sectionId": "find-saturation-and-protect-host",
+        "text": "queues, admission, rejection, and retry\nbehavior. Demonstrate that concurrency 4"
+      },
+      {
+        "id": "cue-capacity-saturation-3",
+        "kind": "narration",
+        "sectionId": "find-saturation-and-protect-host",
+        "text": "at 4,000 tokens fits at 22 GiB while\nconcurrency 5 needs 24 GiB and"
+      },
+      {
+        "id": "cue-capacity-saturation-4",
+        "kind": "narration",
+        "sectionId": "find-saturation-and-protect-host",
+        "text": "is rejected before allocation."
+      },
+      {
+        "id": "cue-capacity-decision-1",
         "kind": "narration",
         "sectionId": "issue-capacity-decision",
-        "text": "Publish supported slices, distributions, limits, costs, exclusions, recovery, and re-benchmark triggers as a dated capacity decision."
+        "text": "Publish supported slices, distributions,\nlimits, costs, exclusions, recovery, and"
+      },
+      {
+        "id": "cue-capacity-decision-2",
+        "kind": "narration",
+        "sectionId": "issue-capacity-decision",
+        "text": "re-benchmark triggers as a dated capacity\ndecision. Do not approve real hardware"
+      },
+      {
+        "id": "cue-capacity-decision-3",
+        "kind": "narration",
+        "sectionId": "issue-capacity-decision",
+        "text": "while exact compatibility remains unknown.\nApply the rubric to the full evidence"
+      },
+      {
+        "id": "cue-capacity-decision-4",
+        "kind": "narration",
+        "sectionId": "issue-capacity-decision",
+        "text": "packet, not only the repaired formula."
       },
       {
         "id": "cue-capacity-activity",
         "kind": "learner-prompt",
-        "text": "Guide the compatibility matrix, estimates, load profile, thresholds, saturation analysis, and capacity decision."
+        "text": "Guide the compatibility matrix, estimates, load profile, thresholds, saturation analysis, focused Node.js repair, changed-input variation, and capacity decision. Require the learner to preserve validation and prove that safe requests remain admitted."
       },
       {
-        "id": "cue-capacity-assessment",
+        "id": "cue-capacity-assessment-1",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can separate estimates, measurements, extrapolations, and operating limits."
+        "text": "Begin the check after the learner can\nseparate estimates, deterministic"
+      },
+      {
+        "id": "cue-capacity-assessment-2",
+        "kind": "assessment-handoff",
+        "text": "fixtures, real measurements,\nextrapolations, and operating limits, and"
+      },
+      {
+        "id": "cue-capacity-assessment-3",
+        "kind": "assessment-handoff",
+        "text": "after the immutable tests pass without a\ndeny-all implementation."
       }
     ],
-    "transcript": "Bind the exact artifact, runtime, backend, operating system, accelerator, driver, container, and feature set in one compatibility matrix. Verify documentation and then test the exact combination because architecture support does not prove every format, quantization, kernel, or feature. Treat memory and storage calculations as hypotheses that include dynamic load and recovery, not proof that the service fits. Add weights, metadata, workspace, caches, concurrent sequences, replicas, host services, storage, and headroom. Measure cold and warm starts, realistic length distributions, concurrency, bursts, cancellations, overload, restarts, and recovery on the exact build. Keep the build and cases constant when comparing results. Find the first saturated resource, preserve host headroom, and define bounded queues, admission, rejection, and retry behavior. Protect the host with evidence-based resource reservations and limits. Publish supported slices, distributions, limits, costs, exclusions, recovery, and re-benchmark triggers as a dated capacity decision. Repeat the work whenever a material part of the stack, workload, or service objective changes.",
+    "transcript": "Bind the exact artifact, runtime, backend,\noperating system, accelerator, driver, container, and feature set in one\ncompatibility matrix. Require a documented, measured, inferred, or unknown\nlabel for every field. Point out that Meta Llama, Qwen, DeepSeek, Mistral, Phi, and\nNVIDIA-related candidates are distinct ecosystems, not proof of one\ninterchangeable runtime or API. Treat memory and storage calculations as\nhypotheses that include dynamic load and recovery, not proof that the service fits.\nWalk through concurrency multiplied by maximum tokens and cache per thousand\ntokens. If a learner gets 14 GiB for every scenario, identify the omitted\ndynamic term rather than changing the ceiling. Measure cold and warm starts, realistic\nlength distributions, concurrency, bursts, cancellations, overload, restarts, and\nrecovery on the exact build. In this lesson, label every supplied trace\nsynthetic and compute nearest-rank percentiles, throughput, errors, and\nrejection rates without pretending that a model ran. Find the first saturated resource,\npreserve host headroom, and define bounded queues, admission, rejection, and retry\nbehavior. Demonstrate that concurrency 4 at 4,000 tokens fits at 22 GiB while\nconcurrency 5 needs 24 GiB and is rejected before allocation. Publish supported slices, distributions,\nlimits, costs, exclusions, recovery, and re-benchmark triggers as a dated capacity\ndecision. Do not approve real hardware while exact compatibility remains unknown.\nApply the rubric to the full evidence packet, not only the repaired formula. Begin the check after the learner can\nseparate estimates, deterministic fixtures, real measurements,\nextrapolations, and operating limits, and after the immutable tests pass without a\ndeny-all implementation.",
     "captions": [
       {
-        "cueId": "cue-capacity-compatibility",
+        "cueId": "cue-capacity-compatibility-1",
         "startSeconds": 0,
-        "endSeconds": 300,
-        "text": "Bind the exact artifact, runtime, backend, operating system, accelerator, driver, container, and feature set in one compatibility matrix."
+        "endSeconds": 5,
+        "text": "Bind the exact artifact, runtime, backend,\noperating system, accelerator, driver,"
       },
       {
-        "cueId": "cue-capacity-estimate",
-        "startSeconds": 300,
-        "endSeconds": 600,
-        "text": "Treat memory and storage calculations as hypotheses that include dynamic load and recovery, not proof that the service fits."
+        "cueId": "cue-capacity-compatibility-2",
+        "startSeconds": 5,
+        "endSeconds": 10,
+        "text": "container, and feature set in one\ncompatibility matrix. Require a"
       },
       {
-        "cueId": "cue-capacity-load",
-        "startSeconds": 600,
-        "endSeconds": 960,
-        "text": "Measure cold and warm starts, realistic length distributions, concurrency, bursts, cancellations, overload, restarts, and recovery on the exact build."
+        "cueId": "cue-capacity-compatibility-3",
+        "startSeconds": 10,
+        "endSeconds": 16,
+        "text": "documented, measured, inferred, or unknown\nlabel for every field. Point out that Meta"
       },
       {
-        "cueId": "cue-capacity-saturation",
-        "startSeconds": 960,
-        "endSeconds": 1260,
-        "text": "Find the first saturated resource, preserve host headroom, and define bounded queues, admission, rejection, and retry behavior."
+        "cueId": "cue-capacity-compatibility-4",
+        "startSeconds": 16,
+        "endSeconds": 21,
+        "text": "Llama, Qwen, DeepSeek, Mistral, Phi, and\nNVIDIA-related candidates are distinct"
       },
       {
-        "cueId": "cue-capacity-decision",
-        "startSeconds": 1260,
-        "endSeconds": 1470,
-        "text": "Publish supported slices, distributions, limits, costs, exclusions, recovery, and re-benchmark triggers as a dated capacity decision."
+        "cueId": "cue-capacity-compatibility-5",
+        "startSeconds": 21,
+        "endSeconds": 25,
+        "text": "ecosystems, not proof of one\ninterchangeable runtime or API."
       },
       {
-        "cueId": "cue-capacity-activity",
-        "startSeconds": 1470,
-        "endSeconds": 1650,
-        "text": "Guide the compatibility matrix, estimates, load profile, thresholds, saturation analysis, and capacity decision."
+        "cueId": "cue-capacity-estimate-1",
+        "startSeconds": 25,
+        "endSeconds": 31,
+        "text": "Treat memory and storage calculations as\nhypotheses that include dynamic load and"
       },
       {
-        "cueId": "cue-capacity-assessment",
-        "startSeconds": 1650,
-        "endSeconds": 1680,
-        "text": "Begin the check after the learner can separate estimates, measurements, extrapolations, and operating limits."
+        "cueId": "cue-capacity-estimate-2",
+        "startSeconds": 31,
+        "endSeconds": 37,
+        "text": "recovery, not proof that the service fits.\nWalk through concurrency multiplied by"
+      },
+      {
+        "cueId": "cue-capacity-estimate-3",
+        "startSeconds": 37,
+        "endSeconds": 43,
+        "text": "maximum tokens and cache per thousand\ntokens. If a learner gets 14 GiB for"
+      },
+      {
+        "cueId": "cue-capacity-estimate-4",
+        "startSeconds": 43,
+        "endSeconds": 48,
+        "text": "every scenario, identify the omitted\ndynamic term rather than changing"
+      },
+      {
+        "cueId": "cue-capacity-estimate-5",
+        "startSeconds": 48,
+        "endSeconds": 49,
+        "text": "the ceiling."
+      },
+      {
+        "cueId": "cue-capacity-load-1",
+        "startSeconds": 49,
+        "endSeconds": 54,
+        "text": "Measure cold and warm starts, realistic\nlength distributions, concurrency, bursts,"
+      },
+      {
+        "cueId": "cue-capacity-load-2",
+        "startSeconds": 54,
+        "endSeconds": 59,
+        "text": "cancellations, overload, restarts, and\nrecovery on the exact build. In this"
+      },
+      {
+        "cueId": "cue-capacity-load-3",
+        "startSeconds": 59,
+        "endSeconds": 63,
+        "text": "lesson, label every supplied trace\nsynthetic and compute nearest-rank"
+      },
+      {
+        "cueId": "cue-capacity-load-4",
+        "startSeconds": 63,
+        "endSeconds": 68,
+        "text": "percentiles, throughput, errors, and\nrejection rates without pretending that a"
+      },
+      {
+        "cueId": "cue-capacity-load-5",
+        "startSeconds": 68,
+        "endSeconds": 69,
+        "text": "model ran."
+      },
+      {
+        "cueId": "cue-capacity-saturation-1",
+        "startSeconds": 69,
+        "endSeconds": 74,
+        "text": "Find the first saturated resource,\npreserve host headroom, and define bounded"
+      },
+      {
+        "cueId": "cue-capacity-saturation-2",
+        "startSeconds": 74,
+        "endSeconds": 79,
+        "text": "queues, admission, rejection, and retry\nbehavior. Demonstrate that concurrency 4"
+      },
+      {
+        "cueId": "cue-capacity-saturation-3",
+        "startSeconds": 79,
+        "endSeconds": 85,
+        "text": "at 4,000 tokens fits at 22 GiB while\nconcurrency 5 needs 24 GiB and"
+      },
+      {
+        "cueId": "cue-capacity-saturation-4",
+        "startSeconds": 85,
+        "endSeconds": 87,
+        "text": "is rejected before allocation."
+      },
+      {
+        "cueId": "cue-capacity-decision-1",
+        "startSeconds": 87,
+        "endSeconds": 91,
+        "text": "Publish supported slices, distributions,\nlimits, costs, exclusions, recovery, and"
+      },
+      {
+        "cueId": "cue-capacity-decision-2",
+        "startSeconds": 91,
+        "endSeconds": 97,
+        "text": "re-benchmark triggers as a dated capacity\ndecision. Do not approve real hardware"
+      },
+      {
+        "cueId": "cue-capacity-decision-3",
+        "startSeconds": 97,
+        "endSeconds": 103,
+        "text": "while exact compatibility remains unknown.\nApply the rubric to the full evidence"
+      },
+      {
+        "cueId": "cue-capacity-decision-4",
+        "startSeconds": 103,
+        "endSeconds": 106,
+        "text": "packet, not only the repaired formula."
+      },
+      {
+        "cueId": "cue-capacity-assessment-1",
+        "startSeconds": 106,
+        "endSeconds": 111,
+        "text": "Begin the check after the learner can\nseparate estimates, deterministic"
+      },
+      {
+        "cueId": "cue-capacity-assessment-2",
+        "startSeconds": 111,
+        "endSeconds": 115,
+        "text": "fixtures, real measurements,\nextrapolations, and operating limits, and"
+      },
+      {
+        "cueId": "cue-capacity-assessment-3",
+        "startSeconds": 115,
+        "endSeconds": 119,
+        "text": "after the immutable tests pass without a\ndeny-all implementation."
       }
     ],
-    "reducedMotionAlternative": "Use static compatibility, capacity-ledger, load-profile, saturation, and decision tables. Show no animated gauges; provide exact numeric labels and textual thresholds."
+    "reducedMotionAlternative": "Use static compatibility, capacity-ledger, load-profile, saturation, test-result, and decision tables. Show no animated gauges; provide exact numeric labels, formulas, thresholds, fixture limitations, and causal feedback."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -284,6 +558,48 @@
       "url": "https://mlcommons.org/benchmarks/inference-datacenter/",
       "publisher": "MLCommons",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Llama models repository",
+      "url": "https://github.com/meta-llama/llama-models",
+      "publisher": "Meta",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Qwen repository",
+      "url": "https://github.com/QwenLM/Qwen",
+      "publisher": "QwenLM",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "DeepSeek-V3 repository",
+      "url": "https://github.com/deepseek-ai/DeepSeek-V3",
+      "publisher": "DeepSeek",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Mistral inference repository",
+      "url": "https://github.com/mistralai/mistral-inference",
+      "publisher": "Mistral AI",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Phi-3 Cookbook repository",
+      "url": "https://github.com/microsoft/Phi-3CookBook",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "TensorRT-LLM repository",
+      "url": "https://github.com/NVIDIA/TensorRT-LLM",
+      "publisher": "NVIDIA",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Node.js ECMAScript modules documentation",
+      "url": "https://nodejs.org/api/esm.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
     }
   ]
 }
