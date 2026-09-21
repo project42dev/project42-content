@@ -1,40 +1,46 @@
-# Size the Exact Model Service from Evidence: reduced-motion presentation
+# Hardware, Runtime, and Capacity Planning: reduced-motion presentation
 
 Present every visual as a complete static composition. Do not make completion
 depend on animation timing, autoplay, or pointer gestures.
 
 ## compatibility-narration
 
-Display the complete matrix and identify the active row with a persistent border and text label.
+Keep the complete matrix visible. Highlight one row at a time with a text label and no motion.
 
-Text alternative: Each exact stack component is labeled documented, measured, inferred, or unknown; fallback is visible and requires an explicit decision.
+Text alternative: The exact stack is listed row by row. Each row says documented, measured, inferred, or unknown. Unknown compatibility prevents real deployment approval.
 
-## capacity-estimate-narration
+## estimate-memory-and-storage-narration
 
-Use a static table with formulas, ranges, evidence status, and owner; do not animate the stack.
+Use a static ledger table with formulas and evidence labels. Do not animate resource bars.
 
-Text alternative: Weight bytes are only one component. Dynamic context and concurrency, runtime workspace, host services, storage, startup, recovery, and headroom are also sized.
+Text alternative: Weights, dynamic cache, workspace, host services, rollback, startup, and headroom are listed in separate ledgers. GB and GiB are not mixed.
 
 ## sizing-demonstration
 
-Show the completed sizing sheet as a static table with Estimated printed beside every value.
+Reveal the arithmetic as static lines with no animated counters.
 
-Text alternative: The simple weight estimate is expanded into a planning range. The sheet explicitly says that fitting on paper does not certify the service.
+Text alternative: Scenario A is 16 GiB and admitted. Scenario B is 22 GiB and admitted. Scenario C is 24 GiB and rejected against 23 GiB. Host is 18 of 24 GiB and storage is 54 of 80 GiB.
 
-## load-profile-narration
+## measure-representative-load-narration
 
-Present all cases in a static table with exact numeric labels and no animated gauges.
+Present the entire table without animated charts or gauges.
 
-Text alternative: Each case records exact build identity, request distribution, expected threshold, measured latency, queueing, throughput, errors, resources, and recovery.
+Text alternative: The profile records request distributions, latency percentiles, throughput, queue time, internal errors, rejections, resources, and recovery. Zero admitted requests has an invalid error-rate denominator.
 
-## saturation-narration
+## find-saturation-and-protect-host-narration
 
-Show a static threshold table and exact numeric saturation result instead of an animated graph.
+Use a static table and text labels instead of an animated saturation curve.
 
-Text alternative: Concurrency rises until a declared threshold is crossed. The service then bounds queues, contexts, outputs, rates, deadlines, shedding, and retries while preserving host headroom.
+Text alternative: Scenario B remains admitted at 22 GiB. Scenario C reaches 24 GiB and is rejected at the 23 GiB accelerator ceiling. Host recovery headroom remains separate.
 
 ## capacity-decision-narration
 
 Show the complete decision record as a static form with explicit evidence labels.
 
-Text alternative: Measured results are separated from estimates and extrapolations, and material model, stack, workload, or objective changes expire the decision.
+Text alternative: The decision supports only the synthetic Scenario B slice. Real exact-stack compatibility is unknown, so the fixture does not approve deployment.
+
+## class-closing
+
+Keep the four rules on screen without animation.
+
+Text alternative: Capacity decisions require exact compatibility evidence, complete ledgers, representative measurements, and explicit limits and re-benchmark triggers.
