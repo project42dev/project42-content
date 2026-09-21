@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:project42:multi-agent-handoff:1.0",
+  "title": "Project 42 handoff packet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion","runId","from","to","reason","goal","facts","artifacts","allowedActions","deniedActions","budget","returnWhen","context","depth","transitionCostTurns","receiverDecision","event"],
+  "$defs": {
+    "text": {"type":"string","minLength":1,"pattern":".*\\S.*"},
+    "fact": {"type":"object","additionalProperties":false,"required":["claim","sourceRef"],"properties":{"claim":{"$ref":"#/$defs/text"},"sourceRef":{"$ref":"#/$defs/text"}}},
+    "sideEffect": {"type":"object","additionalProperties":false,"required":["idempotencyKey","status"],"properties":{"idempotencyKey":{"$ref":"#/$defs/text"},"status":{"const":"completed"}}}
+  },
+  "properties": {
+    "schemaVersion":{"const":"1.0"},
+    "runId":{"$ref":"#/$defs/text"},"from":{"$ref":"#/$defs/text"},"to":{"$ref":"#/$defs/text"},"reason":{"$ref":"#/$defs/text"},"goal":{"$ref":"#/$defs/text"},
+    "facts":{"type":"array","items":{"$ref":"#/$defs/fact"}},
+    "artifacts":{"type":"array","items":{"$ref":"#/$defs/text"}},
+    "allowedActions":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/text"}},
+    "deniedActions":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/text"}},
+    "budget":{"type":"object","additionalProperties":false,"required":["turns"],"properties":{"turns":{"type":"integer","minimum":1}}},
+    "returnWhen":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/text"}},
+    "context":{"type":"object","additionalProperties":false,"required":["goal","constraints","traceId","completedSideEffects","facts","artifacts"],"properties":{"goal":{"$ref":"#/$defs/text"},"constraints":{"type":"array","items":{"$ref":"#/$defs/text"}},"traceId":{"$ref":"#/$defs/text"},"completedSideEffects":{"type":"array","items":{"$ref":"#/$defs/sideEffect"}},"facts":{"type":"array","items":{"$ref":"#/$defs/fact"}},"artifacts":{"type":"array","items":{"$ref":"#/$defs/text"}}}},
+    "depth":{"type":"integer","minimum":0},
+    "transitionCostTurns":{"type":"integer","minimum":0},
+    "receiverDecision":{"enum":["accept","reject"]},
+    "receiverReason":{"$ref":"#/$defs/text"},
+    "event":{"enum":["normal","ambiguous-timeout"]}
+  },
+  "allOf":[{"if":{"properties":{"receiverDecision":{"const":"reject"}},"required":["receiverDecision"]},"then":{"required":["receiverReason"]}}]
+}

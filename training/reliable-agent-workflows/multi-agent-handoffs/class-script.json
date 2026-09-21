@@ -12,8 +12,8 @@
     "Filter context and permissions for the receiving agent rather than copying everything.",
     "Test misrouting, rejection, timeout, recursion, and unsafe output across agent boundaries."
   ],
-  "plannedDurationSeconds": 943,
-  "spokenWordCount": 1013,
+  "plannedDurationSeconds": 1556,
+  "spokenWordCount": 2357,
   "segments": [
     {
       "id": "welcome-and-outcomes",
@@ -212,6 +212,90 @@
       "sourceUrls": []
     },
     {
+      "id": "handoff-invariants-lab-narration",
+      "kind": "narration",
+      "sectionId": "handoff-invariants",
+      "delivery": "spoken",
+      "spokenText": "The shared validator checks packet and policy objects before either learner or reference authorization logic runs. A null policy returns invalid_policy rather than throwing. Policy bounds maxDepth and maxTurns are mandatory nonnegative or positive integers, so deleting them cannot turn depth 999 into an accepted transition. Identifiers and action names are trimmed, nonempty strings. Arrays contain values of the documented type. Events are restricted to normal and ambiguous-timeout. Receiver decisions are restricted to accept and reject, and a rejection requires a nonempty reason. Context keys must be a subset of policy.contextAllowlist and the packet schema allowlist. Context facts carry nonempty claim and sourceRef values. Context artifacts are strings. Context facts and artifacts must exactly match their top-level duplicates, preventing the receiver from consuming data that passed a weaker check elsewhere. For every accepted transition, preserve the original goal, constraints, completed-side-effect ledger, and trace identity. The application copies these values into the transition result instead of asking a model to reconstruct them. Visual cue: picture two gates. The validation gate checks structure, provenance, consistency, recipient, event, depth, and budget. The authorization gate calculates the action intersection. Only then may activation occur. Checkpoint: explain why shared validation leaves exactly one learner defect. Starter and reference receive the same validated input; only their effectiveActions calculation differs.",
+      "stageDirection": "State and validate the invariants before activation",
+      "estimatedSeconds": 97,
+      "sourceUrls": [
+        "https://openai.github.io/openai-agents-js/guides/handoffs/"
+      ]
+    },
+    {
+      "id": "worked-handoff-example-lab-narration",
+      "kind": "narration",
+      "sectionId": "worked-handoff-example",
+      "delivery": "spoken",
+      "spokenText": "Triage receives the goal Review four claims and constraint Do not publish. It has recorded save-draft-7 as completed. The packet targets curriculum-reviewer, carries trace-authority, requests read and publish, and has three turns. First, validate packet and policy types. The recipient equals policy.expectedRecipient. Required identifiers are nonblank. The event is normal. Top-level and context facts and artifacts match, and every receiver-consumed fact has provenance. Second, validate the context boundary. Its keys are goal, constraints, traceId, completedSideEffects, facts, and artifacts, all of which appear in the policy allowlist. No untrustedInstruction field reaches the receiver. Third, calculate authority: [read, publish] intersect [read, comment] gives [read]. Removing denied [publish, delete] still gives [read]. Fourth, calculate budget: 3 incoming turns minus 1 transition turn equals 2 remaining receiver turns. Depth 1 does not exceed maxDepth 2. The receiver decision is accept, so the result is status accepted, activeAgent curriculum-reviewer, effectiveActions [read], remainingTurns 2, and traceId trace-authority. Goal, constraints, and completed side effects are copied unchanged. No publication or external approval occurred. Visual cue: use columns labeled Packet, Policy, and Result. Draw read through both gates, stop publish at the policy gate, and show two receiver work turns. Checkpoint: if the result contains publish, the causal defect is that sender-requested authority was copied rather than intersected with recipient policy.",
+      "stageDirection": "Work through one accepted transfer",
+      "estimatedSeconds": 97,
+      "sourceUrls": [
+        "https://openai.github.io/openai-agents-js/guides/handoffs/"
+      ]
+    },
+    {
+      "id": "eight-scenario-traces-lab-narration",
+      "kind": "narration",
+      "sectionId": "eight-scenario-traces",
+      "delivery": "spoken",
+      "spokenText": "correct-transfer is accepted with read and comment. Its result preserves the goal, constraints, completed-side-effect ledger, and trace ID. wrong-recipient is rejected with recipient_mismatch before activation. missing-provenance is rejected because both packet and consumed context contain a fact without sourceRef. excessive-permission is accepted only after [read, publish] is narrowed to [read]. It exposes the deliberate starter defect. poisoned-context is rejected because untrustedInstruction is outside the context allowlist; the validator never interprets that text. timeout returns escalate with reason ambiguous_timeout, next human, and mayRepeatSideEffects false while preserving the ledger. recursive-bounce is rejected because depth 3 exceeds maxDepth 2. rejected-handoff escalates to a human because the receiver explicitly returns reject with evidence_scope_unclear. These traces demonstrate acceptance, rejection, containment, recursion bounds, and human escalation. They do not simulate model quality, network timing, credential issuance, provider approval, or external side effects. Visual cue: group accepted traces in green, rejected traces in red, and escalated traces in amber. Show activeAgent only in the accepted group. Checkpoint: only correct-transfer and excessive-permission activate the specialist among these eight fixtures.",
+      "stageDirection": "Interpret eight complete fixture traces",
+      "estimatedSeconds": 78,
+      "sourceUrls": [
+        "https://openai.github.io/openai-agents-js/guides/handoffs/"
+      ]
+    },
+    {
+      "id": "node22-repair-lab-lab-narration",
+      "kind": "narration",
+      "sectionId": "node22-repair-lab",
+      "delivery": "spoken",
+      "spokenText": "The starter has exactly one deliberate defect in src/handoff.mjs: it copies packet.allowedActions. Replace that expression with a filter that retains actions found in policy.recipientAllowed and not found in packet.deniedActions. Do not edit shared validation, fixtures, tests, or reference code. The suite contains the preserved ten cases plus twelve boundary cases. Before repair, exact stdout reports REFERENCE 22/22 and LEARNER 20/22, followed by the two authority failures and RESULT FAIL; exit code is 1. After repair it reports REFERENCE 22/22, LEARNER 22/22, and RESULT PASS; exit code is 0. Independent boundary tests reject an unproven receiver-context fact, null constraint, null return condition, unknown event, absent policy bounds with depth 999, null policy, whitespace identifier, nonstring action, mismatched facts, mismatched artifacts, and negative budget. A zero-work-turn packet pauses without activation. The changed valid packet requests comment and delete. It must remain accepted with comment only, so a deny-all patch fails causally. Visual cue: highlight the single DELIBERATE DEFECT line and draw requested actions and recipient policy into an intersection symbol, followed by subtraction of denied actions. Checkpoint: after repair, explain why excessive-permission and changed-authority-input pass while malformed and inconsistent packets still fail closed.",
+      "stageDirection": "Repair one authority-boundary defect offline",
+      "estimatedSeconds": 87,
+      "sourceUrls": [
+        "https://openai.github.io/openai-agents-js/guides/handoffs/"
+      ]
+    },
+    {
+      "id": "recovery-and-variation-lab-narration",
+      "kind": "narration",
+      "sectionId": "recovery-and-variation",
+      "delivery": "spoken",
+      "spokenText": "If an edit causes a syntax error or unrelated failures, copy src/handoff.starter.mjs back to src/handoff.mjs and rerun the root-relative command. After an honest attempt, compare the learner file with reference/handoff.mjs. Do not replace or edit the test driver. For the changed variation, requested [comment, delete] intersected with recipient policy [read, comment] equals [comment]. Removing denied [publish, delete] leaves [comment]. Returning [comment, delete] means the sender widened authority. Returning [] means valid comment work was unnecessarily removed. The expected [comment] distinguishes the intended intersection from both faulty strategies. A zero remaining budget is different from negative budget. Zero produces status paused, activeAgent null, and next parent-or-human because the transition is valid but no receiver turn is available. Negative remaining budget is rejected as budget_exhausted. Recovery after an ambiguous runtime timeout is also different from local code recovery. Preserve the idempotency ledger and escalate without replaying the side effect. Visual cue: split recovery into local-code recovery and runtime recovery. The first restores a file; the second preserves operational evidence and avoids replay.",
+      "stageDirection": "Recover safely and explain changed-input feedback",
+      "estimatedSeconds": 78,
+      "sourceUrls": [
+        "https://openai.github.io/openai-agents-js/guides/handoffs/"
+      ]
+    },
+    {
+      "id": "ecosystem-transfer-lab-narration",
+      "kind": "narration",
+      "sectionId": "ecosystem-transfer",
+      "delivery": "spoken",
+      "spokenText": "Keep model family, runtime, API, agent adapter, and application policy as separate layers. Meta Llama, Qwen, DeepSeek, Mistral, and Microsoft Phi identify model families or associated projects. A local runtime or hosted API determines inference transport, while an agent framework may add tool or routing abstractions. Do not infer a common native handoff capability from a model-family name. Place the validator and authorization policy in application code unless a separately verified system enforces the same contract. For OpenAI Agents SDK, map typed handoff input and history filtering to the packet while retaining application authorization tests. For Google ADK, map it to the selected workflow structure. For Anthropic-oriented orchestrator-worker designs, preserve typed acceptance and return behavior while distinguishing delegation from user-facing transfer. For Llama, Qwen, DeepSeek, Mistral, or Phi deployments, write an adapter for the actual runtime or API in use. Test serialization, role mapping, authentication, errors, cancellation, and observed tool results separately from fixture policy. Visual cue: draw layers labeled Model family, Runtime or API, Agent adapter, and Application handoff policy. Place permission intersection and idempotency in the application layer. Checkpoint: changing model families must not change the expected permission-intersection result.",
+      "stageDirection": "Transfer the contract across model families and runtimes",
+      "estimatedSeconds": 87,
+      "sourceUrls": [
+        "https://openai.github.io/openai-agents-js/guides/handoffs/"
+      ]
+    },
+    {
+      "id": "activity-rubric-lab-narration",
+      "kind": "narration",
+      "sectionId": "activity-rubric",
+      "delivery": "spoken",
+      "spokenText": "A complete submission defines triage, specialist, reviewer, and human roles and states why each may receive control. It includes the versioned packet, policy, acceptance response, return result, rejection result, paused result, and escalation result. Full credit requires all eight named scenario traces, recipient validation, context allowlisting, provenance on receiver-consumed facts, duplicate-data consistency, permission intersection, budget arithmetic, maximum recursion, event whitelisting, policy bounds, and fail-closed malformed input. Accepted traces must visibly preserve goal, constraints, completed side effects, and trace identity. Timeout must prohibit replay. Explicit receiver rejection must escalate rather than loop. Zero remaining budget must not activate the receiver. The repair earns credit only when unchanged tests exit 0 and changed-authority-input retains comment while removing delete. A deny-all patch, fixture edit, skipped test, fake execution claim, or copied output without a passing run is insufficient. Separate fixture claims from live-system claims. The learner may report deterministic local results actually observed. The learner may not report provider approval, model behavior, or external action completion because the lab performs none. Visual cue: use a checklist grouped into contract, eight traces, repair, boundary tests, and fixture-versus-live limits. Checkpoint: require one concrete artifact or trace for every rubric claim.",
+      "stageDirection": "Evaluate evidence rather than presentation",
+      "estimatedSeconds": 89,
+      "sourceUrls": [
+        "https://openai.github.io/openai-agents-js/guides/handoffs/"
+      ]
+    },
+    {
       "id": "assessment-handoff",
       "kind": "assessment-handoff",
       "delivery": "spoken",
@@ -226,7 +310,10 @@
           "q-handoff-2",
           "q-handoff-3",
           "q-handoff-4",
-          "q-handoff-5"
+          "q-handoff-5",
+          "q-handoff-6",
+          "q-handoff-7",
+          "q-handoff-8"
         ]
       }
     },

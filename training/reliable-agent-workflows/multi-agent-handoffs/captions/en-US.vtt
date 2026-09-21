@@ -511,34 +511,747 @@ every acceptance, containment, retry, and
 escalation trace.
 
 104
-00:15:03.000 --> 00:15:09.000
+00:15:03.000 --> 00:15:07.409
+The shared validator checks packet and
+policy objects before either
+
+105
+00:15:07.409 --> 00:15:11.818
+learner or reference authorization logic
+runs. A null policy returns
+
+106
+00:15:11.818 --> 00:15:16.227
+invalid_policy rather than throwing.
+Policy bounds maxDepth and maxTurns are
+
+107
+00:15:16.227 --> 00:15:20.636
+mandatory nonnegative or positive
+integers, so deleting them cannot turn
+
+108
+00:15:20.636 --> 00:15:25.045
+depth 999 into an accepted transition.
+Identifiers and action names
+
+109
+00:15:25.045 --> 00:15:29.455
+are trimmed, nonempty strings. Arrays
+contain values of the documented
+
+110
+00:15:29.455 --> 00:15:33.864
+type. Events are restricted to normal and
+ambiguous-timeout. Receiver decisions
+
+111
+00:15:33.864 --> 00:15:38.273
+are restricted to accept and reject, and a
+rejection requires
+
+112
+00:15:38.273 --> 00:15:42.682
+a nonempty reason. Context keys must be a
+subset of
+
+113
+00:15:42.682 --> 00:15:47.091
+policy.contextAllowlist and the packet
+schema allowlist. Context facts carry
+
+114
+00:15:47.091 --> 00:15:51.500
+nonempty claim and sourceRef values.
+Context artifacts are strings. Context
+
+115
+00:15:51.500 --> 00:15:55.909
+facts and artifacts must exactly match
+their top-level duplicates, preventing
+
+116
+00:15:55.909 --> 00:16:00.318
+the receiver from consuming data that
+passed a weaker check
+
+117
+00:16:00.318 --> 00:16:04.727
+elsewhere. For every accepted transition,
+preserve the original goal, constraints,
+
+118
+00:16:04.727 --> 00:16:09.136
+completed-side-effect ledger, and trace
+identity. The application copies these
+
+119
+00:16:09.136 --> 00:16:13.545
+values into the transition result instead
+of asking a model
+
+120
+00:16:13.545 --> 00:16:17.955
+to reconstruct them. Visual cue: picture
+two gates. The validation
+
+121
+00:16:17.955 --> 00:16:22.364
+gate checks structure, provenance,
+consistency, recipient, event, depth, and
+
+122
+00:16:22.364 --> 00:16:26.773
+budget. The authorization gate calculates
+the action intersection. Only then
+
+123
+00:16:26.773 --> 00:16:31.182
+may activation occur. Checkpoint: explain
+why shared validation leaves exactly
+
+124
+00:16:31.182 --> 00:16:35.591
+one learner defect. Starter and reference
+receive the same validated
+
+125
+00:16:35.591 --> 00:16:40.000
+input; only their effectiveActions
+calculation differs.
+
+126
+00:16:40.000 --> 00:16:44.217
+Triage receives the goal Review four
+claims and constraint Do
+
+127
+00:16:44.217 --> 00:16:48.435
+not publish. It has recorded save-draft-7
+as completed. The packet
+
+128
+00:16:48.435 --> 00:16:52.652
+targets curriculum-reviewer, carries
+trace-authority, requests read and
+
+129
+00:16:52.652 --> 00:16:56.870
+publish, and has three turns. First,
+validate packet and policy
+
+130
+00:16:56.870 --> 00:17:01.087
+types. The recipient equals
+policy.expectedRecipient. Required
+
+131
+00:17:01.087 --> 00:17:05.304
+identifiers are nonblank. The event is
+normal. Top-level and context
+
+132
+00:17:05.304 --> 00:17:09.522
+facts and artifacts match, and every
+receiver-consumed fact has provenance.
+
+133
+00:17:09.522 --> 00:17:13.739
+Second, validate the context boundary. Its
+keys are goal, constraints,
+
+134
+00:17:13.739 --> 00:17:17.957
+traceId, completedSideEffects, facts, and
+artifacts, all of which appear in
+
+135
+00:17:17.957 --> 00:17:22.174
+the policy allowlist. No
+untrustedInstruction field reaches the
+
+136
+00:17:22.174 --> 00:17:26.391
+receiver. Third, calculate authority:
+[read, publish] intersect [read, comment]
+
+137
+00:17:26.391 --> 00:17:30.609
+gives [read]. Removing denied [publish,
+delete] still gives [read]. Fourth,
+
+138
+00:17:30.609 --> 00:17:34.826
+calculate budget: 3 incoming turns minus 1
+transition turn equals
+
+139
+00:17:34.826 --> 00:17:39.043
+2 remaining receiver turns. Depth 1 does
+not exceed maxDepth
+
+140
+00:17:39.043 --> 00:17:43.261
+2. The receiver decision is accept, so the
+result is
+
+141
+00:17:43.261 --> 00:17:47.478
+status accepted, activeAgent
+curriculum-reviewer, effectiveActions
+
+142
+00:17:47.478 --> 00:17:51.696
+[read], remainingTurns 2, and traceId
+trace-authority. Goal, constraints, and
+
+143
+00:17:51.696 --> 00:17:55.913
+completed side effects are copied
+unchanged. No publication or external
+
+144
+00:17:55.913 --> 00:18:00.130
+approval occurred. Visual cue: use columns
+labeled Packet, Policy, and
+
+145
+00:18:00.130 --> 00:18:04.348
+Result. Draw read through both gates, stop
+publish at the
+
+146
+00:18:04.348 --> 00:18:08.565
+policy gate, and show two receiver work
+turns. Checkpoint: if
+
+147
+00:18:08.565 --> 00:18:12.783
+the result contains publish, the causal
+defect is that sender-requested
+
+148
+00:18:12.783 --> 00:18:17.000
+authority was copied rather than
+intersected with recipient policy.
+
+149
+00:18:17.000 --> 00:18:21.105
+correct-transfer is accepted with read and
+comment. Its result preserves
+
+150
+00:18:21.105 --> 00:18:25.211
+the goal, constraints,
+completed-side-effect ledger, and trace
+
+151
+00:18:25.211 --> 00:18:29.316
+ID. wrong-recipient is rejected with
+recipient_mismatch before activation.
+
+152
+00:18:29.316 --> 00:18:33.421
+missing-provenance is rejected because
+both packet and consumed context contain
+
+153
+00:18:33.421 --> 00:18:37.526
+a fact without sourceRef.
+excessive-permission is accepted only
+
+154
+00:18:37.526 --> 00:18:41.632
+after [read, publish] is narrowed to
+[read]. It exposes the
+
+155
+00:18:41.632 --> 00:18:45.737
+deliberate starter defect.
+poisoned-context is rejected because
+
+156
+00:18:45.737 --> 00:18:49.842
+untrustedInstruction is outside the
+context allowlist; the validator never
+
+157
+00:18:49.842 --> 00:18:53.947
+interprets that text. timeout returns
+escalate with reason ambiguous_timeout,
+
+158
+00:18:53.947 --> 00:18:58.053
+next human, and mayRepeatSideEffects false
+while preserving the ledger.
+
+159
+00:18:58.053 --> 00:19:02.158
+recursive-bounce is rejected because depth
+3 exceeds maxDepth 2. rejected-handoff
+
+160
+00:19:02.158 --> 00:19:06.263
+escalates to a human because the receiver
+explicitly returns reject
+
+161
+00:19:06.263 --> 00:19:10.368
+with evidence_scope_unclear. These traces
+demonstrate acceptance, rejection,
+
+162
+00:19:10.368 --> 00:19:14.474
+containment, recursion bounds, and human
+escalation. They do not simulate
+
+163
+00:19:14.474 --> 00:19:18.579
+model quality, network timing, credential
+issuance, provider approval, or external
+
+164
+00:19:18.579 --> 00:19:22.684
+side effects. Visual cue: group accepted
+traces in green, rejected
+
+165
+00:19:22.684 --> 00:19:26.789
+traces in red, and escalated traces in
+amber. Show activeAgent
+
+166
+00:19:26.789 --> 00:19:30.895
+only in the accepted group. Checkpoint:
+only correct-transfer and
+
+167
+00:19:30.895 --> 00:19:35.000
+excessive-permission activate the
+specialist among these eight fixtures.
+
+168
+00:19:35.000 --> 00:19:39.350
+The starter has exactly one deliberate
+defect in src/handoff.mjs: it
+
+169
+00:19:39.350 --> 00:19:43.700
+copies packet.allowedActions. Replace that
+expression with a filter that retains
+
+170
+00:19:43.700 --> 00:19:48.050
+actions found in policy.recipientAllowed
+and not found in packet.deniedActions. Do
+
+171
+00:19:48.050 --> 00:19:52.400
+not edit shared validation, fixtures,
+tests, or reference code. The
+
+172
+00:19:52.400 --> 00:19:56.750
+suite contains the preserved ten cases
+plus twelve boundary cases.
+
+173
+00:19:56.750 --> 00:20:01.100
+Before repair, exact stdout reports
+REFERENCE 22/22 and LEARNER 20/22,
+
+174
+00:20:01.100 --> 00:20:05.450
+followed by the two authority failures and
+RESULT FAIL; exit
+
+175
+00:20:05.450 --> 00:20:09.800
+code is 1. After repair it reports
+REFERENCE 22/22, LEARNER
+
+176
+00:20:09.800 --> 00:20:14.150
+22/22, and RESULT PASS; exit code is 0.
+Independent boundary
+
+177
+00:20:14.150 --> 00:20:18.500
+tests reject an unproven receiver-context
+fact, null constraint, null return
+
+178
+00:20:18.500 --> 00:20:22.850
+condition, unknown event, absent policy
+bounds with depth 999, null
+
+179
+00:20:22.850 --> 00:20:27.200
+policy, whitespace identifier, nonstring
+action, mismatched facts, mismatched
+
+180
+00:20:27.200 --> 00:20:31.550
+artifacts, and negative budget. A
+zero-work-turn packet pauses without
+
+181
+00:20:31.550 --> 00:20:35.900
+activation. The changed valid packet
+requests comment and delete. It
+
+182
+00:20:35.900 --> 00:20:40.250
+must remain accepted with comment only, so
+a deny-all patch
+
+183
+00:20:40.250 --> 00:20:44.600
+fails causally. Visual cue: highlight the
+single DELIBERATE DEFECT line
+
+184
+00:20:44.600 --> 00:20:48.950
+and draw requested actions and recipient
+policy into an intersection
+
+185
+00:20:48.950 --> 00:20:53.300
+symbol, followed by subtraction of denied
+actions. Checkpoint: after repair,
+
+186
+00:20:53.300 --> 00:20:57.650
+explain why excessive-permission and
+changed-authority-input pass while
+
+187
+00:20:57.650 --> 00:21:02.000
+malformed and inconsistent packets still
+fail closed.
+
+188
+00:21:02.000 --> 00:21:06.333
+If an edit causes a syntax error or
+unrelated failures,
+
+189
+00:21:06.333 --> 00:21:10.667
+copy src/handoff.starter.mjs back to
+src/handoff.mjs and rerun the
+
+190
+00:21:10.667 --> 00:21:15.000
+root-relative command. After an honest
+attempt, compare the learner file
+
+191
+00:21:15.000 --> 00:21:19.333
+with reference/handoff.mjs. Do not replace
+or edit the test driver.
+
+192
+00:21:19.333 --> 00:21:23.667
+For the changed variation, requested
+[comment, delete] intersected with
+
+193
+00:21:23.667 --> 00:21:28.000
+recipient policy [read, comment] equals
+[comment]. Removing denied [publish,
+
+194
+00:21:28.000 --> 00:21:32.333
+delete] leaves [comment]. Returning
+[comment, delete] means the sender widened
+
+195
+00:21:32.333 --> 00:21:36.667
+authority. Returning [] means valid
+comment work was unnecessarily removed.
+
+196
+00:21:36.667 --> 00:21:41.000
+The expected [comment] distinguishes the
+intended intersection from both faulty
+
+197
+00:21:41.000 --> 00:21:45.333
+strategies. A zero remaining budget is
+different from negative budget.
+
+198
+00:21:45.333 --> 00:21:49.667
+Zero produces status paused, activeAgent
+null, and next parent-or-human because
+
+199
+00:21:49.667 --> 00:21:54.000
+the transition is valid but no receiver
+turn is available.
+
+200
+00:21:54.000 --> 00:21:58.333
+Negative remaining budget is rejected as
+budget_exhausted. Recovery after an
+
+201
+00:21:58.333 --> 00:22:02.667
+ambiguous runtime timeout is also
+different from local code recovery.
+
+202
+00:22:02.667 --> 00:22:07.000
+Preserve the idempotency ledger and
+escalate without replaying the side
+
+203
+00:22:07.000 --> 00:22:11.333
+effect. Visual cue: split recovery into
+local-code recovery and runtime
+
+204
+00:22:11.333 --> 00:22:15.667
+recovery. The first restores a file; the
+second preserves operational
+
+205
+00:22:15.667 --> 00:22:20.000
+evidence and avoids replay.
+
+206
+00:22:20.000 --> 00:22:24.350
+Keep model family, runtime, API, agent
+adapter, and application policy
+
+207
+00:22:24.350 --> 00:22:28.700
+as separate layers. Meta Llama, Qwen,
+DeepSeek, Mistral, and Microsoft
+
+208
+00:22:28.700 --> 00:22:33.050
+Phi identify model families or associated
+projects. A local runtime
+
+209
+00:22:33.050 --> 00:22:37.400
+or hosted API determines inference
+transport, while an agent framework
+
+210
+00:22:37.400 --> 00:22:41.750
+may add tool or routing abstractions. Do
+not infer a
+
+211
+00:22:41.750 --> 00:22:46.100
+common native handoff capability from a
+model-family name. Place the
+
+212
+00:22:46.100 --> 00:22:50.450
+validator and authorization policy in
+application code unless a separately
+
+213
+00:22:50.450 --> 00:22:54.800
+verified system enforces the same
+contract. For OpenAI Agents SDK,
+
+214
+00:22:54.800 --> 00:22:59.150
+map typed handoff input and history
+filtering to the packet
+
+215
+00:22:59.150 --> 00:23:03.500
+while retaining application authorization
+tests. For Google ADK, map it
+
+216
+00:23:03.500 --> 00:23:07.850
+to the selected workflow structure. For
+Anthropic-oriented orchestrator-worker
+
+217
+00:23:07.850 --> 00:23:12.200
+designs, preserve typed acceptance and
+return behavior while distinguishing
+
+218
+00:23:12.200 --> 00:23:16.550
+delegation from user-facing transfer. For
+Llama, Qwen, DeepSeek, Mistral, or
+
+219
+00:23:16.550 --> 00:23:20.900
+Phi deployments, write an adapter for the
+actual runtime or
+
+220
+00:23:20.900 --> 00:23:25.250
+API in use. Test serialization, role
+mapping, authentication, errors,
+
+221
+00:23:25.250 --> 00:23:29.600
+cancellation, and observed tool results
+separately from fixture policy. Visual
+
+222
+00:23:29.600 --> 00:23:33.950
+cue: draw layers labeled Model family,
+Runtime or API, Agent
+
+223
+00:23:33.950 --> 00:23:38.300
+adapter, and Application handoff policy.
+Place permission intersection and
+
+224
+00:23:38.300 --> 00:23:42.650
+idempotency in the application layer.
+Checkpoint: changing model families must
+
+225
+00:23:42.650 --> 00:23:47.000
+not change the expected
+permission-intersection result.
+
+226
+00:23:47.000 --> 00:23:51.238
+A complete submission defines triage,
+specialist, reviewer, and human roles
+
+227
+00:23:51.238 --> 00:23:55.476
+and states why each may receive control.
+It includes the
+
+228
+00:23:55.476 --> 00:23:59.714
+versioned packet, policy, acceptance
+response, return result, rejection result,
+
+229
+00:23:59.714 --> 00:24:03.952
+paused result, and escalation result. Full
+credit requires all eight
+
+230
+00:24:03.952 --> 00:24:08.190
+named scenario traces, recipient
+validation, context allowlisting,
+
+231
+00:24:08.190 --> 00:24:12.429
+provenance on receiver-consumed facts,
+duplicate-data consistency, permission
+
+232
+00:24:12.429 --> 00:24:16.667
+intersection, budget arithmetic, maximum
+recursion, event whitelisting, policy
+
+233
+00:24:16.667 --> 00:24:20.905
+bounds, and fail-closed malformed input.
+Accepted traces must visibly preserve
+
+234
+00:24:20.905 --> 00:24:25.143
+goal, constraints, completed side effects,
+and trace identity. Timeout must
+
+235
+00:24:25.143 --> 00:24:29.381
+prohibit replay. Explicit receiver
+rejection must escalate rather than loop.
+
+236
+00:24:29.381 --> 00:24:33.619
+Zero remaining budget must not activate
+the receiver. The repair
+
+237
+00:24:33.619 --> 00:24:37.857
+earns credit only when unchanged tests
+exit 0 and changed-authority-input
+
+238
+00:24:37.857 --> 00:24:42.095
+retains comment while removing delete. A
+deny-all patch, fixture edit,
+
+239
+00:24:42.095 --> 00:24:46.333
+skipped test, fake execution claim, or
+copied output without a
+
+240
+00:24:46.333 --> 00:24:50.571
+passing run is insufficient. Separate
+fixture claims from live-system claims.
+
+241
+00:24:50.571 --> 00:24:54.810
+The learner may report deterministic local
+results actually observed. The
+
+242
+00:24:54.810 --> 00:24:59.048
+learner may not report provider approval,
+model behavior, or external
+
+243
+00:24:59.048 --> 00:25:03.286
+action completion because the lab performs
+none. Visual cue: use
+
+244
+00:25:03.286 --> 00:25:07.524
+a checklist grouped into contract, eight
+traces, repair, boundary tests,
+
+245
+00:25:07.524 --> 00:25:11.762
+and fixture-versus-live limits.
+Checkpoint: require one concrete artifact
+
+246
+00:25:11.762 --> 00:25:16.000
+or trace for every rubric claim.
+
+247
+00:25:16.000 --> 00:25:22.000
 When ready, begin the knowledge check. You
 will distinguish delegation
 
-105
-00:15:09.000 --> 00:15:15.000
+248
+00:25:22.000 --> 00:25:28.000
 from handoff, identify the packet
 contract, minimize recipient authority,
 
-106
-00:15:15.000 --> 00:15:21.000
+249
+00:25:28.000 --> 00:25:34.000
 respond to rejected transfers, and
 preserve product invariants across
 
-107
-00:15:21.000 --> 00:15:27.000
+250
+00:25:34.000 --> 00:25:40.000
 provider frameworks.
 
-108
-00:15:27.000 --> 00:15:32.333
+251
+00:25:40.000 --> 00:25:45.333
 Transfer a validated contract, not a
 history dump. Preserve intent
 
-109
-00:15:32.333 --> 00:15:37.667
+252
+00:25:45.333 --> 00:25:50.667
 and trace, narrow context and authority,
 require acknowledgment, bound failure,
 
-110
-00:15:37.667 --> 00:15:43.000
+253
+00:25:50.667 --> 00:25:56.000
 and verify every return.
