@@ -8,12 +8,13 @@
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 54,
+  "estimatedMinutes": 105,
   "objectives": [
     "Design a quarantined acquisition path that prevents unreviewed artifacts from entering a trusted runtime.",
     "Explain what digests, signatures, provenance, scans, and software bills of materials each establish and do not establish.",
     "Identify executable serialization, custom-code, dependency, tokenizer, template, and conversion risks.",
-    "Promote an immutable artifact bundle with reproducible verification evidence, stop conditions, and revocation rules."
+    "Promote an immutable artifact bundle with reproducible verification evidence, stop conditions, and revocation rules.",
+    "Repair a digest-to-promotion binding defect in a dependency-free Node.js 22 native ESM verifier and validate the repair with immutable, changed-input, and negative tests."
   ],
   "prerequisites": [
     "model-identity-license-and-provenance"
@@ -23,165 +24,355 @@
       "id": "acquire-into-quarantine",
       "title": "Acquire into quarantine, not the serving path",
       "paragraphs": [
-        "Download or copy the exact pinned revision into a non-serving, non-production environment with no learner data, no production credentials, minimal network access, bounded storage and compute, and an operator-approved destination. Preserve repository metadata and original filenames. Do not enable remote code, plugins, post-install hooks, or model loading merely to discover what the package contains.",
-        "Capture the source URL, immutable revision, retrieval time, transfer mechanism, expected manifest, observed files, sizes, and cryptographic digests before transformation. A mutable branch, tag, latest alias, cache entry, or friendly model name must not silently replace the approved artifact."
+        "Acquire an exact pinned revision into a bounded, non-serving quarantine with no learner data, production credentials, automatic execution, or unnecessary network access. Preserve original filenames and repository metadata. Do not enable remote code, plugins, post-install hooks, model loading, or conversion merely to discover package contents.",
+        "Record the source, immutable revision, retrieval time, transfer method, expected inventory, observed inventory, sizes, and cryptographic digests before transformation. A mutable branch, tag, latest alias, cache entry, or friendly model name must not silently replace the approved artifact.",
+        "Quarantine is a trust boundary. Files may move from acquisition into verification, but they must not enter a trusted runtime until every required control reaches PASS. HOLD means evidence is incomplete and promotion pauses. REJECT means a control failed and serving remains blocked.",
+        "The lab uses a repository-local fixture quarantine containing an empty inert file and a three-byte text file. The verifier reads bytes and metadata but never downloads, deserializes, executes, converts, or serves a model. This is deterministic fixture simulation and makes no production-security or live-integration claim."
       ],
-      "callout": "Inspection starts before execution. Quarantine is a trust boundary, not a folder name."
+      "callout": "Inspection starts before execution. Quarantine is a trust boundary, not merely a folder name."
     },
     {
       "id": "verify-distinct-evidence",
       "title": "Verify distinct evidence without overstating it",
       "paragraphs": [
-        "A cryptographic digest detects whether bytes differ from the expected bytes; it does not identify a trustworthy publisher or prove safety. A verified signature can bind an identity to signed material under a trust policy; it does not prove that the signer made a safe model. Provenance can describe where and how an artifact was produced; it must be checked against expectations and does not replace evaluation.",
-        "Scanners can identify known patterns, malware, secrets, vulnerable dependencies, and suspicious files within their coverage. A software bill of materials inventories components and relationships. Neither a clean scan nor a complete inventory proves the absence of malicious behavior, unsafe deserialization, model-level failures, or unacceptable license terms."
-      ]
+        "A SHA-256 digest establishes equality between observed bytes and an expected digest. It does not establish publisher identity, provenance, safety, licensing, or acceptable behavior. SLSA artifact verification explains that artifact identity and provenance expectations must be checked under policy: https://slsa.dev/spec/v1.2/verifying-artifacts.",
+        "A cryptographic signature can bind signed material to an identity under a verification policy. Signature validity alone does not establish that the signer is trusted for this model, that the signed bytes satisfy deployment policy, or that model behavior is safe. This lesson includes no production public key, certificate chain, transparency-log check, or signature-verification implementation. A required production signature that is absent is therefore HOLD. The fixture records `not-applicable` only under a narrow local unsigned-fixture policy, not as simulated cryptographic success.",
+        "SLSA provenance is a machine-readable description of how an artifact was produced, including relevant inputs and build information. Its predicates must be checked against expected source, builder, configuration, and policy: https://slsa.dev/spec/v1.2/provenance. Matching unauthenticated strings in a candidate-controlled manifest do not authenticate provenance.",
+        "Scans report findings only within their rules, configuration, inputs, and coverage. An SBOM inventories declared components and relationships. Neither a clean scan nor a complete inventory proves absence of malicious behavior, unsafe deserialization, model-level failures, vulnerabilities outside scanner coverage, or unacceptable terms. SPDX defines an AI profile for representing AI artifacts and relationships: https://spdx.github.io/spdx-spec/v3.0.1/model/AI/AI/.",
+        "Worked reasoning: suppose candidate bytes hash to H and a manifest supplied by the same untrusted source also says H. The digest comparison can detect later byte changes, but the attacker could have chosen both values. Production acceptance therefore needs an independently trusted expected identity, authenticated provenance or signatures where required, and separate behavioral evaluation. A digest matching an attacker-controlled manifest is not provenance. Signature validity is not signer trust or behavioral safety."
+      ],
+      "callout": "Each evidence type answers a different question. Never promote a narrow result into a broader claim."
     },
     {
       "id": "inspect-executable-surfaces",
       "title": "Treat model packages as executable supply-chain input",
       "paragraphs": [
-        "Model repositories may include serialized objects, Python modules, native extensions, build scripts, package metadata, custom operators, tokenizer code, templates, conversion tools, or runtime plugins. PyTorch documentation warns never to load data from an untrusted source because its loading path uses unpickling; restricted weight-only loading narrows but does not eliminate denial-of-service or memory-corruption risks.",
-        "Prefer non-executable tensor formats where the selected runtime supports them, but verify the entire path rather than trusting a file extension. Inspect archive traversal, symbolic links, oversized or malformed tensors, unexpected files, dependency installers, custom code flags, dynamic imports, network calls, and conversion steps. Run any unavoidable parser or conversion in a disposable, least-privileged sandbox with strict resource and network limits."
-      ]
+        "A model repository can contain serialized objects, Python modules, native extensions, build scripts, package metadata, custom operators, tokenizer code, templates, conversion tools, or runtime plugins. PyTorch documents that `torch.load` uses an unpickler and warns never to load data from an untrusted source: https://docs.pytorch.org/docs/stable/generated/torch.load.html. The lab consequently uses inert bytes and no model loader.",
+        "Prefer non-executable tensor formats when the selected runtime supports them, but inspect the whole path instead of trusting a file extension. Check archive traversal, absolute paths, symbolic links, oversized or malformed tensors, unexpected files, dependency installers, dynamic imports, network calls, custom-code flags, tokenizer implementations, templates, and conversion steps. Run any unavoidable parser or converter in a disposable least-privileged sandbox with strict network, CPU, memory, process, file-count, and storage limits.",
+        "The supplied verifier rejects absolute or traversal paths, duplicate inventory entries, symlinked files or directories, path escape after realpath resolution, missing files, unlisted files, nested unapproved directories, malformed evidence, size mismatches, digest mismatches, incomplete SBOM coverage, and executable-surface declarations outside the fixture policy. It enumerates only the bounded `fixtures` artifact directory, so lesson source and test files are not mistaken for artifacts.",
+        "These controls reduce known file-handling risks but do not prove that a real parser, inference engine, accelerator library, tokenizer, or model is safe. Production integration requires runtime-specific sandboxing, compatibility checks, dependency review, and evaluation."
+      ],
+      "callout": "A model package is supply-chain input even when its intended payload is weights."
     },
     {
       "id": "bind-transformations-to-provenance",
       "title": "Bind conversions and quantization to new identities",
       "paragraphs": [
-        "Conversion, merging, pruning, quantization, sharding, repackaging, or changing a tokenizer or template produces a materially different deployment artifact. Record the input digests, tool and dependency versions, configuration, command or workflow, environment, output manifest, output digests, operator or automation identity, and resulting evaluation target.",
-        "Use provenance and verification expectations to connect each output to its inputs and approved process. Re-run license, integrity, compatibility, and evaluation gates for the transformed artifact. Never inherit an approval solely because the new file began from approved weights."
-      ]
+        "Conversion, merging, pruning, quantization, sharding, repackaging, or changing a tokenizer or template creates a materially different deployment artifact. Record input identities and digests, tool and dependency versions, configuration, command or workflow, environment, output inventory and digests, operator or automation identity, and the new evaluation target.",
+        "The supplied synthetic lineage record uses input `fixture-source-v1`, the empty-file digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`, operation `synthetic-quantize`, toolchain `fixture-tool 0.1`, configuration `bits=8;groupSize=32`, output identity `fixture-quantized-v1`, and output digest `UNKNOWN`. Its evaluation boundary is the transformed artifact on its target runtime, not the source artifact. UNKNOWN is deliberately not promotable. Actual output bytes, their measured digest, and independently checked toolchain evidence would establish the missing value.",
+        "Re-run integrity, license, compatibility, executable-surface, resource, and behavioral evaluation gates for every transformed artifact. Approval cannot be inherited merely because an output began with approved input weights."
+      ],
+      "callout": "A transformation creates a new artifact identity and a new evaluation boundary."
     },
     {
       "id": "promote-and-revoke",
       "title": "Promote an immutable bundle and preserve revocation",
       "paragraphs": [
-        "The promoted bundle should contain or reference exact weight, tokenizer, template, configuration, runtime, dependency, and policy identities; their digests; verified signatures or documented absence; provenance; scans; license disposition; compatibility results; evaluation target; reviewer decisions; and expiry triggers. Move or copy by digest into a read-only trusted store and configure serving by immutable identity.",
-        "Fail closed when expected files, digests, signer identity, provenance predicates, lineage, terms, scans, dependency review, or sandbox checks do not match policy. Preserve evidence, block serving, revoke the candidate from caches and mirrors under your control, investigate affected environments, restore the last verified bundle, and repeat the full gate before promotion."
-      ]
+        "A promoted bundle should identify exact weights, tokenizer, template, configuration, runtime, dependencies, policy, file digests, signature status, provenance, scans, SBOM, license disposition, compatibility results, evaluation target, reviewer decisions, and expiry triggers. Store or reference it by immutable identity and configure serving by that identity rather than by a mutable alias.",
+        "The fixture policy permits one narrow test promotion class: inert or static fixture bytes, serving disabled, bounded file count and size, complete filesystem inventory, exact SBOM coverage, explicit `not-applicable` signature status, expected local source and builder fields, stated scan scope, no custom code, and no attempted load. Passing this policy is a genuine, testable local state transition. It is not approval of a real model or production deployment.",
+        "Control outcomes are concrete. Digest equality, bounded inventory, SBOM equality, expected fixture provenance fields, stated scan evidence, and safe fixture surfaces can PASS. A signature required by production but missing must HOLD while an authorized verifier checks the signature, signed subject, key or certificate trust, revocation status, and policy authorization. Path escape, malformed evidence, unsafe deserialization, resource-limit violation, unlisted content, digest mismatch, or policy mismatch must REJECT.",
+        "On rejection, preserve the original manifest, rejected bytes, observed digests, verifier output, timestamp, and operator identity in an immutable or content-addressed incident packet. Mark the candidate revoked, block serving and controlled mirrors, investigate affected environments, and restore only the last verified immutable identity. Do not delete or rewrite rejected evidence, and do not change the expected digest to fit the candidate."
+      ],
+      "callout": "Promotion is a controlled state transition, not a rename."
+    },
+    {
+      "id": "worked-example-and-variation",
+      "title": "Worked example, focused repair, and independent variation",
+      "paragraphs": [
+        "Repository entry: [training/self-hosted-model-operations/model-artifact-integrity/lab/README.md](/training/self-hosted-model-operations/model-artifact-integrity/lab/README.md)",
+        "The fixed inventory contains `fixtures/artifact.bin`, an empty inert file, and `fixtures/tokenizer.txt`, the exact three bytes `abc`. Their SHA-256 digests are respectively `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` and `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`. SHA-256 is standardized by FIPS 180-4: https://csrc.nist.gov/publications/detail/fips/180/4/final.",
+        "The verifier first validates manifest structure, trusted local fixture-policy expectations, safe paths, complete filesystem enumeration, file sizes, SHA-256 digests, SBOM equality, executable-surface declarations, signature disposition, provenance fields, and scan scope. The starter's one deliberate defect occurs only at the final transition. It compares the canonical verified inventory binding with the bundle label `local-fixture-v1` instead of the manifest's exact `promotion.inventoryBinding`. The final starter line is therefore `PROMOTION REJECT inventory-binding-mismatch expected=local-fixture-v1 observed=fixtures/artifact.bin=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855|fixtures/tokenizer.txt=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`, and the process exits 1.",
+        "Repair only the marked expression in `verify.mjs`, replacing `manifest.bundleId` with `manifest.promotion.inventoryBinding`. Do not hardcode either fixture digest, bypass a failed gate, trust a filename as proof, edit immutable tests, or reject every input. After repair, the baseline exits 0 and ends with `PROMOTION PASS bundle=local-fixture-v1`.",
+        "The independent same-length tamper variation changes `abc` to `abd` while retaining size 3 and leaving the expected manifest unchanged. Its observed digest is `a52d159f262b2c6ddb724a61840befc36eb30c88877a4030b65cbe86298449c9`, so the digest gate, rather than the size gate, causally rejects it. A second changed-input variation updates the copied test manifest and inventory binding to that independently calculated digest. It passes the narrow local fixture policy, demonstrating that the learner did not substitute a hardcoded allowlist of the original hashes. This controlled test does not imply that an attacker-controlled production manifest should be trusted.",
+        "Node.js `fileURLToPath` converts `import.meta.url` to a platform-appropriate filesystem path, `webcrypto.subtle.digest('SHA-256', bytes)` computes the digest, `path.relative` supports containment checks, and `fsPromises.lstat` identifies symbolic links. The reference uses an explicit workspace argument as-is. Its default is the parent of its own `reference` directory, correcting the earlier defect that moved every explicit workspace to its parent.",
+        "Use this rubric: complete work changes only the marked binding expression, passes all immutable tests, accepts the independently changed trusted fixture, rejects same-length tampering and every negative case, preserves exact output and exit behavior, and explains why digest success is narrower than provenance or safety. A deny-all implementation, hardcoded fixture-hash check, edited test, skipped enumeration, or fabricated signature result does not pass."
+      ],
+      "callout": "The repair is narrow and causal: the promoted identity must bind to the complete inventory that was actually verified.",
+      "code": {
+        "language": "text",
+        "label": "Run from the repository root",
+        "code": "node training/self-hosted-model-operations/model-artifact-integrity/lab/verify.mjs\nnode training/self-hosted-model-operations/model-artifact-integrity/lab/tests.mjs"
+      }
+    },
+    {
+      "id": "ecosystem-transfer",
+      "title": "Transfer controls across model ecosystems without inventing compatibility",
+      "paragraphs": [
+        "Meta Llama, Qwen, DeepSeek, Mistral, and Microsoft Phi are examples of distinct model-family ecosystems. They are not one shared runtime, format, tokenizer, license, API, capability set, or custom-code policy. First-party project repositories include https://github.com/meta-llama/llama-models, https://github.com/QwenLM/Qwen3, https://github.com/deepseek-ai/DeepSeek-V3, https://github.com/mistralai/mistral-inference, and https://github.com/microsoft/PhiCookBook. Consult the documentation and release evidence for the exact selected artifact and runtime rather than inferring compatibility from a family name.",
+        "The transferable procedure is provider-neutral: pin the source, quarantine the complete package, enumerate every artifact file, reject unsafe paths and executable surfaces, verify bytes against independently trusted expectations, evaluate signatures and provenance under policy, bind transformations to new identities, impose resource limits, conduct runtime-specific evaluations, and promote an immutable reviewed bundle.",
+        "Keep four layers separate. A model family names related model releases. An artifact is a specific set of bytes and metadata. A runtime loads or executes an artifact under its own compatibility and security constraints. An API exposes operations under a provider-specific contract. Evidence for one layer does not automatically approve another.",
+        "The lab has no integration with Meta, Qwen, DeepSeek, Mistral, Phi, Hugging Face, PyTorch, a model runtime, or a live endpoint. Provider names establish transfer scope only. No common capability, format support, or deployment approval is asserted."
+      ],
+      "callout": "Broad ecosystem transfer means reapplying controls while verifying every family, artifact, runtime, and API independently."
     }
   ],
   "activity": {
     "id": "activity-artifact-promotion-packet",
-    "title": "Design a safe artifact promotion packet",
+    "title": "Design and test a safe artifact promotion packet",
     "instructions": [
-      "Use a synthetic manifest rather than downloading or loading a real model.",
-      "Define a quarantined acquisition environment, immutable source revision, expected file inventory, digest algorithm, signature policy, provenance expectations, scan plan, dependency inventory, and executable-surface review.",
-      "Add one quantization transformation and record its input identity, toolchain, configuration, output identity, and new evaluation boundary.",
-      "Write pass, hold, and fail-closed rules for every evidence type. Include resource-exhaustion and unsafe-deserialization stop conditions.",
-      "Produce the promoted-bundle manifest and a revocation procedure that restores the last verified bundle without deleting investigation evidence."
+      "Use the supplied synthetic manifest and inert fixture only. Do not download, load, deserialize, convert, execute, or serve a real model.",
+      "Describe the quarantine boundary, pinned source revision, exact inventory, SHA-256 policy, signature policy, provenance expectations, scan scope, SBOM, dependency review, executable-surface review, file and resource caps, and unsafe-deserialization stop conditions.",
+      "Review the supplied evidence matrix and state what each digest, signature, provenance record, scan, SBOM, and executable-surface check establishes and does not establish.",
+      "Review the synthetic quantization lineage. Explain why its `UNKNOWN` output digest and new evaluation boundary prevent promotion.",
+      "From the repository root, run the starter and compare its complete stdout and exit code with README.md. Repair only the marked final binding expression.",
+      "Run the independent tests. Explain why the immutable fixture passes, the same-length tamper reaches and fails the digest gate, the accurately tested size change fails earlier, the updated trusted variation passes, and malformed inventory, unsafe paths, unlisted files, and mismatched SBOM reject.",
+      "Review the promoted manifest and recovery evidence. Explain how revocation blocks the candidate while preserving investigation evidence and restoring the last verified identity.",
+      "Answer the reflection prompt without treating digest, signature, provenance, scan, or SBOM evidence as behavioral-safety proof."
     ],
     "evidence": [
-      "A synthetic acquisition and quarantine plan with no production data, credentials, or automatic execution.",
-      "An evidence matrix that states what each digest, signature, provenance record, scan, and inventory proves and does not prove.",
-      "A transformed-artifact provenance record, immutable promotion manifest, and tested-paper revocation procedure."
+      "A synthetic acquisition and quarantine plan with no production data, credentials, automatic execution, or live model.",
+      "A complete evidence matrix stating what digest, signature, provenance, scan, SBOM, and executable-surface evidence proves and does not prove.",
+      "A transformation provenance record, immutable promotion manifest, resource and unsafe-deserialization controls, and runnable recovery procedure that preserves investigation evidence.",
+      "A repaired verifier with baseline promotion success, same-length tamper rejection, changed trusted-input success, negative-control rejection, independent reference agreement, exact stdout, and exact exit codes."
     ],
-    "reflectionPrompt": "Which control in your packet prevents trusted but wrong bytes, and which different control addresses correctly signed but unsafe behavior?"
+    "reflectionPrompt": "Which control prevents trusted but wrong bytes, and which separate control addresses a correctly signed but behaviorally unsafe artifact?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 1620,
+    "estimatedSeconds": 81,
     "cues": [
       {
-        "id": "cue-artifact-quarantine",
+        "id": "cue-artifact-quarantine-1",
         "kind": "narration",
         "sectionId": "acquire-into-quarantine",
-        "text": "Follow an artifact from an immutable source into a bounded quarantine that cannot serve traffic or access production data."
+        "text": "Trace a pinned artifact into a bounded\nquarantine and emphasize that no"
+      },
+      {
+        "id": "cue-artifact-quarantine-2",
+        "kind": "narration",
+        "sectionId": "acquire-into-quarantine",
+        "text": "acquisition action may implicitly load or\nserve it."
       },
       {
         "id": "cue-artifact-boundary-visual",
         "kind": "visual",
         "sectionId": "acquire-into-quarantine",
-        "text": "Show source, quarantine, verification gates, trusted immutable store, and serving as five separated zones with one-way promotion.",
-        "accessibilityAlternative": "A numbered list describes five zones: immutable source, quarantine, verification gates, trusted store, and serving. Promotion is allowed only after every gate passes."
+        "text": "Show immutable source, quarantine, verification gates, immutable trusted store, and serving as five separated zones with one-way promotion.",
+        "accessibilityAlternative": "A numbered list describes immutable source, quarantine, verification gates, trusted store, and serving. Promotion is allowed only after every required gate passes."
       },
       {
-        "id": "cue-artifact-evidence",
+        "id": "cue-artifact-evidence-1",
         "kind": "narration",
         "sectionId": "verify-distinct-evidence",
-        "text": "Compare digest, signature, provenance, scan, and inventory in a proves and does-not-prove table."
+        "text": "Compare digest, signature, provenance,\nscan, and SBOM evidence. State both the"
+      },
+      {
+        "id": "cue-artifact-evidence-2",
+        "kind": "narration",
+        "sectionId": "verify-distinct-evidence",
+        "text": "supported claim and the unsupported\nstronger claim for each row."
       },
       {
         "id": "cue-artifact-checkpoint",
         "kind": "checkpoint",
         "sectionId": "verify-distinct-evidence",
-        "text": "Ask whether a matching digest proves the publisher, license, safety, or only byte equality with an expected digest."
+        "text": "Ask why a digest matching a candidate-controlled manifest is still not authenticated provenance, and why a valid signature is not behavioral-safety evidence."
       },
       {
-        "id": "cue-artifact-executable",
+        "id": "cue-artifact-executable-1",
         "kind": "narration",
         "sectionId": "inspect-executable-surfaces",
-        "text": "Inspect serialization, custom code, native extensions, installers, tokenizers, templates, plugins, archives, and conversions before any model load."
+        "text": "Walk through unsafe serialization, custom\ncode, native extensions, installers,"
       },
       {
-        "id": "cue-artifact-transformation",
+        "id": "cue-artifact-executable-2",
+        "kind": "narration",
+        "sectionId": "inspect-executable-surfaces",
+        "text": "tokenizers, templates, plugins, archives,\npath escape, symlinks, and resource"
+      },
+      {
+        "id": "cue-artifact-executable-3",
+        "kind": "narration",
+        "sectionId": "inspect-executable-surfaces",
+        "text": "exhaustion before any load."
+      },
+      {
+        "id": "cue-artifact-transformation-1",
         "kind": "narration",
         "sectionId": "bind-transformations-to-provenance",
-        "text": "Turn a quantization step into a new identity with input and output digests, toolchain, configuration, provenance, and evaluation scope."
+        "text": "Read the synthetic quantization record and\nidentify the new output identity, missing"
       },
       {
-        "id": "cue-artifact-promotion",
+        "id": "cue-artifact-transformation-2",
+        "kind": "narration",
+        "sectionId": "bind-transformations-to-provenance",
+        "text": "digest, toolchain evidence, and new\nevaluation boundary."
+      },
+      {
+        "id": "cue-artifact-promotion-1",
         "kind": "narration",
         "sectionId": "promote-and-revoke",
-        "text": "Promote by immutable identity, then rehearse a mismatch response that blocks serving and restores the last verified bundle."
+        "text": "Contrast PASS, HOLD, and REJECT, then\nrehearse revocation that preserves"
+      },
+      {
+        "id": "cue-artifact-promotion-2",
+        "kind": "narration",
+        "sectionId": "promote-and-revoke",
+        "text": "evidence and restores only a previously\nverified identity."
+      },
+      {
+        "id": "cue-artifact-worked-example-1",
+        "kind": "narration",
+        "sectionId": "worked-example-and-variation",
+        "text": "Trace complete filesystem enumeration and\nboth file digests, locate the wrong final"
+      },
+      {
+        "id": "cue-artifact-worked-example-2",
+        "kind": "narration",
+        "sectionId": "worked-example-and-variation",
+        "text": "binding expression, make the one-line\nrepair, and compare exact outputs."
+      },
+      {
+        "id": "cue-artifact-changed-input",
+        "kind": "checkpoint",
+        "sectionId": "worked-example-and-variation",
+        "text": "Explain why changing abc to abd keeps size constant, reaches the digest gate, and rejects unless the copied trusted test expectation is deliberately updated."
+      },
+      {
+        "id": "cue-artifact-ecosystem-1",
+        "kind": "narration",
+        "sectionId": "ecosystem-transfer",
+        "text": "Separate model family, artifact, runtime,\nand API while transferring trust-boundary"
+      },
+      {
+        "id": "cue-artifact-ecosystem-2",
+        "kind": "narration",
+        "sectionId": "ecosystem-transfer",
+        "text": "controls across Meta Llama, Qwen,\nDeepSeek, Mistral, and Phi ecosystems."
       },
       {
         "id": "cue-artifact-activity",
         "kind": "learner-prompt",
-        "text": "Guide the learner through the synthetic quarantine plan, evidence matrix, transformation record, promotion manifest, and revocation procedure."
+        "text": "Have the learner run the starter, repair one expression, execute all immutable tests, inspect the evidence packet, and defend every pass, hold, or reject result."
       },
       {
-        "id": "cue-artifact-assessment",
+        "id": "cue-artifact-assessment-1",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner distinguishes every evidence claim and can defend fail-closed promotion."
+        "text": "Begin assessment only after the learner\ncan explain the causal tests and"
+      },
+      {
+        "id": "cue-artifact-assessment-2",
+        "kind": "assessment-handoff",
+        "text": "distinguish byte integrity, authenticated\nproduction history, signer authorization,"
+      },
+      {
+        "id": "cue-artifact-assessment-3",
+        "kind": "assessment-handoff",
+        "text": "and behavioral evaluation."
       }
     ],
-    "transcript": "Follow an artifact from an immutable source into a bounded quarantine that cannot serve traffic or access production data. Acquire the exact pinned artifact with no learner data, production credentials, or automatic execution, then record the immutable source, expected manifest, observed files, and digests before transformation. Compare digest, signature, provenance, scan, and inventory in a proves and does-not-prove table. A digest establishes byte equality against an expected value, a signature binds signed material to an identity under policy, provenance describes production history, scans cover detectable patterns, and inventories list components. None independently proves safe model behavior. Inspect serialization, custom code, native extensions, installers, tokenizers, templates, plugins, archives, and conversions before any model load. Use a disposable, least-privileged environment for every unavoidable parser. Turn a quantization step into a new identity with input and output digests, toolchain, configuration, provenance, and evaluation scope. Treat every transformed artifact as a new candidate. Promote by immutable identity, then rehearse a mismatch response that blocks serving and restores the last verified bundle. Preserve investigation evidence and repeat the complete gate before any replacement is promoted.",
+    "transcript": "Trace a pinned artifact into a bounded\nquarantine and emphasize that no acquisition action may implicitly load or\nserve it. Compare digest, signature, provenance,\nscan, and SBOM evidence. State both the supported claim and the unsupported\nstronger claim for each row. Walk through unsafe serialization, custom\ncode, native extensions, installers, tokenizers, templates, plugins, archives,\npath escape, symlinks, and resource exhaustion before any load. Read the synthetic quantization record and\nidentify the new output identity, missing digest, toolchain evidence, and new\nevaluation boundary. Contrast PASS, HOLD, and REJECT, then\nrehearse revocation that preserves evidence and restores only a previously\nverified identity. Trace complete filesystem enumeration and\nboth file digests, locate the wrong final binding expression, make the one-line\nrepair, and compare exact outputs. Separate model family, artifact, runtime,\nand API while transferring trust-boundary controls across Meta Llama, Qwen,\nDeepSeek, Mistral, and Phi ecosystems. Begin assessment only after the learner\ncan explain the causal tests and distinguish byte integrity, authenticated\nproduction history, signer authorization, and behavioral evaluation.",
     "captions": [
       {
-        "cueId": "cue-artifact-quarantine",
+        "cueId": "cue-artifact-quarantine-1",
         "startSeconds": 0,
-        "endSeconds": 270,
-        "text": "Follow an artifact from an immutable source into a bounded quarantine that cannot serve traffic or access production data."
+        "endSeconds": 6,
+        "text": "Trace a pinned artifact into a bounded\nquarantine and emphasize that no"
       },
       {
-        "cueId": "cue-artifact-evidence",
-        "startSeconds": 270,
-        "endSeconds": 570,
-        "text": "Compare digest, signature, provenance, scan, and inventory in a proves and does-not-prove table."
+        "cueId": "cue-artifact-quarantine-2",
+        "startSeconds": 6,
+        "endSeconds": 10,
+        "text": "acquisition action may implicitly load or\nserve it."
       },
       {
-        "cueId": "cue-artifact-executable",
-        "startSeconds": 570,
-        "endSeconds": 900,
-        "text": "Inspect serialization, custom code, native extensions, installers, tokenizers, templates, plugins, archives, and conversions before any model load."
+        "cueId": "cue-artifact-evidence-1",
+        "startSeconds": 10,
+        "endSeconds": 15,
+        "text": "Compare digest, signature, provenance,\nscan, and SBOM evidence. State both the"
       },
       {
-        "cueId": "cue-artifact-transformation",
-        "startSeconds": 900,
-        "endSeconds": 1170,
-        "text": "Turn a quantization step into a new identity with input and output digests, toolchain, configuration, provenance, and evaluation scope."
+        "cueId": "cue-artifact-evidence-2",
+        "startSeconds": 15,
+        "endSeconds": 20,
+        "text": "supported claim and the unsupported\nstronger claim for each row."
       },
       {
-        "cueId": "cue-artifact-promotion",
-        "startSeconds": 1170,
-        "endSeconds": 1410,
-        "text": "Promote by immutable identity, then rehearse a mismatch response that blocks serving and restores the last verified bundle."
+        "cueId": "cue-artifact-executable-1",
+        "startSeconds": 20,
+        "endSeconds": 24,
+        "text": "Walk through unsafe serialization, custom\ncode, native extensions, installers,"
       },
       {
-        "cueId": "cue-artifact-activity",
-        "startSeconds": 1410,
-        "endSeconds": 1590,
-        "text": "Guide the learner through the synthetic quarantine plan, evidence matrix, transformation record, promotion manifest, and revocation procedure."
+        "cueId": "cue-artifact-executable-2",
+        "startSeconds": 24,
+        "endSeconds": 28,
+        "text": "tokenizers, templates, plugins, archives,\npath escape, symlinks, and resource"
       },
       {
-        "cueId": "cue-artifact-assessment",
-        "startSeconds": 1590,
-        "endSeconds": 1620,
-        "text": "Begin the check after the learner distinguishes every evidence claim and can defend fail-closed promotion."
+        "cueId": "cue-artifact-executable-3",
+        "startSeconds": 28,
+        "endSeconds": 30,
+        "text": "exhaustion before any load."
+      },
+      {
+        "cueId": "cue-artifact-transformation-1",
+        "startSeconds": 30,
+        "endSeconds": 36,
+        "text": "Read the synthetic quantization record and\nidentify the new output identity, missing"
+      },
+      {
+        "cueId": "cue-artifact-transformation-2",
+        "startSeconds": 36,
+        "endSeconds": 39,
+        "text": "digest, toolchain evidence, and new\nevaluation boundary."
+      },
+      {
+        "cueId": "cue-artifact-promotion-1",
+        "startSeconds": 39,
+        "endSeconds": 44,
+        "text": "Contrast PASS, HOLD, and REJECT, then\nrehearse revocation that preserves"
+      },
+      {
+        "cueId": "cue-artifact-promotion-2",
+        "startSeconds": 44,
+        "endSeconds": 48,
+        "text": "evidence and restores only a previously\nverified identity."
+      },
+      {
+        "cueId": "cue-artifact-worked-example-1",
+        "startSeconds": 48,
+        "endSeconds": 54,
+        "text": "Trace complete filesystem enumeration and\nboth file digests, locate the wrong final"
+      },
+      {
+        "cueId": "cue-artifact-worked-example-2",
+        "startSeconds": 54,
+        "endSeconds": 59,
+        "text": "binding expression, make the one-line\nrepair, and compare exact outputs."
+      },
+      {
+        "cueId": "cue-artifact-ecosystem-1",
+        "startSeconds": 59,
+        "endSeconds": 64,
+        "text": "Separate model family, artifact, runtime,\nand API while transferring trust-boundary"
+      },
+      {
+        "cueId": "cue-artifact-ecosystem-2",
+        "startSeconds": 64,
+        "endSeconds": 69,
+        "text": "controls across Meta Llama, Qwen,\nDeepSeek, Mistral, and Phi ecosystems."
+      },
+      {
+        "cueId": "cue-artifact-assessment-1",
+        "startSeconds": 69,
+        "endSeconds": 75,
+        "text": "Begin assessment only after the learner\ncan explain the causal tests and"
+      },
+      {
+        "cueId": "cue-artifact-assessment-2",
+        "startSeconds": 75,
+        "endSeconds": 79,
+        "text": "distinguish byte integrity, authenticated\nproduction history, signer authorization,"
+      },
+      {
+        "cueId": "cue-artifact-assessment-3",
+        "startSeconds": 79,
+        "endSeconds": 81,
+        "text": "and behavioral evaluation."
       }
     ],
-    "reducedMotionAlternative": "Use a static five-zone trust-boundary diagram and a fixed evidence matrix. Mark promotion states with text labels rather than animated movement."
+    "reducedMotionAlternative": "Use a static five-zone trust-boundary diagram, a fixed evidence matrix, and side-by-side text blocks for starter, repaired, tampered, and recovery states."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -190,10 +381,10 @@
         "id": "q-artifact-integrity-1",
         "prompt": "Where should an unreviewed model artifact first be acquired?",
         "choices": [
-          "Directly into the production serving cache",
-          "Into a bounded, non-serving quarantine without production data or credentials",
-          "Onto every operator workstation",
-          "Into the learner-record database"
+          "Production serving cache",
+          "Bounded non-serving quarantine without production data or credentials",
+          "Every operator workstation",
+          "Learner-record database"
         ],
         "answerIndex": 1,
         "explanation": "Quarantine prevents acquisition and inspection from automatically crossing the serving trust boundary."
@@ -202,53 +393,53 @@
         "id": "q-artifact-integrity-2",
         "prompt": "What does a matching cryptographic digest establish?",
         "choices": [
-          "The bytes match the expected digest",
+          "The observed bytes match the expected digest",
           "The publisher is trustworthy",
-          "The model is safe for every use",
-          "The license allows redistribution"
+          "The model is behaviorally safe",
+          "The license permits redistribution"
         ],
         "answerIndex": 0,
-        "explanation": "A digest detects byte changes relative to an expected digest; other claims need different evidence."
+        "explanation": "A digest establishes byte equality with an expectation. Other claims require different evidence."
       },
       {
         "id": "q-artifact-integrity-3",
-        "prompt": "Why should model loading be treated as a supply-chain execution boundary?",
+        "prompt": "Why is model loading a supply-chain execution boundary?",
         "choices": [
           "All weight files are plain text",
           "Only benchmarks execute code",
-          "Repositories can include unsafe serialization, custom code, native extensions, installers, plugins, and parsers",
+          "Packages and runtimes can expose unsafe serialization, custom code, native extensions, installers, plugins, and parsers",
           "A file extension guarantees behavior"
         ],
         "answerIndex": 2,
-        "explanation": "Model packages and their runtimes can expose executable and parser surfaces before inference begins."
+        "explanation": "Repository contents and loader behavior can introduce execution and parser risks before inference."
       },
       {
         "id": "q-artifact-integrity-4",
-        "prompt": "A model is quantized from approved weights. What is the correct next step?",
+        "prompt": "What follows quantization of approved weights?",
         "choices": [
-          "Reuse the old approval without recording the change",
-          "Delete the source digests",
-          "Rename the file latest",
-          "Create a new artifact identity and provenance record, then repeat compatibility, integrity, license, and evaluation gates"
+          "Reuse the old approval",
+          "Delete source digests",
+          "Rename the result latest",
+          "Create a new identity and provenance record, then repeat integrity, compatibility, license, resource, and evaluation gates"
         ],
         "answerIndex": 3,
-        "explanation": "Transformation changes the deployable artifact and can change behavior, dependencies, obligations, and compatibility."
+        "explanation": "Transformation changes the deployable bytes and evaluation boundary."
       },
       {
         "id": "q-artifact-integrity-5",
         "prompt": "What does a clean scanner result prove?",
         "choices": [
-          "No malicious or unsafe behavior exists",
-          "No issue detectable by that scanner and configuration was reported in the scanned material",
+          "No unsafe behavior exists",
+          "No finding within the stated scanner inputs, rules, configuration, and scope was reported",
           "The model is accurate",
-          "The artifact is Open Source"
+          "The artifact has an approved license"
         ],
         "answerIndex": 1,
-        "explanation": "Scanner evidence is bounded by its rules, configuration, inputs, and detectable classes."
+        "explanation": "Scanner evidence is bounded by its coverage and configuration."
       },
       {
         "id": "q-artifact-integrity-6",
-        "prompt": "What is the safest response to a provenance or digest mismatch during promotion?",
+        "prompt": "What is the safest response to a provenance or digest mismatch?",
         "choices": [
           "Block serving, preserve evidence, investigate, and restore only the last verified bundle",
           "Ignore it if the filename is familiar",
@@ -256,7 +447,43 @@
           "Disable logging and retry"
         ],
         "answerIndex": 0,
-        "explanation": "Fail-closed handling preserves the trust boundary and supports investigation and controlled recovery."
+        "explanation": "Fail-closed handling protects the trust boundary and preserves investigation evidence."
+      },
+      {
+        "id": "q-artifact-integrity-7",
+        "prompt": "What is the correct response when a required production signature is absent?",
+        "choices": [
+          "Treat the filename as a signature",
+          "Call it verified because the digest passed",
+          "HOLD and obtain or verify the signature under the production trust policy",
+          "Promote because scans are clean"
+        ],
+        "answerIndex": 2,
+        "explanation": "The lesson does not fake signature verification. A missing required signature is HOLD."
+      },
+      {
+        "id": "q-artifact-integrity-8",
+        "prompt": "Why does the same-length changed-input test use abc and abd?",
+        "choices": [
+          "To force every artifact to fail",
+          "To keep the size equal so the digest gate causally detects the byte change",
+          "Because SHA-256 only accepts three bytes",
+          "To invoke a model loader"
+        ],
+        "answerIndex": 1,
+        "explanation": "Equal length prevents the size guard from hiding whether digest verification works."
+      },
+      {
+        "id": "q-artifact-integrity-9",
+        "prompt": "Why does the updated trusted-input variation pass the local fixture verifier?",
+        "choices": [
+          "All changed files are safe",
+          "The copied test expectation and complete promotion binding are deliberately updated to the newly calculated digest under the narrow fixture policy",
+          "The verifier ignores digests",
+          "A bundle label authenticates provenance"
+        ],
+        "answerIndex": 1,
+        "explanation": "This variation tests general verification rather than a hardcoded hash, but it does not authenticate a production manifest."
       }
     ]
   },
@@ -290,6 +517,72 @@
       "url": "https://huggingface.co/docs/hub/en/model-release-checklist",
       "publisher": "Hugging Face",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "torch.load",
+      "url": "https://docs.pytorch.org/docs/stable/generated/torch.load.html",
+      "publisher": "PyTorch",
+      "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "FIPS PUB 180-4 Secure Hash Standard",
+      "url": "https://csrc.nist.gov/publications/detail/fips/180/4/final",
+      "publisher": "NIST",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Node.js fileURLToPath",
+      "url": "https://nodejs.org/api/url.html#urlfileurltopathurl",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Node.js Web Crypto subtle.digest",
+      "url": "https://nodejs.org/api/webcrypto.html#subtledigestalgorithm-data",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Node.js path.relative",
+      "url": "https://nodejs.org/api/path.html#pathrelativefrom-to",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Node.js fsPromises.lstat",
+      "url": "https://nodejs.org/api/fs.html#fspromiseslstatpath-options",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Meta Llama models repository",
+      "url": "https://github.com/meta-llama/llama-models",
+      "publisher": "Meta",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Qwen3 repository",
+      "url": "https://github.com/QwenLM/Qwen3",
+      "publisher": "Qwen",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "DeepSeek-V3 repository",
+      "url": "https://github.com/deepseek-ai/DeepSeek-V3",
+      "publisher": "DeepSeek",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Mistral inference repository",
+      "url": "https://github.com/mistralai/mistral-inference",
+      "publisher": "Mistral AI",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Microsoft Phi Cookbook repository",
+      "url": "https://github.com/microsoft/PhiCookBook",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-21"
     }
   ]
 }

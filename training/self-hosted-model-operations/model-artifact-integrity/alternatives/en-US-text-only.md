@@ -111,6 +111,22 @@ Sources:
 
 ## Pause: Activity Work Time
 
+## Narration: Worked Example And Variation Lab Narration
+
+The fixed inventory contains `fixtures/artifact.bin`, an empty inert file, and `fixtures/tokenizer.txt`, the exact three bytes `abc`. The verifier first validates manifest structure, trusted local fixture-policy expectations, safe paths, complete filesystem enumeration, file sizes, SHA-256 digests, SBOM equality, executable-surface declarations, signature disposition, provenance fields, and scan scope. The starter's one deliberate defect occurs only at the final transition. It compares the canonical verified inventory binding with the bundle label `local-fixture-v1` instead of the manifest's exact `promotion.inventoryBinding`. Repair only the marked expression in `verify.mjs`, replacing `manifest.bundleId` with `manifest.promotion.inventoryBinding`. Do not hardcode either fixture digest, bypass a failed gate, trust a filename as proof, edit immutable tests, or reject every input. After repair, the baseline exits 0 and ends with `PROMOTION PASS bundle=local-fixture-v1`. The independent same-length tamper variation changes `abc` to `abd` while retaining size 3 and leaving the expected manifest unchanged. A second changed-input variation updates the copied test manifest and inventory binding to that independently calculated digest. It passes the narrow local fixture policy, demonstrating that the learner did not substitute a hardcoded allowlist of the original hashes. This controlled test does not imply that an attacker-controlled production manifest should be trusted. Node.js `fileURLToPath` converts `import.meta.url` to a platform-appropriate filesystem path, `webcrypto.subtle.digest('SHA-256', bytes)` computes the digest, `path.relative` supports containment checks, and `fsPromises.lstat` identifies symbolic links. The reference uses an explicit workspace argument as-is. Its default is the parent of its own `reference` directory, correcting the earlier defect that moved every explicit workspace to its parent. Use this rubric: complete work changes only the marked binding expression, passes all immutable tests, accepts the independently changed trusted fixture, rejects same-length tampering and every negative case, preserves exact output and exit behavior, and explains why digest success is narrower than provenance or safety. A deny-all implementation, hardcoded fixture-hash check, edited test, skipped enumeration, or fabricated signature result does not pass.
+
+Sources:
+
+- <https://slsa.dev/spec/v1.2/provenance>
+
+## Narration: Ecosystem Transfer Lab Narration
+
+Meta Llama, Qwen, DeepSeek, Mistral, and Microsoft Phi are examples of distinct model-family ecosystems. They are not one shared runtime, format, tokenizer, license, API, capability set, or custom-code policy. Consult the documentation and release evidence for the exact selected artifact and runtime rather than inferring compatibility from a family name. The transferable procedure is provider-neutral: pin the source, quarantine the complete package, enumerate every artifact file, reject unsafe paths and executable surfaces, verify bytes against independently trusted expectations, evaluate signatures and provenance under policy, bind transformations to new identities, impose resource limits, conduct runtime-specific evaluations, and promote an immutable reviewed bundle. Keep four layers separate. A model family names related model releases. An artifact is a specific set of bytes and metadata. A runtime loads or executes an artifact under its own compatibility and security constraints. An API exposes operations under a provider-specific contract. Evidence for one layer does not automatically approve another. The lab has no integration with Meta, Qwen, DeepSeek, Mistral, Phi, Hugging Face, PyTorch, a model runtime, or a live endpoint. Provider names establish transfer scope only. No common capability, format support, or deployment approval is asserted.
+
+Sources:
+
+- <https://slsa.dev/spec/v1.2/provenance>
+
 ## Assessment Handoff: Assessment Handoff
 
 Begin the knowledge check when you can defend quarantine, bound every verification claim, identify executable loading risk, treat transformations as new artifacts, explain scanner limits, and execute a fail-closed mismatch response. The assessment starts only when you choose Begin knowledge check.

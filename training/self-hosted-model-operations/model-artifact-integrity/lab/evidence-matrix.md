@@ -1,0 +1,14 @@
+# Evidence matrix
+
+| Evidence | Fixture result | Establishes | Does not establish | PASS, HOLD, or REJECT control |
+|---|---|---|---|---|
+| SHA-256 digest | Both observed file hashes equal expected inventory values | Byte equality with the supplied expectation | Publisher identity, authenticated provenance, license, or behavioral safety | PASS on equality; REJECT mismatch or malformed digest |
+| Signature | `not-applicable` under local unsigned-fixture policy | The policy explicitly does not require a signature for this non-serving fixture | Cryptographic validity, signer identity, signer authorization, or safety | Production-required signature missing is HOLD; invalid required signature is REJECT |
+| Provenance | Expected local builder and source revision fields are present | Candidate data is available for fixture-policy comparison | Authentication of those strings or safe output | PASS only for local fixture expectations; production requires authenticated provenance and trusted policy |
+| Scan | `clean-within-fixture-rules` with stated scope | No finding was reported by the listed toy checks | Absence of vulnerabilities, malware, unsafe behavior, or issues outside scope | REJECT malformed or missing required scan evidence; production policy may HOLD pending scans |
+| SBOM | Components exactly equal the two inventory paths | Declared fixture component coverage | Hidden runtime dependencies, vulnerability absence, or license approval | PASS on exact equality; REJECT duplicates, missing, or extra components |
+| Executable surfaces | Inert bytes and static text; no load attempted | The fixture policy observed no declared executable surface and did not invoke a loader | Safety of a real model parser, tokenizer, extension, converter, or runtime | REJECT serialization, custom code, native extension, unexpected surface, or attempted load |
+| Filesystem inventory | Bounded `fixtures` directory exactly equals the manifest inventory | No missing or unlisted regular file exists in the bounded fixture directory at verification time | Safety of file contents or artifacts outside this packet | REJECT absolute paths, traversal, duplicates, symlinks, directories, missing files, and unlisted files |
+| Resource controls | At most 8 files, 1 MiB each, and 2 MiB total | Fixture metadata and observed sizes stay within the local limits | Protection supplied by an operating-system sandbox or safe behavior within limits | REJECT cap violations; production also needs enforced CPU, memory, process, storage, and time limits |
+
+A digest matching a manifest controlled by the artifact supplier is not authenticated provenance. A cryptographically valid signature is not proof that the signer is authorized for the use or that the signed model behaves safely.
