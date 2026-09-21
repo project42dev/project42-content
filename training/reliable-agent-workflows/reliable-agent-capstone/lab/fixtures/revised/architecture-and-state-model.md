@@ -1,0 +1,3 @@
+Evidence-Binding: {"attemptId":"attempt-2","version":"1.1.0","caseId":"support-017","outcome":"passed"}
+# Architecture and state model
+Intake records case and input hash; planning proposes a draft; authorization checks the draft-only policy; execution uses one operation key; verification reads the local destination; reconciliation resolves timeout uncertainty; completion requires a matching read-back.

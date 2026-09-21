@@ -1,0 +1,3 @@
+Evidence-Binding: {"attemptId":"attempt-2","version":"1.1.0","caseId":"support-017","outcome":"passed"}
+# Evidence map and handoff
+Revision: replaced stale attempt-0 and mismatched outcome evidence with attempt-2 bindings. Status: structurally valid fixture package scoring 80. Residual risk: prose quality and live behavior are not established. Escalation: human course reviewer; no fictional approval is asserted.

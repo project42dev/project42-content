@@ -1,0 +1,3 @@
+Evidence-Binding: {"attemptId":"attempt-2","version":"1.1.0","caseId":"support-017","outcome":"passed"}
+# Failure tests and results
+Normal: one local draft and matching read-back. Adversarial: embedded send instruction denied. Timeout: destination checked before retry. Partial write: one operation key found and no duplicate created. Malformed output: schema rejection. Recovery: corrected binding package accepted.
