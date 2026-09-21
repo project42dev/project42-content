@@ -26,26 +26,28 @@
       "id": "one-contract-three-dialects",
       "title": "One tool contract, three dialects",
       "paragraphs": [
-        "Every provider describes a function's arguments with JSON Schema, and every provider leaves execution to you: the model returns a structured request and your code runs it. (Loop control, approvals, and side-effect reconciliation are covered in the provider-specific tools modules; this module is about the bridge between the model and your systems.) The wrappers differ. An OpenAI Responses function tool has `type: \"function\"`, `name`, `description`, `parameters`, and `strict`. A Claude tool has a `name` that must match `^[a-zA-Z0-9_-]{1,128}$`, a `description`, an `input_schema`, and optional `input_examples` and `strict`. A Gemini function declaration has `type: \"function\"`, `name`, `description`, and `parameters`, and Google notes that only a subset of the OpenAPI schema is supported.",
-        "Calls and results are linked differently, and an adapter must preserve the link exactly. OpenAI returns `function_call` Items that carry a `call_id` and a JSON-encoded `arguments` string; you answer with a `function_call_output` that carries the same `call_id`, and OpenAI says to assume a response may contain several calls. Claude returns `tool_use` blocks with an `id` and an `input` object; you answer in a `user` message with `tool_result` blocks whose `tool_use_id` matches. Gemini's Interactions API returns a `function_call` step with an `id` and an `arguments` object, and you send back a `function_result` with that `call_id`; the older `generateContent` flow in Google's migration guide returns a `functionCall` part and takes back a `functionResponse` keyed by function name.",
-        "Forcing behavior is not uniform either. OpenAI's `tool_choice` accepts `auto`, `required`, a specific function, an `allowed_tools` subset, and `none`, and `parallel_tool_calls: false` limits a turn to zero or one call. Claude accepts `auto`, `any`, `tool`, and `none`, but documents that `any` and `tool` return a 400 on Claude Fable 5.1 and Claude Mythos 5.1 and are not supported with manually enabled extended thinking. Gemini offers `auto`, `any`, `none`, and `validated` modes. A bridge that assumes 'force this tool' works everywhere will break on some current models."
+        "A provider tool declaration describes arguments, but your application still executes the operation. OpenAI function tools use `type: \"function\"`, `name`, `description`, `parameters`, and optional strict behavior. Claude tools use `name`, `description`, `input_schema`, and optional `strict`; the documented name pattern is `^[a-zA-Z0-9_-]{1,128}$`. Gemini function declarations use `type: \"function\"`, `name`, `description`, and `parameters`, with parameters drawn from a documented subset of OpenAPI schema. These are provider interfaces, not authorization controls.",
+        "The runtime adapter must preserve correlation identifiers exactly. OpenAI function calls carry `call_id` and JSON-encoded `arguments`; return a `function_call_output` with the same `call_id`. Claude emits a `tool_use` block with `id` and an input object; return a `tool_result` whose `tool_use_id` matches. Gemini's Interactions API emits a `function_call` step with `id` and an arguments object; return a `function_result` with the matching `call_id`. Never match calls and results by array position.",
+        "Capabilities such as forced selection, parallel calls, strict validation, and deferred tool loading can vary by provider API, model, and release. This lesson does not rely on undocumented model-specific values or limits. At integration time, consult the dated documentation for the exact runtime and model you deploy. If a capability is unsupported, treat that condition as an explicit skip or error, never as a passing security check.",
+        "Other model families can use the same bridge when their documented runtime can deliver a trusted call identifier, a selected tool name, and structured arguments, then accept a correlated result. Do not invent a proprietary wire dialect. Add an adapter only from that runtime's official documentation, while keeping validation, authenticated context, authorization, approvals, budgets, and execution provider-neutral."
       ],
       "code": {
         "language": "typescript",
-        "label": "The same tool in three dialects",
-        "code": "const params = {\n  type: \"object\",\n  properties: { order_number: { type: \"string\", description: \"4-6 digit order number as the customer wrote it.\" } },\n  required: [\"order_number\"],\n  additionalProperties: false,\n};\nconst description =\n  \"Look up the status of one order on the signed-in customer's account. Use when the customer asks where an order is. \" +\n  \"Returns status and last update time only; it cannot change, cancel, or refund an order. \" +\n  \"Orders on other accounts are never returned.\";\n\n// OpenAI Responses API -- result goes back as function_call_output with the same call_id\nconst openaiTool = { type: \"function\", name: \"orders_get_status\", description, parameters: params, strict: true };\n\n// Claude Messages API -- result goes back as a tool_result block with tool_use_id\nconst claudeTool = { name: \"orders_get_status\", description, input_schema: params, strict: true };\n\n// Gemini Interactions API -- result goes back as function_result with call_id\nconst geminiTool = { type: \"function\", name: \"orders_get_status\", description, parameters: params };"
+        "label": "The same tool in three documented dialects",
+        "code": "const params = {\n  type: \"object\",\n  properties: {\n    order_number: {\n      type: \"string\",\n      description: \"4-6 digit order number as the customer wrote it.\"\n    }\n  },\n  required: [\"order_number\"],\n  additionalProperties: false\n};\n\nconst description =\n  \"Look up one order on the signed-in customer's account. \" +\n  \"It returns status and update time only. It cannot change an order. \" +\n  \"Caller identity comes from authenticated application context, never arguments.\";\n\nconst openaiTool = {\n  type: \"function\", name: \"orders_get_status\", description,\n  parameters: params, strict: true\n};\nconst claudeTool = {\n  name: \"orders_get_status\", description, input_schema: params, strict: true\n};\nconst geminiTool = {\n  type: \"function\", name: \"orders_get_status\", description, parameters: params\n};\n\n// Runtime correlation:\n// OpenAI: function_call.call_id -> function_call_output.call_id\n// Claude: tool_use.id -> tool_result.tool_use_id\n// Gemini Interactions: function_call.id -> function_result.call_id"
       }
     },
     {
       "id": "sql-tools-from-templates",
       "title": "SQL tools: templates and parameters, never model-written SQL",
       "paragraphs": [
-        "The tempting SQL tool is `run_sql(query: string)`. OWASP's LLM06:2025 Excessive Agency entry explains why not: it names excessive functionality, excessive permissions, and excessive autonomy as the root causes of damaging actions taken on a model's unexpected, ambiguous, or manipulated output, and it advises avoiding open-ended extensions. Its own example of excessive permissions is a feature meant only to read data that connects with an identity holding UPDATE, INSERT, and DELETE as well as SELECT.",
-        "Build the tool from fixed query templates instead. Each function maps to one statement an engineer wrote and reviewed; the model supplies only typed values, and those values reach the database as bound parameters rather than text spliced into SQL. PostgreSQL's libpq documentation gives the reason: sending parameter values separately from the command string avoids error-prone quoting and escaping, and the parameterized call accepts at most one SQL command per string, which the documentation calls an extra defense against SQL injection. Values that identify the caller -- tenant, user, account -- should not be arguments at all. OpenAI's function-calling guidance says not to make the model fill arguments you already know; pass them from the authenticated session in code.",
-        "Then make the database enforce what the template intends. Connect as a dedicated role granted SELECT on only the tables or columns the tools read. Do not treat a read-only transaction as the boundary: PostgreSQL calls read-only mode a high-level notion that does not prevent all writes to disk, and a transaction can override the session default with SET TRANSACTION. Row security policies add a per-role row filter and deny all rows when enabled with no policy, but superusers, roles with BYPASSRLS, and normally the table owner bypass them, so the tool role must be none of those. Finally, bound every call: `statement_timeout` aborts a statement that runs longer than the limit, PostgreSQL advises against setting it in postgresql.conf because that affects all sessions, and `ALTER ROLE ... SET` makes it the role's session default at login. A session default is a default, not a ceiling: it holds here because the model never writes SQL.",
-        "This example trusts the application to authenticate the session and set the account identity inside a transaction on one connection. Transaction-local configuration avoids leaking an identity across pooled requests. RLS then filters rows even if a template accidentally omits its account predicate. A compromised application role that can set this variable is outside that guarantee; never expose arbitrary SQL or configuration changes to model arguments. Inspect all applicable policies and inherited privileges before relying on the isolation."
+        "Do not expose `run_sql(query)`. OWASP LLM06:2025 identifies excessive functionality, permissions, and autonomy as causes of damaging actions and advises against open-ended extensions. If a model can supply arbitrary SQL, every statement available to the connected role becomes reachable through accidental, manipulated, or hostile model output.",
+        "Map each tool to one engineer-reviewed statement. Model arguments become bound values, not SQL fragments. PostgreSQL documents that parameterized execution sends values separately from the command string, avoiding manual quoting and escaping, and accepts one command per call. Reject unknown argument properties, identifiers outside their allowed format, raw SQL, table names, URLs, credentials, and caller identity.",
+        "Use a dedicated `LOGIN NOSUPERUSER NOBYPASSRLS` role, grant only required columns, and set a role-level `statement_timeout`. Read-only transaction mode is not a privilege boundary because it is an overrideable transaction characteristic. Row Level Security adds a database-enforced row policy, but superusers, `BYPASSRLS` roles, and normally table owners bypass it. The supplied setup uses `FORCE ROW LEVEL SECURITY`, and the tool role neither owns the table nor inherits a bypass role.",
+        "Set `app.account_id` transaction-locally on the same checked-out connection that executes the query. Transaction-local context disappears at transaction end, which prevents a pooled connection from retaining the previous request's account. The supplied PostgreSQL test deliberately queries without an application account predicate. Visibility then comes from the actual PostgreSQL policy, not an array filter in JavaScript.",
+        "The offline core lab is an emulator for bridge logic. Its in-memory records do not prove PostgreSQL grants, RLS, timeout behavior, transaction locality, or pool reset. Run the separate `psql` integration script against the disposable PostgreSQL instance for that proof."
       ],
-      "callout": "The model chooses which template and supplies typed values. It never supplies SQL text, a table name, or the identity the query runs as.",
+      "callout": "The model chooses a reviewed template and supplies typed business values. It never supplies SQL, identity, credentials, role settings, table names, or connection details.",
       "code": {
         "language": "typescript",
         "label": "A template-based SQL tool under a least-privilege role",
@@ -56,9 +58,10 @@
       "id": "api-bridges",
       "title": "API bridges: a small surface with bounded actions",
       "paragraphs": [
-        "Wrapping an existing HTTP API raises the same question. Resist generating one function per endpoint from an OpenAPI document and exposing all of them: Gemini supports only a subset of OpenAPI schema in declarations and suggests keeping the active set to 10 to 20 tools, OpenAI suggests aiming for fewer than 20 functions available at the start of a turn, and OpenAI notes that function definitions are injected into the system message and billed as input tokens. Choose the operations the task actually needs. Where a surface really is large, OpenAI's `tool_search` with `defer_loading` (supported on `gpt-5.4` and later) loads rarely used tools only when needed.",
-        "Providers pull in slightly different directions on granularity, and the difference is useful. Anthropic recommends consolidating related operations into fewer tools with an `action` parameter to reduce selection ambiguity, and prefixing tool names with the service, such as `github_list_prs`; OpenAI offers `namespace` groupings such as `crm` and `billing` for the same reason and advises enums and object structure that make invalid states impossible to express. OWASP, meanwhile, warns against open-ended extensions. The two fit together when the consolidated `action` is a closed enum of operations you chose -- one tool, a few allowed verbs -- rather than a free-form method and path. Anthropic calls detailed descriptions by far the most important factor in tool performance: what the tool does, when to use it and when not to, what each parameter means, and its limits, in at least three or four sentences.",
-        "The bridge, not the model, holds credentials and identity. OWASP recommends executing extensions in the user's context with the minimum privileges and scopes required, and implementing authorization in the downstream system rather than asking the model whether an action is allowed. In practice the bridge maps each allowed action to an HTTP method and path it builds itself, attaches the user's scoped token from the session, validates the arguments against the same schema it advertised, and never exposes a raw URL, header, or query-string parameter the model could steer somewhere else."
+        "Expose only operations needed for the task. A closed action enum can consolidate related operations without becoming a free-form method-and-path proxy. The bridge owns the route table, method, trusted base URL, credentials, and caller identity. Model arguments must not contain a URL, token, header, account ID, user ID, raw SQL, or arbitrary method.",
+        "Validate each action as a distinct contract. Reject unknown properties. Enforce safe length and format bounds before route construction. Keep arithmetic counters within fixed integer limits and reject invalid timestamps rather than silently accepting them. A fixture route such as `POST /tickets/:id/comments` demonstrates dispatch, but it does not prove TLS, remote authentication, downstream authorization, retries, or production network isolation.",
+        "For a real HTTP integration, obtain identity and scoped credentials from authenticated server context, build the method and path from a reviewed route table, set explicit timeouts and response-size limits, and require the downstream service to authorize the requested object for that identity. Keep logs free of credentials and sensitive result bodies.",
+        "Mutating actions need controls beyond schema validation. The lab requires approval from a different authenticated subject, a trusted provider correlation ID as the idempotency key, an at-most-once effect ledger, and per-request call and mutation budgets. A model-supplied `approved`, `tenant`, or `idempotency_key` field is rejected rather than trusted."
       ],
       "code": {
         "language": "typescript",
@@ -70,32 +73,64 @@
       "id": "results-errors-and-budgets",
       "title": "Shape results and errors for the next model turn",
       "paragraphs": [
-        "A tool result is input to the next model turn, so return only what the model needs. Anthropic recommends high-signal responses with stable, semantic identifiers such as slugs or UUIDs instead of opaque internal references, because bloated results waste context. OpenAI accepts a string result in whatever format you choose -- JSON, error codes, plain text -- and suggests returning a success or failure string even for functions with no return value. Cap rows and fields in the bridge: a query that could return ten thousand rows should return a count and the first page.",
-        "Errors should teach. Claude's `tool_result` accepts `is_error: true`, and Anthropic advises instructive messages that say what went wrong and what to try next -- 'Rate limit exceeded. Retry after 60 seconds.' rather than 'failed'. When a call is missing required parameters, Claude typically retries two or three times with corrections before apologizing to the user, and Anthropic points to strict tool use to eliminate invalid calls entirely. Keep stack traces, raw SQL errors that reveal your schema, and credentials out of result strings: everything you return goes straight into model context.",
-        "Budget the surface, not just the loop. Claude allows at most 20 strict tools and 24 optional parameters across all strict schemas in a request, and Anthropic suggests marking only the tools where schema violations cause real problems as strict if you reach those limits. On OpenAI, every callable function definition counts against context and is billed as input tokens on every request. And one model turn can request several of your functions at once -- OpenAI and Gemini both document parallel calls -- so if two bridge operations must not run concurrently, set `parallel_tool_calls: false` on OpenAI or serialize them in the bridge itself."
+        "Return only fields needed for the next turn, with stable semantic identifiers and fixed result caps. OpenAI function-call outputs are strings, Claude tool results support `is_error`, and Gemini Interactions results retain the call identifier. Preserve each provider's correlation field while using one provider-neutral internal outcome.",
+        "Errors must distinguish malformed arguments, authentication failure, authorization denial, missing approval, budget exhaustion, duplicate effects, dependency failure, and absence of a matching object. Do not turn exceptions into success results. Do not reveal stack traces, raw database errors, SQL, credentials, or internal object references.",
+        "Count every attempted dispatch against a bounded call budget. Count a mutation only when its approved effect is first applied. A retry carrying the same trusted call identifier returns the recorded result and does not repeat the effect. Unsupported provider capabilities and intentionally unavailable external services are reported as explicit skips; skip counts are separate from pass counts.",
+        "Tool schema validation is useful but does not replace bridge validation. Treat all model arguments as attacker-controlled even when a provider advertises strict schema conformance."
       ],
       "code": {
         "language": "typescript",
-        "label": "The same outcome in each provider's result shape",
-        "code": "const outcome = {\n  isError: true,\n  text: \"Order 1042 was not found on this account. Ask the customer to confirm the number (4-6 digits).\",\n};\n\n// Claude: a tool_result block inside the next user message\nconst claudeReply = {\n  role: \"user\",\n  content: [{ type: \"tool_result\", tool_use_id: toolUse.id, content: outcome.text, is_error: outcome.isError }],\n};\n\n// OpenAI Responses: a function_call_output Item with the matching call_id\nconst openaiReply = { type: \"function_call_output\", call_id: call.call_id, output: JSON.stringify(outcome) };\n\n// Gemini Interactions: a function_result input with the matching call_id\nconst geminiReply = {\n  type: \"function_result\",\n  name: step.name,\n  call_id: step.id,\n  result: [{ type: \"text\", text: JSON.stringify(outcome) }],\n};"
+        "label": "One outcome wrapped for each provider",
+        "code": "const outcome = {\n  ok: false,\n  code: \"NOT_FOUND\",\n  message: \"No matching order on this account. Confirm the 4-6 digit number.\"\n};\n\nconst openaiReply = {\n  type: \"function_call_output\",\n  call_id: call.call_id,\n  output: JSON.stringify(outcome)\n};\nconst claudeReply = {\n  type: \"tool_result\",\n  tool_use_id: block.id,\n  is_error: !outcome.ok,\n  content: JSON.stringify(outcome)\n};\nconst geminiReply = {\n  type: \"function_result\",\n  name: step.name,\n  call_id: step.id,\n  result: [{ type: \"text\", text: JSON.stringify(outcome) }]\n};"
       }
+    },
+    {
+      "id": "repair-lab",
+      "title": "Repair lab: tenant scope belongs to authenticated context",
+      "paragraphs": [
+        "Open the concrete lab at `https://github.com/project42dev/project42-content/tree/main/training/developer-and-practitioner-ai/function-calling-and-tools/lab/`. From the repository root, run `cd training/developer-and-practitioner-ai/function-calling-and-tools/lab && npm test`. Node.js 22 is the only offline dependency.",
+        "Worked example: tenant `acct-a` and tenant `acct-b` both have order `1042`. The starter validates the order number but its data lookup compares only `order_number`. For `acct-b`, it can return `acct-a`'s first matching row. The causal chain is: overlapping identifier, missing trusted tenant condition, cross-tenant result. Repair the single lookup so it requires both `row.account_id === authenticated.accountId` and `row.order_number === args.order_number`. Do not add `account_id` to model arguments.",
+        "Independent variation: tenant `acct-b` alone owns order `9001`. A request authenticated as `acct-a` asks for `9001`. A repair hard-coded to the overlapping `1042` case still leaks the changed input. The immutable test therefore checks a different identifier and expected `NOT_FOUND`, establishing that the repair follows authenticated context rather than a memorized fixture.",
+        "The starter's other controls are already implemented: closed contracts, unknown-property rejection, provider correlation, trusted authentication context, bounded routes, independent approval, at-most-once mutation effects, and call and mutation budgets. Keep those controls intact. Run `npm run test:reference` to compare with the separate reference, and `npm run reset` to restore the deliberate defect.",
+        "For actual database proof, follow the README's disposable-container procedure and run `npm run test:postgres`. That script tests the real tool role for own-account visibility, other-account hiding without an application predicate, no rows without account context, and transaction-local identity reset on the same session."
+      ],
+      "callout": "Passing the offline tenant tests demonstrates the repaired emulator. Only the separate psql run demonstrates the PostgreSQL policy and role setup.",
+      "code": {
+        "language": "javascript",
+        "label": "Focused repair",
+        "code": "// Defective starter lookup:\nconst row = data.orders.find(\n  (candidate) => candidate.order_number === args.order_number\n);\n\n// Required repair:\nconst row = data.orders.find(\n  (candidate) =>\n    candidate.account_id === authenticated.accountId &&\n    candidate.order_number === args.order_number\n);"
+      }
+    },
+    {
+      "id": "function-calling-and-tools-rubric",
+      "title": "Repair assessment rubric",
+      "paragraphs": [
+        "3 points: The lookup matches authenticated account ID and order number, with no identity argument and no unrelated production-code edits.",
+        "2 points: Both overlapping-ID and changed-input isolation tests pass; exceptions, unsupported behavior, and skips are not counted as passes.",
+        "2 points: Closed contracts, trusted correlation, route bounds, independent approval, at-most-once effects, and budgets remain intact.",
+        "2 points: The learner supplies actual psql output for the four RLS/context cases, or clearly records NOT RUN without claiming fixture evidence as RLS proof.",
+        "1 points: The explanation identifies missing trusted tenant scope as the cause and distinguishes simulation from real integration controls."
+      ]
     }
   ],
   "activity": {
     "id": "function-calling-and-tools-activity",
-    "title": "Bridge one database and one API, then try to break out",
+    "title": "Repair tenant scoping, then verify the real database boundary",
     "instructions": [
-      "Pick one read-only question your users ask about a database and one action they take in an existing HTTP API. Define two to four functions in total, each with a service-prefixed name, a description of at least three sentences, closed enums for finite action choices and validated strings for identifiers, and no identity or credential arguments.",
-      "Implement the SQL function as a fixed parameterized template run by a dedicated role with column-level SELECT grants, a role-level statement_timeout, and no BYPASSRLS, ownership, or superuser attribute. Implement the API function as a bridge that builds the method and path itself and attaches the session's scoped token. Enable row security, create the account policy, and set authenticated account context transaction-locally on the same connection as the query. Test the policy directly as the tool role, including a query without the application account predicate.",
-      "Express the same functions as OpenAI, Claude, and Gemini tool definitions, and show the field that links each call to its result (call_id, tool_use_id, or call_id).",
-      "Attack the bridge: ask the model to read another account's rows, to run a statement that is not a template, to call an API path you did not expose, and to return a 10,000-row result. Record what stopped each attempt -- the schema, the template, the grant, the row policy, the timeout, or the row cap."
+      "From the repository root, enter `training/developer-and-practitioner-ai/function-calling-and-tools/lab/`, read `README.md`, and run `npm test`. Record the exact two failing tenant tests, 11 passes, zero skips, and exit code 1.",
+      "Inspect `src/bridge.mjs`. Repair only the order lookup by requiring the record's `account_id` to equal `authenticated.accountId` as well as matching `order_number`. Identity must remain absent from model arguments.",
+      "Run `npm test` again. The expected result is 13 passes, zero failures, zero skips, and exit code 0. Run `npm run test:reference` and expect the same result from the independent reference implementation.",
+      "Explain why the overlapping-order test and the changed-input `9001` test fail before the repair. Identify the trusted value that must drive the boundary and explain why adding an `account_id` argument would not be a repair.",
+      "Run the real PostgreSQL integration procedure in the README. Verify own-account visibility, other-account hiding without an application predicate, no context yielding zero rows, and no retained identity in the next transaction on the same session.",
+      "Transfer the design to another documented runtime interface by mapping its official call identifier, tool name, structured arguments, and correlated result fields. If no authoritative runtime documentation is available, record CANNOT VERIFY rather than inventing a dialect."
     ],
     "evidence": [
-      "The same two to four function definitions in three provider dialects, plus SQL role grants, timeout, enabled row security, account policy, transaction-scoped identity setup, and the bridge route table.",
-      "An attack log naming, for each attempt, the control that stopped it and whether that control lives in the prompt, the bridge code, or the database.",
-      "Database test results for two accounts with overlapping order numbers: own rows visible, other-account rows hidden even without the template predicate, no rows without account context, and no previous identity after a pooled transaction ends."
+      "A diff limited to the tenant condition in `src/bridge.mjs`, plus exact offline test output showing 13 passes, zero failures, zero skips.",
+      "An explanation of both the overlapping-ID case and the independent changed-input case, naming authenticated context as the source of identity.",
+      "The exact `psql` integration output from the supplied real database script, or an explicit NOT RUN record. Fixture tests must not be presented as RLS evidence.",
+      "A provider adapter mapping grounded in official runtime documentation, or CANNOT VERIFY when documentation is unavailable."
     ],
-    "reflectionPrompt": "If the model's arguments were fully attacker-controlled, which of your controls would still hold, and which worked only because the model behaved?"
+    "reflectionPrompt": "If every model argument were attacker-controlled, which controls would still hold, and why must tenant identity, approval identity, credentials, route selection, and idempotency correlation come from trusted runtime context?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -110,47 +145,47 @@
           "It makes the tool description too long"
         ],
         "answerIndex": 1,
-        "explanation": "OWASP LLM06:2025 names excessive functionality and excessive permissions as root causes of excessive agency and advises avoiding open-ended extensions."
+        "explanation": "OWASP LLM06:2025 identifies excessive functionality and permissions as causes of excessive agency and advises avoiding open-ended extensions."
       },
       {
         "id": "q-dev-tools-2",
         "prompt": "A tool needs the caller's account_id. Where should it come from?",
         "choices": [
           "A required argument the model fills in",
-          "The authenticated session, passed by the bridge code as a bound parameter",
+          "The authenticated session, passed by bridge code and set transaction-locally for the database operation",
           "The system prompt",
           "The tool description"
         ],
         "answerIndex": 1,
-        "explanation": "OpenAI advises not making the model fill arguments you already know. Passing identity in code keeps it out of model output an attacker can influence."
+        "explanation": "Identity known by the application belongs in trusted authenticated context, not attacker-controlled model arguments."
       },
       {
         "id": "q-dev-tools-3",
         "prompt": "The SQL tool connects with default_transaction_read_only on. Why is that not a sufficient boundary?",
         "choices": [
           "It is not a real PostgreSQL setting",
-          "It is only a default that SET TRANSACTION can override, and PostgreSQL calls read-only mode a high-level notion that does not prevent all writes; grants must do the enforcing",
+          "It is an overrideable transaction characteristic, while grants and row policies enforce privileges and row visibility",
           "It makes every query slower",
           "It disables row security"
         ],
         "answerIndex": 1,
-        "explanation": "Read-only is a transaction characteristic, not a privilege. Restricting the role to SELECT on specific tables or columns is what the database enforces."
+        "explanation": "Read-only mode is not a privilege. The dedicated role's grants and applicable row policies enforce the database boundary."
       },
       {
         "id": "q-dev-tools-4",
-        "prompt": "Row security is enabled on the orders table. Which connection would still see every row?",
+        "prompt": "Row security is enabled on the orders table. Which connection could still bypass ordinary row policies?",
         "choices": [
-          "A role with only SELECT granted",
-          "The table owner, a superuser, or a role with BYPASSRLS",
+          "A role with only the required column-level SELECT grants",
+          "A superuser, a BYPASSRLS role, or normally the table owner unless FORCE ROW LEVEL SECURITY applies",
           "Any role that uses bound parameters",
           "Any role with statement_timeout set"
         ],
         "answerIndex": 1,
-        "explanation": "PostgreSQL documents that superusers and BYPASSRLS roles always bypass row security, and table owners normally do unless FORCE ROW LEVEL SECURITY is set."
+        "explanation": "PostgreSQL documents these bypass cases. The lab uses FORCE ROW LEVEL SECURITY and a non-owner, non-superuser, NOBYPASSRLS tool role."
       },
       {
         "id": "q-dev-tools-5",
-        "prompt": "An OpenAI response contains two function_call Items. How do you return the results?",
+        "prompt": "An OpenAI response contains two function_call items. How do you return the results?",
         "choices": [
           "One combined string for both calls",
           "One function_call_output per call, each with its matching call_id, without relying on array position",
@@ -158,19 +193,19 @@
           "Resend the tool list with no outputs"
         ],
         "answerIndex": 1,
-        "explanation": "OpenAI advises assuming several calls per response; call_id is what links each output to its request."
+        "explanation": "Each result is correlated with the call_id supplied for that call."
       },
       {
         "id": "q-dev-tools-6",
-        "prompt": "You force a specific tool with tool_choice {\"type\": \"tool\", \"name\": \"...\"} on Claude Fable 5.1. What does Anthropic document?",
+        "prompt": "How should you add support for another model family?",
         "choices": [
-          "It works on every current model",
-          "It returns a 400; use auto with strict tool use, or structured outputs, instead",
-          "It silently falls back to auto",
-          "It forces parallel tool calls"
+          "Guess a wire format that resembles an existing provider",
+          "Use the runtime's official documentation to map its call identifier, tool name, structured arguments, and result correlation into the provider-neutral bridge",
+          "Pass identity and credentials through model arguments",
+          "Treat unsupported capabilities as passing checks"
         ],
         "answerIndex": 1,
-        "explanation": "Forced tool use (any or tool) is not supported on Claude Fable 5.1 and Claude Mythos 5.1; Anthropic suggests auto with strict tool use or structured outputs."
+        "explanation": "The bridge can transfer across model families, but each wire adapter must be grounded in that runtime's documented interface. Unsupported behavior is an error or explicit skip, not a pass."
       }
     ]
   },
@@ -268,19 +303,43 @@
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 59,
+    "estimatedSeconds": 218,
     "cues": [
       {
-        "id": "cue-dev-tools-dialects",
+        "id": "cue-dev-tools-dialects-1-1",
         "kind": "narration",
         "sectionId": "one-contract-three-dialects",
-        "text": "One tool contract has three dialects -- parameters, input_schema, and function declarations -- and each API links a call to its result with a different identifier that your bridge must preserve."
+        "text": "One tool contract has three dialects --\nparameters, input_schema, and function"
       },
       {
-        "id": "cue-dev-tools-sql",
+        "id": "cue-dev-tools-dialects-2-1",
+        "kind": "narration",
+        "sectionId": "one-contract-three-dialects",
+        "text": "declarations -- and each API links a call\nto its result with a different"
+      },
+      {
+        "id": "cue-dev-tools-dialects-3-1",
+        "kind": "narration",
+        "sectionId": "one-contract-three-dialects",
+        "text": "identifier that your bridge must preserve."
+      },
+      {
+        "id": "cue-dev-tools-sql-1-1",
         "kind": "narration",
         "sectionId": "sql-tools-from-templates",
-        "text": "A SQL tool is a set of fixed parameterized templates run by a least-privilege role; identity comes from the session, and the database, not the prompt, enforces what the tool may touch."
+        "text": "A SQL tool is a set of fixed parameterized\ntemplates run by a least-privilege"
+      },
+      {
+        "id": "cue-dev-tools-sql-2-1",
+        "kind": "narration",
+        "sectionId": "sql-tools-from-templates",
+        "text": "role; identity comes from the session, and\nthe database, not the prompt, enforces"
+      },
+      {
+        "id": "cue-dev-tools-sql-3-1",
+        "kind": "narration",
+        "sectionId": "sql-tools-from-templates",
+        "text": "what the tool may touch."
       },
       {
         "id": "cue-dev-tools-sql-visual",
@@ -296,10 +355,22 @@
         "text": "Ask learners which of their existing tools accepts a value the application already knows."
       },
       {
-        "id": "cue-dev-tools-api",
+        "id": "cue-dev-tools-api-1-1",
         "kind": "narration",
         "sectionId": "api-bridges",
-        "text": "The bridge selects allowed methods and paths, validates arguments, and attaches the authenticated user token. The downstream API enforces authorization for that identity."
+        "text": "The bridge selects allowed methods and\npaths, validates arguments, and attaches"
+      },
+      {
+        "id": "cue-dev-tools-api-2-1",
+        "kind": "narration",
+        "sectionId": "api-bridges",
+        "text": "the authenticated user token. The\ndownstream API enforces authorization for"
+      },
+      {
+        "id": "cue-dev-tools-api-3-1",
+        "kind": "narration",
+        "sectionId": "api-bridges",
+        "text": "that identity."
       },
       {
         "id": "cue-dev-tools-api-pause",
@@ -308,10 +379,22 @@
         "text": "Allow three minutes for learners to cut their tool list to the smallest set that still completes the task."
       },
       {
-        "id": "cue-dev-tools-results",
+        "id": "cue-dev-tools-results-1-1",
         "kind": "narration",
         "sectionId": "results-errors-and-budgets",
-        "text": "Tool results and errors are the model's next input, so return high-signal fields, instructive errors, and capped rows, and budget the tool surface as carefully as the loop."
+        "text": "Tool results and errors are the model's\nnext input, so return high-signal fields,"
+      },
+      {
+        "id": "cue-dev-tools-results-2-1",
+        "kind": "narration",
+        "sectionId": "results-errors-and-budgets",
+        "text": "instructive errors, and capped rows, and\nbudget the tool surface as carefully as"
+      },
+      {
+        "id": "cue-dev-tools-results-3-1",
+        "kind": "narration",
+        "sectionId": "results-errors-and-budgets",
+        "text": "the loop."
       },
       {
         "id": "cue-dev-tools-results-checkpoint",
@@ -325,42 +408,485 @@
         "text": "Guide the four function definitions, the SQL role setup, the API route table, and the break-out attempts."
       },
       {
-        "id": "cue-dev-tools-assessment",
+        "id": "cue-dev-tools-assessment-1-1",
         "kind": "assessment-handoff",
-        "text": "Begin the check once learners can say which layer stops a model from reading another account and how each API links a call to its result."
+        "text": "Begin the check once learners can say\nwhich layer stops a model from reading"
+      },
+      {
+        "id": "cue-dev-tools-assessment-2-1",
+        "kind": "assessment-handoff",
+        "text": "another account and how each API links a\ncall to its result."
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-1",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "Node.js 22 is the only offline dependency.\nWorked example: tenant `acct-a` and tenant"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-2",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "`acct-b` both have order `1042`. The\nstarter validates the order number but its"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-3",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "data lookup compares only `order_number`.\nFor `acct-b`, it can return `acct-a`'s"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-4",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "first matching row. The causal chain is:\noverlapping identifier, missing trusted"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-5",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "tenant condition, cross-tenant result.\nRepair the single lookup so it requires"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-6",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "both `row.account_id ===\nauthenticated.accountId` and"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-7",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "`row.order_number === args.order_number`.\nDo not add `account_id` to model"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-8",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "arguments. Independent variation: tenant\n`acct-b` alone owns order `9001`. A"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-9",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "request authenticated as `acct-a` asks for\n`9001`. A repair hard-coded to the"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-10",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "overlapping `1042` case still leaks the\nchanged input. The immutable test"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-11",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "therefore checks a different identifier\nand expected `NOT_FOUND`, establishing"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-12",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "that the repair follows authenticated\ncontext rather than a memorized fixture."
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-13",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "The starter's other controls are already\nimplemented: closed contracts,"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-14",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "unknown-property rejection, provider\ncorrelation, trusted authentication"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-15",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "context, bounded routes, independent\napproval, at-most-once mutation effects,"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-16",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "and call and mutation budgets. Keep those\ncontrols intact. Run `npm run"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-17",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "test:reference` to compare with the\nseparate reference, and `npm run reset` to"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-18",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "restore the deliberate defect. For actual\ndatabase proof, follow the README's"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-19",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "disposable-container procedure and run\n`npm run test:postgres`. That script tests"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-20",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "the real tool role for own-account\nvisibility, other-account hiding without"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-21",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "an application predicate, no rows without\naccount context, and transaction-local"
+      },
+      {
+        "id": "cue-function-calling-and-tools-repair-lab-22",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "identity reset on the same session."
+      },
+      {
+        "id": "cue-function-calling-and-tools-function-calling-and-tools-rubric-1",
+        "kind": "narration",
+        "sectionId": "function-calling-and-tools-rubric",
+        "text": "3 points: The lookup matches authenticated\naccount ID and order number, with no"
+      },
+      {
+        "id": "cue-function-calling-and-tools-function-calling-and-tools-rubric-2",
+        "kind": "narration",
+        "sectionId": "function-calling-and-tools-rubric",
+        "text": "identity argument and no unrelated\nproduction-code edits. 2 points: Both"
+      },
+      {
+        "id": "cue-function-calling-and-tools-function-calling-and-tools-rubric-3",
+        "kind": "narration",
+        "sectionId": "function-calling-and-tools-rubric",
+        "text": "overlapping-ID and changed-input isolation\ntests pass; exceptions, unsupported"
+      },
+      {
+        "id": "cue-function-calling-and-tools-function-calling-and-tools-rubric-4",
+        "kind": "narration",
+        "sectionId": "function-calling-and-tools-rubric",
+        "text": "behavior, and skips are not counted as\npasses. 2 points: Closed contracts,"
+      },
+      {
+        "id": "cue-function-calling-and-tools-function-calling-and-tools-rubric-5",
+        "kind": "narration",
+        "sectionId": "function-calling-and-tools-rubric",
+        "text": "trusted correlation, route bounds,\nindependent approval, at-most-once"
+      },
+      {
+        "id": "cue-function-calling-and-tools-function-calling-and-tools-rubric-6",
+        "kind": "narration",
+        "sectionId": "function-calling-and-tools-rubric",
+        "text": "effects, and budgets remain intact. 2\npoints: The learner supplies actual psql"
+      },
+      {
+        "id": "cue-function-calling-and-tools-function-calling-and-tools-rubric-7",
+        "kind": "narration",
+        "sectionId": "function-calling-and-tools-rubric",
+        "text": "output for the four RLS/context cases, or\nclearly records NOT RUN without claiming"
+      },
+      {
+        "id": "cue-function-calling-and-tools-function-calling-and-tools-rubric-8",
+        "kind": "narration",
+        "sectionId": "function-calling-and-tools-rubric",
+        "text": "fixture evidence as RLS proof. 1 points:\nThe explanation identifies missing trusted"
+      },
+      {
+        "id": "cue-function-calling-and-tools-function-calling-and-tools-rubric-9",
+        "kind": "narration",
+        "sectionId": "function-calling-and-tools-rubric",
+        "text": "tenant scope as the cause and\ndistinguishes simulation from real"
+      },
+      {
+        "id": "cue-function-calling-and-tools-function-calling-and-tools-rubric-10",
+        "kind": "narration",
+        "sectionId": "function-calling-and-tools-rubric",
+        "text": "integration controls."
       }
     ],
-    "transcript": "One tool contract has three dialects -- parameters, input_schema, and function declarations -- and each API links a call to its result with a different identifier that your bridge must preserve. A SQL tool is a set of fixed parameterized templates run by a least-privilege role; identity comes from the session, and the database, not the prompt, enforces what the tool may touch. The bridge selects allowed methods and paths, validates arguments, and attaches the authenticated user token. The downstream API enforces authorization for that identity. Tool results and errors are the model's next input, so return high-signal fields, instructive errors, and capped rows, and budget the tool surface as carefully as the loop. Begin the check once learners can say which layer stops a model from reading another account and how each API links a call to its result.",
+    "transcript": "One tool contract has three dialects --\nparameters, input_schema, and function declarations -- and each API links a call\nto its result with a different identifier that your bridge must preserve. A SQL tool is a set of fixed parameterized\ntemplates run by a least-privilege role; identity comes from the session, and\nthe database, not the prompt, enforces what the tool may touch. The bridge selects allowed methods and\npaths, validates arguments, and attaches the authenticated user token. The\ndownstream API enforces authorization for that identity. Tool results and errors are the model's\nnext input, so return high-signal fields, instructive errors, and capped rows, and\nbudget the tool surface as carefully as the loop. Begin the check once learners can say\nwhich layer stops a model from reading another account and how each API links a\ncall to its result. Node.js 22 is the only offline dependency.\nWorked example: tenant `acct-a` and tenant `acct-b` both have order `1042`. The\nstarter validates the order number but its data lookup compares only `order_number`.\nFor `acct-b`, it can return `acct-a`'s first matching row. The causal chain is:\noverlapping identifier, missing trusted tenant condition, cross-tenant result.\nRepair the single lookup so it requires both `row.account_id ===\nauthenticated.accountId` and `row.order_number === args.order_number`.\nDo not add `account_id` to model arguments. Independent variation: tenant\n`acct-b` alone owns order `9001`. A request authenticated as `acct-a` asks for\n`9001`. A repair hard-coded to the overlapping `1042` case still leaks the\nchanged input. The immutable test therefore checks a different identifier\nand expected `NOT_FOUND`, establishing that the repair follows authenticated\ncontext rather than a memorized fixture. The starter's other controls are already\nimplemented: closed contracts, unknown-property rejection, provider\ncorrelation, trusted authentication context, bounded routes, independent\napproval, at-most-once mutation effects, and call and mutation budgets. Keep those\ncontrols intact. Run `npm run test:reference` to compare with the\nseparate reference, and `npm run reset` to restore the deliberate defect. For actual\ndatabase proof, follow the README's disposable-container procedure and run\n`npm run test:postgres`. That script tests the real tool role for own-account\nvisibility, other-account hiding without an application predicate, no rows without\naccount context, and transaction-local identity reset on the same session. 3 points: The lookup matches authenticated\naccount ID and order number, with no identity argument and no unrelated\nproduction-code edits. 2 points: Both overlapping-ID and changed-input isolation\ntests pass; exceptions, unsupported behavior, and skips are not counted as\npasses. 2 points: Closed contracts, trusted correlation, route bounds,\nindependent approval, at-most-once effects, and budgets remain intact. 2\npoints: The learner supplies actual psql output for the four RLS/context cases, or\nclearly records NOT RUN without claiming fixture evidence as RLS proof. 1 points:\nThe explanation identifies missing trusted tenant scope as the cause and\ndistinguishes simulation from real integration controls.",
     "captions": [
       {
-        "cueId": "cue-dev-tools-dialects",
+        "cueId": "cue-dev-tools-dialects-1-1",
         "startSeconds": 0,
-        "endSeconds": 13,
-        "text": "One tool contract has three dialects -- parameters, input_schema, and function declarations -- and each API links a call to its result with a different identifier that your bridge must preserve."
+        "endSeconds": 5,
+        "text": "One tool contract has three dialects --\nparameters, input_schema, and function"
       },
       {
-        "cueId": "cue-dev-tools-sql",
-        "startSeconds": 13,
+        "cueId": "cue-dev-tools-dialects-2-1",
+        "startSeconds": 5,
+        "endSeconds": 11,
+        "text": "declarations -- and each API links a call\nto its result with a different"
+      },
+      {
+        "cueId": "cue-dev-tools-dialects-3-1",
+        "startSeconds": 11,
+        "endSeconds": 14,
+        "text": "identifier that your bridge must preserve."
+      },
+      {
+        "cueId": "cue-dev-tools-sql-1-1",
+        "startSeconds": 14,
+        "endSeconds": 20,
+        "text": "A SQL tool is a set of fixed parameterized\ntemplates run by a least-privilege"
+      },
+      {
+        "cueId": "cue-dev-tools-sql-2-1",
+        "startSeconds": 20,
         "endSeconds": 26,
-        "text": "A SQL tool is a set of fixed parameterized templates run by a least-privilege role; identity comes from the session, and the database, not the prompt, enforces what the tool may touch."
+        "text": "role; identity comes from the session, and\nthe database, not the prompt, enforces"
       },
       {
-        "cueId": "cue-dev-tools-api",
+        "cueId": "cue-dev-tools-sql-3-1",
         "startSeconds": 26,
-        "endSeconds": 36,
-        "text": "The bridge selects allowed methods and paths, validates arguments, and attaches the authenticated user token. The downstream API enforces authorization for that identity."
+        "endSeconds": 29,
+        "text": "what the tool may touch."
       },
       {
-        "cueId": "cue-dev-tools-results",
-        "startSeconds": 36,
-        "endSeconds": 48,
-        "text": "Tool results and errors are the model's next input, so return high-signal fields, instructive errors, and capped rows, and budget the tool surface as carefully as the loop."
+        "cueId": "cue-dev-tools-api-1-1",
+        "startSeconds": 29,
+        "endSeconds": 34,
+        "text": "The bridge selects allowed methods and\npaths, validates arguments, and attaches"
       },
       {
-        "cueId": "cue-dev-tools-assessment",
-        "startSeconds": 48,
+        "cueId": "cue-dev-tools-api-2-1",
+        "startSeconds": 34,
+        "endSeconds": 39,
+        "text": "the authenticated user token. The\ndownstream API enforces authorization for"
+      },
+      {
+        "cueId": "cue-dev-tools-api-3-1",
+        "startSeconds": 39,
+        "endSeconds": 40,
+        "text": "that identity."
+      },
+      {
+        "cueId": "cue-dev-tools-results-1-1",
+        "startSeconds": 40,
+        "endSeconds": 46,
+        "text": "Tool results and errors are the model's\nnext input, so return high-signal fields,"
+      },
+      {
+        "cueId": "cue-dev-tools-results-2-1",
+        "startSeconds": 46,
+        "endSeconds": 52,
+        "text": "instructive errors, and capped rows, and\nbudget the tool surface as carefully as"
+      },
+      {
+        "cueId": "cue-dev-tools-results-3-1",
+        "startSeconds": 52,
+        "endSeconds": 53,
+        "text": "the loop."
+      },
+      {
+        "cueId": "cue-dev-tools-assessment-1-1",
+        "startSeconds": 53,
         "endSeconds": 59,
-        "text": "Begin the check once learners can say which layer stops a model from reading another account and how each API links a call to its result."
+        "text": "Begin the check once learners can say\nwhich layer stops a model from reading"
+      },
+      {
+        "cueId": "cue-dev-tools-assessment-2-1",
+        "startSeconds": 59,
+        "endSeconds": 65,
+        "text": "another account and how each API links a\ncall to its result."
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-1",
+        "startSeconds": 65,
+        "endSeconds": 71,
+        "text": "Node.js 22 is the only offline dependency.\nWorked example: tenant `acct-a` and tenant"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-2",
+        "startSeconds": 71,
+        "endSeconds": 77,
+        "text": "`acct-b` both have order `1042`. The\nstarter validates the order number but its"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-3",
+        "startSeconds": 77,
+        "endSeconds": 82,
+        "text": "data lookup compares only `order_number`.\nFor `acct-b`, it can return `acct-a`'s"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-4",
+        "startSeconds": 82,
+        "endSeconds": 87,
+        "text": "first matching row. The causal chain is:\noverlapping identifier, missing trusted"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-5",
+        "startSeconds": 87,
+        "endSeconds": 92,
+        "text": "tenant condition, cross-tenant result.\nRepair the single lookup so it requires"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-6",
+        "startSeconds": 92,
+        "endSeconds": 95,
+        "text": "both `row.account_id ===\nauthenticated.accountId` and"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-7",
+        "startSeconds": 95,
+        "endSeconds": 99,
+        "text": "`row.order_number === args.order_number`.\nDo not add `account_id` to model"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-8",
+        "startSeconds": 99,
+        "endSeconds": 104,
+        "text": "arguments. Independent variation: tenant\n`acct-b` alone owns order `9001`. A"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-9",
+        "startSeconds": 104,
+        "endSeconds": 110,
+        "text": "request authenticated as `acct-a` asks for\n`9001`. A repair hard-coded to the"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-10",
+        "startSeconds": 110,
+        "endSeconds": 115,
+        "text": "overlapping `1042` case still leaks the\nchanged input. The immutable test"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-11",
+        "startSeconds": 115,
+        "endSeconds": 119,
+        "text": "therefore checks a different identifier\nand expected `NOT_FOUND`, establishing"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-12",
+        "startSeconds": 119,
+        "endSeconds": 124,
+        "text": "that the repair follows authenticated\ncontext rather than a memorized fixture."
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-13",
+        "startSeconds": 124,
+        "endSeconds": 128,
+        "text": "The starter's other controls are already\nimplemented: closed contracts,"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-14",
+        "startSeconds": 128,
+        "endSeconds": 131,
+        "text": "unknown-property rejection, provider\ncorrelation, trusted authentication"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-15",
+        "startSeconds": 131,
+        "endSeconds": 135,
+        "text": "context, bounded routes, independent\napproval, at-most-once mutation effects,"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-16",
+        "startSeconds": 135,
+        "endSeconds": 141,
+        "text": "and call and mutation budgets. Keep those\ncontrols intact. Run `npm run"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-17",
+        "startSeconds": 141,
+        "endSeconds": 147,
+        "text": "test:reference` to compare with the\nseparate reference, and `npm run reset` to"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-18",
+        "startSeconds": 147,
+        "endSeconds": 152,
+        "text": "restore the deliberate defect. For actual\ndatabase proof, follow the README's"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-19",
+        "startSeconds": 152,
+        "endSeconds": 157,
+        "text": "disposable-container procedure and run\n`npm run test:postgres`. That script tests"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-20",
+        "startSeconds": 157,
+        "endSeconds": 162,
+        "text": "the real tool role for own-account\nvisibility, other-account hiding without"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-21",
+        "startSeconds": 162,
+        "endSeconds": 167,
+        "text": "an application predicate, no rows without\naccount context, and transaction-local"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-repair-lab-22",
+        "startSeconds": 167,
+        "endSeconds": 170,
+        "text": "identity reset on the same session."
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-function-calling-and-tools-rubric-1",
+        "startSeconds": 170,
+        "endSeconds": 176,
+        "text": "3 points: The lookup matches authenticated\naccount ID and order number, with no"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-function-calling-and-tools-rubric-2",
+        "startSeconds": 176,
+        "endSeconds": 181,
+        "text": "identity argument and no unrelated\nproduction-code edits. 2 points: Both"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-function-calling-and-tools-rubric-3",
+        "startSeconds": 181,
+        "endSeconds": 185,
+        "text": "overlapping-ID and changed-input isolation\ntests pass; exceptions, unsupported"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-function-calling-and-tools-rubric-4",
+        "startSeconds": 185,
+        "endSeconds": 191,
+        "text": "behavior, and skips are not counted as\npasses. 2 points: Closed contracts,"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-function-calling-and-tools-rubric-5",
+        "startSeconds": 191,
+        "endSeconds": 194,
+        "text": "trusted correlation, route bounds,\nindependent approval, at-most-once"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-function-calling-and-tools-rubric-6",
+        "startSeconds": 194,
+        "endSeconds": 200,
+        "text": "effects, and budgets remain intact. 2\npoints: The learner supplies actual psql"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-function-calling-and-tools-rubric-7",
+        "startSeconds": 200,
+        "endSeconds": 206,
+        "text": "output for the four RLS/context cases, or\nclearly records NOT RUN without claiming"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-function-calling-and-tools-rubric-8",
+        "startSeconds": 206,
+        "endSeconds": 212,
+        "text": "fixture evidence as RLS proof. 1 points:\nThe explanation identifies missing trusted"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-function-calling-and-tools-rubric-9",
+        "startSeconds": 212,
+        "endSeconds": 217,
+        "text": "tenant scope as the cause and\ndistinguishes simulation from real"
+      },
+      {
+        "cueId": "cue-function-calling-and-tools-function-calling-and-tools-rubric-10",
+        "startSeconds": 217,
+        "endSeconds": 218,
+        "text": "integration controls."
       }
     ],
     "reducedMotionAlternative": "Present the three tool dialects and the SQL defense layers as static tables with focus highlighting instead of animated sequences."

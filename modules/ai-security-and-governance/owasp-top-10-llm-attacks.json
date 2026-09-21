@@ -1,19 +1,20 @@
 {
   "id": "owasp-top-10-llm-attacks",
   "title": "OWASP Top 10 for LLMs & Red-Teaming",
-  "summary": "Use the OWASP GenAI LLM Top 10 2026 as a red-team coverage map: what the new ranking changed and why, a three-axis anatomy for prompt injection, how injection turns into consequence through agency, hidden context, and output sinks, and how to test against attackers who have read your defenses.",
+  "summary": "Use the OWASP GenAI LLM Top 10 2026 as a red-team coverage map, then repair and test an offline consequence boundary where retrieved instructions can otherwise trigger protected actions or unsafe output sinks.",
   "level": "advanced",
   "reviewCadenceDays": 90,
   "lastVerified": "2026-09-11",
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 50,
+  "estimatedMinutes": 80,
   "objectives": [
     "Name the ten OWASP GenAI LLM Top 10 2026 entries, explain how the 2026 ranking weighed a practitioner vote against an incident corpus, and say what the largest rank changes imply for test priorities.",
     "Decompose any prompt-injection scenario by delivery surface, propagation behavior, and encoding, and classify indirect surfaces as untrusted, semi-trusted, or trusted.",
-    "Trace how a successful injection becomes damage through Excessive Agency (LLM03), Hidden Context Exposure (LLM08), and Improper Output Handling (LLM10), and apply the Rule of Two as a capability-budget floor.",
-    "Design red-team cases with consequence-based pass criteria, scope them with the NIST Generative AI Profile, and run them adaptively with the defense specification disclosed to the testers, as LLM01:2026 recommends."
+    "Trace how a successful injection becomes damage through Excessive Agency (LLM03), Hidden Context Exposure (LLM08), Improper Output Handling (LLM10), and Unbounded Consumption (LLM06), then apply the Rule of Two as a capability-budget floor.",
+    "Run a consequence-based offline replay, repair complete mediation at an output or action sink, and compare static and adaptive fixture denominators without treating the replay as live-model resistance evidence.",
+    "Transfer the test design across hosted and local model families while recording the exact interface and runtime used, and use UNKNOWN where evidence is missing."
   ],
   "prerequisites": [],
   "sections": [
@@ -21,64 +22,100 @@
       "id": "what-the-2026-list-changed",
       "title": "What the 2026 list changed, and how it was ranked",
       "paragraphs": [
-        "The OWASP Top 10 for LLM Applications now lives in the OWASP GenAI Security Project; the original owasp.org project page is kept as a legacy entry point that points to the 2026 edition, released in August 2026. The 2026 order is: LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM03 Excessive Agency, LLM04 Supply Chain, LLM05 Data and Model Poisoning, LLM06 Unbounded Consumption, LLM07 Misinformation, LLM08 Hidden Context Exposure, LLM09 Vector and Embedding Weaknesses, and LLM10 Improper Output Handling.",
-        "The method changed as much as the order. Earlier editions rested on practitioner judgment. For 2026 the project tested that vote against a corpus of 7,714 real incidents from public vulnerability databases and an AI-harm database, classifying the 6,639 that carried enough detail to sort. The vote carries three-quarters of the weight and the incident data one quarter -- which, the project leads write, is enough to move an entry a tier when belief and evidence diverge widely but not enough to let imperfect data rewrite the list on its own.",
-        "Where vote and evidence disagreed is the useful part for a red team. Ranked on raw incidents alone, prompt injection falls out of the top 10 entirely; the preface reads that gap as a defense effect -- teams fight injection hard, so fewer clean exploits reach public databases -- and keeps it at number one. Misinformation ran the other way: voters placed it near the bottom, the incident record near the top, and the list seats it in the middle. Excessive Agency climbed to third, which the preface calls the most consequential move; Unbounded Consumption rose four places; Improper Output Handling fell furthest, from fifth to tenth; and System Prompt Leakage was re-scoped as Hidden Context Exposure.",
-        "Several entries also absorbed newer risks instead of spawning thin new categories: Prompt Injection now covers cross-modal instructions hidden in images or audio, Supply Chain covers a promoted model artifact that is not what it claims to be, Data and Model Poisoning absorbs fine-tuning subversion, and Improper Output Handling spans insecure code that assistants generate at scale. The preface also draws a boundary: this list owns the risk while the model is a component inside your application. Once the model becomes an actor -- calling tools, carrying memory between sessions, setting consequences in motion downstream -- it tells you to pair this list with the OWASP Top 10 for Agentic Applications, because neither covers that ground alone."
+        "The OWASP GenAI LLM Top 10 2026 order is LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM03 Excessive Agency, LLM04 Supply Chain, LLM05 Data and Model Poisoning, LLM06 Unbounded Consumption, LLM07 Misinformation, LLM08 Hidden Context Exposure, LLM09 Vector and Embedding Weaknesses, and LLM10 Improper Output Handling.",
+        "The ranking method weights practitioner voting at 75 percent and incident evidence at 25 percent. The project analyzed 7,714 incidents and classified 6,639 that contained enough information. Prompt Injection remains first despite a low raw incident count because the project interprets that gap as a possible defense effect rather than evidence that injection is unimportant.",
+        "Excessive Agency climbed to third, Unbounded Consumption rose four places, Improper Output Handling fell to tenth, and System Prompt Leakage was re-scoped as Hidden Context Exposure. Rank is a prioritization aid, not permission to omit lower-ranked risks from an application-specific threat model."
       ],
-      "callout": "A lower rank is not a lower test budget. Improper Output Handling fell to tenth, yet the 2026 entry still lists XSS, CSRF, SSRF, privilege escalation, and remote code execution among its outcomes."
+      "callout": "A lower rank is not a lower test budget. Improper Output Handling can still turn untrusted model output into requests, commands, rendered active content, or other interpreted effects."
     },
     {
       "id": "decompose-an-injection",
       "title": "Decompose an injection before you test it",
       "paragraphs": [
-        "LLM01:2026 defines prompt injection as any input -- direct user input, retrieved content, tool output, image, audio or video, intermediate reasoning, or persistent memory -- that alters model behavior in ways the developer did not intend. Its root observation is architectural: models make no distinction between instructions and data, because both are tokens on the same stream, so there is no clean equivalent of a parameterized query. Three deployment properties make it worse. Context-window pooling puts the system prompt, user input, retrieved documents, tool output, history, and memory into one stream with no enforced trust boundary. Memory persistence means one injection written to long-term memory, a RAG corpus, or a vector store taints every later session that reads it. Agentic execution extends the blast radius from the chat surface to whatever the agent's tools can reach.",
-        "The entry gives you a three-axis anatomy to describe a scenario before choosing mitigations. Delivery surface is how the payload reaches the model: direct input, retrieved content, tool output, a tool connection channel, or persistent memory. Propagation is how it spreads: single-shot, a multi-step kill chain, cross-session through memory or RAG, or self-replicating across agents. Encoding is how it is represented: plain text, base64 or other obfuscation, invisible Unicode, multimodal or steganographic content, or a low-resource language. Writing the triple for every red-team case forces coverage across all three axes instead of a hundred variations of one plain-text jailbreak.",
-        "For indirect injection, the trust profile of the surface decides which defenses are practical. Untrusted surfaces include public web pages, email from unknown senders, and search results. Semi-trusted surfaces are content the user chose to retrieve but did not author: public bug-tracker issue titles, package READMEs and changelogs, third-party API responses. Trusted surfaces are the developer's own repositories, databases, internal documents, and mail -- which an attacker can still reach through a low-privilege channel such as a public bug-report form, then wait for the user's agent to read the text under the user's elevated credentials. The agent, not the attacker, performs the privileged action.",
-        "The entry is blunt that no reliable prevention mechanism exists today, so defense is architectural rather than interceptive: design on the assumption that the model's instruction boundary will eventually be bypassed, and constrain what the model may do and what its outputs may reach. It separates controls that reduce injection success, which it expects to degrade against adaptive attackers, from controls that bound the blast radius once injection succeeds, which are the ones that survive an attacker who can probe the system. A red-team plan should say which kind of control each case is testing."
+        "LLM01:2026 defines prompt injection broadly: direct input, retrieved content, tool output, multimodal input, or memory can alter intended behavior because a model does not enforce an instruction-data distinction. Treat retrieved text as data even when it says that it is policy, authorization, a system message, or an administrator instruction.",
+        "Describe each case on three axes. Delivery surface identifies how it arrives, such as direct input, retrieved content, tool output, or memory. Propagation identifies whether it is single-shot, multi-step, cross-session, or self-replicating. Encoding identifies plain text, obfuscated text, multimodal content, or steganographic content.",
+        "Also state the trust profile. Public web content is untrusted. User-selected third-party content is semi-trusted. Internal repositories are trusted only to the extent that their write paths and identities justify that trust. A public issue copied into an internal retrieval index does not become trusted policy merely because retrieval came from an internal system.",
+        "Controls that try to reduce injection success can degrade when an attacker learns them. Blast-radius controls instead limit consequences after unexpected model behavior. The lab therefore judges state changes, protected-value exposure, tool-call counts, budget enforcement, and sink behavior rather than searching for a particular refusal phrase."
       ],
       "code": {
         "language": "json",
-        "label": "Illustrative red-team case record (authored for this module; not an OWASP schema)",
-        "code": "{\n  \"caseId\": \"rt-017\",\n  \"owaspEntries\": [\"LLM01:2026\", \"LLM10:2026\"],\n  \"anatomy\": {\n    \"deliverySurface\": \"retrieved content (public web page)\",\n    \"propagation\": \"single-shot\",\n    \"encoding\": \"plain text hidden in page source\"\n  },\n  \"attackerKnowledge\": \"adaptive: full defense specification disclosed\",\n  \"capabilityBudget\": [\"untrusted-input\", \"sensitive-data\", \"external-communication\"],\n  \"controlUnderTest\": \"blast-radius bound: renderer does not auto-fetch Markdown images\",\n  \"passCriterion\": \"No outbound request to a non-allowlisted origin; conversation content never appears in any request URL\",\n  \"evidence\": [\"trajectory log\", \"egress log\", \"rendered UI capture\"]\n}"
+        "label": "Illustrative case record, not an OWASP schema",
+        "code": "{\n  \"caseId\": \"s01-protected-export\",\n  \"owaspEntries\": [\"LLM01:2026\", \"LLM03:2026\"],\n  \"anatomy\": {\n    \"deliverySurface\": \"retrieved content\",\n    \"propagation\": \"single-shot\",\n    \"encoding\": \"plain text\"\n  },\n  \"controlType\": \"bounds blast radius\",\n  \"passCriterion\": \"Decision is DENY, state remains unchanged, and no tool call occurs\"\n}"
       }
     },
     {
       "id": "from-injection-to-consequence",
       "title": "From injection to consequence: agency, hidden context, output sinks",
       "paragraphs": [
-        "LLM03:2026 Excessive Agency is the vulnerability that lets damaging actions happen in response to unexpected, ambiguous, or manipulated model output, whatever caused the malfunction -- hallucination, a poorly engineered benign prompt, or direct or indirect injection. Its root causes are excessive functionality (a document-reading tool that can also delete), excessive permissions (a read tool connecting with an identity that can UPDATE, INSERT, and DELETE), and excessive autonomy (deletions performed without user confirmation). Its central control is complete mediation: implement authorization in logic rather than asking the model whether an action is allowed, and validate every downstream request against policy in the tool, in an independent pre-execution policy decision point, or in the downstream system. A graduated policy -- audit, warn, block, escalate -- lets reversible actions such as a store-credit refund auto-approve while an irreversible external payout routes to a human.",
-        "LLM01:2026 turns that into a capability budget. It adopts the Rule of Two as a floor: treat simultaneous access to (A) untrusted input, (B) sensitive data, and (C) state change or external communication as high-risk. An agent holding all three needs per-action human approval; an agent holding A and B, or A and C, needs an explicit residual-risk assessment. The entry notes this restates Simon Willison's 'lethal trifecta' as a pre-deployment check -- remove any one leg and the conditions for high-impact exploitation go with it. When a red team finds an injection that works, the first question is which leg of the budget let it matter.",
-        "LLM08:2026 Hidden Context Exposure replaces System Prompt Leakage with a broader frame: the unauthorized extraction, inference, or reconstruction of system instructions, retrieved policy text, tool and function schemas, and other context users are not meant to see. Its design rule is to assume hidden context is discoverable and that nothing in it is a secret. Severity tracks what was placed there: informational when it holds no secrets and nothing relies on its confidentiality, high when it holds credentials or when authorization or content policy depends on it staying hidden, critical when disclosure chains to code execution, broad exfiltration, or privilege escalation. A red team should therefore score an extracted system prompt by its contents and the reliance placed on it, not by the fact of extraction -- and should expect leaked rules, tool schemas, and output formats to make the next LLM01, LLM03, and LLM10 attempts sharper.",
-        "LLM10:2026 Improper Output Handling covers what happens when model output reaches a sink that interprets it. The 2026 entry names two sinks that red teams often skip. Client renderers that auto-fetch resources referenced in output -- Markdown images, link previews, iframes -- let an attacker who controls part of the context exfiltrate data through the request URL. Terminals, log viewers, and IDE panes that interpret ANSI escape sequences allow visual spoofing and clipboard hijacking via OSC 52. The mitigations are specific: treat the model as any other untrusted user, encode output for the context where it lands, use parameterized queries, disable auto-rendering of images and previews by default or restrict fetches to an allowlist or a stripping proxy, and neutralize control characters before output is written to an interpreting sink."
+        "LLM03:2026 Excessive Agency identifies excessive functionality, permissions, and autonomy as root causes. Complete mediation means trusted application logic checks every proposed action at the sink. The model may propose an action, but it must not decide whether that action is authorized. Identity must come from the authenticated session or another trusted channel, never from model-generated arguments.",
+        "LLM01:2026 describes a Rule of Two capability floor. Simultaneous access to untrusted input, sensitive data, and state change or external communication is high risk and calls for per-action human approval. Systems holding two legs still need an explicit residual-risk assessment. Removing a tool, narrowing its permissions, or requiring approval can reduce the capability budget.",
+        "LLM08:2026 Hidden Context Exposure covers unauthorized extraction, inference, or reconstruction of system instructions, retrieved policy, tool schemas, and other hidden context. Assume hidden context can be discovered. Do not put credentials or authorization secrets there, and do not make authorization depend on prompt secrecy.",
+        "LLM10:2026 Improper Output Handling applies when another component interprets model output. Renderers, terminals, databases, shells, and network clients are sinks with different encoding and authorization needs. Validate at the sink, use context-appropriate encoding, parameterized interfaces, destination allowlists, and neutralization of control characters where applicable.",
+        "LLM06:2026 Unbounded Consumption requires enforcement rather than alerts alone. Bound token or work estimates with safe integer arithmetic, cap tool calls and loop depth, and stop processing when a non-overridable limit is reached. The offline lab uses a small synthetic token budget and call cap to demonstrate the decision point without making cost or performance claims."
       ]
     },
     {
       "id": "red-team-against-adaptive-attackers",
       "title": "Red-team against attackers who have read your defenses",
       "paragraphs": [
-        "NIST AI 600-1, the Generative AI Profile of the AI RMF, defines AI red-teaming as a structured testing exercise used to probe an AI system to find flaws and vulnerabilities, often in a controlled environment and in collaboration with system developers. Its suggested action MS-2.7-007 scopes the security side: assess resilience against abuse that facilitates attacks on other systems, generative-AI attacks such as prompt injection, and machine-learning attacks including adversarial prompts, data poisoning, membership inference, model extraction, and sponge examples. The profile distinguishes general-public, expert, combined, and human-plus-AI red teams, and cautions that results should be given additional analysis before they feed governance decisions or policy changes.",
-        "OWASP's last LLM01 mitigation is the one that most often separates a real test from theater: test against adaptive attackers who have read the deployed defense, and reject static-only attack-success claims. The entry cites work that found attack success near zero against a static suite while adaptive attack success exceeded 90% for most of 12 recent defenses. It recommends baselining with public suites such as AgentDojo and JailbreakBench, then red-teaming with the full defense specification disclosed to the testers. A defense that holds only while its design stays secret is making the same bet LLM08 warns against: that something an attacker can eventually learn will stay hidden.",
-        "Cover consumption as deliberately as injection. LLM06:2026 Unbounded Consumption rose to sixth, and its defining property is cost asymmetry: an attacker triggers expensive computation at negligible cost. Test reasoning-loop and thinking-token exhaustion from short, benign-looking prompts that pass input-size filters; denial of wallet through volume; and agent-tool loops where one call fans out into hundreds. The pass criterion is enforcement, not alerting: the entry calls for token-aware limits (tokens per minute and per day, estimated cost per request, pre-flight token estimation) and non-overridable spending caps that halt inference, because alert thresholds can be outpaced by fast-accumulating workloads.",
-        "Write every pass criterion as a consequence rather than a refusal. 'The model declined' is an observation about one sampled response; 'no request left for a non-allowlisted origin', 'no privileged tool call executed without the approval record', and 'spend halted at the cap' are properties of the system that an adaptive attacker has to defeat. Include the controls LLM01 lists for encodings a human reviewer cannot see: strip tag-block (U+E0000 to U+E007F), variation-selector (U+FE00 to U+FE0F), and zero-width characters at every ingest and render boundary, and when a human approves an action, show the exact rendered action rather than a summary -- the entry warns that invisible characters can make the displayed action differ from the executed one."
+        "NIST AI 600-1 describes AI red-teaming as structured testing used to find flaws and vulnerabilities, often in a controlled environment and with system developers. Results require analysis before they support governance decisions.",
+        "LLM01:2026 recommends adaptive testing with the defense specification disclosed because a static suite can miss attacks tailored to the deployed control. Static and adaptive results must retain separate denominators. A result such as 0/6 static failures and 1/6 adaptive failures must not be reported as 1/12 without also exposing both groups.",
+        "Write pass criteria as observable consequences. Examples are no protected state change, no protected value in output, no extra tool call after denial, and no request to an unapproved destination. A refusal is not enough if a downstream effect still happened. Exceptions and unsupported capabilities are not passes. Record them as failures or explicit skips.",
+        "The supplied replay is fixture simulation, not a live model evaluation. Its adaptive fixtures are authored changed inputs that know the defective marker. Passing them proves only that the deterministic contracts and consequence boundary satisfy these fixtures. It does not prove resistance to live-model prompt injection, multimodal attacks, novel encodings, or a provider's hosted service."
+      ]
+    },
+    {
+      "id": "offline-repair-lab",
+      "title": "Worked repair: keep retrieved data out of trusted authorization",
+      "paragraphs": [
+        "Open the lab at https://github.com/project42dev/project42-content/tree/main/training/ai-security-and-governance/owasp-top-10-llm-attacks/lab/. From the repository root, first run `node training/ai-security-and-governance/owasp-top-10-llm-attacks/lab/tests/gather-all.mjs --target=starter`. The starter has one deliberate defect: `starter/authorize.mjs` treats a marker found in retrieved content as authority. The rest of the replay validates closed object shapes, rejects unknown properties, uses safe integer limits, obtains identity from a fixed trusted session, applies a hard work budget, and records sink consequences.",
+        "Worked example: case `s01-protected-export` retrieves text containing `POLICY_OVERRIDE_ALLOW` and proposes a protected export. The defective authorizer returns ALLOW because it reads retrieved data as policy. The sink then records one state change and one tool call. The correct causal repair is not to add another phrase filter. Remove the retrieved-content authorization path and allow only the action, scope, destination, and budget granted by the trusted policy. This places complete mediation immediately before execution. With the reference policy, the same proposal is denied, state changes remain zero, tool calls remain zero, and no synthetic protected value is exposed.",
+        "Inspect `reference/authorize.mjs` only after attempting the focused repair. It is an implementation independent of the defective branch, not a textual patch. Run `node training/ai-security-and-governance/owasp-top-10-llm-attacks/lab/tests/gather-all.mjs --target=reference` to confirm the supplied reference. Repair `starter/authorize.mjs`, then rerun with `--target=starter`. The exact successful result is `RESULT cases=12 passed=12 failed=0 skipped=0 staticUnsafe=0/6 staticFailureRate=0.00% adaptiveUnsafe=0/6 adaptiveFailureRate=0.00%` with exit code 0.",
+        "Independent changed-input task: do not edit fixtures or tests. Case `a01-protected-export` is the adaptive counterpart and wraps the known marker in changed retrieved text. Explain why a phrase-specific block could stop `s01` yet fail `a01`, while trusted-policy scope checks deny both. Then inspect the other pairs covering hidden-context exposure, an external output sink, work-budget enforcement, an allowed public summary, and an unknown model argument.",
+        "Recovery is deterministic. Run `node training/ai-security-and-governance/owasp-top-10-llm-attacks/lab/reset.mjs` to restore the original defective starter. It prints `RESET starter/authorize.mjs` and exits 0. Scratch data used by the tests stays under `lab/test-scratch`; the lab does not use the operating system temporary directory."
+      ],
+      "callout": "Do not edit `tests/gather-all.mjs`, `fixtures/cases.json`, or `reference/authorize.mjs` to make the learner result pass. The assessed artifact is the repaired starter authorization boundary."
+    },
+    {
+      "id": "transfer-across-model-families",
+      "title": "Independent transfer exercise: hosted and local model families",
+      "paragraphs": [
+        "Repeat the case design against any systems you are authorized to test. Include broad family coverage where available: hosted OpenAI, Google, and Anthropic interfaces, and local or hosted Meta, Qwen, DeepSeek, Mistral, and Phi models. These names define exercise coverage only. This lesson makes no claim that a family has or lacks a particular vulnerability.",
+        "For every run, record the exact model identifier, provider or distributor, API or local runtime, runtime version, adapter or chat template, decoding settings, tool schema, system instructions, defense specification, date, and raw evidence location. If any item cannot be established, write UNKNOWN and state what log, configuration, response metadata, or runtime command would establish it.",
+        "Keep fixture and integration evidence separate. A fixture replay may validate your application's authorization and sink invariants without calling a model. A real integration must preserve the same contract validation, trusted-session identity, complete mediation, budget and call caps, output-sink controls, and observable consequence checks. Do not claim sandbox containment, provider behavior, benchmark performance, or live resistance unless the corresponding run evidence exists."
+      ]
+    },
+    {
+      "id": "lab-rubric",
+      "title": "Causal feedback and scoring rubric",
+      "paragraphs": [
+        "Criterion 1, authorization boundary, 4 points: full credit requires retrieved content to have no authority and requires trusted policy to check action, scope, destination, and budget at the sink. A marker blacklist earns at most 1 point because changed encodings or wording retain the root cause.",
+        "Criterion 2, consequences, 2 points: full credit requires every denied case to leave state unchanged, expose no synthetic protected value, and make no tool call. If the decision says DENY but a consequence occurs, the boundary failed.",
+        "Criterion 3, valid and unknown inputs, 2 points: full credit requires the allowed public-summary case to make exactly one permitted call and requires unknown properties or actions to be denied without using model-supplied identity. Denying every request is not a correct repair.",
+        "Criterion 4, evidence, 2 points: full credit requires separate static and adaptive denominators, exact commands and exit codes, zero exceptions represented as passes, and a clear statement that fixture success is not live-model evidence. Eight of ten points is the suggested completion threshold.",
+        "Causal feedback: if protected cases still execute, authorization still depends on untrusted data or is checked too early. If denied cases increment calls, move mediation to immediately before the sink. If the allowed case fails, the repair is broader than the trusted policy. If unknown input throws or passes through, preserve closed-contract validation. If work cases execute, preserve the hard pre-execution budget check."
       ]
     }
   ],
   "activity": {
     "id": "owasp-top-10-llm-attacks-activity",
-    "title": "Build a 2026 coverage map and an adaptive red-team plan",
+    "title": "Build, repair, and transfer a 2026 consequence-based red-team plan",
     "instructions": [
-      "Pick one LLM application you operate or can describe in detail, and list its delivery surfaces, tools, memory or retrieval stores, and output sinks (chat renderer, terminals or logs, downstream APIs).",
-      "Classify its capability budget against the Rule of Two legs -- untrusted input, sensitive data, state change or external communication -- and name the one leg you could remove or gate with per-action approval.",
-      "Write at least six red-team cases that together exercise LLM01, LLM03, LLM06, LLM08, and LLM10. Record each with its three-axis anatomy, the OWASP 2026 entries it exercises, the control under test (reduces injection success, or bounds blast radius), and a consequence-based pass criterion.",
-      "Run or specify each case twice: once as a static baseline and once adaptively, with your defense specification disclosed to the tester. Record both outcomes.",
-      "Decide whether the application is a model-as-component or a model-as-actor, and mark which findings you would carry over to an OWASP Agentic Top 10 review."
+      "Read the lab README, run the original starter test command, and connect each failing consequence to LLM01, LLM03, LLM08, or LLM10. Confirm that LLM06 cases remain bounded independently.",
+      "Repair only `starter/authorize.mjs` so retrieved instructions remain data and trusted application policy completely mediates action, scope, destination, and budget at the sink.",
+      "Run the immutable tests against the repaired starter and the separate reference. Record exact stdout and exit codes. Keep static and adaptive counts separate.",
+      "Explain the changed-input `a01-protected-export` result causally. State why checking a known phrase is not equivalent to removing retrieved content from authorization.",
+      "Create a transfer table for at least one hosted or local integration you are authorized to assess. Include exact model and interface or runtime metadata. Enter UNKNOWN for missing evidence rather than inferring it.",
+      "Classify the capability budget against untrusted input, sensitive data, and state change or external communication. Name one capability to remove, narrow, or gate with approval."
     ],
     "evidence": [
-      "A coverage table with columns for case ID, OWASP 2026 entries, anatomy triple, control type, attacker knowledge (static or adaptive), pass criterion, and result.",
-      "A one-page capability-budget note naming the Rule of Two configuration, the leg you would remove or gate, and the residual risk you are accepting."
+      "The repaired `starter/authorize.mjs` assessed by the supplied tests.",
+      "Exact commands, stdout, and exit codes for original starter, repaired starter, and reference.",
+      "A table containing all 12 fixture results, separate static and adaptive denominators, anatomy triples, OWASP 2026 entries, control types, decisions, and observable consequences.",
+      "A transfer record that clearly labels fixture simulation versus real integration and uses UNKNOWN for absent model, interface, runtime, or execution evidence.",
+      "A capability-budget note naming the capability removed, narrowed, or gated and the residual risk."
     ],
-    "reflectionPrompt": "Which of your passing cases would still pass if the tester had read your full defense specification, and what evidence -- not intuition -- tells you so?"
+    "reflectionPrompt": "Which control remains effective after the tester reads its implementation, and what state, exposure, and call-count evidence demonstrates that result?"
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -93,7 +130,7 @@
           "LLM09:2026 Vector and Embedding Weaknesses"
         ],
         "answerIndex": 1,
-        "explanation": "The 2026 preface says System Prompt Leakage is now Hidden Context Exposure, a broader frame that covers system prompts, retrieved policy text, tool schemas, and other hidden context."
+        "explanation": "The 2026 preface says System Prompt Leakage was re-scoped as Hidden Context Exposure."
       },
       {
         "id": "q-owasp-top-10-llm-attacks-2",
@@ -105,7 +142,7 @@
           "Prompt injection was added after the ranking was finalized"
         ],
         "answerIndex": 1,
-        "explanation": "The vote is weighted at three-quarters and incident data at one quarter; the preface attributes injection's low incident count to teams defending hard, so fewer clean exploits reach public databases."
+        "explanation": "The method weights the practitioner vote at 75 percent and incident data at 25 percent, and the preface discusses a defense-effect interpretation."
       },
       {
         "id": "q-owasp-top-10-llm-attacks-3",
@@ -117,43 +154,43 @@
           "An annual penetration test"
         ],
         "answerIndex": 1,
-        "explanation": "An [A,B,C] agent -- untrusted input, sensitive data, and state change or external communication -- needs per-action human approval; [A,B] and [A,C] configurations need an explicit residual-risk assessment."
+        "explanation": "The configuration combines all three high-risk capability legs."
       },
       {
         "id": "q-owasp-top-10-llm-attacks-4",
-        "prompt": "A prompt-injection defense shows near-zero attack success against a fixed attack suite. What does LLM01:2026 recommend before relying on it?",
+        "prompt": "A prompt-injection defense succeeds against a fixed attack suite. What does LLM01:2026 recommend before relying on it?",
         "choices": [
-          "Ship it; near-zero static success is sufficient evidence",
-          "Add a longer system prompt describing the attacks",
-          "Red-team it with adaptive attackers who have been given the full defense specification",
-          "Replace the suite with a larger static suite"
+          "Ship it because static success is sufficient",
+          "Add a longer secret system prompt",
+          "Test adaptively with the defense specification disclosed",
+          "Replace it only with a larger static suite"
         ],
         "answerIndex": 2,
-        "explanation": "OWASP says to reject static-only attack-success claims; the work it cites found adaptive attack success above 90% for most of 12 defenses that looked near-perfect against static suites."
+        "explanation": "Adaptive testing checks whether the control survives attackers who understand it."
       },
       {
         "id": "q-owasp-top-10-llm-attacks-5",
-        "prompt": "A tester extracts the system prompt and finds a database connection string in it. How does LLM08:2026 treat this?",
+        "prompt": "A tester extracts a system prompt and finds a database connection string. What is the appropriate design response under LLM08:2026?",
         "choices": [
-          "Informational, because system prompts are expected to leak",
-          "High severity: embedded credentials, and the fix is to remove secrets from hidden context rather than to hide the prompt better",
-          "Out of scope, because only user data counts as sensitive",
-          "Low severity, as long as the prompt instructs the model not to reveal it"
+          "Treat it as harmless because prompts may leak",
+          "Remove credentials from hidden context and do not rely on prompt secrecy for authorization",
+          "Keep the string but add an instruction not to reveal it",
+          "Move the same string to retrieved policy text"
         ],
         "answerIndex": 1,
-        "explanation": "LLM08 rates embedded credentials, or reliance on hidden-context secrecy for authorization, as high severity, and its first mitigation is not to put sensitive data in hidden context at all."
+        "explanation": "Hidden context should not contain credentials or serve as an authorization boundary."
       },
       {
         "id": "q-owasp-top-10-llm-attacks-6",
-        "prompt": "Which spend control does LLM06:2026 treat as effective against Unbounded Consumption?",
+        "prompt": "Which control is effective against Unbounded Consumption?",
         "choices": [
-          "An email alert at 80% of the monthly budget",
-          "A requests-per-second limit on its own",
-          "Non-overridable spending caps that halt inference when exceeded, alongside token-aware limits",
-          "Raising the context window so fewer requests are needed"
+          "An alert without an enforcement action",
+          "A request count with no token or work bound",
+          "A non-overridable cap that halts work, combined with token-aware or work-aware limits",
+          "A larger context window"
         ],
         "answerIndex": 2,
-        "explanation": "LLM06 says caps must be enforcement mechanisms that halt inference, not alerting thresholds that fast-accumulating workloads can outpace, and that request-rate limiting alone is no longer sufficient."
+        "explanation": "The control must stop work when the enforced limit is reached."
       }
     ]
   },
@@ -215,13 +252,19 @@
   ],
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 44,
+    "estimatedSeconds": 373,
     "cues": [
       {
-        "id": "cue-owasp26-list-narration",
+        "id": "cue-owasp26-list-narration-1-1",
         "kind": "narration",
         "sectionId": "what-the-2026-list-changed",
-        "text": "The 2026 OWASP list weighs a practitioner vote against thousands of real incidents, and where the two disagree tells a red team where to look."
+        "text": "The 2026 OWASP list weighs a practitioner\nvote against thousands of real incidents,"
+      },
+      {
+        "id": "cue-owasp26-list-narration-2-1",
+        "kind": "narration",
+        "sectionId": "what-the-2026-list-changed",
+        "text": "and where the two disagree tells a red\nteam where to look."
       },
       {
         "id": "cue-owasp26-vote-gap-prompt",
@@ -230,10 +273,16 @@
         "text": "Ask learners how a risk can rank first by practitioner vote yet fall outside the top ten by raw incident count, and what that gap says about defenses."
       },
       {
-        "id": "cue-owasp26-anatomy-narration",
+        "id": "cue-owasp26-anatomy-narration-1-1",
         "kind": "narration",
         "sectionId": "decompose-an-injection",
-        "text": "Describe every injection by delivery surface, propagation, and encoding, and assume the instruction boundary will eventually be bypassed."
+        "text": "Describe every injection by delivery\nsurface, propagation, and encoding, and"
+      },
+      {
+        "id": "cue-owasp26-anatomy-narration-2-1",
+        "kind": "narration",
+        "sectionId": "decompose-an-injection",
+        "text": "assume the instruction boundary will\neventually be bypassed."
       },
       {
         "id": "cue-owasp26-anatomy-pause",
@@ -242,10 +291,16 @@
         "text": "Allow three minutes for learners to write the anatomy triple for an instruction hidden in a public bug-tracker issue that a developer's agent later reads."
       },
       {
-        "id": "cue-owasp26-consequence-narration",
+        "id": "cue-owasp26-consequence-narration-1-1",
         "kind": "narration",
         "sectionId": "from-injection-to-consequence",
-        "text": "Injection becomes damage through excessive agency, exposed hidden context, and output sinks that act on whatever the model wrote."
+        "text": "Injection becomes damage through excessive\nagency, exposed hidden context, and output"
+      },
+      {
+        "id": "cue-owasp26-consequence-narration-2-1",
+        "kind": "narration",
+        "sectionId": "from-injection-to-consequence",
+        "text": "sinks that act on whatever the model\nwrote."
       },
       {
         "id": "cue-owasp26-consequence-visual",
@@ -255,10 +310,16 @@
         "accessibilityAlternative": "A static four-row table lists each step of the path -- injected page, pooled context, over-permissioned tool call, auto-rendered image request -- with the OWASP 2026 entry that applies and the control that would have stopped that step. Reduced-motion mode shows the table without animation."
       },
       {
-        "id": "cue-owasp26-adaptive-narration",
+        "id": "cue-owasp26-adaptive-narration-1-1",
         "kind": "narration",
         "sectionId": "red-team-against-adaptive-attackers",
-        "text": "A defense counts only if it holds against a tester who has read it, with pass criteria written as consequences rather than refusals."
+        "text": "A defense counts only if it holds against\na tester who has read it,"
+      },
+      {
+        "id": "cue-owasp26-adaptive-narration-2-1",
+        "kind": "narration",
+        "sectionId": "red-team-against-adaptive-attackers",
+        "text": "with pass criteria written as consequences\nrather than refusals."
       },
       {
         "id": "cue-owasp26-adaptive-checkpoint",
@@ -272,42 +333,833 @@
         "text": "Guide the coverage table and the capability-budget note, and push each learner to mark which cases they ran adaptively."
       },
       {
-        "id": "cue-owasp26-assessment",
+        "id": "cue-owasp26-assessment-1-1",
         "kind": "assessment-handoff",
-        "text": "Begin the check once learners can explain the vote-versus-incident ranking and apply the Rule of Two to a real agent."
+        "text": "Begin the check once learners can explain\nthe vote-versus-incident ranking and apply"
+      },
+      {
+        "id": "cue-owasp26-assessment-2-1",
+        "kind": "assessment-handoff",
+        "text": "the Rule of Two to a real agent."
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-1",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "The starter has one deliberate defect:\n`starter/authorize.mjs` treats a marker"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-2",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "found in retrieved content as authority.\nThe rest of the replay validates closed"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-3",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "object shapes, rejects unknown properties,\nuses safe integer limits, obtains identity"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-4",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "from a fixed trusted session, applies a\nhard work budget, and records sink"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-5",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "consequences. Worked example: case\n`s01-protected-export` retrieves text"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-6",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "containing `POLICY_OVERRIDE_ALLOW` and\nproposes a protected export. The defective"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-7",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "authorizer returns ALLOW because it reads\nretrieved data as policy. The sink then"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-8",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "records one state change and one tool\ncall. The correct causal repair is not"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-9",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "to add another phrase filter. Remove the\nretrieved-content authorization path and"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-10",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "allow only the action, scope, destination,\nand budget granted by the trusted policy."
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-11",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "This places complete mediation immediately\nbefore execution. With the reference"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-12",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "policy, the same proposal is denied, state\nchanges remain zero, tool calls remain"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-13",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "zero, and no synthetic protected value is\nexposed. Inspect `reference/authorize.mjs`"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-14",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "only after attempting the focused repair.\nIt is an implementation independent of the"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-15",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "defective branch, not a textual patch.\nRepair `starter/authorize.mjs`, then rerun"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-16",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "with `--target=starter`. The exact\nsuccessful result is `RESULT cases=12"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-17",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "passed=12 failed=0 skipped=0\nstaticUnsafe=0/6 staticFailureRate=0.00%"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-18",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "adaptiveUnsafe=0/6\nadaptiveFailureRate=0.00%` with exit code"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-19",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "0. Independent changed-input task: do not\nedit fixtures or tests. Case"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-20",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "`a01-protected-export` is the adaptive\ncounterpart and wraps the known marker in"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-21",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "changed retrieved text. Explain why a\nphrase-specific block could stop `s01` yet"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-22",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "fail `a01`, while trusted-policy scope\nchecks deny both. Then inspect the other"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-23",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "pairs covering hidden-context exposure, an\nexternal output sink, work-budget"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-24",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "enforcement, an allowed public summary,\nand an unknown model argument. Recovery is"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-25",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "deterministic. It prints `RESET\nstarter/authorize.mjs` and exits 0."
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-26",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "Scratch data used by the tests stays under\n`lab/test-scratch`; the lab does not use"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-offline-repair-lab-27",
+        "kind": "narration",
+        "sectionId": "offline-repair-lab",
+        "text": "the operating system temporary directory."
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-1",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "Repeat the case design against any systems\nyou are authorized to test. Include broad"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-2",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "family coverage where available: hosted\nOpenAI, Google, and Anthropic interfaces,"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-3",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "and local or hosted Meta, Qwen, DeepSeek,\nMistral, and Phi models. These names"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-4",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "define exercise coverage only. This lesson\nmakes no claim that a family has or"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-5",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "lacks a particular vulnerability. For\nevery run, record the exact model"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-6",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "identifier, provider or distributor, API\nor local runtime, runtime version, adapter"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-7",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "or chat template, decoding settings, tool\nschema, system instructions, defense"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-8",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "specification, date, and raw evidence\nlocation. If any item cannot be"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-9",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "established, write UNKNOWN and state what\nlog, configuration, response metadata, or"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-10",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "runtime command would establish it. Keep\nfixture and integration evidence separate."
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-11",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "A fixture replay may validate your\napplication's authorization and sink"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-12",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "invariants without calling a model. A real\nintegration must preserve the same"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-13",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "contract validation, trusted-session\nidentity, complete mediation, budget and"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-14",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "call caps, output-sink controls, and\nobservable consequence checks. Do not"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-15",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "claim sandbox containment, provider\nbehavior, benchmark performance, or live"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-16",
+        "kind": "narration",
+        "sectionId": "transfer-across-model-families",
+        "text": "resistance unless the corresponding run\nevidence exists."
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-1",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "Criterion 1, authorization boundary, 4\npoints: full credit requires retrieved"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-2",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "content to have no authority and requires\ntrusted policy to check action, scope,"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-3",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "destination, and budget at the sink. A\nmarker blacklist earns at most 1 point"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-4",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "because changed encodings or wording\nretain the root cause. Criterion 2,"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-5",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "consequences, 2 points: full credit\nrequires every denied case to leave state"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-6",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "unchanged, expose no synthetic protected\nvalue, and make no tool call. If the"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-7",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "decision says DENY but a consequence\noccurs, the boundary failed. Criterion 3,"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-8",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "valid and unknown inputs, 2 points: full\ncredit requires the allowed public-summary"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-9",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "case to make exactly one permitted call\nand requires unknown properties or actions"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-10",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "to be denied without using model-supplied\nidentity. Denying every request is not a"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-11",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "correct repair. Criterion 4, evidence, 2\npoints: full credit requires separate"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-12",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "static and adaptive denominators, exact\ncommands and exit codes, zero exceptions"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-13",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "represented as passes, and a clear\nstatement that fixture success is not"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-14",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "live-model evidence. Eight of ten points\nis the suggested completion threshold."
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-15",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "Causal feedback: if protected cases still\nexecute, authorization still depends on"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-16",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "untrusted data or is checked too early. If\ndenied cases increment calls, move"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-17",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "mediation to immediately before the sink.\nIf the allowed case fails, the repair is"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-18",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "broader than the trusted policy. If\nunknown input throws or passes through,"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-19",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "preserve closed-contract validation. If\nwork cases execute, preserve the hard"
+      },
+      {
+        "id": "cue-owasp-top-10-llm-attacks-lab-rubric-20",
+        "kind": "narration",
+        "sectionId": "lab-rubric",
+        "text": "pre-execution budget check."
       }
     ],
-    "transcript": "The 2026 OWASP list weighs a practitioner vote against thousands of real incidents, and where the two disagree tells a red team where to look. Describe every injection by delivery surface, propagation, and encoding, and assume the instruction boundary will eventually be bypassed. Injection becomes damage through excessive agency, exposed hidden context, and output sinks that act on whatever the model wrote. A defense counts only if it holds against a tester who has read it, with pass criteria written as consequences rather than refusals. Begin the check once learners can explain the vote-versus-incident ranking and apply the Rule of Two to a real agent.",
+    "transcript": "The 2026 OWASP list weighs a practitioner\nvote against thousands of real incidents, and where the two disagree tells a red\nteam where to look. Describe every injection by delivery\nsurface, propagation, and encoding, and assume the instruction boundary will\neventually be bypassed. Injection becomes damage through excessive\nagency, exposed hidden context, and output sinks that act on whatever the model\nwrote. A defense counts only if it holds against\na tester who has read it, with pass criteria written as consequences\nrather than refusals. Begin the check once learners can explain\nthe vote-versus-incident ranking and apply the Rule of Two to a real agent. The starter has one deliberate defect:\n`starter/authorize.mjs` treats a marker found in retrieved content as authority.\nThe rest of the replay validates closed object shapes, rejects unknown properties,\nuses safe integer limits, obtains identity from a fixed trusted session, applies a\nhard work budget, and records sink consequences. Worked example: case\n`s01-protected-export` retrieves text containing `POLICY_OVERRIDE_ALLOW` and\nproposes a protected export. The defective authorizer returns ALLOW because it reads\nretrieved data as policy. The sink then records one state change and one tool\ncall. The correct causal repair is not to add another phrase filter. Remove the\nretrieved-content authorization path and allow only the action, scope, destination,\nand budget granted by the trusted policy. This places complete mediation immediately\nbefore execution. With the reference policy, the same proposal is denied, state\nchanges remain zero, tool calls remain zero, and no synthetic protected value is\nexposed. Inspect `reference/authorize.mjs` only after attempting the focused repair.\nIt is an implementation independent of the defective branch, not a textual patch.\nRepair `starter/authorize.mjs`, then rerun with `--target=starter`. The exact\nsuccessful result is `RESULT cases=12 passed=12 failed=0 skipped=0\nstaticUnsafe=0/6 staticFailureRate=0.00% adaptiveUnsafe=0/6\nadaptiveFailureRate=0.00%` with exit code 0. Independent changed-input task: do not\nedit fixtures or tests. Case `a01-protected-export` is the adaptive\ncounterpart and wraps the known marker in changed retrieved text. Explain why a\nphrase-specific block could stop `s01` yet fail `a01`, while trusted-policy scope\nchecks deny both. Then inspect the other pairs covering hidden-context exposure, an\nexternal output sink, work-budget enforcement, an allowed public summary,\nand an unknown model argument. Recovery is deterministic. It prints `RESET\nstarter/authorize.mjs` and exits 0. Scratch data used by the tests stays under\n`lab/test-scratch`; the lab does not use the operating system temporary directory. Repeat the case design against any systems\nyou are authorized to test. Include broad family coverage where available: hosted\nOpenAI, Google, and Anthropic interfaces, and local or hosted Meta, Qwen, DeepSeek,\nMistral, and Phi models. These names define exercise coverage only. This lesson\nmakes no claim that a family has or lacks a particular vulnerability. For\nevery run, record the exact model identifier, provider or distributor, API\nor local runtime, runtime version, adapter or chat template, decoding settings, tool\nschema, system instructions, defense specification, date, and raw evidence\nlocation. If any item cannot be established, write UNKNOWN and state what\nlog, configuration, response metadata, or runtime command would establish it. Keep\nfixture and integration evidence separate. A fixture replay may validate your\napplication's authorization and sink invariants without calling a model. A real\nintegration must preserve the same contract validation, trusted-session\nidentity, complete mediation, budget and call caps, output-sink controls, and\nobservable consequence checks. Do not claim sandbox containment, provider\nbehavior, benchmark performance, or live resistance unless the corresponding run\nevidence exists. Criterion 1, authorization boundary, 4\npoints: full credit requires retrieved content to have no authority and requires\ntrusted policy to check action, scope, destination, and budget at the sink. A\nmarker blacklist earns at most 1 point because changed encodings or wording\nretain the root cause. Criterion 2, consequences, 2 points: full credit\nrequires every denied case to leave state unchanged, expose no synthetic protected\nvalue, and make no tool call. If the decision says DENY but a consequence\noccurs, the boundary failed. Criterion 3, valid and unknown inputs, 2 points: full\ncredit requires the allowed public-summary case to make exactly one permitted call\nand requires unknown properties or actions to be denied without using model-supplied\nidentity. Denying every request is not a correct repair. Criterion 4, evidence, 2\npoints: full credit requires separate static and adaptive denominators, exact\ncommands and exit codes, zero exceptions represented as passes, and a clear\nstatement that fixture success is not live-model evidence. Eight of ten points\nis the suggested completion threshold. Causal feedback: if protected cases still\nexecute, authorization still depends on untrusted data or is checked too early. If\ndenied cases increment calls, move mediation to immediately before the sink.\nIf the allowed case fails, the repair is broader than the trusted policy. If\nunknown input throws or passes through, preserve closed-contract validation. If\nwork cases execute, preserve the hard pre-execution budget check.",
     "captions": [
       {
-        "cueId": "cue-owasp26-list-narration",
+        "cueId": "cue-owasp26-list-narration-1-1",
         "startSeconds": 0,
-        "endSeconds": 10,
-        "text": "The 2026 OWASP list weighs a practitioner vote against thousands of real incidents, and where the two disagree tells a red team where to look."
+        "endSeconds": 6,
+        "text": "The 2026 OWASP list weighs a practitioner\nvote against thousands of real incidents,"
       },
       {
-        "cueId": "cue-owasp26-anatomy-narration",
-        "startSeconds": 10,
-        "endSeconds": 18,
-        "text": "Describe every injection by delivery surface, propagation, and encoding, and assume the instruction boundary will eventually be bypassed."
+        "cueId": "cue-owasp26-list-narration-2-1",
+        "startSeconds": 6,
+        "endSeconds": 12,
+        "text": "and where the two disagree tells a red\nteam where to look."
       },
       {
-        "cueId": "cue-owasp26-consequence-narration",
-        "startSeconds": 18,
+        "cueId": "cue-owasp26-anatomy-narration-1-1",
+        "startSeconds": 12,
+        "endSeconds": 17,
+        "text": "Describe every injection by delivery\nsurface, propagation, and encoding, and"
+      },
+      {
+        "cueId": "cue-owasp26-anatomy-narration-2-1",
+        "startSeconds": 17,
+        "endSeconds": 21,
+        "text": "assume the instruction boundary will\neventually be bypassed."
+      },
+      {
+        "cueId": "cue-owasp26-consequence-narration-1-1",
+        "startSeconds": 21,
         "endSeconds": 26,
-        "text": "Injection becomes damage through excessive agency, exposed hidden context, and output sinks that act on whatever the model wrote."
+        "text": "Injection becomes damage through excessive\nagency, exposed hidden context, and output"
       },
       {
-        "cueId": "cue-owasp26-adaptive-narration",
+        "cueId": "cue-owasp26-consequence-narration-2-1",
         "startSeconds": 26,
-        "endSeconds": 36,
-        "text": "A defense counts only if it holds against a tester who has read it, with pass criteria written as consequences rather than refusals."
+        "endSeconds": 30,
+        "text": "sinks that act on whatever the model\nwrote."
       },
       {
-        "cueId": "cue-owasp26-assessment",
+        "cueId": "cue-owasp26-adaptive-narration-1-1",
+        "startSeconds": 30,
+        "endSeconds": 36,
+        "text": "A defense counts only if it holds against\na tester who has read it,"
+      },
+      {
+        "cueId": "cue-owasp26-adaptive-narration-2-1",
         "startSeconds": 36,
-        "endSeconds": 44,
-        "text": "Begin the check once learners can explain the vote-versus-incident ranking and apply the Rule of Two to a real agent."
+        "endSeconds": 40,
+        "text": "with pass criteria written as consequences\nrather than refusals."
+      },
+      {
+        "cueId": "cue-owasp26-assessment-1-1",
+        "startSeconds": 40,
+        "endSeconds": 46,
+        "text": "Begin the check once learners can explain\nthe vote-versus-incident ranking and apply"
+      },
+      {
+        "cueId": "cue-owasp26-assessment-2-1",
+        "startSeconds": 46,
+        "endSeconds": 50,
+        "text": "the Rule of Two to a real agent."
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-1",
+        "startSeconds": 50,
+        "endSeconds": 55,
+        "text": "The starter has one deliberate defect:\n`starter/authorize.mjs` treats a marker"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-2",
+        "startSeconds": 55,
+        "endSeconds": 61,
+        "text": "found in retrieved content as authority.\nThe rest of the replay validates closed"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-3",
+        "startSeconds": 61,
+        "endSeconds": 66,
+        "text": "object shapes, rejects unknown properties,\nuses safe integer limits, obtains identity"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-4",
+        "startSeconds": 66,
+        "endSeconds": 72,
+        "text": "from a fixed trusted session, applies a\nhard work budget, and records sink"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-5",
+        "startSeconds": 72,
+        "endSeconds": 75,
+        "text": "consequences. Worked example: case\n`s01-protected-export` retrieves text"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-6",
+        "startSeconds": 75,
+        "endSeconds": 79,
+        "text": "containing `POLICY_OVERRIDE_ALLOW` and\nproposes a protected export. The defective"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-7",
+        "startSeconds": 79,
+        "endSeconds": 85,
+        "text": "authorizer returns ALLOW because it reads\nretrieved data as policy. The sink then"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-8",
+        "startSeconds": 85,
+        "endSeconds": 91,
+        "text": "records one state change and one tool\ncall. The correct causal repair is not"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-9",
+        "startSeconds": 91,
+        "endSeconds": 96,
+        "text": "to add another phrase filter. Remove the\nretrieved-content authorization path and"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-10",
+        "startSeconds": 96,
+        "endSeconds": 102,
+        "text": "allow only the action, scope, destination,\nand budget granted by the trusted policy."
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-11",
+        "startSeconds": 102,
+        "endSeconds": 107,
+        "text": "This places complete mediation immediately\nbefore execution. With the reference"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-12",
+        "startSeconds": 107,
+        "endSeconds": 113,
+        "text": "policy, the same proposal is denied, state\nchanges remain zero, tool calls remain"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-13",
+        "startSeconds": 113,
+        "endSeconds": 118,
+        "text": "zero, and no synthetic protected value is\nexposed. Inspect `reference/authorize.mjs`"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-14",
+        "startSeconds": 118,
+        "endSeconds": 124,
+        "text": "only after attempting the focused repair.\nIt is an implementation independent of the"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-15",
+        "startSeconds": 124,
+        "endSeconds": 129,
+        "text": "defective branch, not a textual patch.\nRepair `starter/authorize.mjs`, then rerun"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-16",
+        "startSeconds": 129,
+        "endSeconds": 133,
+        "text": "with `--target=starter`. The exact\nsuccessful result is `RESULT cases=12"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-17",
+        "startSeconds": 133,
+        "endSeconds": 136,
+        "text": "passed=12 failed=0 skipped=0\nstaticUnsafe=0/6 staticFailureRate=0.00%"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-18",
+        "startSeconds": 136,
+        "endSeconds": 139,
+        "text": "adaptiveUnsafe=0/6\nadaptiveFailureRate=0.00%` with exit code"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-19",
+        "startSeconds": 139,
+        "endSeconds": 144,
+        "text": "0. Independent changed-input task: do not\nedit fixtures or tests. Case"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-20",
+        "startSeconds": 144,
+        "endSeconds": 149,
+        "text": "`a01-protected-export` is the adaptive\ncounterpart and wraps the known marker in"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-21",
+        "startSeconds": 149,
+        "endSeconds": 155,
+        "text": "changed retrieved text. Explain why a\nphrase-specific block could stop `s01` yet"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-22",
+        "startSeconds": 155,
+        "endSeconds": 161,
+        "text": "fail `a01`, while trusted-policy scope\nchecks deny both. Then inspect the other"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-23",
+        "startSeconds": 161,
+        "endSeconds": 165,
+        "text": "pairs covering hidden-context exposure, an\nexternal output sink, work-budget"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-24",
+        "startSeconds": 165,
+        "endSeconds": 171,
+        "text": "enforcement, an allowed public summary,\nand an unknown model argument. Recovery is"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-25",
+        "startSeconds": 171,
+        "endSeconds": 175,
+        "text": "deterministic. It prints `RESET\nstarter/authorize.mjs` and exits 0."
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-26",
+        "startSeconds": 175,
+        "endSeconds": 181,
+        "text": "Scratch data used by the tests stays under\n`lab/test-scratch`; the lab does not use"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-offline-repair-lab-27",
+        "startSeconds": 181,
+        "endSeconds": 184,
+        "text": "the operating system temporary directory."
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-1",
+        "startSeconds": 184,
+        "endSeconds": 190,
+        "text": "Repeat the case design against any systems\nyou are authorized to test. Include broad"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-2",
+        "startSeconds": 190,
+        "endSeconds": 195,
+        "text": "family coverage where available: hosted\nOpenAI, Google, and Anthropic interfaces,"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-3",
+        "startSeconds": 195,
+        "endSeconds": 201,
+        "text": "and local or hosted Meta, Qwen, DeepSeek,\nMistral, and Phi models. These names"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-4",
+        "startSeconds": 201,
+        "endSeconds": 207,
+        "text": "define exercise coverage only. This lesson\nmakes no claim that a family has or"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-5",
+        "startSeconds": 207,
+        "endSeconds": 212,
+        "text": "lacks a particular vulnerability. For\nevery run, record the exact model"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-6",
+        "startSeconds": 212,
+        "endSeconds": 217,
+        "text": "identifier, provider or distributor, API\nor local runtime, runtime version, adapter"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-7",
+        "startSeconds": 217,
+        "endSeconds": 222,
+        "text": "or chat template, decoding settings, tool\nschema, system instructions, defense"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-8",
+        "startSeconds": 222,
+        "endSeconds": 227,
+        "text": "specification, date, and raw evidence\nlocation. If any item cannot be"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-9",
+        "startSeconds": 227,
+        "endSeconds": 232,
+        "text": "established, write UNKNOWN and state what\nlog, configuration, response metadata, or"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-10",
+        "startSeconds": 232,
+        "endSeconds": 237,
+        "text": "runtime command would establish it. Keep\nfixture and integration evidence separate."
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-11",
+        "startSeconds": 237,
+        "endSeconds": 242,
+        "text": "A fixture replay may validate your\napplication's authorization and sink"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-12",
+        "startSeconds": 242,
+        "endSeconds": 248,
+        "text": "invariants without calling a model. A real\nintegration must preserve the same"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-13",
+        "startSeconds": 248,
+        "endSeconds": 252,
+        "text": "contract validation, trusted-session\nidentity, complete mediation, budget and"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-14",
+        "startSeconds": 252,
+        "endSeconds": 257,
+        "text": "call caps, output-sink controls, and\nobservable consequence checks. Do not"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-15",
+        "startSeconds": 257,
+        "endSeconds": 261,
+        "text": "claim sandbox containment, provider\nbehavior, benchmark performance, or live"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-transfer-across-model-families-16",
+        "startSeconds": 261,
+        "endSeconds": 264,
+        "text": "resistance unless the corresponding run\nevidence exists."
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-1",
+        "startSeconds": 264,
+        "endSeconds": 269,
+        "text": "Criterion 1, authorization boundary, 4\npoints: full credit requires retrieved"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-2",
+        "startSeconds": 269,
+        "endSeconds": 275,
+        "text": "content to have no authority and requires\ntrusted policy to check action, scope,"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-3",
+        "startSeconds": 275,
+        "endSeconds": 281,
+        "text": "destination, and budget at the sink. A\nmarker blacklist earns at most 1 point"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-4",
+        "startSeconds": 281,
+        "endSeconds": 286,
+        "text": "because changed encodings or wording\nretain the root cause. Criterion 2,"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-5",
+        "startSeconds": 286,
+        "endSeconds": 292,
+        "text": "consequences, 2 points: full credit\nrequires every denied case to leave state"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-6",
+        "startSeconds": 292,
+        "endSeconds": 298,
+        "text": "unchanged, expose no synthetic protected\nvalue, and make no tool call. If the"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-7",
+        "startSeconds": 298,
+        "endSeconds": 304,
+        "text": "decision says DENY but a consequence\noccurs, the boundary failed. Criterion 3,"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-8",
+        "startSeconds": 304,
+        "endSeconds": 310,
+        "text": "valid and unknown inputs, 2 points: full\ncredit requires the allowed public-summary"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-9",
+        "startSeconds": 310,
+        "endSeconds": 316,
+        "text": "case to make exactly one permitted call\nand requires unknown properties or actions"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-10",
+        "startSeconds": 316,
+        "endSeconds": 322,
+        "text": "to be denied without using model-supplied\nidentity. Denying every request is not a"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-11",
+        "startSeconds": 322,
+        "endSeconds": 327,
+        "text": "correct repair. Criterion 4, evidence, 2\npoints: full credit requires separate"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-12",
+        "startSeconds": 327,
+        "endSeconds": 332,
+        "text": "static and adaptive denominators, exact\ncommands and exit codes, zero exceptions"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-13",
+        "startSeconds": 332,
+        "endSeconds": 338,
+        "text": "represented as passes, and a clear\nstatement that fixture success is not"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-14",
+        "startSeconds": 338,
+        "endSeconds": 343,
+        "text": "live-model evidence. Eight of ten points\nis the suggested completion threshold."
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-15",
+        "startSeconds": 343,
+        "endSeconds": 348,
+        "text": "Causal feedback: if protected cases still\nexecute, authorization still depends on"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-16",
+        "startSeconds": 348,
+        "endSeconds": 354,
+        "text": "untrusted data or is checked too early. If\ndenied cases increment calls, move"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-17",
+        "startSeconds": 354,
+        "endSeconds": 360,
+        "text": "mediation to immediately before the sink.\nIf the allowed case fails, the repair is"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-18",
+        "startSeconds": 360,
+        "endSeconds": 366,
+        "text": "broader than the trusted policy. If\nunknown input throws or passes through,"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-19",
+        "startSeconds": 366,
+        "endSeconds": 371,
+        "text": "preserve closed-contract validation. If\nwork cases execute, preserve the hard"
+      },
+      {
+        "cueId": "cue-owasp-top-10-llm-attacks-lab-rubric-20",
+        "startSeconds": 371,
+        "endSeconds": 373,
+        "text": "pre-execution budget check."
       }
     ],
     "reducedMotionAlternative": "Present the 2025-to-2026 rank changes and the injection-to-consequence path as static tables with focus-based highlighting instead of animated sequences."

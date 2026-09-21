@@ -5,36 +5,36 @@ depend on animation timing, autoplay, or pointer gestures.
 
 ## examples-and-rules-explanation
 
-Display the rule and all four cards simultaneously. Use text labels, not animated movement, to show their different purposes.
+Display the rule and example labels simultaneously in a static layout.
 
-Text alternative: The rule appears first. Three varied examples expose how it applies, while a separate evaluation set tests behavior without copying the examples.
+Text alternative: The rule appears first. Normal, boundary, and missing-information examples show different applications of the rule.
 
 ## example-selection-demonstration
 
-Show both complete sets in a static table and use a Rule exercised column instead of animated highlights.
+Use a static table with columns Case, Evidence, and Rule exercised.
 
-Text alternative: The weak set repeats password resets. The stronger set covers account access, billing, a conflicting request that escalates, and an empty request that escalates.
+Text alternative: The cases are labelled access, billing, conflict, and missing evidence, and each label names the rule it exercises.
 
 ## output-contract-explanation
 
-Display the whole template at once with persistent section headings and no animated field insertion.
+Display the complete template without animated insertion of fields.
 
-Text alternative: The contract names the user, format, fields, allowed values, evidence, unknown behavior, ordering, and validation while provider settings remain a replaceable adapter.
+Text alternative: The template lists purpose, format, required fields, allowed values, evidence, unknown handling, ordering, limits, and validation.
 
 ## structure-levels-explanation
 
-Show all six numbered layers as a static list. Do not animate a response moving through them.
+Show all six layers as a static numbered list.
 
-Text alternative: A response must separately pass transport, JSON parsing, schema shape, business rules, evidence support, and authorization. Passing an earlier layer does not imply later success.
+Text alternative: Transport, parsing, schema, business, evidence, and authorization are separate checks.
 
 ## beyond-shape-explanation
 
-Present the complete matrix as a static table and identify rows by text.
+Present the entire matrix as a static table.
 
-Text alternative: Normal and boundary cases are validated; missing, conflict, refusal, truncation, and malicious cases follow explicit failure or review paths without fabricated defaults.
+Text alternative: Normal, boundary, missing, conflict, refusal, truncation, and malicious cases have explicit validation or review paths.
 
 ## two-pass-validation-demonstration
 
-Display the object and all checklists together. Use Passed and Failed text rather than animated transitions.
+Display the object and all checklists simultaneously.
 
-Text alternative: Field and enum checks pass, but a how-to question is mislabeled as a critical incident and requests an unauthorized production shutdown, so no action occurs.
+Text alternative: Field and enum checks pass, but the evidence conflicts with the category and the requested action is unauthorized.
