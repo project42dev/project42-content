@@ -5,42 +5,54 @@ depend on animation timing, autoplay, or pointer gestures.
 
 ## capstone-mission
 
-Present all workflow states and evidence fields in one static diagram.
+Present all states, transition evidence, authority owners, and stop conditions in one static diagram.
 
-Text alternative: Every state transition has an acceptance condition, authority owner, durable evidence record, and failure path to containment.
+Text alternative: Every state transition has an authority owner, acceptance condition, durable evidence record, and failure path to containment.
 
 ## capstone-tools-trust
 
 Show the complete trust-boundary diagram and permission matrix statically.
 
-Text alternative: Untrusted input, retrieval, model output, MCP servers, and memory cannot authorize effects; a trusted executor applies identity, policy, approval, limits, audit, and postcondition checks.
+Text alternative: Untrusted input, retrieved content, model output, memory, and MCP servers cannot authorize effects. The trusted executor validates policy, approval, limits, audit, and postconditions.
 
 ## capstone-context-handoffs
 
-Present the four contracts as a static comparison table.
+Present the context packet and the accepted and rejected handoff packets as a static comparison.
 
-Text alternative: Each step receives only required objective, constraints, evidence, state, tools, schema, budget, and escalation; durable memory and handoffs add reader, correction, expiry, acceptance, and return controls.
+Text alternative: Each step receives only needed objective, constraints, evidence, state, tool contract, schema, and escalation rule. A handoff adds matching attempt, version, case, and outcome values.
 
 ## capstone-evaluation
 
-Display the complete evaluation and failure-test matrix statically.
+Display the complete evaluation and failure matrix in a static table.
 
-Text alternative: Nine failure tests include denial, malformed output, timeout, partial write, duplicate request, stale context, poisoned instruction, provider outage, and missing telemetry.
+Text alternative: Each row records an expected decision, containment control, observed result, and evidence reference. Structural validation is separate from human judgment and live qualification.
 
 ## capstone-observability
 
-Show the trace, indicators, and runbook flow as static ordered panels.
+Show the trace comparison and ordered runbook steps as static panels.
 
-Text alternative: The runbook links detection, containment, reconciliation, retry, rollback, escalation, communication, verification, and improvement to redacted evidence.
+Text alternative: The safe trace contains correlation data and decision codes. The prohibited trace contains credentials, personal data, full prompts, or hidden reasoning.
 
 ## capstone-evidence-revision
 
-Display all artifacts, rubric weights, evidence links, and attempts in a static matrix.
+Display the filenames, weights, evidence links, and attempts in a static matrix.
 
-Text alternative: Correctness 20, safety 20, evidence 15, reliability 20, maintainability 15, and communication 10 each link to named artifacts or assessment evidence.
+Text alternative: Correctness 20, safety 20, evidence 15, reliability 20, maintainability 15, and communication 10 total 100 points. Each judgment links to evidence.
 
 ## exemplar-demonstration
 
-Show the complete rubric comparison without animated score changes.
+Show the complete comparison and score arithmetic without animated changes.
 
-Text alternative: The complete package has bounded states, permissions, tests, reconciliation, privacy, runbook, and evidence links; the flawed package lacks each despite confident prose.
+Text alternative: The complete package has bounded authority, tests, reconciliation, privacy, and evidence links. The flawed package lacks those controls despite confident prose.
+
+## capstone-worked-repair-lab-narration
+
+Present the defect, invariant, commands, exact outputs, and offline limitations as static panels.
+
+Text alternative: The repair compares attempt identifier, version, case identifier, and outcome. Failed evidence is rejected, revised evidence is accepted, and support-099 proves changed-input comparison.
+
+## capstone-lab-activity-lab-narration
+
+Show the four lab stages and their commands as static ordered panels.
+
+Text alternative: Learners edit only starter/validator.mjs, preserve failed evidence, compare four binding values, and verify stale rejection plus revised and support-099 acceptance.

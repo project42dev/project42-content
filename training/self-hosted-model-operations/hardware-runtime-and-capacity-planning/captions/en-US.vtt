@@ -1,524 +1,1293 @@
 WEBVTT
 
 1
-00:00:00.000 --> 00:00:05.000
-Welcome. This class turns the question,
-what hardware do I
+00:00:00.000 --> 00:00:04.167
+Welcome to Hardware, Runtime, and Capacity
+Planning. This lesson answers
 
 2
-00:00:05.000 --> 00:00:10.000
-need, into a reproducible compatibility
-and capacity decision. You will
+00:00:04.167 --> 00:00:08.333
+a practical question without pretending
+that a paper estimate is
 
 3
-00:00:10.000 --> 00:00:15.000
-bind the exact artifact to its runtime and
-device stack,
+00:00:08.333 --> 00:00:12.500
+a benchmark: what exact serving build can
+support which workload,
 
 4
-00:00:15.000 --> 00:00:20.000
-estimate memory and storage without
-mistaking estimates for measurements,
+00:00:12.500 --> 00:00:16.667
+and under what limits? We will build a
+compatibility matrix,
 
 5
-00:00:20.000 --> 00:00:25.000
-build a representative load profile, find
-the first saturation point,
+00:00:16.667 --> 00:00:20.833
+estimate accelerator, host, and storage
+needs, measure a representative request
 
 6
-00:00:25.000 --> 00:00:30.000
-protect the host during overload, and
-publish supported limits with
+00:00:20.833 --> 00:00:25.000
+profile, find the first saturation
+boundary, protect the host during
 
 7
-00:00:30.000 --> 00:00:35.000
-costs, exclusions, and re-benchmark
-triggers.
+00:00:25.000 --> 00:00:29.167
+overload, and issue a dated capacity
+decision. The examples are
 
 8
-00:00:35.000 --> 00:00:40.333
-Begin with an exact-stack compatibility
-matrix. Record model architecture,
+00:00:29.167 --> 00:00:33.333
+deterministic offline fixtures. They do
+not execute a model, benchmark
 
 9
-00:00:40.333 --> 00:00:45.667
-artifact and tensor formats, precision or
-quantization, tokenizer, template, maximum
+00:00:33.333 --> 00:00:37.500
+an accelerator, contact a cloud provider,
+or approve a deployment.
 
 10
-00:00:45.667 --> 00:00:51.000
-tested context, runtime and version,
-execution backend, operating system, CPU
+00:00:37.500 --> 00:00:41.667
+By the end, you will have a reproducible
+plan with
 
 11
-00:00:51.000 --> 00:00:56.333
-architecture, accelerator model and count,
-driver, compute library, container base,
+00:00:41.667 --> 00:00:45.833
+evidence labels, arithmetic, limits,
+exclusions, and triggers for measuring
 
 12
-00:00:56.333 --> 00:01:01.667
-and required extensions. Use current
-runtime and hardware documentation to
+00:00:45.833 --> 00:00:50.000
+again.
 
 13
-00:01:01.667 --> 00:01:07.000
-identify a candidate combination, then
-load the exact quarantined artifact
+00:00:50.000 --> 00:00:54.478
+Start with the whole stack, not the model
+name. Record
 
 14
-00:01:07.000 --> 00:01:12.333
-in the intended environment. Architecture
-support does not prove support
+00:00:54.478 --> 00:00:58.957
+the model architecture, artifact revision
+and digest, tensor format, precision
 
 15
-00:01:12.333 --> 00:01:17.667
-for every conversion, quantization,
-kernel, device, operating system, or
+00:00:58.957 --> 00:01:03.435
+or quantization, tokenizer, prompt
+template, maximum tested context, runtime
 
 16
-00:01:17.667 --> 00:01:23.000
-feature. Watch for automatic fallback. A
-runtime may silently execute
+00:01:03.435 --> 00:01:07.913
+and version, execution backend, operating
+system, CPU architecture, accelerator
 
 17
-00:01:23.000 --> 00:01:28.333
-one operation, or the entire model, on a
-slower backend.
+00:01:07.913 --> 00:01:12.391
+model and count, driver, compute library,
+container base, and required
 
 18
-00:01:28.333 --> 00:01:33.667
-Make the selected backend visible in logs
-and measurements. Accept
+00:01:12.391 --> 00:01:16.870
+extensions. For every cell, use one
+evidence label: documented, measured,
 
 19
-00:01:33.667 --> 00:01:39.000
-fallback only through an explicit quality,
-latency, resource, and cost
+00:01:16.870 --> 00:01:21.348
+inferred, or unknown. Documented means a
+cited source states the
 
 20
-00:01:39.000 --> 00:01:44.333
-decision. Label every matrix cell
-documented, measured, inferred, or unknown
+00:01:21.348 --> 00:01:25.826
+exact value or support claim. Measured
+means the exact build
 
 21
-00:01:44.333 --> 00:01:49.667
-so a documentation claim is not presented
-as a successful
+00:01:25.826 --> 00:01:30.304
+produced retained evidence. Inferred means
+a calculation or analogy suggests
 
 22
-00:01:49.667 --> 00:01:55.000
-test.
+00:01:30.304 --> 00:01:34.783
+the value, but has not established it.
+Unknown means evidence
 
 23
-00:01:55.000 --> 00:02:01.154
-Estimate before measuring so you can
-reject impossible candidates safely.
+00:01:34.783 --> 00:01:39.261
+is absent. A model family name never
+upgrades an exact
 
 24
-00:02:01.154 --> 00:02:07.308
-Start with actual artifact sizes and a
-rough weight-memory estimate
+00:01:39.261 --> 00:01:43.739
+quantization, kernel, device, driver, or
+runtime combination to compatible. Load
 
 25
-00:02:07.308 --> 00:02:13.462
-from parameter count and bits per
-parameter. Add quantization metadata,
+00:01:43.739 --> 00:01:48.217
+the exact artifact in quarantine, make
+fallback visible, and either
 
 26
-00:02:13.462 --> 00:02:19.615
-embeddings, runtime workspace, graph or
-kernel caches, temporary buffers, loaded
+00:01:48.217 --> 00:01:52.696
+accept or reject it using measured
+quality, latency, resource, and
 
 27
-00:02:19.615 --> 00:02:25.769
-replicas, and safety headroom. Dynamic
-cache depends on concurrent sequences,
+00:01:52.696 --> 00:01:57.174
+cost evidence. The synthetic matrix calls
+its architecture an exercise
 
 28
-00:02:25.769 --> 00:02:31.923
-context and output lengths, cache
-representation, batching, and runtime
+00:01:57.174 --> 00:02:01.652
+transformer and its artifact a
+fixture-only digest. Its runtime is
 
 29
-00:02:31.923 --> 00:02:38.077
-implementation. Add host memory for the
-runtime, tokenizer, queues, telemetry,
+00:02:01.652 --> 00:02:06.130
+a Node.js 22 native module calculator, and
+its execution backend
 
 30
-00:02:38.077 --> 00:02:44.231
-page cache, staging, and failure handling.
-Add storage for immutable
+00:02:06.130 --> 00:02:10.609
+is arithmetic only. The learner host
+operating system and CPU
 
 31
-00:02:44.231 --> 00:02:50.385
-artifacts, container layers, caches, logs,
-evaluation data, backups, and rollback
+00:02:10.609 --> 00:02:15.087
+are unknown until recorded. The proposed
+single 24 GiB-class device
 
 32
-00:02:50.385 --> 00:02:56.538
-bundles. Include download, verification,
-load, compilation, and warm-up time. Every
+00:02:15.087 --> 00:02:19.565
+is only an inferred sizing target. Because
+the real artifact,
 
 33
-00:02:56.538 --> 00:03:02.692
-value is a hypothesis with an evidence
-label and range.
+00:02:19.565 --> 00:02:24.043
+inference runtime, accelerator, driver,
+and library are unknown, this matrix
 
 34
-00:03:02.692 --> 00:03:08.846
-A model can fit at startup and still fail
+00:02:24.043 --> 00:02:28.522
+cannot approve a real deployment. Official
+ecosystem repositories are discovery
 
 35
-00:03:08.846 --> 00:03:15.000
-under long context, concurrency, batching,
-restart, or recovery.
+00:02:28.522 --> 00:02:33.000
+evidence, not proof of an interchangeable
+serving stack.
 
 36
-00:03:15.000 --> 00:03:20.417
-Use a deliberately rough synthetic
-example. A candidate has eight
+00:02:33.000 --> 00:02:37.250
+Checkpoint. The arithmetic fits below a 24
+GiB device limit,
 
 37
-00:03:20.417 --> 00:03:25.833
-billion parameters represented near four
-bits per parameter. The simple
+00:02:37.250 --> 00:02:41.500
+but the exact quantized artifact and
+driver have not been
 
 38
-00:03:25.833 --> 00:03:31.250
-weight estimate begins near four billion
-bytes before metadata, scales,
+00:02:41.500 --> 00:02:45.750
+loaded. Should those matrix cells be
+marked measured, inferred, or
 
 39
-00:03:31.250 --> 00:03:36.667
-padding, runtime copies, workspace, and
-caches. Do not turn that
+00:02:45.750 --> 00:02:50.000
+unknown, and what test resolves the
+uncertainty?
 
 40
-00:03:36.667 --> 00:03:42.083
-arithmetic into a device recommendation.
-Add the measured artifact size,
+00:03:35.000 --> 00:03:39.125
+The correct answer is unknown, not
+measured. Arithmetic establishes capacity
 
 41
-00:03:42.083 --> 00:03:47.500
-runtime overhead from the exact build,
-context-cache estimates for short
+00:03:39.125 --> 00:03:43.250
+size, not loading or execution
+compatibility. A quarantined integration
 
 42
-00:03:47.500 --> 00:03:52.917
-and long requests, concurrent sequences,
-one loaded replica, and a
+00:03:43.250 --> 00:03:47.375
+test with the exact artifact, runtime,
+backend, device, driver, and
 
 43
-00:03:52.917 --> 00:03:58.333
-declared headroom target. The result is a
-planning range. If
+00:03:47.375 --> 00:03:51.500
+operating system can produce measured
+evidence. If you selected inferred,
 
 44
-00:03:58.333 --> 00:04:03.750
-the high end exceeds usable device memory,
-reject the scenario
+00:03:51.500 --> 00:03:55.625
+keep that label only for the proposed
+sizing target, not
 
 45
-00:04:03.750 --> 00:04:09.167
-or reduce model, context, concurrency, or
-replicas before any load.
+00:03:55.625 --> 00:03:59.750
+for successful execution. If you selected
+measured because the numbers
 
 46
-00:04:09.167 --> 00:04:14.583
-If it fits on paper, proceed to isolated
-measurement. The
+00:03:59.750 --> 00:04:03.875
+fit, return to the evidence rule: size and
+compatibility are
 
 47
-00:04:14.583 --> 00:04:20.000
-estimate filters candidates; it never
-certifies capacity.
+00:04:03.875 --> 00:04:08.000
+separate claims.
 
 48
-00:04:20.000 --> 00:04:26.667
-Version a representative load profile.
-Include cold and warm starts,
+00:04:08.000 --> 00:04:12.308
+Now estimate memory and storage before
+measuring. Keep decimal gigabytes
 
 49
-00:04:26.667 --> 00:04:33.333
-realistic input and output length
-distributions, modalities, concurrency
+00:04:12.308 --> 00:04:16.615
+and binary gibibytes separate. One GB is
+1,000,000,000 bytes, while
 
 50
-00:04:33.333 --> 00:04:40.000
-steps, bursts, cancellations, timeouts,
-malformed requests, maximum allowed
+00:04:16.615 --> 00:04:20.923
+one GiB is 1,073,741,824 bytes.
+Accelerator memory, host memory, and
 
 51
-00:04:40.000 --> 00:04:46.667
-context, pressure, restart, and recovery.
-Measure time to ready, time
+00:04:20.923 --> 00:04:25.231
+storage are separate ledgers. A free
+accelerator GiB cannot compensate
 
 52
-00:04:46.667 --> 00:04:53.333
-to first output, inter-output latency when
-relevant, end-to-end latency percentiles,
+00:04:25.231 --> 00:04:29.538
+for exhausted host memory or storage.
+Begin with exact artifact
 
 53
-00:04:53.333 --> 00:05:00.000
-throughput, queue time, error and
-rejection rates, accelerator and host
+00:04:29.538 --> 00:04:33.846
+size and a rough weight estimate. Then add
+quantization metadata,
 
 54
-00:05:00.000 --> 00:05:06.667
-memory, compute utilization, storage,
-network, power where relevant, and restart
+00:04:33.846 --> 00:04:38.154
+embeddings, runtime workspace, graph and
+kernel caches, temporary buffers, loaded
 
 55
-00:05:06.667 --> 00:05:13.333
-time. Keep artifact, runtime,
-configuration, hardware, template, and
+00:04:38.154 --> 00:04:42.462
+replicas, dynamic request cache, and
+safety headroom. For the host,
 
 56
-00:05:13.333 --> 00:05:20.000
-cases constant when comparing candidates.
-Published benchmarks such as MLPerf
+00:04:42.462 --> 00:04:46.769
+include the runtime, tokenizer, queues,
+observability, page cache, staging,
 
 57
-00:05:20.000 --> 00:05:26.667
-can inform methods and candidate
-selection, but their workload, quality
+00:04:46.769 --> 00:04:51.077
+failure handling, and recovery. For
+storage, include immutable artifacts,
 
 58
-00:05:26.667 --> 00:05:33.333
-rules, software, and hardware describe
-their own result. They do
+00:04:51.077 --> 00:04:55.385
+container layers, caches, logs, evaluation
+data, backups, and a distinct
 
 59
-00:05:33.333 --> 00:05:40.000
-not establish capacity for your request
-distribution or service policy.
+00:04:55.385 --> 00:04:59.692
+rollback copy. Startup arithmetic is also
+only a hypothesis until
 
 60
-00:05:40.000 --> 00:05:47.000
-Checkpoint. A published benchmark reports
-high throughput on the same
+00:04:59.692 --> 00:05:04.000
+measured on the exact build.
 
 61
-00:05:47.000 --> 00:05:54.000
-accelerator family. Name three differences
-that could make your endpoint's
+00:05:04.000 --> 00:05:08.424
+Here is the worked synthetic calculation.
+The fixture has 16
 
 62
-00:05:54.000 --> 00:06:01.000
-capacity lower, and state the measurement
-you still need.
+00:05:08.424 --> 00:05:12.848
+billion parameters at 4 bits per
+parameter. Compute 16,000,000,000 times
 
 63
-00:07:16.000 --> 00:07:21.714
-A strong answer names the exact model and
-precision, software
+00:05:12.848 --> 00:05:17.273
+4, divided by 8. That is 8,000,000,000
+bytes, or 8
 
 64
-00:07:21.714 --> 00:07:27.429
-stack, request-length distribution,
-batching, concurrency, quality target,
+00:05:17.273 --> 00:05:21.697
+GB, approximately 7.451 GiB. The exercise
+rounds the loaded static
 
 65
-00:07:27.429 --> 00:07:33.143
-server limits, and full hardware
-configuration. The benchmark remains
+00:05:21.697 --> 00:05:26.121
+allocation upward to 10 GiB. Add 2 GiB of
 
 66
-00:07:33.143 --> 00:07:38.857
-useful evidence about its stated setup.
-Your capacity requires the
+00:05:26.121 --> 00:05:30.545
+workspace and 2 GiB of accelerator safety
+headroom. The base
 
 67
-00:07:38.857 --> 00:07:44.571
-exact serving build under your versioned
-representative profile. If your
+00:05:30.545 --> 00:05:34.970
+is therefore 10 plus 2 plus 2, which
+equals 14
 
 68
-00:07:44.571 --> 00:07:50.286
-answer copied the throughput number
-directly, replace it with a
+00:05:34.970 --> 00:05:39.394
+GiB. The dynamic cache rate is a fixed
+fixture assumption:
 
 69
-00:07:50.286 --> 00:07:56.000
-hypothesis and a measurement plan.
+00:05:39.394 --> 00:05:43.818
+0.5 GiB per concurrent request per 1,000
+maximum tokens. It
 
 70
-00:07:56.000 --> 00:08:02.154
-Increase concurrency and request size
-gradually until latency, queueing, memory,
+00:05:43.818 --> 00:05:48.242
+is not a claim about a real model or
 
 71
-00:08:02.154 --> 00:08:08.308
-errors, power, or quality crosses a
-threshold declared in advance.
+00:05:48.242 --> 00:05:52.667
+runtime. The formula is concurrency times
+maximum tokens divided by
 
 72
-00:08:08.308 --> 00:08:14.462
-Record the first limiting resource and
-failure mode. Repeat after
+00:05:52.667 --> 00:05:57.091
+1,000, times 0.5. Scenario A has 2
+requests and 2,000
 
 73
-00:08:14.462 --> 00:08:20.615
-restart and with neighboring workloads
-when resources are shared. Set
+00:05:57.091 --> 00:06:01.515
+tokens. Its dynamic cache is 2 times 2
+times 0.5,
 
 74
-00:08:20.615 --> 00:08:26.769
-container or scheduler requests and limits
-from evidence while preserving
+00:06:01.515 --> 00:06:05.939
+or 2 GiB. Total is 14 plus 2, or 16
 
 75
-00:08:26.769 --> 00:08:32.923
-host headroom for the operating system,
-telemetry, recovery, and control
+00:06:05.939 --> 00:06:10.364
+GiB. Scenario B has 4 requests and 4,000
+tokens. Dynamic
 
 76
-00:08:32.923 --> 00:08:39.077
-plane. Docker notes that containers have
-no resource constraints by
+00:06:10.364 --> 00:06:14.788
+cache is 4 times 4 times 0.5, or 8 GiB.
 
 77
-00:08:39.077 --> 00:08:45.231
-default, and memory pressure can lead to
-out-of-memory termination. Capacity
+00:06:14.788 --> 00:06:19.212
+Total is 14 plus 8, or 22 GiB. Scenario C
 
 78
-00:08:45.231 --> 00:08:51.385
-therefore includes admission control,
-bounded queues, context and output limits,
+00:06:19.212 --> 00:06:23.636
+has 5 requests and 4,000 tokens. Dynamic
+cache is 5
 
 79
-00:08:51.385 --> 00:08:57.538
-rate or concurrency limits, deadlines,
-cancellation, load shedding, stable
+00:06:23.636 --> 00:06:28.061
+times 4 times 0.5, or 10 GiB. Total is 14
 
 80
-00:08:57.538 --> 00:09:03.692
-overload responses, and bounded retry
-guidance. An endpoint that accepts
+00:06:28.061 --> 00:06:32.485
+plus 10, or 24 GiB. Against the
+predeclared 23 GiB
 
 81
-00:09:03.692 --> 00:09:09.846
-unlimited work until the host fails does
-not have a
+00:06:32.485 --> 00:06:36.909
+admission ceiling, A and B fit, while C
+must be
 
 82
-00:09:09.846 --> 00:09:16.000
-capacity plan.
+00:06:36.909 --> 00:06:41.333
+rejected. The defective calculator reports
+zero dynamic cache and therefore
 
 83
-00:09:16.000 --> 00:09:23.000
-Publish a dated capacity decision. State
-supported workload slices, tested
+00:06:41.333 --> 00:06:45.758
+wrongly admits all three. The independent
+host ledger is 6
 
 84
-00:09:23.000 --> 00:09:30.000
-concurrency, latency and throughput
-distributions, quality gates, resource
+00:06:45.758 --> 00:06:50.182
+plus 2 plus 1 plus 2 plus 2 plus 2
 
 85
-00:09:30.000 --> 00:09:37.000
-reservations and limits, minimum headroom,
-overload behavior, replica assumptions,
+00:06:50.182 --> 00:06:54.606
+plus 3, or 18 GiB, against a 24 GiB limit.
 
 86
-00:09:37.000 --> 00:09:44.000
-startup and recovery time, storage, power
-or cloud cost assumptions,
+00:06:54.606 --> 00:06:59.030
+Storage is 12 plus 4 plus 6 plus 5 plus
 
 87
-00:09:44.000 --> 00:09:51.000
-monitoring thresholds, and excluded cases.
-Separate measurements from estimates and
+00:06:59.030 --> 00:07:03.455
+3 plus 12 plus 12, or 54 GiB, against an
 
 88
-00:09:51.000 --> 00:09:58.000
-extrapolation. Define re-benchmark
-triggers: model revision, quantization,
+00:07:03.455 --> 00:07:07.879
+80 GiB ceiling, including separate backup
+and rollback. Startup is
 
 89
-00:09:58.000 --> 00:10:05.000
-runtime, driver, device, host, operating
-system, container, context policy,
+00:07:07.879 --> 00:07:12.303
+12 GB divided by 1.5 GB per second, or 8
 
 90
-00:10:05.000 --> 00:10:12.000
-batching, template, feature flags, traffic
-distribution, telemetry, or service
+00:07:12.303 --> 00:07:16.727
+seconds under an idealized
+constant-bandwidth assumption. Cost is 2
 
 91
-00:10:12.000 --> 00:10:19.000
-objective. Capacity evidence expires when
-the production stack or workload
+00:07:16.727 --> 00:07:21.152
+dollars and 40 cents times 24 hours, or 57
 
 92
-00:10:19.000 --> 00:10:26.000
-no longer matches what was measured.
+00:07:21.152 --> 00:07:25.576
+dollars and 60 cents per replica-day.
+These are fixture calculations,
 
 93
-00:10:26.000 --> 00:10:32.667
-Now build the measured-paper capacity
-plan. Complete the exact-stack matrix,
+00:07:25.576 --> 00:07:30.000
+not measurements or a quote.
 
 94
-00:10:32.667 --> 00:10:39.333
-estimate three context and concurrency
-scenarios, design cold, warm, steady,
+00:07:30.000 --> 00:07:34.286
+Measure a versioned request distribution,
+not one convenient request. Include
 
 95
-00:10:39.333 --> 00:10:46.000
-burst, boundary, overload, restart, and
-recovery cases, declare thresholds before
+00:07:34.286 --> 00:07:38.571
+cold and warm starts, input and output
+lengths, concurrency steps,
 
 96
-00:10:46.000 --> 00:10:52.667
-viewing synthetic results, identify the
-first saturated resource, and publish
+00:07:38.571 --> 00:07:42.857
+bursts, cancellations, timeouts, malformed
+requests, maximum context, overload,
 
 97
-00:10:52.667 --> 00:10:59.333
-supported slices, headroom, costs,
-overload behavior, exclusions, and
+00:07:42.857 --> 00:07:47.143
+restart, and recovery. Record time to
+ready, time to first
 
 98
-00:10:59.333 --> 00:11:06.000
-re-benchmark triggers.
+00:07:47.143 --> 00:07:51.429
+output, inter-output latency where
+relevant, end-to-end latency percentiles,
 
 99
-00:14:06.000 --> 00:14:11.000
-Begin the check when you can identify the
-full compatibility
+00:07:51.429 --> 00:07:55.714
+throughput, queue time, internal errors,
+controlled rejections, accelerator and
 
 100
-00:14:11.000 --> 00:14:16.000
-stack, explain non-weight memory, choose a
-representative load profile, design
+00:07:55.714 --> 00:08:00.000
+host memory, utilization, storage,
+network, power where relevant, and restart
 
 101
-00:14:16.000 --> 00:14:21.000
-overload behavior, bound external
-benchmark claims, and recognize
+00:08:00.000 --> 00:08:04.286
+time. Hold the artifact, runtime,
+configuration, hardware, template, and
 
 102
-00:14:21.000 --> 00:14:26.000
-re-benchmark triggers. The check starts
-only when you choose Begin
+00:08:04.286 --> 00:08:08.571
+request cases constant when comparing
+builds. For nearest-rank p95, sort
 
 103
-00:14:26.000 --> 00:14:31.000
-knowledge check.
+00:08:08.571 --> 00:08:12.857
+observations and choose rank ceiling of
+0.95 times n, using
 
 104
-00:14:31.000 --> 00:14:36.000
-Remember: compatibility is exact, sizing
-begins as a hypothesis, capacity
+00:08:12.857 --> 00:08:17.143
+one-based ranks. Successful throughput is
+completed requests divided by duration.
 
 105
-00:14:36.000 --> 00:14:41.000
-comes from representative measurement, and
-every supported limit expires when
+00:08:17.143 --> 00:08:21.429
+Internal error rate is internal errors
+divided by admitted requests.
 
 106
-00:14:41.000 --> 00:14:46.000
-its model, stack, workload, or objective
-changes.
+00:08:21.429 --> 00:08:25.714
+A zero admitted denominator is invalid,
+not zero percent. Rejection
+
+107
+00:08:25.714 --> 00:08:30.000
+rate is rejected requests divided by
+offered requests.
+
+108
+00:08:30.000 --> 00:08:34.464
+Apply the contract to the supplied
+synthetic traces. Warmup has
+
+109
+00:08:34.464 --> 00:08:38.929
+two requests after a cold start, with 45
+seconds to
+
+110
+00:08:38.929 --> 00:08:43.393
+ready. Its latencies are 1,800 and 1,200
+milliseconds, so warmup
+
+111
+00:08:43.393 --> 00:08:47.857
+is excluded from steady latency
+objectives. Steady state offers 10
+
+112
+00:08:47.857 --> 00:08:52.321
+requests over one second. The sorted
+latency list ends at
+
+113
+00:08:52.321 --> 00:08:56.786
+700 milliseconds, and the sorted queue
+list ends at 40
+
+114
+00:08:56.786 --> 00:09:01.250
+milliseconds. Because there are 10
+observations, rank ceiling of 9.5
+
+115
+00:09:01.250 --> 00:09:05.714
+is 10. Therefore p95 latency is 700
+milliseconds and p95
+
+116
+00:09:05.714 --> 00:09:10.179
+queue is 40 milliseconds. Throughput is 10
+completions divided by
+
+117
+00:09:10.179 --> 00:09:14.643
+1 second, or 10 requests per second. With
+zero errors
+
+118
+00:09:14.643 --> 00:09:19.107
+among 10 admitted requests, internal error
+rate is zero percent.
+
+119
+00:09:19.107 --> 00:09:23.571
+Accelerator allocation is 22 GiB and host
+allocation is 18
+
+120
+00:09:23.571 --> 00:09:28.036
+GiB. It passes thresholds of 800
+milliseconds, 100 milliseconds, 8
+
+121
+00:09:28.036 --> 00:09:32.500
+requests per second, 1 percent errors, 23
+GiB accelerator, and
+
+122
+00:09:32.500 --> 00:09:36.964
+24 GiB host. Burst p95 latency is 780
+milliseconds and
+
+123
+00:09:36.964 --> 00:09:41.429
+p95 queue is 90 milliseconds, with 10
+requests per second,
+
+124
+00:09:41.429 --> 00:09:45.893
+so it passes. Maximum context has five
+requests at 4,000
+
+125
+00:09:45.893 --> 00:09:50.357
+tokens. Its p95 latency is 790
+milliseconds and throughput is
+
+126
+00:09:50.357 --> 00:09:54.821
+5 requests per second, passing the
+separate 4 requests per
+
+127
+00:09:54.821 --> 00:09:59.286
+second boundary. Overload offers 10
+requests at concurrency 5. Correct
+
+128
+00:09:59.286 --> 00:10:03.750
+arithmetic requires 24 GiB, so all 10 are
+rejected before
+
+129
+00:10:03.750 --> 00:10:08.214
+execution for capacity_limit. Rejection is
+10 divided by 10, or
+
+130
+00:10:08.214 --> 00:10:12.679
+100 percent. Internal error rate is not
+applicable because zero
+
+131
+00:10:12.679 --> 00:10:17.143
+requests were admitted. Cancellation
+records one client cancellation, four
+
+132
+00:10:17.143 --> 00:10:21.607
+completions, and zero internal errors.
+Restart is 45 seconds, below
+
+133
+00:10:21.607 --> 00:10:26.071
+the 60-second limit. Recovery returns to
+p95 latency 720 milliseconds
+
+134
+00:10:26.071 --> 00:10:30.536
+and p95 queue 45 milliseconds, with 10
+requests per second,
+
+135
+00:10:30.536 --> 00:10:35.000
+so it passes the steady thresholds.
+
+136
+00:10:35.000 --> 00:10:39.333
+Checkpoint. The overload row says zero
+internal errors. Is that
+
+137
+00:10:39.333 --> 00:10:43.667
+a zero percent rate, or is the rate not
+
+138
+00:10:43.667 --> 00:10:48.000
+applicable? Explain why, and separately
+calculate the rejection rate.
+
+139
+00:11:38.000 --> 00:11:42.250
+The internal error rate is not applicable
+because the denominator,
+
+140
+00:11:42.250 --> 00:11:46.500
+admitted requests, is zero. Calling it
+zero percent hides the
+
+141
+00:11:46.500 --> 00:11:50.750
+absence of an eligible denominator. The
+controlled rejection rate is
+
+142
+00:11:50.750 --> 00:11:55.000
+10 divided by 10, or 100 percent, with
+reason capacity_limit.
+
+143
+00:11:55.000 --> 00:11:59.250
+That is an intentional overload policy
+result, not an internal
+
+144
+00:11:59.250 --> 00:12:03.500
+model error. If warmup was included in
+steady p95, restore
+
+145
+00:12:03.500 --> 00:12:07.750
+the declared population and recompute
+rather than mixing cold-start behavior
+
+146
+00:12:07.750 --> 00:12:12.000
+into the steady objective.
+
+147
+00:12:12.000 --> 00:12:16.421
+Find saturation by increasing concurrency
+and request size gradually until
+
+148
+00:12:16.421 --> 00:12:20.842
+a declared boundary is crossed. Record the
+first limiting resource
+
+149
+00:12:20.842 --> 00:12:25.263
+and failure mode. In this fixture, 2
+requests at 2,000
+
+150
+00:12:25.263 --> 00:12:29.684
+tokens require 16 GiB, 4 at 4,000 require
+22 GiB,
+
+151
+00:12:29.684 --> 00:12:34.105
+and 5 at 4,000 require 24 GiB. The first
+
+152
+00:12:34.105 --> 00:12:38.526
+boundary is the accelerator admission
+ceiling, caused by dynamic per-request
+
+153
+00:12:38.526 --> 00:12:42.947
+cache. This is arithmetic evidence, not an
+observed hardware out-of-memory
+
+154
+00:12:42.947 --> 00:12:47.368
+event. The policy admits at most 4
+concurrent requests when
+
+155
+00:12:47.368 --> 00:12:51.789
+each may reach 4,000 tokens. Validate
+units and token fields,
+
+156
+00:12:51.789 --> 00:12:56.211
+reject over-limit work before allocation
+with capacity_limit, and do not
+
+157
+00:12:56.211 --> 00:13:00.632
+automatically retry a nontransient
+capacity rejection. Keep a bounded queue
+
+158
+00:13:00.632 --> 00:13:05.053
+outside the calculator, and preserve the 1
+GiB gap between
+
+159
+00:13:05.053 --> 00:13:09.474
+the 23 GiB admission ceiling and a nominal
+24 GiB
+
+160
+00:13:09.474 --> 00:13:13.895
+device class. Separately protect the host.
+The 24 GiB host
+
+161
+00:13:13.895 --> 00:13:18.316
+limit includes 3 GiB recovery headroom.
+Container and scheduler requests
+
+162
+00:13:18.316 --> 00:13:22.737
+or limits are controls, not proof of
+application fit. A
+
+163
+00:13:22.737 --> 00:13:27.158
+deny-all repair is also wrong: it would
+reject safe Scenario
+
+164
+00:13:27.158 --> 00:13:31.579
+B. Raising the ceiling changes the policy
+rather than fixing
+
+165
+00:13:31.579 --> 00:13:36.000
+the missing cache term.
+
+166
+00:13:36.000 --> 00:13:40.136
+Issue a dated decision with scope and
+expiry. State supported
+
+167
+00:13:40.136 --> 00:13:44.273
+workload slices, tested concurrency,
+latency and throughput distributions,
+
+168
+00:13:44.273 --> 00:13:48.409
+quality gates, resource reservations and
+limits, headroom, overload behavior,
+
+169
+00:13:48.409 --> 00:13:52.545
+replica assumptions, startup and recovery,
+storage, cost assumptions, monitoring
+
+170
+00:13:52.545 --> 00:13:56.682
+thresholds, and excluded cases. The
+fixture decision dated September 21,
+
+171
+00:13:56.682 --> 00:14:00.818
+2026 supports Scenario B at no more than 4
+
+172
+00:14:00.818 --> 00:14:04.955
+concurrent requests and 4,000 maximum
+tokens because calculated accelerator
+
+173
+00:14:04.955 --> 00:14:09.091
+allocation is 22 GiB under the 23 GiB
+ceiling. It
+
+174
+00:14:09.091 --> 00:14:13.227
+rejects Scenario C at 5 concurrent
+requests because allocation is
+
+175
+00:14:13.227 --> 00:14:17.364
+24 GiB. Host is 18 GiB against 24 GiB.
+
+176
+00:14:17.364 --> 00:14:21.500
+Storage is 54 GiB against 80 GiB.
+Idealized transfer is
+
+177
+00:14:21.500 --> 00:14:25.636
+8 seconds, restart is 45 seconds, and
+illustrative cost is
+
+178
+00:14:25.636 --> 00:14:29.773
+57 dollars and 60 cents per replica-day.
+This is not
+
+179
+00:14:29.773 --> 00:14:33.909
+real deployment approval. Exact
+compatibility, latency, throughput, memory
+
+180
+00:14:33.909 --> 00:14:38.045
+rate, power, quality, startup, and
+recovery for a real model
+
+181
+00:14:38.045 --> 00:14:42.182
+remain unknown. Re-benchmark after a model
+revision, digest, quantization, tokenizer,
+
+182
+00:14:42.182 --> 00:14:46.318
+template, runtime, backend, driver,
+library, accelerator, host, operating
+
+183
+00:14:46.318 --> 00:14:50.455
+system, container, batching or context
+policy, feature flag, telemetry change,
+
+184
+00:14:50.455 --> 00:14:54.591
+traffic change, neighboring workload,
+quality gate, cost basis, or
+
+185
+00:14:54.591 --> 00:14:58.727
+service-objective change. The module also
+has a 60-day review cadence.
+
+186
+00:14:58.727 --> 00:15:02.864
+Evidence expires when the measured stack
+or workload no longer
+
+187
+00:15:02.864 --> 00:15:07.000
+matches production.
+
+188
+00:15:07.000 --> 00:15:11.333
+Checkpoint. May this deterministic fixture
+be written as approval for
+
+189
+00:15:11.333 --> 00:15:15.667
+a real service because Scenario B passes
+its arithmetic? State
+
+190
+00:15:15.667 --> 00:15:20.000
+the strongest conclusion that the evidence
+supports.
+
+191
+00:16:05.000 --> 00:16:09.000
+The supported conclusion is narrower: the
+deterministic capacity policy behaves
+
+192
+00:16:09.000 --> 00:16:13.000
+as specified for the synthetic Scenario B
+slice, while Scenario
+
+193
+00:16:13.000 --> 00:16:17.000
+C is rejected. It does not approve a real
+
+194
+00:16:17.000 --> 00:16:21.000
+deployment. The unknown exact
+compatibility cells require a quarantined
+
+195
+00:16:21.000 --> 00:16:25.000
+integration load, and synthetic latency,
+throughput, memory, power, quality,
+
+196
+00:16:25.000 --> 00:16:29.000
+startup, and recovery values require
+representative exact-build measurements. A
+
+197
+00:16:29.000 --> 00:16:33.000
+capacity decision is versioned evidence
+with exclusions and expiry, not
+
+198
+00:16:33.000 --> 00:16:37.000
+a permanent approval.
+
+199
+00:16:37.000 --> 00:16:41.231
+Now build the measured-paper capacity
+plan. Create the exact-stack matrix
+
+200
+00:16:41.231 --> 00:16:45.462
+and label every field. Estimate all three
+accelerator scenarios, plus
+
+201
+00:16:45.462 --> 00:16:49.692
+host, storage, rollback, startup, and
+cost. Design the versioned load
+
+202
+00:16:49.692 --> 00:16:53.923
+profile with warmup, steady, burst,
+maximum context, overload, cancellation,
+
+203
+00:16:53.923 --> 00:16:58.154
+restart, and recovery. Declare thresholds
+before inspecting results. Identify
+
+204
+00:16:58.154 --> 00:17:02.385
+accelerator cache as the first fixture
+boundary, preserve host recovery
+
+205
+00:17:02.385 --> 00:17:06.615
+headroom, and write supported slices,
+limits, costs, exclusions, overload
+
+206
+00:17:06.615 --> 00:17:10.846
+behavior, and re-benchmark triggers. Then
+repair the offline lab. The
+
+207
+00:17:10.846 --> 00:17:15.077
+starter has one defect: dynamicGiB is
+assigned zero. Edit only
+
+208
+00:17:15.077 --> 00:17:19.308
+capacity.mjs and replace that assignment
+with concurrency times maximum tokens
+
+209
+00:17:19.308 --> 00:17:23.538
+divided by 1,000, times
+cacheGiBPerKTokens. Do not edit
+
+210
+00:17:23.538 --> 00:17:27.769
+validation, fixtures, the independent
+reference, or tests. Do not hardcode
+
+211
+00:17:27.769 --> 00:17:32.000
+scenario names, totals, or unconditional
+denial.
+
+212
+00:17:32.000 --> 00:17:36.400
+The lab is offline and deterministic. It
+has no dependencies,
+
+213
+00:17:36.400 --> 00:17:40.800
+model download, cloud call, credential,
+container, or charge. The supplied
+
+214
+00:17:40.800 --> 00:17:45.200
+starter outputs show base-safe with
+dynamicGiB zero, totalGiB 14, and
+
+215
+00:17:45.200 --> 00:17:49.600
+admit true. The changed-overload starter
+also shows dynamicGiB zero, totalGiB
+
+216
+00:17:49.600 --> 00:17:54.000
+14, and admit true, which is wrong because
+its cache
+
+217
+00:17:54.000 --> 00:17:58.400
+is omitted. The starter test reports two
+passes and two
+
+218
+00:17:58.400 --> 00:18:02.800
+failures. After the one-line formula
+repair, the supplied base output
+
+219
+00:18:02.800 --> 00:18:07.200
+has dynamicGiB 8, totalGiB 22, withinLimit
+true, and admit true.
+
+220
+00:18:07.200 --> 00:18:11.600
+The supplied changed-overload output has
+dynamicGiB 10, totalGiB 24, withinLimit
+
+221
+00:18:11.600 --> 00:18:16.000
+false, and admit false. The immutable test
+reports four passes
+
+222
+00:18:16.000 --> 00:18:20.400
+and zero failures. A false result for
+every input would
+
+223
+00:18:20.400 --> 00:18:24.800
+not be a repair because it would reject
+the genuine
+
+224
+00:18:24.800 --> 00:18:29.200
+22 GiB base case. The validator must also
+remain unchanged,
+
+225
+00:18:29.200 --> 00:18:33.600
+so malformed JSON or invalid fields
+continue to be rejected
+
+226
+00:18:33.600 --> 00:18:38.000
+rather than being silently accepted.
+
+227
+00:18:38.000 --> 00:18:42.250
+Changed-input task. Copy the
+changed-overload fixture into a
+
+228
+00:18:42.250 --> 00:18:46.500
+repository-local workspace. Change only
+workload concurrency from 5 to 3.
+
+229
+00:18:46.500 --> 00:18:50.750
+Before running the repaired calculator,
+predict the result. Keep maximum
+
+230
+00:18:50.750 --> 00:18:55.000
+tokens at 4,000, base at 14 GiB, cache
+rate at
+
+231
+00:18:55.000 --> 00:18:59.250
+0.5 GiB, and all host and storage inputs
+unchanged. Write
+
+232
+00:18:59.250 --> 00:19:03.500
+the dynamic cache, total, within-limit
+result, and admission decision. Also
+
+233
+00:19:03.500 --> 00:19:07.750
+explain why this changed valid input
+defeats a solution hardcoded
+
+234
+00:19:07.750 --> 00:19:12.000
+to the two supplied scenario names.
+
+235
+00:20:27.000 --> 00:20:31.333
+Now compare with the answer. Dynamic cache
+is 3 times
+
+236
+00:20:31.333 --> 00:20:35.667
+4 times 0.5, which equals 6 GiB. Total is
+
+237
+00:20:35.667 --> 00:20:40.000
+14 plus 6, which equals 20 GiB. Twenty is
+
+238
+00:20:40.000 --> 00:20:44.333
+below the 23 GiB ceiling, so withinLimit
+is true and
+
+239
+00:20:44.333 --> 00:20:48.667
+admit is true, assuming host and storage
+remain within their
+
+240
+00:20:48.667 --> 00:20:53.000
+limits. The result must retain the copied
+scenario string while
+
+241
+00:20:53.000 --> 00:20:57.333
+changing those calculated values. This
+changed input defeats hardcoded handling
+
+242
+00:20:57.333 --> 00:21:01.667
+because the formula responds to
+concurrency. It also defeats deny-all
+
+243
+00:21:01.667 --> 00:21:06.000
+logic, because this valid case must be
+admitted. If the
+
+244
+00:21:06.000 --> 00:21:10.333
+result differs, inspect whether the
+formula reads concurrency, maximum tokens,
+
+245
+00:21:10.333 --> 00:21:14.667
+and the cache rate, then preserve
+validation and the conjunction
+
+246
+00:21:14.667 --> 00:21:19.000
+of accelerator, host, and storage checks.
+
+247
+00:21:19.000 --> 00:21:23.222
+Begin the knowledge check when you can
+explain the complete
+
+248
+00:21:23.222 --> 00:21:27.444
+compatibility stack, why weight memory
+alone is insufficient, how a
+
+249
+00:21:27.444 --> 00:21:31.667
+representative profile differs from an
+unrelated benchmark, how admission and
+
+250
+00:21:31.667 --> 00:21:35.889
+overload controls protect the host, why
+controlled rejection is distinct
+
+251
+00:21:35.889 --> 00:21:40.111
+from internal error, and when capacity
+must be re-benchmarked. The
+
+252
+00:21:40.111 --> 00:21:44.333
+check contains six questions. You need at
+least 80 percent.
+
+253
+00:21:44.333 --> 00:21:48.556
+Choose Begin knowledge check when you are
+ready. The activity
+
+254
+00:21:48.556 --> 00:21:52.778
+and check are separate, so you may return
+to the
+
+255
+00:21:52.778 --> 00:21:57.000
+worksheet first.
+
+256
+00:21:57.000 --> 00:22:01.200
+Take away four rules. Compatibility is
+exact and evidence-labeled. Sizing
+
+257
+00:22:01.200 --> 00:22:05.400
+is a hypothesis that must include dynamic
+cache, workspace, host,
+
+258
+00:22:05.400 --> 00:22:09.600
+storage, recovery, and headroom. Capacity
+comes from a versioned representative
+
+259
+00:22:09.600 --> 00:22:13.800
+profile with explicit percentile and
+denominator rules. Finally, a decision
+
+260
+00:22:13.800 --> 00:22:18.000
+is bounded: it names supported slices,
+admission behavior, costs, exclusions,
+
+261
+00:22:18.000 --> 00:22:22.200
+and the changes that require a new
+benchmark. In this
+
+262
+00:22:22.200 --> 00:22:26.400
+fixture, 22 GiB is admitted, 24 GiB is
+rejected at
+
+263
+00:22:26.400 --> 00:22:30.600
+a 23 GiB ceiling, and neither result
+certifies a real
+
+264
+00:22:30.600 --> 00:22:34.800
+model service. Keep the arithmetic, the
+unknowns, and the evidence
+
+265
+00:22:34.800 --> 00:22:39.000
+together.
