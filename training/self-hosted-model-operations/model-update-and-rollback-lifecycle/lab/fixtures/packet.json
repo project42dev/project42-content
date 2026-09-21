@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "simulationOnly": true,
+  "manifests": {
+    "baseline": {
+      "releaseId": "svc-2026-09-01",
+      "model": {"revision": "model-r17", "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+      "tokenizer": {"revision": "tok-r8", "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"},
+      "runtime": {"name": "fixture-runtime", "version": "4.2.0"},
+      "acceleratorLibraries": ["fixture-accelerator-lib@2.1.0"],
+      "image": {"ref": "registry.invalid/fixture/serve:2026-09-01", "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"},
+      "adapters": [{"revision": "support-adapter-r3", "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"}],
+      "promptTemplates": ["support-template-r5"],
+      "safetyPolicy": {"revision": "policy-r11", "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555"},
+      "gatewayContract": "gateway-v4",
+      "infrastructureConfig": "infra-r22",
+      "evaluationSet": "eval-r14",
+      "telemetrySchema": "telemetry-v3",
+      "stateSchema": "conversation-v1"
+    },
+    "candidate": {
+      "releaseId": "svc-2026-09-20",
+      "model": {"revision": "model-r18", "digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666"},
+      "tokenizer": {"revision": "tok-r9", "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777"},
+      "runtime": {"name": "fixture-runtime", "version": "4.3.0"},
+      "acceleratorLibraries": ["fixture-accelerator-lib@2.2.0"],
+      "image": {"ref": "registry.invalid/fixture/serve:2026-09-20", "digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888"},
+      "adapters": [{"revision": "support-adapter-r4", "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999"}],
+      "promptTemplates": ["support-template-r6"],
+      "safetyPolicy": {"revision": "policy-r12", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "gatewayContract": "gateway-v4",
+      "infrastructureConfig": "infra-r23",
+      "evaluationSet": "eval-r15",
+      "telemetrySchema": "telemetry-v4",
+      "stateSchema": "conversation-v2"
+    }
+  },
+  "gates": [
+    {"name":"quality","status":"pass","owner":"Quality Reviewer Avery Singh","evidence":"fixture representative quality cases passed"},
+    {"name":"safety","status":"pass","owner":"Safety Reviewer Rowan Park","evidence":"fixture approved pretraffic safety cases passed"},
+    {"name":"security","status":"pass","owner":"Security Reviewer Noor Diaz","evidence":"fixture provenance and configuration review passed"},
+    {"name":"compatibility","status":"pass","owner":"API Reviewer Taylor Brooks","evidence":"fixture gateway and tokenizer contract cases passed"},
+    {"name":"capacity","status":"pass","owner":"Reliability Reviewer Sam Ortega","evidence":"fixture bounded load and memory cases passed"},
+    {"name":"cost","status":"pass","owner":"Cost Reviewer Morgan Lee","evidence":"fixture resource units remained within declared ceiling"},
+    {"name":"recovery","status":"fail","owner":"Reliability Reviewer Sam Ortega","evidence":"candidate conversation-v2 state is not readable by retained conversation-v1 baseline"}
+  ],
+  "rollback": {
+    "rollbackCompatible": false,
+    "procedure": "restore retained baseline artifacts and route only after complete manifest readback",
+    "stateProcedure": "UNAVAILABLE: no tested conversation-v2 to conversation-v1 conversion exists",
+    "baselineStateSchema": "conversation-v1",
+    "candidateStateSchema": "conversation-v2",
+    "compatibilityEvidence": "fixture negative rehearsal records that baseline cannot read candidate-written state"
+  },
+  "rollout": {
+    "strategy":"canary","exposurePercent":1,"observationMinutes":10,"drainTimeoutSeconds":120,"costCeilingUnits":25,
+    "decisionOwner":"Release Manager Imani Cole","executor":"Operator Jules Chen",
+    "stopConditions":["hard safety gate fails","serving identity becomes unknown","state read is incompatible","cost ceiling is exceeded"],
+    "drainConditions":["stop new candidate routing","wait for bounded in-flight completion","verify complete baseline manifest before route restoration"]
+  },
+  "rehearsal": {
+    "guardrail":{"name":"safety_refusal_rate_delta","observed":0.05,"maximum":0.02},
+    "readback": {
+      "manifest": {
+        "releaseId": "svc-2026-09-01",
+        "model": {"revision": "model-r17", "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+        "tokenizer": {"revision": "tok-r8", "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"},
+        "runtime": {"name": "fixture-runtime", "version": "4.2.0"},
+        "acceleratorLibraries": ["fixture-accelerator-lib@2.1.0"],
+        "image": {"ref": "registry.invalid/fixture/serve:2026-09-01", "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"},
+        "adapters": [{"revision": "support-adapter-r3", "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"}],
+        "promptTemplates": ["support-template-r5"],
+        "safetyPolicy": {"revision": "policy-r11", "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555"},
+        "gatewayContract": "gateway-v4",
+        "infrastructureConfig": "infra-r22",
+        "evaluationSet": "eval-r14",
+        "telemetrySchema": "telemetry-v3",
+        "stateSchema": "conversation-v1"
+      },
+      "ready": true
+    }
+  }
+}
