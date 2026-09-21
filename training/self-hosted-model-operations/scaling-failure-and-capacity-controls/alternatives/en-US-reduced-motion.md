@@ -3,38 +3,56 @@
 Present every visual as a complete static composition. Do not make completion
 depend on animation timing, autoplay, or pointer gestures.
 
+## welcome-and-outcomes
+
+Show the entire decision path as a static numbered list.
+
+Text alternative: The lesson moves from measured demand to bounded admission, verified capacity, failure testing, scale gates, and rollback.
+
 ## scale-bottleneck-narration
 
-Display the entire comparison as a static table and emphasize the current row with text and a border.
+Use a static table and text arithmetic instead of animation.
 
-Text alternative: Each scaling pattern lists the constraint it can address and tradeoffs in quality, latency, isolation, startup, cost, and complexity.
+Text alternative: Four ready replicas provide eight units. Demand of thirteen leaves five units, a queue holds two, and three are rejected. Each alternative has a stated tradeoff.
 
 ## scaling-choice-demonstration
 
-Present baseline and candidates side by side in a static decision table.
+Present all candidates side by side in a static table.
 
-Text alternative: Queue delay, first-output latency, placement, quality, shared dependency, and cost jointly determine the scale choice.
+Text alternative: Queue delay, first-output latency, placement, quality, shared dependency, and cost jointly determine the choice.
 
 ## admission-backpressure-narration
 
-Show the controls as a numbered static policy table.
+Show controls as a numbered static policy table.
 
-Text alternative: Work that cannot finish safely is rejected early; retries and fallback remain bounded and do not bypass security or quality gates.
+Text alternative: Unsafe or late work is rejected early. Retries, queues, circuits, shedding, and degraded behavior remain bounded and do not bypass security or quality controls.
 
 ## placement-warmup-narration
 
-Present placement as a static checklist and lifecycle states as numbered text.
+Present the lifecycle as numbered text states.
 
-Text alternative: Removal stops new work, drains bounded in-flight requests, preserves evidence, revokes routing, and then reclaims the resource.
+Text alternative: Only verified, warmed, ready, non-draining capacity counts. Warming, draining, and failed capacity count as zero.
+
+## lab-demonstration
+
+Use static code and output panels only.
+
+Text alternative: The simulator incorrectly counts nominal capacity. Repairing the ready non-draining capacity calculation changes the baseline rejection and makes eight tests pass.
 
 ## failure-isolation-narration
 
-Show the complete failure matrix as a static table.
+Show the complete matrix as a static table.
 
-Text alternative: Each failure records affected requests and infrastructure, unsafe capacity removal, retry behavior, state reconciliation, exact identity, recovery, and residual shared dependencies.
+Text alternative: Each case records what is removed, how load is contained, how identity is preserved, and how recovery is evidenced.
 
-## autoscaling-change-narration
+## gate-autoscaling-and-change-narration
 
-Provide traffic and decision results as labeled static tables rather than animated graphs.
+Use labeled static tables instead of animated graphs.
 
-Text alternative: The candidate must preserve objectives, quality, isolation, cost, startup, recovery, and rollback while respecting safe floors and ceilings.
+Text alternative: The candidate is judged by service, quality, cost, isolation, startup, recovery, and rollback gates across five traffic patterns.
+
+## class-closing
+
+Show the closing checklist without animation.
+
+Text alternative: Scale measured constraints, bound demand, count verified capacity, test failure domains, apply gates, and preserve rollback.
