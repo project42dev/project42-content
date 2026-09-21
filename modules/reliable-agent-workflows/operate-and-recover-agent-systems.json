@@ -6,7 +6,7 @@
   "providers": [
     "provider-neutral"
   ],
-  "estimatedMinutes": 56,
+  "estimatedMinutes": 96,
   "objectives": [
     "Distinguish model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure failures.",
     "Triage severity and contain unsafe action, data exposure, cost, and cascading retries.",
@@ -21,46 +21,120 @@
       "id": "classify-before-changing",
       "title": "Classify the failed boundary before changing the model",
       "paragraphs": [
-        "Model failures include unsupported or incorrect generation. Prompt failures encode ambiguous or conflicting behavior. Tool failures include bad contracts, authorization, execution, or postconditions. Retrieval and data failures include missing, stale, poisoned, malformed, or cross-tenant evidence.",
-        "Policy failures allow forbidden action or block required escalation. Orchestration failures misroute, loop, race, or lose state. Infrastructure failures include capacity, network, dependency, credential, storage, and deployment faults. Several classes can occur in one incident, so record evidence instead of forcing one convenient cause."
-      ]
+        "Model failures include unsupported or incorrect generation. Prompt failures encode ambiguous or conflicting behavior. Tool failures include bad contracts, authorization, execution, or postconditions. Retrieval failures include selecting a missing or stale source. Data failures include malformed, poisoned, incorrectly scoped, or cross-tenant records.",
+        "Policy failures allow forbidden action or block required escalation. Orchestration failures misroute, loop, race, retry unsafely, or lose state. Infrastructure failures include capacity, network, dependency, credential, storage, and deployment faults. Several classes can occur in one incident, so record evidence instead of forcing one convenient cause.",
+        "Use the boundary as a diagnostic location, not as a claim about blame. In the worked incident, the unsupported sentence “all actions completed” is model evidence, the stale policy is retrieval and data evidence, and the blind retry is orchestration evidence. A transport timeout is infrastructure evidence, but it does not establish whether the tool write committed.",
+        "Checkpoint: for every symptom, write the observed evidence, the boundary that could explain it, and the evidence still needed. Do not change a model or prompt merely because the user-facing sentence was wrong."
+      ],
+      "callout": "A single incident can cross several boundaries. Classification records what the evidence supports and leaves unresolved causes marked unknown."
     },
     {
       "id": "triage-and-contain",
       "title": "Triage impact and contain first",
       "paragraphs": [
-        "Assess affected users, tenants, data, permissions, external actions, money, availability, and legal or safety obligations. Set severity from actual and credible potential impact, not from how fluent the agent output looks.",
-        "Contain by pausing the workflow or one tool, revoking credentials, disabling a route, reducing concurrency, switching to a safe fallback, or requiring manual approval. Preserve secret-safe traces, configuration versions, request IDs, and postcondition evidence before mutable state disappears."
+        "Assess affected users, tenants, data, permissions, external actions, money, availability, and legal or safety obligations. Set severity from actual and credible potential impact, not from how fluent the agent output looks. NIST incident-response guidance treats impact analysis, containment, recovery, and lessons learned as connected activities rather than isolated technical fixes.",
+        "Contain by pausing the workflow or one tool, revoking credentials, disabling a route, reducing concurrency, switching to a safe fallback, or requiring manual approval. Preserve secret-safe traces, configuration versions, request IDs, idempotency keys, retrieved-document versions, and postcondition evidence before mutable state disappears.",
+        "In the fictional incident, the transfer tool is paused at 09:04 UTC, automated retries are disabled at 09:05, and the incident owner retains the original incident events and ledger entries. The audit tool remains available only through the bounded recovery command. This is narrower than shutting down every service and safer than allowing the agent to continue.",
+        "Checkpoint: containment is adequate only if responders can state which capability is stopped, which capability remains available, who can authorize recovery, and where the original evidence is preserved."
       ],
       "callout": "When the real-world outcome is unknown, do not classify the action as failed and retry it blindly."
+    },
+    {
+      "id": "incident-worked-example",
+      "title": "Work a complete timeout, stale-policy, and unsupported-claim incident",
+      "paragraphs": [
+        "At 09:00 UTC, fictional incident INC-2042 begins when tenant-a asks an agent to apply a reserve policy and record the decision. Retrieval returns policy version 2025-01 even though version 2026-04 is required. At 09:01, transfer action transfer-100 sends 100 units from operating to reserve under idempotency key pay-100. The transport times out after the write reaches the tool. The persisted ledger nevertheless contains confirmed entry L-1 and balances of 900 and 100 from a baseline of 1000 and 0.",
+        "At 09:02, audit action audit-7 times out before any ledger entry is created. At 09:03, notification action notice-9 has a persisted pending record, so its external postcondition cannot be verified. At 09:03, the agent states that all actions completed. At 09:04, the responder declares SEV-1 because a consequential transfer occurred under stale policy and another external action remains uncertain. At 09:05, retries are disabled. At 09:08, reconciliation begins. At 09:14, the authorized compensation restores the two account balances. At 09:16, the missing audit write is retried once with its original idempotency key. At 09:18, the pending notification is escalated without retry. At 09:24, validation and handoff complete. Elapsed response time is 24 minutes because 09:24 minus 09:00 equals 24 minutes.",
+        "The completed classification matrix is: model, unsupported completion claim; prompt, instruction allowed a completion claim without postcondition evidence; tool, transfer response timed out and notification postcondition is not exposed as confirmed; retrieval, obsolete policy version selected; data, stale policy content entered the decision context; policy, consequential action proceeded under an obsolete rule and compensation requires separate approval; orchestration, timeout was treated as retryable instead of unknown; infrastructure, transport timeout obscured the transfer response. These entries can coexist and do not assert that every boundary was an independent root cause.",
+        "The impact decision records one tenant, one confirmed consequential transfer of 100 fixture units, one missing audit record, and one unverifiable notification. The fixture units are synthetic state values, not currency or vendor billing. The recovery metrics are computed from three actions: one confirmed, one missing, and one unknown. Duplicate writes after repaired recovery equal zero. The restored operating balance is 1000 because 900 plus the compensated 100 equals 1000, and the restored reserve balance is 0 because 100 minus 100 equals 0.",
+        "Visual checkpoint: draw three columns labeled CONFIRMED, MISSING, and UNKNOWN. Place transfer-100 under CONFIRMED, audit-7 under MISSING, and notice-9 under UNKNOWN. Only the missing action is eligible for a bounded idempotent retry. The confirmed harmful action follows the authorized compensation path, while the unknown action stops and escalates."
+      ],
+      "callout": "Severity comes from the consequential write, stale governing evidence, and unverifiable external outcome. It does not come from the fluency of the completion claim."
     },
     {
       "id": "reconcile-and-recover",
       "title": "Reconcile before retry, rollback, or replay",
       "paragraphs": [
-        "A transport timeout does not prove that a write failed. Query the system of record with an idempotency key or correlation ID, compare the intended and actual postcondition, then choose accept, compensate, retry, rollback, or escalate.",
-        "Retry only transient failures with exponential backoff, jitter, provider guidance, and a total budget. Do not retry validation, authorization, policy, or deterministic conflict failures unchanged. Roll back through a tested reversible path and verify the restored state."
+        "A transport timeout does not prove that a write failed. Query the system of record with an idempotency key or correlation ID, verify that the binding still identifies the same tenant, actor, action, and intended postcondition, and then compare intended and actual state. Choose accept, compensate, retry, rollback, or escalate only after that comparison.",
+        "Retry only transient failures with exponential backoff, jitter, provider guidance, and a total budget. Do not retry validation, authorization, policy, or deterministic conflict failures unchanged. In this local lab, timing is deterministic and no delay is simulated. The single permitted retry represents the decision that would precede a production backoff schedule.",
+        "Rollback or compensation is a new consequential action. It requires a tested reversible path, an authorization that names the affected tenant and original action, and verification of restored state. The fixture approval approves compensation for transfer-100 only. It does not authorize arbitrary transfers or a retry of notice-9.",
+        "The decision table is: UNKNOWN leads to system-of-record reconciliation; confirmed and acceptable leads to acceptance; confirmed but harmful leads to authorized compensation and verification; missing plus transient plus remaining budget leads to an idempotent retry; unauthorized or policy-blocked leads to stop and escalation; unverifiable remains UNKNOWN and also leads to stop and escalation.",
+        "Checkpoint: a recovery is not correct merely because the command exits successfully. It must preserve the original evidence, avoid a second binding for the same idempotency key, perform the required missing write, leave the unverifiable action unresolved, and verify the restored balances."
       ],
       "code": {
         "language": "text",
         "label": "Recovery decision",
-        "code": "if outcome == UNKNOWN: reconcile system_of_record\nif unauthorized or policy_blocked: stop + escalate\nif transient and retry_budget > 0: backoff + idempotent retry\nif harmful change and rollback_tested: rollback + verify\notherwise: preserve evidence + human decision"
+        "code": "if outcome == UNKNOWN: reconcile system_of_record\nif confirmed and harmful and compensation_authorized: compensate + verify\nif missing and transient and retry_budget > 0: idempotent retry\nif unauthorized or policy_blocked: stop + escalate\nif still unverifiable: preserve evidence + human decision\nbefore closure: validate bindings + verify external postconditions"
       }
+    },
+    {
+      "id": "repair-lab",
+      "title": "Repair one unsafe reconciliation defect in Node.js 22",
+      "paragraphs": [
+        "Open the public repository entry at [training/reliable-agent-workflows/operate-and-recover-agent-systems/lab/](./training/reliable-agent-workflows/operate-and-recover-agent-systems/lab/). From the repository root, run `cd training/reliable-agent-workflows/operate-and-recover-agent-systems/lab && npm test`. The lab uses Node.js 22 native ECMAScript modules, `import` and `export`, no `require`, no `module.exports`, no dependencies, no API keys, and no network access.",
+        "The learner edits only `src/reconcile.mjs`. The starter has one causal defect: it labels every timed-out action MISSING without consulting persisted state. On the baseline fixture, this attempts to retry pay-100 even though confirmed ledger entry L-1 already binds that key. The immutable recovery guard blocks the duplicate and exits with failure. A deny-all implementation also fails because the independently expected audit action must be classified MISSING and written exactly once.",
+        "The exact starter demo command is `node src/recover.mjs fixtures/incident.json fixtures/ledger.json .tmp/starter-ledger.json`. Its stdout is `INCIDENT INC-2042 SEV-1 CONTAINED`, `RECONCILE transfer-100: MISSING`, `ERROR unsafe retry blocked: idempotency key pay-100 already binds ledger entry L-1`, and `RESULT FAILED`, each on its own line. Its exit code is 1. The output file is not written, and the fixture files remain unchanged.",
+        "Repair reconciliation by looking up entries with the action idempotency key. Return CONFIRMED only for one confirmed entry whose binding has passed shared validation, MISSING only when no entry exists, and UNKNOWN for a pending or otherwise unverifiable entry. Do not infer success from the agent claim or failure from the timeout.",
+        "After repair, the same demo command exits 0 and prints, one line at a time: `INCIDENT INC-2042 SEV-1 CONTAINED`; `RECONCILE transfer-100: CONFIRMED`; `COMPENSATE transfer-100: VERIFIED operating=1000 reserve=0`; `RECONCILE audit-7: MISSING`; `RETRY audit-7: CONFIRMED key=audit-7`; `RECONCILE notice-9: UNKNOWN`; `ESCALATE notice-9: unverifiable postcondition`; `EVIDENCE preserved events=6 originalEntries=2`; `METRICS confirmed=1 missing=1 unknown=1 duplicateWrites=0 restoredOperating=1000 restoredReserve=0`; `RESULT RECOVERED_WITH_ESCALATION`.",
+        "The independent tests assert the baseline state, a changed-input fixture, preservation of original evidence, unique idempotency bindings, required audit writes, compensation approval, restored balances, and escalation of pending outcomes. They also submit malformed types, an unknown actor identity, a negative retry budget, and a mismatched idempotency binding to shared validation. Passing output is documented in the lab README and ends with `PASS all 8 checks`; the exit code is 0.",
+        "Visual checkpoint: inspect the output ledger rather than trusting stdout. L-1 must still exist unchanged, one compensation entry must reverse transfer-100, one audit entry must bind audit-7, the pending notice record must remain pending, and no key may appear twice."
+      ],
+      "callout": "The fixture simulates system-of-record reconciliation. It does not execute a transfer, send a notification, contact a model, or grant a real approval."
+    },
+    {
+      "id": "independent-variation",
+      "title": "Prove the repair on changed identities, keys, and values",
+      "paragraphs": [
+        "Run `node src/recover.mjs fixtures/incident-changed.json fixtures/ledger-changed.json .tmp/changed-ledger.json`. This independent variation changes the incident ID, action IDs, idempotency keys, approval ID, account baseline, and transfer amount. A repair that hard-codes pay-100, transfer-100, 1000, or L-1 will fail.",
+        "For INC-2043, the confirmed transfer moves 40 fixture units from a baseline operating balance of 500. Reconciliation must find the existing confirmed entry by changed idempotency key pay-2043, compensate it under the changed approval, and verify operating=500 and reserve=0. The missing changed audit action must be written exactly once. The changed pending notification must remain UNKNOWN and be escalated.",
+        "The changed command exits 0. Its metrics line is exactly `METRICS confirmed=1 missing=1 unknown=1 duplicateWrites=0 restoredOperating=500 restoredReserve=0`. The arithmetic is fixture-derived: 460 plus 40 restores 500, and 40 minus 40 restores 0.",
+        "Learner activity: before running tests, predict the three classifications from the changed ledger. Then run the command, inspect `.tmp/changed-ledger.json`, and explain why the confirmed, missing, and unknown outcomes require three different actions. Record which assertion would fail if the implementation returned UNKNOWN for everything. The required missing audit entry provides the causal signal that deny-all is not a valid repair.",
+        "Checkpoint: the variation passes only if behavior follows validated bindings and persisted status. Matching the baseline text without generalizing is insufficient."
+      ]
     },
     {
       "id": "runbook-and-communication",
       "title": "Give responders a decision-ready runbook",
       "paragraphs": [
-        "A runbook names triggers, severity, owner, communication channel, dashboards and queries, containment choices, credentials and approvals, reconciliation steps, rollback or fallback, validation, escalation, and closure criteria. Commands should be safe to copy and explicit about targets.",
-        "Status updates distinguish confirmed facts, hypotheses, actions, impact, and next decision. Notify affected people under the organization's incident and privacy obligations without exposing secrets or unsupported blame."
+        "The executable local runbook is: from the repository root, change into the lab directory; run `npm test`; inspect the immutable fixtures; run the repaired baseline command with a new `.tmp` output path; compare original and recovered ledger entries; verify unique idempotency keys and restored balances; run the changed fixture; retain both outputs; and hand off the still-pending notification. The production analogue must name the real system of record, target tenant, credential scope, approval source, query, retry budget, compensation command, validation query, communication channel, and closure authority.",
+        "Trigger: any timeout after a consequential write, stale governing evidence, unsupported completion claim, duplicate idempotency binding, or unverifiable external postcondition. Severity: SEV-1 for this fixture because a consequential action used stale policy and another external postcondition remains unknown. Owner: Agent Operations on-call. Channel: fictional `#inc-inc-2042`. Containment: pause transfer automation and retries while retaining read-only reconciliation. Credentials: read-only ledger access for reconciliation and separately approved compensation authority. Escalation: Incident Commander and Policy Owner for stale policy, plus External Actions Owner for the pending notification.",
+        "Reconciliation: validate incident and ledger schemas, identities, tenants, budgets, and bindings; query by idempotency key; classify confirmed, missing, or unknown; compensate the confirmed harmful transfer only under its scoped approval; retry the missing audit write once; stop and escalate the unknown notification. Validation: prove original evidence remains, bindings are unique, balances are restored, the audit record exists once, and the pending record was not retried. Closure: do not close the external-action work item until its postcondition becomes verifiable or an authorized human accepts the residual risk.",
+        "The communication packet separates evidence categories. Confirmed facts: L-1 records transfer-100, stale policy 2025-01 was retrieved, audit-7 has no initial entry, and notice-9 is pending. Hypothesis: the timeout occurred after the transfer committed. Actions: automation paused, ledger reconciled, transfer compensated under approval APR-9, audit retried once, and notification escalated. Impact: one tenant and one compensated transfer of 100 fixture units, with no duplicate write. Decision needed: External Actions Owner must determine the real notification outcome. Do not include credentials, personal data, or unsupported blame.",
+        "Handoff packet: incident INC-2042; owner Agent Operations on-call; current state RECOVERED_WITH_ESCALATION; unresolved item notice-9; preserved artifacts `fixtures/incident.json`, `fixtures/ledger.json`, and `.tmp/starter-ledger.json` only if created by a repaired run; next checkpoint 09:44 UTC; closure blocker is verified notification postcondition or documented authorized residual-risk acceptance.",
+        "Visual checkpoint: a responder who did not attend the incident should be able to identify the target, execute the safe local validation, locate the unresolved action, and know who must decide next."
       ]
     },
     {
       "id": "learn-and-improve",
       "title": "Close only after recovery evidence and prevention work",
       "paragraphs": [
-        "Verify user-visible recovery, external postconditions, queues and retries, permissions, data isolation, cost, and monitoring. A green health endpoint alone may miss incomplete work or a duplicated side effect.",
-        "Write a blameless timeline and contributing factors, add the smallest reproducing case to the evaluation suite, improve the control at the failed boundary, rehearse the changed runbook, and measure recurrence. Track follow-up work to completion rather than treating the post-incident review as closure."
+        "Verify user-visible recovery, external postconditions, queues and retries, permissions, data isolation, cost, and monitoring. A green health endpoint alone may miss incomplete work or a duplicated side effect. In this fixture, the endpoint could be healthy while notice-9 remains pending, so closure depends on ledger and postcondition evidence.",
+        "Write a blameless timeline and contributing factors, add the smallest reproducing case to the evaluation suite, improve the control at the failed boundary, rehearse the changed runbook, and measure recurrence. Track follow-up work to completion rather than treating the post-incident review as closure.",
+        "Regression owner: Agent Reliability. Regression case: a timeout with one confirmed, one absent, and one pending system-of-record entry. Control owner: Tooling Platform. Control change: require reconciliation before any timeout retry and reject malformed identity, budget, or idempotency bindings. Runbook rehearsal owner: Incident Commander, monthly in the fictional exercise schedule. Retrieval owner: Knowledge Platform, with a release gate that rejects expired policy versions. Communication owner: Operations Enablement, with a template separating facts, hypotheses, actions, impact, and decisions.",
+        "Recurrence metric: count incidents per 1,000 consequential tool requests in which a timeout is followed by a retry before system-of-record reconciliation. The fixture supplies no production request denominator, so a production rate is UNKNOWN. Establish it from actual request and incident logs. The lab regression target is exact: zero duplicate writes across the two supplied recovery fixtures and all repeated test runs.",
+        "Checkpoint: prevention work is complete only when each action has an owner, a testable result, and a rehearsal or measurement. “Be more careful” is not a control."
+      ]
+    },
+    {
+      "id": "ecosystem-transfer",
+      "title": "Transfer the method across model families, runtimes, and APIs",
+      "paragraphs": [
+        "This incident method is provider-neutral because the decisive evidence comes from tool contracts, retrieved artifacts, orchestration state, and systems of record. A hosted API error, a self-hosted runtime exception, and a network timeout can all obscure an outcome, but their retry guidance, identifiers, and observability fields differ. Consult the documentation for the API and runtime actually deployed.",
+        "Do not treat a model family as an API. Meta Llama, Qwen, DeepSeek, Mistral, and Microsoft Phi name model families or project ecosystems. They may be served by their project runtimes, third-party runtimes, cloud services, or custom infrastructure. Their common presence in an agent design does not establish a common tool-call contract, idempotency guarantee, policy layer, context format, or approval capability.",
+        "For Meta Llama, inspect the specific Llama model and serving repository used. For Qwen and DeepSeek, distinguish model-repository behavior from the serving API wrapped around it. Mistral’s open inference runtime documents one implementation, not every service hosting Mistral-family weights. Microsoft’s Phi materials similarly describe models and examples rather than a universal agent API. The reconciliation rule remains stable: the external system of record, not a fluent model claim, decides whether a consequential side effect occurred.",
+        "For hosted providers such as Anthropic or OpenAI, use the provider’s dated error and retry documentation, but still bind each tool action to your own correlation or idempotency evidence. Provider error classes can inform whether a request was transient. They do not by themselves prove the external postcondition of a separate tool.",
+        "Visual checkpoint: write four separate labels in an architecture diagram: model family, inference runtime, model API, and consequential tool. Attach retry policy to the actual failing interface and attach postcondition reconciliation to the consequential tool’s system of record."
+      ]
+    },
+    {
+      "id": "answer-key-and-rubric",
+      "title": "Explain the repair and evaluate operational evidence",
+      "paragraphs": [
+        "Answer key: the defect is the unconditional MISSING result in `src/reconcile.mjs`. The correct implementation searches `state.entries` by `action.idempotencyKey`. Zero matches means MISSING. One confirmed match means CONFIRMED. One pending match means UNKNOWN. Shared validation has already rejected duplicate keys and mismatched bindings, so reconciliation must not bypass it. The reference implementation is available in `reference/reconcile.reference.mjs` for comparison after the learner attempts the repair.",
+        "Causal explanation: the timeout describes the response path, not the persisted write. Labeling transfer-100 MISSING sends it to retry, where the immutable guard detects that pay-100 is already bound to L-1. Reconciliation changes the classification to CONFIRMED, allowing the stale-policy transfer to follow the separately authorized compensation path. The absent audit entry remains MISSING and is retried once. The pending notification remains UNKNOWN and is escalated.",
+        "A complete submission earns credit only when all of the following evidence is present: the baseline and changed tests pass; no duplicate idempotency binding exists; original incident events and ledger entries are preserved; the confirmed transfer is reconciled and compensated under the scoped approval; restored balances are verified; the missing audit write is created once; the pending notification is neither reported as success nor treated as failure; malformed states, types, identities, budgets, and bindings are rejected; and the learner explains why compensation requires authorization.",
+        "Operational reasoning is complete when the learner also supplies the eight-category matrix, timeline, SEV-1 impact decision, containment target, executable runbook, communication and handoff packet, regression case, control change, rehearsal owner, and recurrence metric. A solution that merely makes stdout match, disables all writes, edits fixtures, weakens validation, or treats every uncertain outcome identically does not satisfy the activity.",
+        "Reflection: the unsupported completion claim initially looks like only a model failure. The trace shows stale retrieval, a committed write hidden by a timeout, an unsafe orchestration decision, and an unresolved external postcondition. Which of those observations changes the recovery action most, and why?"
       ]
     }
   ],
@@ -68,38 +142,90 @@
     "id": "activity-agent-incident-runbook",
     "title": "Triage and recover a multi-boundary agent incident",
     "instructions": [
-      "Use a scenario where an agent times out after a consequential tool call, retrieves stale data, and produces an unsupported completion claim.",
-      "Build a timeline and classify model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure evidence without assuming one root cause.",
-      "Write the severity, containment, reconciliation, retry, rollback, communication, escalation, validation, and closure steps.",
+      "Use the supplied scenario where an agent times out after a consequential tool call, retrieves stale data, and produces an unsupported completion claim.",
+      "Build the supplied timeline and classify model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure evidence without assuming one root cause.",
+      "Run the starter, preserve its failure evidence, repair only `src/reconcile.mjs`, and pass the independent baseline, changed-input, and malformed-state tests.",
+      "Write the severity, containment, reconciliation, retry, compensation, communication, escalation, validation, and closure steps. Explain why compensation requires scoped authorization and how restored state is verified.",
       "Convert the incident into regression cases, a control change, a runbook rehearsal, an owner, and a recurrence metric."
     ],
     "evidence": [
-      "A failure-classification matrix, incident timeline, impact and severity decision, and executable triage/recovery runbook.",
-      "Reconciliation and rollback evidence plus tracked evaluation, control, rehearsal, and monitoring improvements."
+      "A completed eight-category failure-classification matrix, incident timeline, impact and severity decision, and executable triage and recovery runbook.",
+      "Starter and repaired stdout with exit codes, recovered ledger evidence, no duplicate writes, preserved original evidence, verified compensation, one bounded missing-write retry, and an escalated unknown outcome.",
+      "A communication and handoff packet plus tracked evaluation, control, rehearsal, ownership, and recurrence-monitoring improvements."
     ],
     "reflectionPrompt": "Which symptom looked like a model failure until the trace exposed a different failed boundary?"
   },
   "instructorScript": {
     "schemaVersion": "1.1",
-    "estimatedSeconds": 36,
+    "estimatedSeconds": 81,
     "cues": [
       {
-        "id": "cue-operations-classify",
+        "id": "cue-operations-classify-1",
         "kind": "narration",
         "sectionId": "classify-before-changing",
-        "text": "Classify model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure evidence before choosing a fix."
+        "text": "Classify model, prompt, tool, retrieval,\ndata, policy, orchestration, and"
       },
       {
-        "id": "cue-operations-contain",
+        "id": "cue-operations-classify-2",
+        "kind": "narration",
+        "sectionId": "classify-before-changing",
+        "text": "infrastructure evidence before choosing a\nfix."
+      },
+      {
+        "id": "cue-operations-classify-visual",
+        "kind": "visual",
+        "sectionId": "classify-before-changing",
+        "text": "Show eight boundary rows with separate evidence and unknowns.",
+        "accessibilityAlternative": "A static table lists each of the eight boundaries, observed evidence, and evidence still needed."
+      },
+      {
+        "id": "cue-operations-contain-1",
         "kind": "narration",
         "sectionId": "triage-and-contain",
-        "text": "Assess actual and potential impact, contain unsafe behavior, and preserve secret-safe evidence before it changes."
+        "text": "Assess actual and potential impact,\ncontain unsafe behavior, and preserve"
       },
       {
-        "id": "cue-operations-recover",
+        "id": "cue-operations-contain-2",
+        "kind": "narration",
+        "sectionId": "triage-and-contain",
+        "text": "secret-safe evidence before it changes."
+      },
+      {
+        "id": "cue-operations-contain-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "triage-and-contain",
+        "text": "Confirm that the learner names the paused capability, remaining safe capability, approval owner, and evidence location."
+      },
+      {
+        "id": "cue-operations-incident-1",
+        "kind": "narration",
+        "sectionId": "incident-worked-example",
+        "text": "Trace one confirmed transfer, one missing\naudit write, and one pending notification"
+      },
+      {
+        "id": "cue-operations-incident-2",
+        "kind": "narration",
+        "sectionId": "incident-worked-example",
+        "text": "from timeout through reconciliation."
+      },
+      {
+        "id": "cue-operations-incident-visual",
+        "kind": "visual",
+        "sectionId": "incident-worked-example",
+        "text": "Place the three actions into confirmed, missing, and unknown columns.",
+        "accessibilityAlternative": "A static three-column table places transfer-100 under confirmed, audit-7 under missing, and notice-9 under unknown."
+      },
+      {
+        "id": "cue-operations-recover-1",
         "kind": "narration",
         "sectionId": "reconcile-and-recover",
-        "text": "Reconcile unknown outcomes before bounded retry, compensation, rollback, replay, or escalation."
+        "text": "Reconcile unknown outcomes before bounded\nretry, authorized compensation, rollback,"
+      },
+      {
+        "id": "cue-operations-recover-2",
+        "kind": "narration",
+        "sectionId": "reconcile-and-recover",
+        "text": "replay, or escalation."
       },
       {
         "id": "cue-operations-visual",
@@ -109,28 +235,70 @@
         "accessibilityAlternative": "A static decision table lists evidence and allowed actions for contain, reconcile, decide, recover, verify, and close. Reduced-motion mode shows every state."
       },
       {
-        "id": "cue-operations-runbook",
+        "id": "cue-operations-lab-1",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "Run the deterministic starter, observe the\nunsafe retry signal, and repair only the"
+      },
+      {
+        "id": "cue-operations-lab-2",
+        "kind": "narration",
+        "sectionId": "repair-lab",
+        "text": "persisted-state reconciliation decision."
+      },
+      {
+        "id": "cue-operations-lab-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "repair-lab",
+        "text": "Inspect the recovered ledger for original evidence, unique keys, authorized compensation, one audit entry, and one pending notification."
+      },
+      {
+        "id": "cue-operations-variation-1",
+        "kind": "narration",
+        "sectionId": "independent-variation",
+        "text": "Use changed identities, values, and keys\nto prove the repair follows state rather"
+      },
+      {
+        "id": "cue-operations-variation-2",
+        "kind": "narration",
+        "sectionId": "independent-variation",
+        "text": "than hard-coded fixture text."
+      },
+      {
+        "id": "cue-operations-variation-checkpoint",
+        "kind": "checkpoint",
+        "sectionId": "independent-variation",
+        "text": "Ask which assertion makes a deny-all implementation fail."
+      },
+      {
+        "id": "cue-operations-runbook-1",
         "kind": "narration",
         "sectionId": "runbook-and-communication",
-        "text": "Use a target-specific runbook and communicate confirmed facts, hypotheses, impact, actions, and required decisions separately."
+        "text": "Use a target-specific runbook and\ncommunicate confirmed facts, hypotheses,"
       },
       {
-        "id": "cue-operations-improve",
+        "id": "cue-operations-runbook-2",
         "kind": "narration",
-        "sectionId": "learn-and-improve",
-        "text": "Close after user-visible recovery, then turn the incident into regression tests, control changes, rehearsal, and recurrence measures."
-      },
-      {
-        "id": "cue-operations-prompt",
-        "kind": "learner-prompt",
-        "sectionId": "reconcile-and-recover",
-        "text": "Ask learners why a timeout after a write must be classified as unknown rather than failed."
+        "sectionId": "runbook-and-communication",
+        "text": "impact, actions, and required decisions\nseparately."
       },
       {
         "id": "cue-operations-pause",
         "kind": "pause",
         "sectionId": "runbook-and-communication",
-        "text": "Allow three minutes to add one exact rollback target and one human escalation trigger."
+        "text": "Allow three minutes to add one exact compensation target and one human escalation trigger."
+      },
+      {
+        "id": "cue-operations-improve-1",
+        "kind": "narration",
+        "sectionId": "learn-and-improve",
+        "text": "Close after user-visible recovery, then\nturn the incident into regression tests,"
+      },
+      {
+        "id": "cue-operations-improve-2",
+        "kind": "narration",
+        "sectionId": "learn-and-improve",
+        "text": "control changes, rehearsal, ownership, and\nrecurrence measures."
       },
       {
         "id": "cue-operations-checkpoint",
@@ -139,56 +307,194 @@
         "text": "Check that closure proves the external postcondition and assigns every prevention action."
       },
       {
+        "id": "cue-operations-ecosystem-1",
+        "kind": "narration",
+        "sectionId": "ecosystem-transfer",
+        "text": "Separate model family, runtime, API, and\nconsequential tool before applying"
+      },
+      {
+        "id": "cue-operations-ecosystem-2",
+        "kind": "narration",
+        "sectionId": "ecosystem-transfer",
+        "text": "provider-specific retry guidance."
+      },
+      {
+        "id": "cue-operations-ecosystem-visual",
+        "kind": "visual",
+        "sectionId": "ecosystem-transfer",
+        "text": "Show model family, inference runtime, model API, and consequential tool as distinct boxes.",
+        "accessibilityAlternative": "A static architecture list distinguishes the four layers and identifies where retry and reconciliation rules attach."
+      },
+      {
+        "id": "cue-operations-answer-1",
+        "kind": "narration",
+        "sectionId": "answer-key-and-rubric",
+        "text": "Explain why persisted status, not timeout\ntext, determines confirmed, missing, and"
+      },
+      {
+        "id": "cue-operations-answer-2",
+        "kind": "narration",
+        "sectionId": "answer-key-and-rubric",
+        "text": "unknown outcomes."
+      },
+      {
+        "id": "cue-operations-prompt",
+        "kind": "learner-prompt",
+        "sectionId": "reconcile-and-recover",
+        "text": "Ask learners why a timeout after a write must be classified as unknown until reconciliation rather than failed."
+      },
+      {
         "id": "cue-operations-activity",
         "kind": "learner-prompt",
-        "text": "Guide failure classification, containment, reconciliation, rollback, communication, and prevention work."
+        "text": "Guide failure classification, containment, reconciliation, compensation, communication, and prevention work."
       },
       {
-        "id": "cue-operations-assessment",
+        "id": "cue-operations-assessment-1",
         "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can recover without duplicate impact or unsupported completion claims."
+        "text": "Begin the check after the learner can\nrecover without duplicate impact or"
+      },
+      {
+        "id": "cue-operations-assessment-2",
+        "kind": "assessment-handoff",
+        "text": "unsupported completion claims."
       }
     ],
-    "transcript": "Classify model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure evidence before choosing a fix. Assess actual and potential impact, contain unsafe behavior, and preserve secret-safe evidence before it changes. Reconcile unknown outcomes before bounded retry, compensation, rollback, replay, or escalation. Use a target-specific runbook and communicate confirmed facts, hypotheses, impact, actions, and required decisions separately. Close after user-visible recovery, then turn the incident into regression tests, control changes, rehearsal, and recurrence measures. Begin the check after the learner can recover without duplicate impact or unsupported completion claims.",
+    "transcript": "Classify model, prompt, tool, retrieval,\ndata, policy, orchestration, and infrastructure evidence before choosing a\nfix. Assess actual and potential impact,\ncontain unsafe behavior, and preserve secret-safe evidence before it changes. Trace one confirmed transfer, one missing\naudit write, and one pending notification from timeout through reconciliation. Reconcile unknown outcomes before bounded\nretry, authorized compensation, rollback, replay, or escalation. Run the deterministic starter, observe the\nunsafe retry signal, and repair only the persisted-state reconciliation decision. Use changed identities, values, and keys\nto prove the repair follows state rather than hard-coded fixture text. Use a target-specific runbook and\ncommunicate confirmed facts, hypotheses, impact, actions, and required decisions\nseparately. Close after user-visible recovery, then\nturn the incident into regression tests, control changes, rehearsal, ownership, and\nrecurrence measures. Separate model family, runtime, API, and\nconsequential tool before applying provider-specific retry guidance. Explain why persisted status, not timeout\ntext, determines confirmed, missing, and unknown outcomes. Begin the check after the learner can\nrecover without duplicate impact or unsupported completion claims.",
     "captions": [
       {
-        "cueId": "cue-operations-classify",
+        "cueId": "cue-operations-classify-1",
         "startSeconds": 0,
-        "endSeconds": 6,
-        "text": "Classify model, prompt, tool, retrieval, data, policy, orchestration, and infrastructure evidence before choosing a fix."
+        "endSeconds": 4,
+        "text": "Classify model, prompt, tool, retrieval,\ndata, policy, orchestration, and"
       },
       {
-        "cueId": "cue-operations-contain",
-        "startSeconds": 6,
+        "cueId": "cue-operations-classify-2",
+        "startSeconds": 4,
+        "endSeconds": 7,
+        "text": "infrastructure evidence before choosing a\nfix."
+      },
+      {
+        "cueId": "cue-operations-contain-1",
+        "startSeconds": 7,
         "endSeconds": 12,
-        "text": "Assess actual and potential impact, contain unsafe behavior, and preserve secret-safe evidence before it changes."
+        "text": "Assess actual and potential impact,\ncontain unsafe behavior, and preserve"
       },
       {
-        "cueId": "cue-operations-recover",
+        "cueId": "cue-operations-contain-2",
         "startSeconds": 12,
-        "endSeconds": 17,
-        "text": "Reconcile unknown outcomes before bounded retry, compensation, rollback, replay, or escalation."
+        "endSeconds": 15,
+        "text": "secret-safe evidence before it changes."
       },
       {
-        "cueId": "cue-operations-runbook",
-        "startSeconds": 17,
+        "cueId": "cue-operations-incident-1",
+        "startSeconds": 15,
+        "endSeconds": 21,
+        "text": "Trace one confirmed transfer, one missing\naudit write, and one pending notification"
+      },
+      {
+        "cueId": "cue-operations-incident-2",
+        "startSeconds": 21,
         "endSeconds": 23,
-        "text": "Use a target-specific runbook and communicate confirmed facts, hypotheses, impact, actions, and required decisions separately."
+        "text": "from timeout through reconciliation."
       },
       {
-        "cueId": "cue-operations-improve",
+        "cueId": "cue-operations-recover-1",
         "startSeconds": 23,
-        "endSeconds": 30,
-        "text": "Close after user-visible recovery, then turn the incident into regression tests, control changes, rehearsal, and recurrence measures."
+        "endSeconds": 27,
+        "text": "Reconcile unknown outcomes before bounded\nretry, authorized compensation, rollback,"
       },
       {
-        "cueId": "cue-operations-assessment",
-        "startSeconds": 30,
-        "endSeconds": 36,
-        "text": "Begin the check after the learner can recover without duplicate impact or unsupported completion claims."
+        "cueId": "cue-operations-recover-2",
+        "startSeconds": 27,
+        "endSeconds": 29,
+        "text": "replay, or escalation."
+      },
+      {
+        "cueId": "cue-operations-lab-1",
+        "startSeconds": 29,
+        "endSeconds": 35,
+        "text": "Run the deterministic starter, observe the\nunsafe retry signal, and repair only the"
+      },
+      {
+        "cueId": "cue-operations-lab-2",
+        "startSeconds": 35,
+        "endSeconds": 37,
+        "text": "persisted-state reconciliation decision."
+      },
+      {
+        "cueId": "cue-operations-variation-1",
+        "startSeconds": 37,
+        "endSeconds": 43,
+        "text": "Use changed identities, values, and keys\nto prove the repair follows state rather"
+      },
+      {
+        "cueId": "cue-operations-variation-2",
+        "startSeconds": 43,
+        "endSeconds": 45,
+        "text": "than hard-coded fixture text."
+      },
+      {
+        "cueId": "cue-operations-runbook-1",
+        "startSeconds": 45,
+        "endSeconds": 49,
+        "text": "Use a target-specific runbook and\ncommunicate confirmed facts, hypotheses,"
+      },
+      {
+        "cueId": "cue-operations-runbook-2",
+        "startSeconds": 49,
+        "endSeconds": 52,
+        "text": "impact, actions, and required decisions\nseparately."
+      },
+      {
+        "cueId": "cue-operations-improve-1",
+        "startSeconds": 52,
+        "endSeconds": 57,
+        "text": "Close after user-visible recovery, then\nturn the incident into regression tests,"
+      },
+      {
+        "cueId": "cue-operations-improve-2",
+        "startSeconds": 57,
+        "endSeconds": 60,
+        "text": "control changes, rehearsal, ownership, and\nrecurrence measures."
+      },
+      {
+        "cueId": "cue-operations-ecosystem-1",
+        "startSeconds": 60,
+        "endSeconds": 65,
+        "text": "Separate model family, runtime, API, and\nconsequential tool before applying"
+      },
+      {
+        "cueId": "cue-operations-ecosystem-2",
+        "startSeconds": 65,
+        "endSeconds": 67,
+        "text": "provider-specific retry guidance."
+      },
+      {
+        "cueId": "cue-operations-answer-1",
+        "startSeconds": 67,
+        "endSeconds": 72,
+        "text": "Explain why persisted status, not timeout\ntext, determines confirmed, missing, and"
+      },
+      {
+        "cueId": "cue-operations-answer-2",
+        "startSeconds": 72,
+        "endSeconds": 73,
+        "text": "unknown outcomes."
+      },
+      {
+        "cueId": "cue-operations-assessment-1",
+        "startSeconds": 73,
+        "endSeconds": 79,
+        "text": "Begin the check after the learner can\nrecover without duplicate impact or"
+      },
+      {
+        "cueId": "cue-operations-assessment-2",
+        "startSeconds": 79,
+        "endSeconds": 81,
+        "text": "unsupported completion claims."
       }
     ],
-    "reducedMotionAlternative": "Present failure classification and recovery as static decision and runbook tables with focus highlighting."
+    "reducedMotionAlternative": "Present classification, reconciliation, recovery, and ecosystem architecture as static tables with focus highlighting."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -203,7 +509,7 @@
           "User interface"
         ],
         "answerIndex": 0,
-        "explanation": "The evidence source was stale; changing model wording would not repair the failed retrieval/data boundary."
+        "explanation": "The evidence source was stale; changing model wording would not repair the failed retrieval or data boundary."
       },
       {
         "id": "q-operate-and-recover-2",
@@ -251,7 +557,31 @@
           "Authorization and tool execution are the same as output style"
         ],
         "answerIndex": 0,
-        "explanation": "Useful triage identifies the first failed boundary instead of treating every symptom as a model problem."
+        "explanation": "Useful triage identifies failed boundaries instead of treating every symptom as a model problem."
+      },
+      {
+        "id": "q-operate-and-recover-6",
+        "prompt": "The system of record contains a pending entry for a timed-out notification. How should recovery classify it?",
+        "choices": [
+          "Confirmed",
+          "Missing",
+          "Unknown and requiring reconciliation or escalation",
+          "Safe to retry indefinitely"
+        ],
+        "answerIndex": 2,
+        "explanation": "Pending does not prove completion or failure. The action remains unknown and must not be blindly retried."
+      },
+      {
+        "id": "q-operate-and-recover-7",
+        "prompt": "Why does compensation require separate authorization?",
+        "choices": [
+          "It is only a reporting operation",
+          "It is a new consequential action that changes state",
+          "A model requested it",
+          "Every timeout grants rollback permission"
+        ],
+        "answerIndex": 1,
+        "explanation": "Compensation changes real state and must follow a scoped, tested, and verified authority path."
       }
     ]
   },
@@ -279,6 +609,66 @@
       "url": "https://www.nist.gov/itl/ai-risk-management-framework",
       "publisher": "NIST",
       "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Agentic workflows and failure modes",
+      "url": "https://platform.anthropic.com/docs/build-with-claude/agentic-workflows#failure-modes",
+      "publisher": "Anthropic",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Computer Security Incident Handling Guide, SP 800-61 Revision 2",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf",
+      "publisher": "NIST",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Making retries safe with idempotent APIs",
+      "url": "https://aws.amazon.com/blogs/architecture/distributed-systems-idempotency/",
+      "publisher": "Amazon Web Services",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Workers retry policies",
+      "url": "https://developers.cloudflare.com/workers/platform/limits/#retry-policies",
+      "publisher": "Cloudflare",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Node.js ECMAScript modules documentation",
+      "url": "https://nodejs.org/api/esm.html",
+      "publisher": "Node.js",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Llama models repository",
+      "url": "https://github.com/meta-llama/llama-models",
+      "publisher": "Meta",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Qwen3 repository",
+      "url": "https://github.com/QwenLM/Qwen3",
+      "publisher": "Qwen",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "DeepSeek-V3 repository",
+      "url": "https://github.com/deepseek-ai/DeepSeek-V3",
+      "publisher": "DeepSeek",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Mistral inference repository",
+      "url": "https://github.com/mistralai/mistral-inference",
+      "publisher": "Mistral AI",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Phi-3 Cookbook repository",
+      "url": "https://github.com/microsoft/Phi-3CookBook",
+      "publisher": "Microsoft",
+      "lastVerified": "2026-09-21"
     }
   ]
 }
