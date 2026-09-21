@@ -1,659 +1,1569 @@
 WEBVTT
 
 1
-00:00:00.000 --> 00:00:05.429
-Welcome. Scaling is not the act of adding
-replicas until
+00:00:00.000 --> 00:00:04.400
+Welcome. Scaling is not adding replicas
+until a graph looks
 
 2
-00:00:05.429 --> 00:00:10.857
-a graph looks better. It is a controlled
-response to
+00:00:04.400 --> 00:00:08.800
+better. It is a controlled response to
+measured demand and
 
 3
-00:00:10.857 --> 00:00:16.286
-measured demand and failure risk. In this
-class, you will
+00:00:08.800 --> 00:00:13.200
+failure risk. In this class, you will
+identify a bottleneck,
 
 4
-00:00:16.286 --> 00:00:21.714
-identify the real bottleneck, bound
+00:00:13.200 --> 00:00:17.600
+compare eight scaling patterns, bound
 admission and retries, place and
 
 5
-00:00:21.714 --> 00:00:27.143
-warm useful capacity, test blast radius,
-and approve only a
+00:00:17.600 --> 00:00:22.000
+warm useful capacity, test failure blast
+radius, repair a capacity
 
 6
-00:00:27.143 --> 00:00:32.571
-scale policy whose quality, cost,
-recovery, and rollback evidence holds
+00:00:22.000 --> 00:00:26.400
+policy, and approve only a reversible
+decision whose service, quality,
 
 7
-00:00:32.571 --> 00:00:38.000
-under representative traffic.
+00:00:26.400 --> 00:00:30.800
+cost, recovery, and rollback evidence
+holds. The examples are fictional
 
 8
-00:00:38.000 --> 00:00:43.833
-Scale the measured bottleneck, not the
-architecture diagram. Use latency
+00:00:30.800 --> 00:00:35.200
+teaching data. The lab is deterministic
+local code. Nothing in
 
 9
-00:00:43.833 --> 00:00:49.667
-distributions, queue time, concurrency,
-rejection, accelerator and host
+00:00:35.200 --> 00:00:39.600
+this lesson starts a service, invokes a
+provider, downloads a
 
 10
-00:00:49.667 --> 00:00:55.500
-utilization, memory headroom, bandwidth,
-storage delay, cache behavior, request
+00:00:39.600 --> 00:00:44.000
+model, or proves a production control.
 
 11
-00:00:55.500 --> 00:01:01.333
-sizes, and attributable cost. Then compare
-options. A larger device
+00:00:44.000 --> 00:00:48.514
+Begin with measurements, not a preferred
+topology. Inspect latency distributions,
 
 12
-00:01:01.333 --> 00:01:07.167
-or host can increase vertical capacity but
-may enlarge one
+00:00:48.514 --> 00:00:53.027
+queue time, utilization, memory headroom,
+bandwidth, cache behavior, request sizes,
 
 13
-00:01:07.167 --> 00:01:13.000
-failure domain. More replicas can improve
-parallel work and replacement
+00:00:53.027 --> 00:00:57.541
+concurrency, rejection, quality, and cost.
+MLPerf Inference Datacenter is useful
 
 14
-00:01:13.000 --> 00:01:18.833
-but also multiply startup, memory, and
-shared-dependency load. Model or
+00:00:57.541 --> 00:01:02.054
+here because comparisons need defined
+workloads, scenarios, and measured
 
 15
-00:01:18.833 --> 00:01:24.667
-tensor parallelism can fit or accelerate a
-larger build while
+00:01:02.054 --> 00:01:06.568
+systems. It supplies no measurement or
+score for this fictional
 
 16
-00:01:24.667 --> 00:01:30.500
-adding communication and placement
-constraints. Batching can improve
+00:01:06.568 --> 00:01:11.081
+exercise. Here is the worked bottleneck.
+Four ready replicas each
 
 17
-00:01:30.500 --> 00:01:36.333
-throughput while increasing queue and tail
-latency. A bounded queue
+00:01:11.081 --> 00:01:15.595
+complete two work units per interval. Four
+times two equals
 
 18
-00:01:36.333 --> 00:01:42.167
-can absorb a short burst but cannot create
-compute. Caching
+00:01:15.595 --> 00:01:20.108
+eight immediately serviceable units. Burst
+demand is thirteen. Device utilization
 
 19
-00:01:42.167 --> 00:01:48.000
-can avoid repeated work only when keys,
-freshness, authorization, and
+00:01:20.108 --> 00:01:24.622
+is ninety-one percent, memory headroom is
+thirty-four percent, artifact-store
 
 20
-00:01:48.000 --> 00:01:53.833
-data isolation are correct. Workload
-routing can match requests to
+00:01:24.622 --> 00:01:29.135
+latency is eighteen milliseconds, and
+cache hit rate is sixty-two
 
 21
-00:01:53.833 --> 00:01:59.667
-specialized evaluated capacity. A smaller
-evaluated model can reduce latency
+00:01:29.135 --> 00:01:33.649
+percent. Queue delay rises from twenty
+milliseconds to four hundred
 
 22
-00:01:59.667 --> 00:02:05.500
-and cost but changes quality and safety
-evidence. Scaling compute
+00:01:33.649 --> 00:01:38.162
+ten milliseconds. These observations
+identify serving-compute throughput as the
 
 23
-00:02:05.500 --> 00:02:11.333
-cannot repair an unbounded queue,
-unavailable identity service, slow
+00:01:38.162 --> 00:01:42.676
+measured burst bottleneck. Demand thirteen
+minus ready capacity eight leaves
 
 24
-00:02:11.333 --> 00:02:17.167
-artifact store, bad prompt template,
-incompatible runtime, or quality
+00:01:42.676 --> 00:01:47.189
+five units needing queueing or rejection.
+A queue limited to
 
 25
-00:02:17.167 --> 00:02:23.000
-regression.
+00:01:47.189 --> 00:01:51.703
+two absorbs two. Therefore, five minus two
+equals three rejected
 
 26
-00:02:23.000 --> 00:02:28.200
-Consider a synthetic service with
-acceptable processing time at one
+00:01:51.703 --> 00:01:56.216
+units. Now compare eight alternatives.
+Vertical scaling may increase throughput,
 
 27
-00:02:28.200 --> 00:02:33.400
-request, but rising queue delay during a
-ten-request burst. Accelerator
+00:01:56.216 --> 00:02:00.730
+but raises unit cost and host blast
+radius. More replicas
 
 28
-00:02:33.400 --> 00:02:38.600
-utilization is high, memory has safe
-headroom, artifact storage is
+00:02:00.730 --> 00:02:05.243
+add capacity only after readiness, and
+improve host availability only
 
 29
-00:02:38.600 --> 00:02:43.800
-healthy, and quality is unchanged. The
-first experiment compares two
+00:02:05.243 --> 00:02:09.757
+when spread across failure domains. Model
+or tensor parallelism may
 
 30
-00:02:43.800 --> 00:02:49.000
-warmed replicas against one larger-batch
-replica under the same requests,
+00:02:09.757 --> 00:02:14.270
+fit or accelerate a model, but adds
+communication and can
 
 31
-00:02:49.000 --> 00:02:54.200
+00:02:14.270 --> 00:02:18.784
+widen the serving-unit failure domain.
+Batching may improve utilization, but
+
+32
+00:02:18.784 --> 00:02:23.297
+adds waiting time and needs evaluated
+limits. A bounded queue
+
+33
+00:02:23.297 --> 00:02:27.811
+absorbs a short burst, but creates no
+throughput and must
+
+34
+00:02:27.811 --> 00:02:32.324
+fit the deadline. Caching may remove
+repeated work, but needs
+
+35
+00:02:32.324 --> 00:02:36.838
+correct identity, isolation, freshness,
+and invalidation. Workload routing can
+
+36
+00:02:36.838 --> 00:02:41.351
+protect interactive traffic, but adds a
+routing dependency and reserved-capacity
+
+37
+00:02:41.351 --> 00:02:45.865
+tradeoff. A smaller evaluated model may
+reduce latency and cost,
+
+38
+00:02:45.865 --> 00:02:50.378
+but requires separate quality and safety
+evidence. The provisional design
+
+39
+00:02:50.378 --> 00:02:54.892
+adds two warmed replicas, raises ready
+capacity from eight to
+
+40
+00:02:54.892 --> 00:02:59.405
+twelve work units, places the new replicas
+in a second
+
+41
+00:02:59.405 --> 00:03:03.919
+host domain, retains a queue limit of two,
+and rejects
+
+42
+00:03:03.919 --> 00:03:08.432
+excess work before completion becomes
+impossible. We do not choose
+
+43
+00:03:08.432 --> 00:03:12.946
+sharding because the model fits with
+thirty-four percent synthetic memory
+
+44
+00:03:12.946 --> 00:03:17.459
+headroom. We do not claim caching solves
+this burst because
+
+45
+00:03:17.459 --> 00:03:21.973
+thirty-eight percent of requests are
+misses. We retain only the
+
+46
+00:03:21.973 --> 00:03:26.486
+previously evaluated batch bound. Every
+choice remains provisional until service,
+
+47
+00:03:26.486 --> 00:03:31.000
+quality, placement, startup, failure,
+cost, recovery, and rollback gates pass.
+
+48
+00:03:31.000 --> 00:03:35.333
+The older comparison adds an important
+caution. Suppose one request
+
+49
+00:03:35.333 --> 00:03:39.667
+has acceptable processing time, but queue
+delay rises during a
+
+50
+00:03:39.667 --> 00:03:44.000
+ten-request burst. Accelerator utilization
+is high, memory has safe headroom,
+
+51
+00:03:44.000 --> 00:03:48.333
+artifact storage is healthy, and quality
+is unchanged. Compare two
+
+52
+00:03:48.333 --> 00:03:52.667
+warmed replicas with one larger-batch
+replica under the same requests,
+
+53
+00:03:52.667 --> 00:03:57.000
 limits, hardware class, and load. Two
 replicas reduce queue delay
 
-32
-00:02:54.200 --> 00:02:59.400
-and preserve time to first output, but
-both are placed
-
-33
-00:02:59.400 --> 00:03:04.600
-on one host and share one gateway. That
-does not
-
-34
-00:03:04.600 --> 00:03:09.800
-satisfy a host-failure availability claim.
-The batched option improves throughput
-
-35
-00:03:09.800 --> 00:03:15.000
-but violates the interactive latency
-objective. The decision selects two
-
-36
-00:03:15.000 --> 00:03:20.200
-replicas spread across verified failure
-domains, retains bounded batching, and
-
-37
-00:03:20.200 --> 00:03:25.400
-records the shared gateway as a remaining
-dependency. It also
-
-38
-00:03:25.400 --> 00:03:30.600
-preserves the baseline policy and cost
-ceiling. The answer came
-
-39
-00:03:30.600 --> 00:03:35.800
-from queue, placement, latency, quality,
-and cost evidence, not from
-
-40
-00:03:35.800 --> 00:03:41.000
-replica count alone.
-
-41
-00:03:41.000 --> 00:03:47.375
-Control admission before saturation. Set
-body, context, output, concurrency, rate,
-
-42
-00:03:47.375 --> 00:03:53.750
-queue, deadline, and compute limits by
-workload and priority. Reject
-
-43
-00:03:53.750 --> 00:04:00.125
-early with a stable error and bounded
-retry guidance when
-
-44
-00:04:00.125 --> 00:04:06.500
-work cannot finish inside its deadline or
-budget. Propagate cancellation
-
-45
-00:04:06.500 --> 00:04:12.875
-and deadlines through gateway, queue,
-inference server, runtime, and dependent
-
-46
-00:04:12.875 --> 00:04:19.250
-tools so abandoned work does not keep
-consuming capacity. Backpressure
-
-47
-00:04:19.250 --> 00:04:25.625
-tells upstream callers that downstream
-capacity is constrained; an unbounded
-
-48
-00:04:25.625 --> 00:04:32.000
-queue only hides overload until latency
-and memory fail. Retry
-
-49
-00:04:32.000 --> 00:04:38.375
-only classified transient failures, use a
-bounded attempt count and
-
-50
-00:04:38.375 --> 00:04:44.750
-jitter, honor a retry budget, and confirm
-the operation is
-
-51
-00:04:44.750 --> 00:04:51.125
-safe to repeat. Circuit breakers stop
-repeated calls to a
-
-52
-00:04:51.125 --> 00:04:57.500
-failing dependency. Load shedding protects
-critical work by rejecting lower-priority
-
-53
-00:04:57.500 --> 00:05:03.875
-demand before all work fails. Define safe
-degraded modes in
-
 54
-00:05:03.875 --> 00:05:10.250
-advance: smaller limits, lower-priority
-rejection, a read-only path, or a
+00:03:57.000 --> 00:04:01.333
+and preserve time to first output, but if
+both sit
 
 55
-00:05:10.250 --> 00:05:16.625
-separately evaluated fallback. A degraded
-mode is not permission to
+00:04:01.333 --> 00:04:05.667
+on one host, they do not support a
+host-failure availability
 
 56
-00:05:16.625 --> 00:05:23.000
-bypass identity, authorization, privacy,
-safety, or evidence controls.
+00:04:05.667 --> 00:04:10.000
+claim. The batched option improves
+throughput but violates the interactive
 
 57
-00:05:23.000 --> 00:05:29.750
+00:04:10.000 --> 00:04:14.333
+latency objective. Select two replicas
+only when they are spread
+
+58
+00:04:14.333 --> 00:04:18.667
+across verified failure domains. Retain
+bounded batching, record the shared
+
+59
+00:04:18.667 --> 00:04:23.000
+gateway as a remaining dependency,
+preserve the baseline policy and
+
+60
+00:04:23.000 --> 00:04:27.333
+cost ceiling, and attribute the decision
+to queue, placement, latency,
+
+61
+00:04:27.333 --> 00:04:31.667
+quality, and cost evidence. Replica count
+alone is not evidence
+
+62
+00:04:31.667 --> 00:04:36.000
+of availability.
+
+63
+00:04:36.000 --> 00:04:40.405
+Capacity does not replace admission
+control. Set body, context, output,
+
+64
+00:04:40.405 --> 00:04:44.811
+concurrency, rate, queue, deadline, and
+resource limits by workload and
+
+65
+00:04:44.811 --> 00:04:49.216
+priority. For this fictional policy,
+interactive work permits a one
+
+66
+00:04:49.216 --> 00:04:53.622
+megabyte body, eight thousand one hundred
+ninety-two context tokens, one
+
+67
+00:04:53.622 --> 00:04:58.027
+thousand twenty-four output tokens,
+sixteen concurrent requests per tenant,
+
+68
+00:04:58.027 --> 00:05:02.432
+twenty requests per second, a queue of two
+work units,
+
+69
+00:05:02.432 --> 00:05:06.838
+and a one thousand millisecond deadline.
+Batch work permits a
+
+70
+00:05:06.838 --> 00:05:11.243
+four megabyte body, sixteen thousand three
+hundred eighty-four context tokens,
+
+71
+00:05:11.243 --> 00:05:15.649
+two thousand forty-eight output tokens,
+four concurrent jobs per tenant,
+
+72
+00:05:15.649 --> 00:05:20.054
+two jobs per second, a queue of eight work
+
+73
+00:05:20.054 --> 00:05:24.459
+units, and a thirty thousand millisecond
+deadline. Administrative evaluation
+
+74
+00:05:24.459 --> 00:05:28.865
+permits two concurrent jobs and no retry
+by default. These
+
+75
+00:05:28.865 --> 00:05:33.270
+are teaching limits, not production
+recommendations. Reject malformed input
+
+76
+00:05:33.270 --> 00:05:37.676
+before queueing. Reject work that cannot
+finish inside its deadline
+
+77
+00:05:37.676 --> 00:05:42.081
+or budget, and provide stable retry
+guidance. Propagate deadlines and
+
+78
+00:05:42.081 --> 00:05:46.486
+cancellation through the gateway, queue,
+server, runtime, and dependent tools.
+
+79
+00:05:46.486 --> 00:05:50.892
+Cancellation removes queued work and
+signals active work through each
+
+80
+00:05:50.892 --> 00:05:55.297
+supported layer. If active computation
+cannot stop, suppress its result
+
+81
+00:05:55.297 --> 00:05:59.703
+and account for residual capacity use.
+Retry at most twice
+
+82
+00:05:59.703 --> 00:06:04.108
+with bounded jitter, only for classified
+transient failures, only when
+
+83
+00:06:04.108 --> 00:06:08.514
+repetition is safe, and only within the
+original deadline and
+
+84
+00:06:08.514 --> 00:06:12.919
+queue budget. Never retry malformed input,
+an authorization denial, an
+
+85
+00:06:12.919 --> 00:06:17.324
+exhausted deadline, an unverified model,
+or a deterministic context-limit failure.
+
+86
+00:06:17.324 --> 00:06:21.730
+Open the artifact-store circuit after
+three classified failures in a
+
+87
+00:06:21.730 --> 00:06:26.135
+thirty-second exercise window. Allow one
+probe after a twenty-second cooldown,
+
+88
+00:06:26.135 --> 00:06:30.541
+and close after two successful probes.
+Shed batch work first
+
+89
+00:06:30.541 --> 00:06:34.946
+when its deadline cannot be met. Reject
+lower-priority interactive work
+
+90
+00:06:34.946 --> 00:06:39.351
+next with retry guidance. A degraded mode
+may lower output
+
+91
+00:06:39.351 --> 00:06:43.757
+to two hundred fifty-six tokens or use a
+separately evaluated
+
+92
+00:06:43.757 --> 00:06:48.162
+fallback. It must not silently change
+model identity, weaken authorization,
+
+93
+00:06:48.162 --> 00:06:52.568
+or claim equal quality without
+measurement. Deny-all is not a
+
+94
+00:06:52.568 --> 00:06:56.973
+repair. It destroys available service and
+fails the positive changed-input
+
+95
+00:06:56.973 --> 00:07:01.378
+case. Admit-all is also invalid because
+warming, draining, and failed
+
+96
+00:07:01.378 --> 00:07:05.784
+replicas are not capacity. A valid
+decision needs ready capacity
+
+97
+00:07:05.784 --> 00:07:10.189
+plus bounded queue coverage, queue delay
+plus service time within
+
+98
+00:07:10.189 --> 00:07:14.595
+deadline, enough ready failure domains,
+and cost at or below
+
+99
+00:07:14.595 --> 00:07:19.000
+its ceiling.
+
+100
+00:07:19.000 --> 00:07:23.167
 Checkpoint. One dependency begins timing
 out. Each client retries immediately
 
-58
-00:05:29.750 --> 00:05:36.500
-without a limit, the gateway retries
+101
+00:07:23.167 --> 00:07:27.333
+without a limit. The gateway retries
 twice, and the queue
 
-59
-00:05:36.500 --> 00:05:43.250
+102
+00:07:27.333 --> 00:07:31.500
 accepts every attempt. Explain how a small
 partial failure becomes
 
-60
-00:05:43.250 --> 00:05:50.000
-a cascade and name the controls that stop
-it.
+103
+00:07:31.500 --> 00:07:35.667
+a cascade. Name the controls that stop it.
+Include malformed-input
 
-61
-00:07:05.000 --> 00:07:10.600
+104
+00:07:35.667 --> 00:07:39.833
+rejection, deadlines, cancellation, retry
+ownership, retry budget, jitter, circuit
+
+105
+00:07:39.833 --> 00:07:44.000
+breaking, bounded queues, shedding, and
+recovery.
+
+106
+00:08:59.000 --> 00:09:03.429
 Every original request creates multiple
 client attempts, and each gateway
 
-62
-00:07:10.600 --> 00:07:16.200
+107
+00:09:03.429 --> 00:09:07.857
 attempt multiplies them again. The
 unbounded queue preserves work after
 
-63
-00:07:16.200 --> 00:07:21.800
+108
+00:09:07.857 --> 00:09:12.286
 its useful deadline, so capacity is
-consumed by requests that
+consumed by work that
 
-64
-00:07:21.800 --> 00:07:27.400
+109
+00:09:12.286 --> 00:09:16.714
 should already have failed. Stop the
 cascade with one end-to-end
 
-65
-00:07:27.400 --> 00:07:33.000
+110
+00:09:16.714 --> 00:09:21.143
 deadline, propagated cancellation, one
 owned retry layer, classified transient
 
-66
-00:07:33.000 --> 00:07:38.600
-failures, a small attempt and retry budget
-with jitter, a
+111
+00:09:21.143 --> 00:09:25.571
+failures, a small attempt limit, a retry
+budget, jitter, a
 
-67
-00:07:38.600 --> 00:07:44.200
+112
+00:09:25.571 --> 00:09:30.000
 circuit breaker, bounded admission and
 queueing, and prioritized shedding.
 
-68
-00:07:44.200 --> 00:07:49.800
+113
+00:09:30.000 --> 00:09:34.429
 Recover the dependency, drain or discard
 expired work safely, and
 
-69
-00:07:49.800 --> 00:07:55.400
+114
+00:09:34.429 --> 00:09:38.857
 verify normal load before closing the
 event. If your answer
 
-70
-00:07:55.400 --> 00:08:01.000
+115
+00:09:38.857 --> 00:09:43.286
 only added replicas, the amplification
 would consume those replicas too.
 
-71
-00:08:01.000 --> 00:08:07.667
-Place capacity against real device,
-memory, topology, storage, network,
-
-72
-00:08:07.667 --> 00:08:14.333
-driver, and runtime requirements.
-Kubernetes resource requests influence
-
-73
-00:08:14.333 --> 00:08:21.000
-scheduling, limits bound some resource
-use, and extended devices have
-
-74
-00:08:21.000 --> 00:08:27.667
-different allocation behavior from
-fractional CPU. Docker likewise warns that
-
-75
-00:08:27.667 --> 00:08:34.333
-containers have no resource constraints by
-default. Verify actual scheduler,
-
-76
-00:08:34.333 --> 00:08:41.000
-device-plugin, topology, and runtime
-behavior in the target environment. A
-
-77
-00:08:41.000 --> 00:08:47.667
-scheduled process is not useful capacity.
-Account for artifact download,
-
-78
-00:08:47.667 --> 00:08:54.333
-integrity and policy verification, model
-load, compilation, cache warm-up, adapter
-
-79
-00:08:54.333 --> 00:09:01.000
-initialization, and exact-model readiness
-before routing traffic. During removal or
-
-80
-00:09:01.000 --> 00:09:07.667
-update, stop new admission to the replica,
-drain bounded in-flight
-
-81
-00:09:07.667 --> 00:09:14.333
-work until a declared deadline, cancel or
-reconcile remaining operations,
-
-82
-00:09:14.333 --> 00:09:21.000
-preserve telemetry, revoke the route, and
-only then reclaim resources.
-
-83
-00:09:21.000 --> 00:09:27.667
-Test cold start, replacement, host
-pressure, and simultaneous rollout so
-
-84
-00:09:27.667 --> 00:09:34.333
-autoscaling does not count replicas that
-cannot become ready before
-
-85
-00:09:34.333 --> 00:09:41.000
-the demand passes.
-
-86
-00:09:41.000 --> 00:09:47.533
-Inject failures and measure the actual
-blast radius. Include process
-
-87
-00:09:47.533 --> 00:09:54.067
-crash, out-of-memory termination, device
-loss, host loss, storage delay, network
-
-88
-00:09:54.067 --> 00:10:00.600
-partition, identity failure, telemetry
-failure, registry outage, queue pressure,
-
-89
-00:10:00.600 --> 00:10:07.133
-malformed work, and a bad model release.
-Observe affected requests,
-
-90
-00:10:07.133 --> 00:10:13.667
-replicas, nodes, sites, shared services,
-and management functions. Confirm liveness
-
-91
-00:10:13.667 --> 00:10:20.200
-and readiness remove unsafe capacity,
-queues stay bounded, retries do
-
-92
-00:10:20.200 --> 00:10:26.733
-not amplify demand, one workload cannot
-starve another, exact model
-
-93
-00:10:26.733 --> 00:10:33.267
-identity remains visible, and recovery
-rejects stale or unverified artifacts.
-
-94
-00:10:33.267 --> 00:10:39.800
-Multiple replicas improve availability
-only when placement and shared
-
-95
-00:10:39.800 --> 00:10:46.333
-dependencies support the claim. Two
-replicas on one host do
-
-96
-00:10:46.333 --> 00:10:52.867
-not survive host loss. Replicas across
-hosts still share a
-
-97
-00:10:52.867 --> 00:10:59.400
-gateway, identity provider, artifact
-store, network, power domain, or operator
-
-98
-00:10:59.400 --> 00:11:05.933
-error unless those dependencies are
-addressed. Record the expected and
-
-99
-00:11:05.933 --> 00:11:12.467
-observed blast radius, containment, data
-and state reconciliation, recovery time,
-
-100
-00:11:12.467 --> 00:11:19.000
-evidence gaps, and owner.
-
-101
-00:11:19.000 --> 00:11:25.933
-Choose scale signals that lead useful
-demand without chasing noise.
-
-102
-00:11:25.933 --> 00:11:32.867
-Queue delay, admitted concurrency, work
-units, saturation, or a tested
-
-103
-00:11:32.867 --> 00:11:39.800
-combination may react earlier than CPU or
-accelerator utilization alone.
-
-104
-00:11:39.800 --> 00:11:46.733
-Kubernetes Horizontal Pod Autoscaling
-periodically adjusts desired replicas from
-
-105
-00:11:46.733 --> 00:11:53.667
-observed metrics, subject to its algorithm
-and configured behavior; model-serving
-
-106
-00:11:53.667 --> 00:12:00.600
-warm-up means your useful-capacity policy
-must account for the delay
-
-107
-00:12:00.600 --> 00:12:07.533
-between a scale decision and readiness.
-Set a minimum safe
-
-108
-00:12:07.533 --> 00:12:14.467
-floor, maximum cost and quota,
-stabilization windows, scale-up rate,
-
-109
-00:12:14.467 --> 00:12:21.400
-warm-up allowance, scale-down drain,
-telemetry-loss behavior, and alerts.
-
-110
-00:12:21.400 --> 00:12:28.333
-Compare baseline and candidate policies
-under steady, burst, ramp, skewed,
-
-111
-00:12:28.333 --> 00:12:35.267
-and failure traffic. Approve only when
-service objectives, quality, isolation,
-
-112
-00:12:35.267 --> 00:12:42.200
-cost, startup, recovery, and rollback
-gates pass. Preserve the prior
-
-113
-00:12:42.200 --> 00:12:49.133
-policy, exact configuration, and safe
-capacity floor. If telemetry is
-
-114
-00:12:49.133 --> 00:12:56.067
-missing or the candidate thrashes, fail to
-the declared safe
-
-115
-00:12:56.067 --> 00:13:03.000
-state rather than treating absent
-measurements as zero demand.
-
 116
-00:13:03.000 --> 00:13:08.800
-Now design and challenge the scaling
-policy. Use synthetic load
+00:09:43.286 --> 00:09:47.714
+A correct answer names both the causal
+amplification and the
 
 117
-00:13:08.800 --> 00:13:14.600
-evidence to identify one bottleneck and
-compare vertical, replica, sharded,
+00:09:47.714 --> 00:09:52.143
+controls. A retry answer should be marked
+correct when it
 
 118
-00:13:14.600 --> 00:13:20.400
-batched, queued, cached, routed, and
-smaller-model options. Define per-workload
+00:09:52.143 --> 00:09:56.571
+bounds safe transient retries and
+preserves the original deadline.
 
 119
-00:13:20.400 --> 00:13:26.200
-admission, queue, deadline, cancellation,
-retry, circuit, shedding, and degraded
+00:09:56.571 --> 00:10:01.000
+Otherwise, mark retry and revisit the
+control chain.
 
 120
-00:13:26.200 --> 00:13:32.000
-behavior. Write placement, artifact
-verification, warm-up, readiness, drain,
+00:10:01.000 --> 00:10:05.519
+Schedule against actual device, memory,
+topology, storage, network, driver, and
 
 121
-00:13:32.000 --> 00:13:37.800
-replacement, minimum capacity, maximum
-cost, and stabilization rules. Create ten
+00:10:05.519 --> 00:10:10.037
+runtime requirements. Kubernetes resource
+requests influence placement and limits
 
 122
-00:13:37.800 --> 00:13:43.600
-process, device, host, dependency,
-pressure, telemetry, and bad-release
+00:10:10.037 --> 00:10:14.556
+bound some resource use. Extended devices
+such as accelerators cannot
 
 123
-00:13:43.600 --> 00:13:49.400
-failures with expected blast radius and
-recovery. Compare baseline and
+00:10:14.556 --> 00:10:19.074
+be overcommitted in the same way as
+fractional CPU. Docker
 
 124
-00:13:49.400 --> 00:13:55.200
-candidate under steady, burst, ramp,
-skewed, and failure traffic, then
+00:10:19.074 --> 00:10:23.593
+containers have no resource constraints by
+default, so explicit limits
 
 125
-00:13:55.200 --> 00:14:01.000
-issue a reversible decision.
+00:10:23.593 --> 00:10:28.111
+and host capacity matter. Documentation
+describes platform behavior, but does
 
 126
-00:17:01.000 --> 00:17:06.200
-Begin the check when you can select a
-pattern from
+00:10:28.111 --> 00:10:32.630
+not prove that a live deployment enforces
+a proposed policy.
 
 127
-00:17:06.200 --> 00:17:11.400
-a measured bottleneck, explain
-backpressure, define useful replica
+00:10:32.630 --> 00:10:37.148
+A replacement passes through artifact
+download, digest verification, model load,
 
 128
-00:17:11.400 --> 00:17:16.600
-readiness, stop retry amplification,
-measure failure isolation, and preserve a
+00:10:37.148 --> 00:10:41.667
+compilation where required, cache warm-up,
+and an exact model-identity readiness
 
 129
-00:17:16.600 --> 00:17:21.800
-reversible autoscaling policy. The check
-starts only when you choose
+00:10:41.667 --> 00:10:46.185
+probe. It contributes zero admission
+capacity while warming. A listening
 
 130
-00:17:21.800 --> 00:17:27.000
-Begin knowledge check.
+00:10:46.185 --> 00:10:50.704
+port or scheduled workload is insufficient
+evidence of readiness. Require
 
 131
-00:17:27.000 --> 00:17:33.333
-Remember: scale the measured constraint,
-bound demand before saturation, count
+00:10:50.704 --> 00:10:55.222
+the intended accelerator, sufficient
+device and host memory, compatible driver
 
 132
-00:17:33.333 --> 00:17:39.667
-only verified ready capacity, test shared
-failures, and preserve the
+00:10:55.222 --> 00:10:59.741
+and runtime, artifact reachability, and
+tested network capacity. Spread ready
 
 133
-00:17:39.667 --> 00:17:46.000
-policy and floor that let you reverse the
-change.
+00:10:59.741 --> 00:11:04.259
+replicas across at least two host domains
+before making a
+
+134
+00:11:04.259 --> 00:11:08.778
+two-domain availability claim. Two
+replicas on one host remain one
+
+135
+00:11:08.778 --> 00:11:13.296
+host-failure domain. For removal, mark a
+replica draining before route
+
+136
+00:11:13.296 --> 00:11:17.815
+removal, stop new work, allow bounded
+in-flight work until the
+
+137
+00:11:17.815 --> 00:11:22.333
+drain deadline, preserve telemetry, revoke
+the route, and reclaim resources.
+
+138
+00:11:22.333 --> 00:11:26.852
+Draining and failed replicas contribute
+zero capacity. Start a verified
+
+139
+00:11:26.852 --> 00:11:31.370
+replacement, but do not count it until
+ready. Maintain at
+
+140
+00:11:31.370 --> 00:11:35.889
+least four ready slots across required
+domains. Use queue delay
+
+141
+00:11:35.889 --> 00:11:40.407
+and admitted work units as leading
+signals, with saturation as
+
+142
+00:11:40.407 --> 00:11:44.926
+corroborating evidence. Keep a minimum of
+four ready slots, cap
+
+143
+00:11:44.926 --> 00:11:49.444
+the fleet at twelve slots, and cap cost at
+
+144
+00:11:49.444 --> 00:11:53.963
+twenty-four fictional cost units per hour.
+Allow two intervals for
+
+145
+00:11:53.963 --> 00:11:58.481
+warm-up, require three stable intervals
+before scale-down, drain before removal,
+
+146
+00:11:58.481 --> 00:12:03.000
+and retain the prior policy and floor for
+rollback.
+
+147
+00:12:03.000 --> 00:12:07.360
+Now we will use the focused simulator. It
+has one
+
+148
+00:12:07.360 --> 00:12:11.720
+defect. Admission uses nominal host slots
+instead of slots on
+
+149
+00:12:11.720 --> 00:12:16.080
+ready, non-draining hosts. The status
+values are mutually exclusive, so
+
+150
+00:12:16.080 --> 00:12:20.440
+warming, draining, and failed hosts
+contribute zero. The lab is
+
+151
+00:12:20.440 --> 00:12:24.800
+local deterministic code. It does not
+start containers, schedule workloads,
+
+152
+00:12:24.800 --> 00:12:29.160
+allocate accelerators, download models,
+invoke provider services, measure live
+
+153
+00:12:29.160 --> 00:12:33.520
+inference, or prove production security.
+From the repository root, the
+
+154
+00:12:33.520 --> 00:12:37.880
+starter baseline prints a nominal capacity
+of twelve but a
+
+155
+00:12:37.880 --> 00:12:42.240
+ready capacity of four. Demand is nine and
+the queue
+
+156
+00:12:42.240 --> 00:12:46.600
+limit is two. The starter says admit and
+approve, with
+
+157
+00:12:46.600 --> 00:12:50.960
+no causes, and exits zero. That is wrong
+because four
+
+158
+00:12:50.960 --> 00:12:55.320
+plus two equals six, which does not cover
+demand nine.
+
+159
+00:12:55.320 --> 00:12:59.680
+The starter tests print one failed
+baseline-capacity check and seven
+
+160
+00:12:59.680 --> 00:13:04.040
+passed checks. The test command exits one.
+Repair only the
+
+161
+00:13:04.040 --> 00:13:08.400
+admission-capacity calculation in the
+learner file. Do not edit the
+
+162
+00:13:08.400 --> 00:13:12.760
+schema, tests, fixtures, or reference.
+After repair, the baseline still
+
+163
+00:13:12.760 --> 00:13:17.120
+reports ready capacity four and nominal
+capacity twelve, but now
+
+164
+00:13:17.120 --> 00:13:21.480
+says reject and reject, with capacity as
+the cause, and
+
+165
+00:13:21.480 --> 00:13:25.840
+exits two. The repaired tests print eight
+passed and zero
+
+166
+00:13:25.840 --> 00:13:30.200
+failed, with exit zero. These are supplied
+execution results, not
+
+167
+00:13:30.200 --> 00:13:34.560
+a live run by this lesson. The repair must
+
+168
+00:13:34.560 --> 00:13:38.920
+not deny every request. It must preserve
+deadline, failure-domain, and
+
+169
+00:13:38.920 --> 00:13:43.280
+cost gates. A deny-all policy would appear
+safe for the
+
+170
+00:13:43.280 --> 00:13:47.640
+baseline but would fail the positive case
+and destroy available
+
+171
+00:13:47.640 --> 00:13:52.000
+service.
+
+172
+00:13:52.000 --> 00:13:56.348
+Failure testing asks what becomes unsafe,
+how far the effect
+
+173
+00:13:56.348 --> 00:14:00.696
+travels, whether retries amplify demand,
+and whether recovery preserves identity
+
+174
+00:14:00.696 --> 00:14:05.043
+and budgets. Test ten cases. First, a
+process crash removes
+
+175
+00:14:05.043 --> 00:14:09.391
+one replica, with retries only for safe
+in-flight work. Second,
+
+176
+00:14:09.391 --> 00:14:13.739
+device loss removes every replica using
+that device. Third, host
+
+177
+00:14:13.739 --> 00:14:18.087
+loss removes all replicas in that host
+domain. Fourth, artifact-store
+
+178
+00:14:18.087 --> 00:14:22.435
+delay blocks warming replacements without
+making them ready. Fifth, a
+
+179
+00:14:22.435 --> 00:14:26.783
+network partition removes unreachable
+routes and invokes the dependency circuit.
+
+180
+00:14:26.783 --> 00:14:31.130
+Sixth, identity failure rejects protected
+requests without bypassing authorization.
+
+181
+00:14:31.130 --> 00:14:35.478
+Seventh, telemetry failure raises an alarm
+and leaves health evidence
+
+182
+00:14:35.478 --> 00:14:39.826
+unknown rather than inventing capacity.
+Eighth, queue pressure reaches its
+
+183
+00:14:39.826 --> 00:14:44.174
+bound, sheds batch first, and rejects
+excess demand. Ninth, malformed
+
+184
+00:14:44.174 --> 00:14:48.522
+work is rejected before queueing and is
+not retried. Tenth,
+
+185
+00:14:48.522 --> 00:14:52.870
+a bad model release fails identity or
+measured quality gates,
+
+186
+00:14:52.870 --> 00:14:57.217
+remains unrouted, and triggers rollback to
+the verified prior release.
+
+187
+00:14:57.217 --> 00:15:01.565
+For every case, record blast radius,
+unsafe capacity removal, retry
+
+188
+00:15:01.565 --> 00:15:05.913
+amplification, queue behavior, workload
+starvation, exact model identity, state
+
+189
+00:15:05.913 --> 00:15:10.261
+reconciliation, recovery time, evidence
+gaps, and residual shared dependencies.
+
+190
+00:15:10.261 --> 00:15:14.609
+Multiple replicas help only when placement
+and dependencies support the
+
+191
+00:15:14.609 --> 00:15:18.957
+claim. A fixture pass proves only that a
+local function
+
+192
+00:15:18.957 --> 00:15:23.304
+handles supplied evidence. Real
+integration would need observed scheduler,
+
+193
+00:15:23.304 --> 00:15:27.652
+device, runtime, artifact, readiness,
+cancellation, routing, telemetry, quality,
+
+194
+00:15:27.652 --> 00:15:32.000
+failure-injection, and billing evidence.
+
+195
+00:15:32.000 --> 00:15:36.500
+Prediction task. Before running the
+changed positive fixture, decide whether
+
+196
+00:15:36.500 --> 00:15:41.000
+demand nine should be admitted. Two ready
+hosts each provide
+
+197
+00:15:41.000 --> 00:15:45.500
+four slots. The queue limit is two. The
+queue delay
+
+198
+00:15:45.500 --> 00:15:50.000
+is forty milliseconds, service time is
+three hundred milliseconds, and
+
+199
+00:15:50.000 --> 00:15:54.500
+the deadline is one thousand milliseconds.
+There are two ready
+
+200
+00:15:54.500 --> 00:15:59.000
+domains. Cost is twenty, and the ceiling
+is twenty-four. List
+
+201
+00:15:59.000 --> 00:16:03.500
+every gate and predict the admission and
+decision. Also state
+
+202
+00:16:03.500 --> 00:16:08.000
+what a rejection would suggest about the
+repair.
+
+203
+00:17:38.000 --> 00:17:42.563
+Now compare your prediction with the
+supplied result. Four plus
+
+204
+00:17:42.563 --> 00:17:47.125
+four equals eight ready slots. Eight plus
+the queue limit
+
+205
+00:17:47.125 --> 00:17:51.688
+of two equals ten, which covers demand
+nine. Queue delay
+
+206
+00:17:51.688 --> 00:17:56.250
+forty plus service time three hundred
+equals three hundred forty
+
+207
+00:17:56.250 --> 00:18:00.813
+milliseconds, below the one thousand
+millisecond deadline. Two ready domains
+
+208
+00:18:00.813 --> 00:18:05.375
+meet the minimum of two. Cost twenty is
+below the
+
+209
+00:18:05.375 --> 00:18:09.938
+ceiling of twenty-four. Therefore the
+repaired decision is admit and
+
+210
+00:18:09.938 --> 00:18:14.500
+approve, with no causes. The supplied
+output names the changed
+
+211
+00:18:14.500 --> 00:18:19.063
+fixture, reports ready capacity eight and
+nominal capacity eight, demand
+
+212
+00:18:19.063 --> 00:18:23.625
+nine, queue limit two, admission admit,
+decision approve, and causes
+
+213
+00:18:23.625 --> 00:18:28.188
+none, then exits zero. If your repair
+rejects this valid
+
+214
+00:18:28.188 --> 00:18:32.750
+case, it may implement deny-all, retain
+stale capacity logic, or
+
+215
+00:18:32.750 --> 00:18:37.313
+damage another gate. If it approves the
+original baseline, it
+
+216
+00:18:37.313 --> 00:18:41.875
+still counts ineligible slots. The causal
+boundary is readiness: nominal
+
+217
+00:18:41.875 --> 00:18:46.438
+capacity is not useful capacity. The
+repaired policy must accept
+
+218
+00:18:46.438 --> 00:18:51.000
+the valid changed case while rejecting the
+baseline case.
+
+219
+00:18:51.000 --> 00:18:55.477
+Autoscaling is a controlled change, not
+evidence of success by
+
+220
+00:18:55.477 --> 00:18:59.954
+itself. Predeclare service, quality, cost,
+recovery, and rollback thresholds. For
+
+221
+00:18:59.954 --> 00:19:04.431
+this fictional policy, interactive p95
+latency must be at most
+
+222
+00:19:04.431 --> 00:19:08.908
+seven hundred milliseconds, queue delay at
+most two hundred milliseconds,
+
+223
+00:19:08.908 --> 00:19:13.385
+and deadline one thousand milliseconds.
+Batch p95 latency must be
+
+224
+00:19:13.385 --> 00:19:17.862
+at most five thousand milliseconds, queue
+delay at most two
+
+225
+00:19:17.862 --> 00:19:22.338
+thousand milliseconds, and deadline thirty
+thousand milliseconds. Cost must be
+
+226
+00:19:22.338 --> 00:19:26.815
+at most twenty-four units per hour.
+Recovery must restore the
+
+227
+00:19:26.815 --> 00:19:31.292
+twelve-slot candidate within two
+intervals. Minimum safe ready capacity is
+
+228
+00:19:31.292 --> 00:19:35.769
+four slots. Quality gates are measured
+separately for the baseline
+
+229
+00:19:35.769 --> 00:19:40.246
+and candidate. Release identity is r17 and
+prompt contract identity
+
+230
+00:19:40.246 --> 00:19:44.723
+is p4. Interactive success must be at
+least ninety-five correct
+
+231
+00:19:44.723 --> 00:19:49.200
+out of one hundred. Batch success must be
+at least
+
+232
+00:19:49.200 --> 00:19:53.677
+one hundred eighty-eight out of two
+hundred, or ninety-four percent.
+
+233
+00:19:53.677 --> 00:19:58.154
+Safety refusal correctness must be at
+least forty-nine out of
+
+234
+00:19:58.154 --> 00:20:02.631
+fifty, or ninety-eight percent.
+Route-to-contract correctness must be one
+
+235
+00:20:02.631 --> 00:20:07.108
+hundred out of one hundred. A changed
+release, prompt contract,
+
+236
+00:20:07.108 --> 00:20:11.585
+denominator, or scoring rule makes
+comparison unknown until reevaluation. The
+
+237
+00:20:11.585 --> 00:20:16.062
+synthetic comparisons show why gates
+matter. At steady demand six,
+
+238
+00:20:16.062 --> 00:20:20.538
+the baseline serves six with zero
+rejection, four hundred twenty
+
+239
+00:20:20.538 --> 00:20:25.015
+millisecond p95 latency, cost twelve, and
+quality ninety-seven out of
+
+240
+00:20:25.015 --> 00:20:29.492
+one hundred. The candidate serves six with
+zero rejection, three
+
+241
+00:20:29.492 --> 00:20:33.969
+hundred ninety milliseconds, cost twenty,
+and quality ninety-seven. The candidate
+
+242
+00:20:33.969 --> 00:20:38.446
+costs eight more units, calculated as
+twenty minus twelve, but
+
+243
+00:20:38.446 --> 00:20:42.923
+remains below twenty-four. At burst demand
+thirteen, the baseline has
+
+244
+00:20:42.923 --> 00:20:47.400
+eight ready slots and a queue of two. It
+
+245
+00:20:47.400 --> 00:20:51.877
+serves ten and rejects three, because
+thirteen minus eight minus
+
+246
+00:20:51.877 --> 00:20:56.354
+two equals three. Its queue delay is four
+hundred ten
+
+247
+00:20:56.354 --> 00:21:00.831
+milliseconds and p95 latency is one
+thousand one hundred twenty,
+
+248
+00:21:00.831 --> 00:21:05.308
+so it fails. The candidate has twelve
+ready slots, queues
+
+249
+00:21:05.308 --> 00:21:09.785
+one, serves thirteen, rejects zero,
+records one hundred twenty milliseconds
+
+250
+00:21:09.785 --> 00:21:14.262
+of queue delay and six hundred forty
+milliseconds p95 latency,
+
+251
+00:21:14.262 --> 00:21:18.738
+cost twenty, and quality ninety-six out of
+one hundred. It
+
+252
+00:21:18.738 --> 00:21:23.215
+passes. For ramp demands six, eight, and
+ten, the baseline
+
+253
+00:21:23.215 --> 00:21:27.692
+reaches two hundred sixty milliseconds of
+queue delay and seven
+
+254
+00:21:27.692 --> 00:21:32.169
+hundred eighty milliseconds p95 latency at
+the third interval, breaching
+
+255
+00:21:32.169 --> 00:21:36.646
+both limits. The candidate warms before
+that interval, counts capacity
+
+256
+00:21:36.646 --> 00:21:41.123
+only after readiness, and records ready
+capacities eight, eight, and
+
+257
+00:21:41.123 --> 00:21:45.600
+twelve. Its queue delays are zero,
+seventy, and sixty milliseconds.
+
+258
+00:21:45.600 --> 00:21:50.077
+Its p95 latencies are four hundred, five
+hundred twenty, and
+
+259
+00:21:50.077 --> 00:21:54.554
+five hundred ten milliseconds. It passes.
+For skewed demand, interactive
+
+260
+00:21:54.554 --> 00:21:59.031
+seven plus batch six, the baseline
+protects neither priority and
+
+261
+00:21:59.031 --> 00:22:03.508
+rejects one interactive request and two
+batch requests. The candidate
+
+262
+00:22:03.508 --> 00:22:07.985
+serves all seven interactive and five
+batch requests, sheds one
+
+263
+00:22:07.985 --> 00:22:12.462
+batch request, records interactive queue
+delay eighty and p95 latency
+
+264
+00:22:12.462 --> 00:22:16.938
+five hundred, batch queue delay nine
+hundred and p95 latency
+
+265
+00:22:16.938 --> 00:22:21.415
+three thousand two hundred, interactive
+quality ninety-six out of one
+
+266
+00:22:21.415 --> 00:22:25.892
+hundred, batch quality one hundred
+eighty-nine out of two hundred,
+
+267
+00:22:25.892 --> 00:22:30.369
+and route correctness one hundred out of
+one hundred. Batch
+
+268
+00:22:30.369 --> 00:22:34.846
+quality is ninety-four point five percent.
+It passes because only
+
+269
+00:22:34.846 --> 00:22:39.323
+lower-priority batch work is shed. After
+one host-domain loss at
+
+270
+00:22:39.323 --> 00:22:43.800
+demand six, the baseline retains zero
+ready slots and rejects
+
+271
+00:22:43.800 --> 00:22:48.277
+six. The candidate retains four slots in
+the second domain,
+
+272
+00:22:48.277 --> 00:22:52.754
+queues two, serves all six, rejects zero,
+records one hundred
+
+273
+00:22:52.754 --> 00:22:57.231
+eighty milliseconds queue delay and six
+hundred eighty milliseconds p95
+
+274
+00:22:57.231 --> 00:23:01.708
+latency, and restores twelve ready slots
+after two intervals. Its
+
+275
+00:23:01.708 --> 00:23:06.185
+safety result is forty-nine out of fifty
+and route correctness
+
+276
+00:23:06.185 --> 00:23:10.662
+is one hundred out of one hundred. It
+meets the
+
+277
+00:23:10.662 --> 00:23:15.138
+gates exactly. The decision is only a
+staged fictional-policy recommendation,
+
+278
+00:23:15.138 --> 00:23:19.615
+not live deployment approval. Roll back if
+quality misses its
+
+279
+00:23:19.615 --> 00:23:24.092
+denominator threshold, identity changes
+without reevaluation, cost exceeds
+
+280
+00:23:24.092 --> 00:23:28.569
+twenty-four, queue delay breaches for two
+intervals, readiness becomes unknown,
+
+281
+00:23:28.569 --> 00:23:33.046
+routing is below one hundred percent, or
+recovery exceeds two
+
+282
+00:23:33.046 --> 00:23:37.523
+intervals. Preserve the prior policy,
+route configuration, verified artifact
+
+283
+00:23:37.523 --> 00:23:42.000
+identity, and capacity floor.
+
+284
+00:23:42.000 --> 00:23:46.250
+Now design and challenge the scaling
+policy. Use the supplied
+
+285
+00:23:46.250 --> 00:23:50.500
+synthetic load result to identify one
+measured bottleneck and compare
+
+286
+00:23:50.500 --> 00:23:54.750
+vertical, replica, sharded, batched,
+queued, cached, routed, and smaller-model
+
+287
+00:23:54.750 --> 00:23:59.000
+options. Record quality, latency, failure,
+cost, and complexity effects. Define
+
+288
+00:23:59.000 --> 00:24:03.250
+interactive, batch, and administrative
+admission, queue, deadline, retry,
+
+289
+00:24:03.250 --> 00:24:07.500
+cancellation, circuit, shedding, and
+degraded-mode behavior. Explain why
+
+290
+00:24:07.500 --> 00:24:11.750
+deny-all and admit-all are invalid. Write
+placement, artifact warm-up, readiness,
+
+291
+00:24:11.750 --> 00:24:16.000
+draining, replacement, minimum capacity,
+maximum cost, warm-up, and scale-down
+
+292
+00:24:16.000 --> 00:24:20.250
+stabilization rules. Create or review all
+ten failure cases with
+
+293
+00:24:20.250 --> 00:24:24.500
+expected blast radius and recovery.
+Calculate baseline and candidate results
+
+294
+00:24:24.500 --> 00:24:28.750
+under steady, burst, ramp, skewed, and
+failure traffic. Apply the
+
+295
+00:24:28.750 --> 00:24:33.000
+service, quality, cost, recovery, and
+rollback thresholds before issuing a
+
+296
+00:24:33.000 --> 00:24:37.250
+reversible decision. Record your
+prediction before execution. Run the
+
+297
+00:24:37.250 --> 00:24:41.500
+baseline and immutable tests. Repair only
+the policy file. Do
+
+298
+00:24:41.500 --> 00:24:45.750
+not modify tests, fixtures, schema
+validation, or the reference. Run
+
+299
+00:24:45.750 --> 00:24:50.000
+the changed input after repair and explain
+causally why it
+
+300
+00:24:50.000 --> 00:24:54.250
+approves. Use the worked artifact only
+after recording your prediction.
+
+301
+00:24:54.250 --> 00:24:58.500
+Finish by answering this reflection: which
+autoscaling signal would arrive
+
+302
+00:24:58.500 --> 00:25:02.750
+too late for your workload, and what
+leading signal should
+
+303
+00:25:02.750 --> 00:25:07.000
+accompany it?
+
+304
+00:28:07.000 --> 00:28:11.500
+Begin the knowledge check when you can
+select a pattern
+
+305
+00:28:11.500 --> 00:28:16.000
+from a measured bottleneck, explain
+backpressure, define useful replica
+
+306
+00:28:16.000 --> 00:28:20.500
+readiness, reject malformed input, stop
+retry amplification, measure failure
+
+307
+00:28:20.500 --> 00:28:25.000
+isolation, and preserve a reversible
+autoscaling policy. The check opens
+
+308
+00:28:25.000 --> 00:28:29.500
+only when you choose to begin. It contains
+six questions.
+
+309
+00:28:29.500 --> 00:28:34.000
+You need at least eighty percent for a
+passing result.
+
+310
+00:28:34.000 --> 00:28:38.571
+Remember the boundary. Scale the measured
+constraint, not the diagram.
+
+311
+00:28:38.571 --> 00:28:43.143
+Bound demand before saturation. Reject
+malformed work early. Count only
+
+312
+00:28:43.143 --> 00:28:47.714
+verified ready capacity. Keep queues and
+retries bounded. Test shared
+
+313
+00:28:47.714 --> 00:28:52.286
+failure domains, not just replica count.
+Judge service, quality, cost,
+
+314
+00:28:52.286 --> 00:28:56.857
+startup, recovery, and rollback together.
+Preserve the verified prior policy
+
+315
+00:28:56.857 --> 00:29:01.429
+and safe capacity floor so a change can be
+
+316
+00:29:01.429 --> 00:29:06.000
+reversed. The learner activity and
+knowledge check are now ready.
