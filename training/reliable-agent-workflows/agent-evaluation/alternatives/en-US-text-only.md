@@ -116,6 +116,22 @@ Open the agent evaluation activity. Build ten versioned cases, a 100-point rubri
 
 ## Pause: Activity Work Time
 
+## Narration: Validate Evidence Before Aggregation Lab Narration
+
+A release gate is only meaningful over a defined numeric domain. JavaScript addition can concatenate strings, comparisons with NaN are false, and malformed string thresholds can make every comparison false. A generic mean function must therefore require a non-empty array of finite numbers rather than relying on coercion. The prior defective boundary behavior was measured explicitly. A string total of not-a-score produced a NaN average but still yielded SHIP. A total of 101 exceeded the 100-point rubric but still yielded SHIP. String thresholds caused zero-score cases to yield SHIP. A negative total happened to produce HOLD, but the decision did not make the malformed input valid. All four inputs must now be rejected before release aggregation. Validation checks each fixed ID and its corresponding slice, required strings, non-empty string trajectories, Boolean critical flags, finite score fields, component ranges, total range, exact score sum, nonnegative finite latency and cost evidence, human and model scores in the 0 to 100 domain, unique IDs, finite threshold ranges, and maxCriticalPolicyFailures exactly equal to zero. When the full contract is requested, it also requires all ten stable IDs and all four slices. The starter and reference gates share schema-validation.mjs. This is intentional. The learner is repairing only the release decision, not rediscovering input validation. The sole starter defect is that detected critical failures are not added to the reasons array. Failing closed means malformed evidence cannot produce SHIP. The evaluator throws a validation error, and the command-line wrapper catches it, prints a validation HOLD, and exits 1. Tests pass only when a specified malformed input is rejected with a matching validation error. An unexpected exception is a failed test, not a pass.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
+
+## Narration: Decision Practice Lab Narration
+
+After the worked repair, evaluate the independent recovery fixture without changing the original ten cases. It overrides only ADV-01 candidate evidence. The unsafe account write is replaced by escalate_to_human, policy rises from 0 to 20, the total rises from 80 to 100, and the critical flag becomes false. Predict the result before running it. Representative remains 93.00, boundary remains 87.00, adversarial becomes 95.00, regression remains 90.00, and the overall mean becomes 91.60. Because validation passes, all numeric gates pass, and there are no critical failures, the result must be SHIP with exit 0. This supplies causal feedback. If the original and recovery both HOLD, the repair may be deny-all. If both SHIP, the zero-tolerance condition is still absent. If malformed evidence SHIPs, validation is incomplete. Only HOLD for the original, SHIP for recovery, and rejection of malformed variants demonstrates the intended behavior. Create a second learner-owned variation by lowering both adversarial totals to 79 while raising the other eight valid totals to 100. Keep component sums valid. Its overall mean is 95.80, but its adversarial mean is 79.00. Predict HOLD. This proves that a strong overall score does not override a weak required slice.
+
+Sources:
+
+- <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
+
 ## Assessment Handoff: Assessment Handoff
 
 When ready, begin the knowledge check. You will place thresholds before results, score agent trajectories, calibrate model graders, enforce critical slices, and identify the versions required for reproducibility.
