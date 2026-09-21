@@ -23,41 +23,70 @@
       "id": "define-the-change-unit",
       "title": "Version the entire serving unit",
       "paragraphs": [
-        "A model update is rarely only a weights change. Record the immutable model revision and digest together with tokenizer, runtime, accelerator libraries, container image, adapters, prompt templates, safety policy, gateway contract, infrastructure configuration, evaluation set, and telemetry schema. A change to any one of these can alter quality, latency, memory use, security, or compatibility.",
-        "Give the assembled candidate one release identity and produce a difference report against the currently approved stack. Separate intentional changes from drift. If the operator cannot reconstruct both versions from retained manifests and artifacts, the proposed release is not reversible."
+        "Instructor narration: Treat the serving unit as one versioned assembly, not as a model name or mutable image tag. Record the immutable model revision and digest together with the tokenizer, runtime, accelerator libraries, container image, adapters, prompt templates, safety policy, gateway contract, infrastructure configuration, evaluation set, telemetry schema, and state schema. A change to any of these can alter quality, latency, memory use, security, observability, or compatibility.",
+        "Give the assembled candidate one release identity and compare it with the currently approved baseline. Classify every difference as intentional or unexplained drift. Retain the manifests and artifacts needed to reconstruct both releases. SLSA provenance can describe where, when, and how an artifact was produced, but provenance alone does not prove model quality, safety, capacity, or rollback compatibility.",
+        "The operating packet in this lesson contains complete baseline and candidate manifests. Artifact digests use an immutable `sha256:` identity with 64 lowercase hexadecimal characters. Required arrays are nonempty so that accelerator libraries, adapters, prompt templates, stop conditions, and drain conditions cannot silently disappear as unknown evidence. In an environment where a component is genuinely absent, the production schema should represent that explicitly rather than overloading an empty value.",
+        "Ecosystem transfer: Meta Llama, Qwen, DeepSeek, Mistral, and Microsoft Phi are separate model families, while NVIDIA software can be part of a serving runtime or accelerator stack. Do not infer a common tokenizer, runtime, API, license, quantization format, safety policy, security posture, or recovery contract from those names. Inventory the exact artifacts and runtime actually deployed. Relevant first-party repositories include https://github.com/meta-llama/llama-models, https://github.com/QwenLM/Qwen, https://github.com/deepseek-ai/DeepSeek-V3, https://github.com/mistralai/mistral-inference, https://github.com/microsoft/PhiCookBook, and https://github.com/triton-inference-server/server. These links establish distinct project surfaces, not equivalent capabilities."
       ]
     },
     {
       "id": "qualify-the-candidate",
       "title": "Qualify the exact candidate before traffic",
       "paragraphs": [
-        "Verify artifact provenance, license disposition, signatures or documented alternatives, dependency inventory, vulnerability findings, configuration policy, and environment compatibility. Then run the same representative quality, safety, API compatibility, load, cost, failure, and recovery tests used to approve the current build.",
-        "Compare candidate and baseline by case and operational slice rather than accepting one average. Define hard failures, allowed deltas, uncertainty, reviewer roles, and waiver authority before observing results. A newer model name does not override a failed compatibility or safety gate."
+        "Instructor narration: Qualification asks whether this exact assembly can replace the baseline in this exact environment. Verify provenance, license disposition, signatures or documented alternatives, dependency inventory, vulnerability findings, configuration policy, and environment compatibility. Then run representative quality, safety, API compatibility, load, cost, failure, and recovery tests against the assembled candidate.",
+        "Use seven explicit gates. Quality covers representative tasks and operational slices. Safety covers approved cases and hard prohibitions. Security covers provenance, dependency, vulnerability, secret-handling, and deployed-configuration evidence. Compatibility covers API, tokenizer, prompt, telemetry, runtime, and state contracts. Capacity covers bounded load, latency, queues, memory, and failure behavior. Cost compares measured resource use with a declared ceiling. Recovery proves that the retained known-good unit and compatible state can be restored and read back. Unknown, missing, placeholder, or contradictory evidence does not count as a pass.",
+        "Compare candidate and baseline by case and slice rather than accepting one average. Define hard failures, allowed deltas, uncertainty, owners, and waiver authority before seeing results. A newer model-family name cannot override a failed gate. NIST AI RMF provides a risk-management framework, but each deployment still needs concrete thresholds and accountable owners.",
+        "Docker documents that containers have no resource constraints by default, so a process starting successfully is not a capacity result. CPU and memory limits, accelerator allocation, and host capacity belong in the tested configuration. The Kubernetes security checklist is guidance, not proof that a cluster enforces a setting. Prometheus recommends aggregating histogram buckets rather than averaging precomputed quantiles. The numbers in this lab are deterministic fixture values, not measurements or benchmark claims."
       ]
     },
     {
       "id": "stage-and-release",
       "title": "Stage and release with bounded exposure",
       "paragraphs": [
-        "Choose a strategy that matches the environment and risk: offline replacement for a workstation, a second container and explicit route switch, rolling replacement, canary traffic, blue-green service, or a shadow comparison that cannot create user-visible effects. Preserve exact request routing and model identity in telemetry.",
-        "Define maximum exposure, observation window, success indicators, guardrail indicators, cost ceiling, approver, and automatic or manual stop conditions. Validate readiness and warm-up before admitting traffic, drain old capacity deliberately, and prevent mixed versions from silently invalidating evidence."
+        "Instructor narration: A rollout converts qualification evidence into bounded exposure. Strategies include offline replacement, explicit route switching, rolling replacement, canary traffic, blue-green service, and shadow comparison that cannot produce user-visible effects. Choose the strategy based on the actual environment and risk, and retain exact request-routing and release identity in telemetry.",
+        "The worked packet declares a 1 percent simulated canary, a 10-minute observation window, a 120-second drain timeout, a cost ceiling, stop conditions, drain conditions, a named decision owner, and a named executor. A rollout stops on any hard gate failure, unknown serving identity, incompatible state, guardrail breach, or cost-ceiling breach. Draining means stopping new candidate routing, allowing bounded in-flight completion, handling remaining work under a declared policy, and restoring routes only after baseline readiness and identity verification.",
+        "The fixture names Release Manager Imani Cole as decision owner and Operator Jules Chen as executor. Gate owners are also named. All names, records, observations, and approvals are synthetic exercise data. They are not authenticated people, signatures, production approvals, or evidence that traffic was exposed.",
+        "Real integration versus fixture simulation: this lab reads local JSON only. It invokes no model server, container runtime, Kubernetes API, cloud API, artifact store, approval service, database, or telemetry backend. A real integration must resolve artifact digests from retained storage, verify provenance and signatures where required, exercise the deployed runtime with representative traffic, read the actual routing identity and telemetry, and obtain authorization through the organization's approved system. Passing the lab proves only that local decision code handles the supplied evidence consistently."
       ]
     },
     {
       "id": "rollback-as-a-release",
       "title": "Treat rollback as a tested release",
       "paragraphs": [
-        "Rollback must restore a complete compatible serving unit, not merely change a model tag. Retain the known-good artifacts, manifests, secrets references, policy, infrastructure configuration, and deployment procedure. Identify forward-only schema or state changes and provide restore, compatibility, or compensating procedures.",
-        "Rehearse rollback before production release using the same authorization, artifact verification, readiness, routing, and postcondition checks as an update. After reversal, confirm exact model identity, representative quality, endpoint behavior, queue state, telemetry, cost, and user-visible recovery."
+        "Instructor narration: Rollback is a controlled release whose target is the retained known-good serving unit. Restoring only a model alias or deployment tag is incomplete. Retain model and tokenizer artifacts, runtime and accelerator dependencies, image, adapters, prompt templates, policy, gateway and infrastructure configuration, evaluation identity, telemetry schema, state schema, secrets references, and the recovery procedure.",
+        "A Kubernetes Deployment revision rollback changes the workload template managed by the Deployment controller. It does not automatically restore an external database, undo a schema migration, recreate a queue or vector index, recover an object store, restore deleted model artifacts, or make forward-written state readable by an older runtime. State restoration and compatibility therefore require separate evidence and procedures.",
+        "The validator binds rollback evidence to the actual baseline and candidate state schemas. The packet's `baselineStateSchema` and `candidateStateSchema` must equal the corresponding manifest values. A claim of compatible rollback must agree with a passing recovery gate and contain non-placeholder compatibility evidence and a usable state procedure. A false compatibility claim must agree with a failed recovery gate. This prevents seven textual pass statuses from masking `rollbackCompatible: false`.",
+        "Worked example: baseline `svc-2026-09-01` uses `conversation-v1`, while candidate `svc-2026-09-20` uses `conversation-v2`. The packet records no tested reverse conversion, sets rollback compatibility to false, and fails the recovery gate. Six other gates pass. The deliberate learner defect discards recovery when collecting failed gates, so the starter promotes. The repair includes every failed gate, producing rejection with exit code 2.",
+        "The simulated rehearsal observes a safety guardrail value of 0.05 against a maximum of 0.02. These are invented exercise values. It stops and drains candidate traffic, then compares the entire readback manifest with the immutable baseline manifest using structural equality. That comparison covers release ID, model, tokenizer, runtime, accelerator libraries, image, adapters, prompt templates, safety policy, gateway contract, infrastructure configuration, evaluation set, telemetry schema, and state schema. A readiness flag must also be true. One matching model digest is not enough.",
+        "Worked reasoning and output: because `0.05 > 0.02`, the guardrail result is `FAIL` and the action is `STOP_AND_DRAIN`. Because the complete readback manifest equals the baseline and readiness is true, `READBACK_COMPLETE_MANIFEST_MATCH` and `ROLLBACK_VERIFIED` are both true. This is simulated fixture processing, not proof that a live rollback occurred."
       ]
     },
     {
       "id": "record-and-improve",
       "title": "Close the lifecycle with evidence",
       "paragraphs": [
-        "Record who proposed, reviewed, approved, executed, paused, rolled back, and verified the change; retain timestamps, versions, test outputs, traffic exposure, decisions, and residual risks without storing secrets or unnecessary request content. Link every decision to immutable evidence.",
-        "Use release and rollback results to update evaluation cases, thresholds, capacity assumptions, compatibility manifests, and runbooks. Keep failed candidates as evidence with an explicit status so the same unsafe combination is not rediscovered and released later."
+        "Instructor narration: Evidence must make both successful and failed decisions reconstructable. Record who proposed, reviewed, approved, executed, paused, rolled back, and verified a change. Retain timestamps, immutable identities, test outputs, exposure, decisions, and residual risks without retaining secrets or unnecessary request content.",
+        "Keep rejected candidate combinations with an explicit disposition. Use their failures to update evaluation cases, thresholds, capacity assumptions, compatibility manifests, and runbooks. A test log is evidence about software behavior, not authorization to expose users.",
+        "Rubric: complete work preserves complete immutable baseline and candidate manifests; evaluates all seven gates; rejects incompatible or contradictory rollback evidence; promotes the renamed compatible variation; defines bounded exposure, observation, stop, drain, cost, owner, and executor controls; distinguishes deployment revision rollback from external state and artifact restoration; verifies the canonical complete baseline manifest after the simulated rollback; labels all fixture evidence as synthetic; and retains the original activity deliverables. A deny-all implementation, hardcoded release identifier, weakened validator, altered immutable test, placeholder evidence, or partial readback does not satisfy the activity."
       ]
+    },
+    {
+      "id": "repair-lab",
+      "title": "Focused repair lab: make recovery a promotion gate",
+      "paragraphs": [
+        "Instructor narration: This Node.js 22 native-ESM lab contains one deliberate learner-facing defect. The shared validator and independent reference are already sound and must not be edited. In `src/decision.mjs`, the starter excludes the recovery gate while collecting failures. As a result, the incompatible packet is promoted even though recovery failed. Edit only `src/decision.mjs` so every failed gate blocks promotion. Do not add dependencies, network calls, model APIs, identifier-specific exceptions, or a rule that rejects every input.",
+        "Prediction before answer: inspect `fixtures/packet.json`. Predict the starter decision from the six passing gates, failed recovery gate, and false compatibility evidence. Then inspect `fixtures/changed-compatible.json`, whose identifiers are different, state schemas agree, rollback evidence is compatible, and all seven gates pass. Predict why a general repair must promote the changed input. Write both predictions and their causal evidence before opening `reference/decision.mjs`.",
+        "Run from the public repository root:\n\nRepository entry: [training/self-hosted-model-operations/model-update-and-rollback-lifecycle/lab/README.md](./training/self-hosted-model-operations/model-update-and-rollback-lifecycle/lab/README.md). No installation, dependency, API key, network service, or live model is used.",
+        "Expected starter result for the first command is exactly `DECISION: PROMOTE`, `ROLLBACK_COMPATIBLE: false`, and `FAILED_GATES: none`, on separate lines, with exit code 0. The starter test run has 29 tests: 28 pass, only `incompatible rollback state blocks promotion` fails, and the process exits 1. TAP durations and ordering across files can vary, so those counts, the failing test name, and the assertion that expected `reject` but received `promote` are the stable expectations. These are expected results derived from the supplied code, not a claim that this corrected artifact was executed.",
+        "Learner activity: edit only `src/decision.mjs`, preserving its export and return shape. The repaired packet command must print `DECISION: REJECT`, `ROLLBACK_COMPATIBLE: false`, and `FAILED_GATES: recovery`, with exit code 2. The tests must report 29 passing tests, zero failures, and exit 0. The changed fixture must print `DECISION: PROMOTE`, `ROLLBACK_COMPATIBLE: true`, and `FAILED_GATES: none`, with exit code 0. The renamed positive case rules out hardcoded identifiers and deny-all behavior.",
+        "Answer key and causal feedback: the faulty predicate explicitly excludes the gate named `recovery`. Replace it with a predicate that selects every gate whose status is not `pass`. If the incompatible packet still promotes, recovery is still discarded or overridden. If the renamed compatible packet rejects, the implementation is deny-all or coupled to the original identifiers. If contradictory compatibility evidence, malformed digests, missing fields, unknown enums, empty required arrays, non-finite ranges, or any complete-manifest readback mismatch is accepted, validation or recovery verification was weakened outside the focused defect.",
+        "Recovery: copy `src/decision.mjs` to `.lab-tmp/decision.backup.mjs` before editing. The README provides bounded commands that touch only that named file under the lab. Restore the backup if needed, or copy `reference/decision.mjs` over the learner file after attempting the exercise. Tests create and remove only `.lab-tmp/changed-input.json`; they do not use the operating-system temporary directory."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Repository-root commands",
+        "code": "node training/self-hosted-model-operations/model-update-and-rollback-lifecycle/lab/src/run.mjs training/self-hosted-model-operations/model-update-and-rollback-lifecycle/lab/fixtures/packet.json\nnode --test training/self-hosted-model-operations/model-update-and-rollback-lifecycle/lab/test/decision.test.mjs training/self-hosted-model-operations/model-update-and-rollback-lifecycle/lab/test/reference.test.mjs\nnode training/self-hosted-model-operations/model-update-and-rollback-lifecycle/lab/src/run.mjs training/self-hosted-model-operations/model-update-and-rollback-lifecycle/lab/fixtures/changed-compatible.json\nnode training/self-hosted-model-operations/model-update-and-rollback-lifecycle/lab/src/rehearse.mjs training/self-hosted-model-operations/model-update-and-rollback-lifecycle/lab/fixtures/packet.json"
+      }
     }
   ],
   "activity": {
@@ -68,119 +97,17 @@
       "Define quality, safety, security, compatibility, capacity, cost, and recovery comparisons with hard gates and authorized reviewers.",
       "Select a workstation, container, on-premises, edge, or cloud rollout pattern and specify exposure, observation, stop, drain, and approval controls.",
       "Run a tabletop or isolated rehearsal in which a guardrail fails, execute the rollback, and verify the restored endpoint and evidence.",
-      "Issue a release, reject, or revise decision and record the residual risks and required follow-up."
+      "Issue a release, reject, or revise decision and record the residual risks and required follow-up.",
+      "Before reading the answer, predict the starter and renamed-compatible decisions and cite the causal evidence for each.",
+      "Repair only `src/decision.mjs`, run the immutable tests and independent changed input, and retain outputs as synthetic exercise evidence."
     ],
     "evidence": [
       "A baseline-to-candidate compatibility manifest and immutable difference report.",
       "A gated qualification report and bounded rollout plan with human approvals.",
-      "Rollback rehearsal output proving restored identity, behavior, telemetry, and service objectives."
+      "Rollback rehearsal output proving restored identity, behavior, telemetry, and service objectives.",
+      "For this local exercise, the supplied packet, expected and learner-observed test output, renamed changed-input result, and complete-manifest simulated readback. Fixture approvals are synthetic and do not satisfy a real approval requirement."
     ],
     "reflectionPrompt": "Which dependency outside the model weights is most likely to make your rollback incomplete?"
-  },
-  "instructorScript": {
-    "schemaVersion": "1.1",
-    "estimatedSeconds": 1800,
-    "cues": [
-      {
-        "id": "cue-lifecycle-unit",
-        "kind": "narration",
-        "sectionId": "define-the-change-unit",
-        "text": "Version the complete serving unit because weights, runtime, adapters, policy, configuration, and infrastructure can all change behavior."
-      },
-      {
-        "id": "cue-lifecycle-visual",
-        "kind": "visual",
-        "sectionId": "define-the-change-unit",
-        "text": "Build a static release manifest around the model artifact, then connect every dependency to one immutable candidate identity.",
-        "accessibilityAlternative": "A text table lists model, tokenizer, runtime, image, adapter, prompt, policy, infrastructure, evaluation, and telemetry versions under one release identity."
-      },
-      {
-        "id": "cue-lifecycle-qualify",
-        "kind": "narration",
-        "sectionId": "qualify-the-candidate",
-        "text": "Compare the exact candidate with the approved baseline across quality, safety, security, compatibility, capacity, cost, and recovery gates."
-      },
-      {
-        "id": "cue-lifecycle-stage",
-        "kind": "narration",
-        "sectionId": "stage-and-release",
-        "text": "Bound traffic exposure, observation, cost, stopping, warm-up, routing, draining, and approval before starting the rollout."
-      },
-      {
-        "id": "cue-lifecycle-checkpoint",
-        "kind": "checkpoint",
-        "sectionId": "stage-and-release",
-        "text": "Ask learners why a newer model label cannot compensate for a failed safety or compatibility gate."
-      },
-      {
-        "id": "cue-lifecycle-rollback",
-        "kind": "narration",
-        "sectionId": "rollback-as-a-release",
-        "text": "Rehearse rollback as a complete release and verify identity, behavior, state, telemetry, and user-visible recovery."
-      },
-      {
-        "id": "cue-lifecycle-record",
-        "kind": "narration",
-        "sectionId": "record-and-improve",
-        "text": "Preserve decision evidence and feed release results back into evaluations, thresholds, manifests, and runbooks."
-      },
-      {
-        "id": "cue-lifecycle-activity",
-        "kind": "learner-prompt",
-        "text": "Guide the manifest comparison, qualification gates, bounded rollout, forced rollback, recovery verification, and release disposition."
-      },
-      {
-        "id": "cue-lifecycle-assessment",
-        "kind": "assessment-handoff",
-        "text": "Begin the check after the learner can prove both the candidate and known-good stack are reproducible and reversible."
-      }
-    ],
-    "transcript": "Version the complete serving unit because weights, runtime, adapters, policy, configuration, and infrastructure can all change behavior. Put the model revision, tokenizer, runtime, image, prompts, safety controls, infrastructure, evaluation set, and telemetry contract under one immutable release identity. Compare the exact candidate with the approved baseline across quality, safety, security, compatibility, capacity, cost, and recovery gates. Define hard failures and reviewer authority before looking at results. Bound traffic exposure, observation, cost, stopping, warm-up, routing, draining, and approval before starting the rollout. Preserve exact routing evidence so mixed versions cannot hide a regression. Rehearse rollback as a complete release and verify identity, behavior, state, telemetry, and user-visible recovery. Restoring a tag without restoring compatible dependencies is not a rollback. Preserve decision evidence and feed release results back into evaluations, thresholds, manifests, and runbooks. A failed candidate remains useful evidence when its status and exact composition are recorded.",
-    "captions": [
-      {
-        "cueId": "cue-lifecycle-unit",
-        "startSeconds": 0,
-        "endSeconds": 300,
-        "text": "Version the complete serving unit because weights, runtime, adapters, policy, configuration, and infrastructure can all change behavior."
-      },
-      {
-        "cueId": "cue-lifecycle-qualify",
-        "startSeconds": 300,
-        "endSeconds": 600,
-        "text": "Compare the exact candidate with the approved baseline across quality, safety, security, compatibility, capacity, cost, and recovery gates."
-      },
-      {
-        "cueId": "cue-lifecycle-stage",
-        "startSeconds": 600,
-        "endSeconds": 900,
-        "text": "Bound traffic exposure, observation, cost, stopping, warm-up, routing, draining, and approval before starting the rollout."
-      },
-      {
-        "cueId": "cue-lifecycle-rollback",
-        "startSeconds": 900,
-        "endSeconds": 1260,
-        "text": "Rehearse rollback as a complete release and verify identity, behavior, state, telemetry, and user-visible recovery."
-      },
-      {
-        "cueId": "cue-lifecycle-record",
-        "startSeconds": 1260,
-        "endSeconds": 1530,
-        "text": "Preserve decision evidence and feed release results back into evaluations, thresholds, manifests, and runbooks."
-      },
-      {
-        "cueId": "cue-lifecycle-activity",
-        "startSeconds": 1530,
-        "endSeconds": 1770,
-        "text": "Guide the manifest comparison, qualification gates, bounded rollout, forced rollback, recovery verification, and release disposition."
-      },
-      {
-        "cueId": "cue-lifecycle-assessment",
-        "startSeconds": 1770,
-        "endSeconds": 1800,
-        "text": "Begin the check after the learner can prove both the candidate and known-good stack are reproducible and reversible."
-      }
-    ],
-    "reducedMotionAlternative": "Use static baseline, candidate, gate, rollout-state, rollback-state, and evidence-ledger tables. Reveal no content through motion alone."
   },
   "knowledgeCheck": {
     "passPercent": 80,
@@ -219,7 +146,7 @@
           "To remove telemetry"
         ],
         "answerIndex": 2,
-        "explanation": "A canary is only measurable when requests and outcomes map to an exact build."
+        "explanation": "A canary is measurable only when requests and outcomes map to the actual build served."
       },
       {
         "id": "q-model-lifecycle-4",
@@ -231,7 +158,7 @@
           "The old version remains available"
         ],
         "answerIndex": 0,
-        "explanation": "Predefined hard failures must stop exposure regardless of novelty."
+        "explanation": "Predefined hard failures stop exposure regardless of novelty."
       },
       {
         "id": "q-model-lifecycle-5",
@@ -255,7 +182,7 @@
           "Retain its exact identity, failed gates, disposition, and follow-up under policy"
         ],
         "answerIndex": 3,
-        "explanation": "Retained rejection evidence prevents unsafe combinations from being reconsidered without context."
+        "explanation": "Retained rejection evidence prevents an unsafe combination from being reconsidered without context."
       }
     ]
   },
@@ -283,6 +210,1923 @@
       "url": "https://www.nist.gov/itl/ai-risk-management-framework",
       "publisher": "NIST",
       "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Histograms and summaries",
+      "url": "https://prometheus.io/docs/practices/histograms/",
+      "publisher": "Prometheus",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Runtime options with Memory, CPUs, and GPUs",
+      "url": "https://docs.docker.com/engine/containers/resource_constraints/",
+      "publisher": "Docker",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Security Checklist",
+      "url": "https://kubernetes.io/docs/concepts/security/security-checklist/",
+      "publisher": "Kubernetes",
+      "lastVerified": "2026-09-21"
+    },
+    {
+      "title": "Zero Trust Architecture, NIST SP 800-207",
+      "url": "https://csrc.nist.gov/pubs/sp/800/207/final",
+      "publisher": "NIST",
+      "lastVerified": "2026-09-21"
     }
-  ]
+  ],
+  "instructorScript": {
+    "schemaVersion": "1.1",
+    "estimatedSeconds": 1048,
+    "cues": [
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-welcome-and-outcomes-1",
+        "kind": "narration",
+        "text": "Welcome. A model update is a release of a\ncomplete serving system, not a"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-welcome-and-outcomes-2",
+        "kind": "narration",
+        "text": "new label attached to weights. In this\nclass, you will version the whole change"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-welcome-and-outcomes-3",
+        "kind": "narration",
+        "text": "unit, qualify the exact candidate, bound\nits exposure, rehearse rollback as another"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-welcome-and-outcomes-4",
+        "kind": "narration",
+        "text": "controlled release, and preserve evidence\nso approved and rejected combinations"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-welcome-and-outcomes-5",
+        "kind": "narration",
+        "text": "remain reconstructable."
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-1",
+        "kind": "narration",
+        "text": "Version the entire serving unit. Record\nthe immutable model revision and digest",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-2",
+        "kind": "narration",
+        "text": "together with the tokenizer, prompt\ntemplate, retrieval configuration,",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-3",
+        "kind": "narration",
+        "text": "runtime, accelerator libraries, container\nimage, application adapter, gateway",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-4",
+        "kind": "narration",
+        "text": "contract, safety and authorization policy,\ninfrastructure configuration, evaluation",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-5",
+        "kind": "narration",
+        "text": "set, and telemetry schema. Any one of\nthese can change quality, latency, memory,",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-6",
+        "kind": "narration",
+        "text": "security, privacy, compatibility, or\nrecovery. Give the assembled candidate one",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-7",
+        "kind": "narration",
+        "text": "release identity and produce a\nmachine-readable difference report against",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-8",
+        "kind": "narration",
+        "text": "the approved baseline. Separate\nintentional changes from drift discovered",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-9",
+        "kind": "narration",
+        "text": "during assembly. SLSA provenance describes\nverifiable information about where, when,",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-10",
+        "kind": "narration",
+        "text": "and how an artifact was produced. Apply\nthat evidence discipline to every artifact",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-11",
+        "kind": "narration",
+        "text": "you can, and document governed\nalternatives where signing or provenance",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-12",
+        "kind": "narration",
+        "text": "is unavailable. Retain manifests,\nimmutable artifacts or recoverable",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-13",
+        "kind": "narration",
+        "text": "locations, policy references, and\ndeployment procedures for both baseline",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-14",
+        "kind": "narration",
+        "text": "and candidate. If neither stack can be\nreconstructed without guessing at a",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-change-unit-narration-15",
+        "kind": "narration",
+        "text": "mutable tag, external file, or operator\nmemory, the release is not reversible.",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-1",
+        "kind": "narration",
+        "text": "Consider a synthetic upgrade described\nonly as model version two. The manifest",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-2",
+        "kind": "narration",
+        "text": "reveals four additional changes: a new\ntokenizer, an inference-server image",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-3",
+        "kind": "narration",
+        "text": "update, a revised safety template, and a\ntelemetry field rename. The candidate",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-4",
+        "kind": "narration",
+        "text": "passes a simple response check but fails\nthe old client's streaming parser, uses",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-5",
+        "kind": "narration",
+        "text": "more accelerator memory, and makes\nrollback telemetry appear incomplete",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-6",
+        "kind": "narration",
+        "text": "because the dashboard expects the renamed\nfield. The operator now divides the",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-7",
+        "kind": "narration",
+        "text": "change. First, restore the\napplication-owned telemetry contract",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-8",
+        "kind": "narration",
+        "text": "through an adapter. Second, test the\nclient parser against the new server.",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-9",
+        "kind": "narration",
+        "text": "Third, include tokenizer and memory\nbehavior in the evaluation and capacity",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-10",
+        "kind": "narration",
+        "text": "gates. The exact difference report\ntransformed one vague model update into",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-11",
+        "kind": "narration",
+        "text": "four testable changes and prevented a\nmodel-tag rollback from leaving",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-12",
+        "kind": "narration",
+        "text": "incompatible surrounding components.",
+        "sectionId": "define-the-change-unit"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-1",
+        "kind": "narration",
+        "text": "Qualify the exact candidate before user\ntraffic. Verify artifact provenance,",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-2",
+        "kind": "narration",
+        "text": "license disposition, signatures or\ndocumented alternatives, dependency",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-3",
+        "kind": "narration",
+        "text": "inventory, vulnerability findings,\nconfiguration policy, environment and",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-4",
+        "kind": "narration",
+        "text": "driver compatibility, secret references,\nand required resource availability. Then",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-5",
+        "kind": "narration",
+        "text": "run the same representative quality,\nsafety, authorization, API compatibility,",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-6",
+        "kind": "narration",
+        "text": "load, cost, failure, backup, rollback, and\nrecovery cases that approved the baseline.",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-7",
+        "kind": "narration",
+        "text": "Compare candidate and baseline by case and\noperational slice, not one average.",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-8",
+        "kind": "narration",
+        "text": "Predeclare hard failures, allowed deltas,\nuncertainty, required reviewer roles, and",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-9",
+        "kind": "narration",
+        "text": "waiver authority before opening the\nresults. The NIST AI Risk Management",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-10",
+        "kind": "narration",
+        "text": "Framework organizes work around governing,\nmapping, measuring, and managing risk. A",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-11",
+        "kind": "narration",
+        "text": "release gate makes those responsibilities\nconcrete: evidence informs the decision,",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-12",
+        "kind": "narration",
+        "text": "while authorized humans retain promotion\nauthority. A newer model name, larger",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-13",
+        "kind": "narration",
+        "text": "parameter count, or stronger public\nbenchmark does not override a failed",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-14",
+        "kind": "narration",
+        "text": "safety, compatibility, privacy, capacity,\nor recovery gate.",
+        "sectionId": "qualify-the-candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-1",
+        "kind": "narration",
+        "text": "Choose a rollout that matches the\nenvironment and consequence. A workstation",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-2",
+        "kind": "narration",
+        "text": "may use an offline replacement with an\nexplicit restore point. Containers can run",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-3",
+        "kind": "narration",
+        "text": "baseline and candidate side by side with a\ncontrolled route switch. A cluster can",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-4",
+        "kind": "narration",
+        "text": "use a rolling update, bounded canary, or\nblue-green service. A shadow comparison",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-5",
+        "kind": "narration",
+        "text": "can observe candidate behavior only when\nit cannot create user-visible or external",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-6",
+        "kind": "narration",
+        "text": "effects and its data use is approved.\nKubernetes Deployments support declarative",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-7",
+        "kind": "narration",
+        "text": "rollout and rollback mechanics, but the\napplication still owns exact model",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-8",
+        "kind": "narration",
+        "text": "identity, quality gates, mixed-version\nbehavior, and state compatibility. Define",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-9",
+        "kind": "narration",
+        "text": "maximum users or traffic, observation\nwindow, success and guardrail indicators,",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-10",
+        "kind": "narration",
+        "text": "cost ceiling, required approver, and\nautomatic or manual stop conditions.",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-11",
+        "kind": "narration",
+        "text": "Verify artifact identity, readiness,\nwarm-up, policy, telemetry, and rollback",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-12",
+        "kind": "narration",
+        "text": "availability before exposure. Drain old\ncapacity deliberately. Record exact",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-stage-release-narration-13",
+        "kind": "narration",
+        "text": "request routing so mixed versions cannot\nhide which build produced an outcome.",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-checkpoint-1",
+        "kind": "narration",
+        "text": "Checkpoint. A newer candidate improves\naverage quality, but it fails one",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-checkpoint-2",
+        "kind": "narration",
+        "text": "predeclared safety gate and breaks a\nrequired client behavior during the",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-checkpoint-3",
+        "kind": "narration",
+        "text": "canary. The model name is newer and the\nrollout has used only five percent",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-checkpoint-4",
+        "kind": "narration",
+        "text": "of traffic. What happens next?",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-checkpoint-response-time",
+        "kind": "pause",
+        "text": "Hold the checkpoint for up to seventy-five seconds with pause, extend, and continue controls."
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-1",
+        "kind": "narration",
+        "text": "Stop the rollout. Five-percent exposure\nlimits blast radius; it does not convert a",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-2",
+        "kind": "narration",
+        "text": "hard failure into an acceptable result.\nPreserve candidate and baseline",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-3",
+        "kind": "narration",
+        "text": "identities, exact routed requests, the\nsafety failure, compatibility trace,",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-4",
+        "kind": "narration",
+        "text": "decision, and any affected state without\ncopying unnecessary content. Remove",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-5",
+        "kind": "narration",
+        "text": "candidate traffic, verify the approved\nbaseline, reconcile in-flight work, and",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-6",
+        "kind": "narration",
+        "text": "issue a hold or reject disposition. A\nrevised candidate must return through the",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-7",
+        "kind": "narration",
+        "text": "qualification gates. If your answer\ncontinued because the model is newer or",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-8",
+        "kind": "narration",
+        "text": "the average improved, restore the\nauthority of predeclared safety and",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-9",
+        "kind": "narration",
+        "text": "compatibility gates.",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-1",
+        "kind": "narration",
+        "text": "Treat rollback as a tested release of the\ncomplete known-good unit. Retain model,",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-2",
+        "kind": "narration",
+        "text": "tokenizer, runtime, image, adapters,\nprompt and safety policy, infrastructure",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-3",
+        "kind": "narration",
+        "text": "configuration, secret references,\ntelemetry contract, and deployment",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-4",
+        "kind": "narration",
+        "text": "procedure. Identify state that may have\nchanged during the candidate: database",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-5",
+        "kind": "narration",
+        "text": "schemas, queue formats, caches, tool side\neffects, evaluation records, or",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-6",
+        "kind": "narration",
+        "text": "user-visible work. For every forward-only\nchange, provide a compatible reader,",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-7",
+        "kind": "narration",
+        "text": "restore procedure, migration reversal, or\ndocumented compensating path. Rehearse",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-8",
+        "kind": "narration",
+        "text": "rollback before production using the same\nauthorization, provenance, artifact",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-9",
+        "kind": "narration",
+        "text": "verification, readiness, warm-up, routing,\nand postcondition checks as an update.",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-10",
+        "kind": "narration",
+        "text": "During reversal, stop candidate admission,\ndrain or reconcile bounded in-flight work,",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-11",
+        "kind": "narration",
+        "text": "restore the complete baseline, and verify\nexact identity, representative quality,",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-12",
+        "kind": "narration",
+        "text": "endpoint contract, authorization, queue\nstate, telemetry, cost, and user-visible",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-13",
+        "kind": "narration",
+        "text": "recovery. Changing an alias to old weights\nwhile leaving a new incompatible tokenizer",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-14",
+        "kind": "narration",
+        "text": "or schema is not a complete rollback.",
+        "sectionId": "rollback-as-a-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-1",
+        "kind": "narration",
+        "text": "Close the lifecycle with an evidence\nledger. Record who proposed, reviewed,",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-2",
+        "kind": "narration",
+        "text": "approved, executed, paused, rolled back,\nand verified the change. Preserve",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-3",
+        "kind": "narration",
+        "text": "timestamps, immutable versions, test\noutputs, traffic exposure, stop",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-4",
+        "kind": "narration",
+        "text": "conditions, decisions, exceptions, expiry,\nand residual risks without storing secrets",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-5",
+        "kind": "narration",
+        "text": "or unnecessary request content. Link every\ndecision to reproducible evidence. Feed",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-6",
+        "kind": "narration",
+        "text": "release and rollback findings back into\nevaluation cases, thresholds, capacity",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-7",
+        "kind": "narration",
+        "text": "assumptions, compatibility manifests,\nstate-migration tests, and runbooks.",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-8",
+        "kind": "narration",
+        "text": "Retain rejected candidates under policy\nwith an explicit disposition and failed",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-9",
+        "kind": "narration",
+        "text": "gates. That record prevents the same\nunsafe combination from being rediscovered",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-10",
+        "kind": "narration",
+        "text": "and promoted later without context.\nEvidence also expires: when",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-11",
+        "kind": "narration",
+        "text": "infrastructure, traffic, policy, data,\ngrader, or dependency conditions change,",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-12",
+        "kind": "narration",
+        "text": "rerun the affected gates rather than\ntreating an old approval as permanent.",
+        "sectionId": "record-and-improve"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-transition-1",
+        "kind": "narration",
+        "text": "Now plan and rehearse the reversible\nupdate. Create baseline and candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-transition-2",
+        "kind": "narration",
+        "text": "manifests for the model, tokenizer,\nruntime, image, adapters, policies,"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-transition-3",
+        "kind": "narration",
+        "text": "configuration, infrastructure, evaluation\nset, and telemetry schema using immutable"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-transition-4",
+        "kind": "narration",
+        "text": "identities. Define quality, safety,\nsecurity, compatibility, capacity, cost,"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-transition-5",
+        "kind": "narration",
+        "text": "and recovery comparisons with hard gates\nand authorized reviewers. Choose a"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-transition-6",
+        "kind": "narration",
+        "text": "workstation, container, on-premises, edge,\nor cloud rollout and specify exposure,"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-transition-7",
+        "kind": "narration",
+        "text": "observation, stop, drain, routing, and\napproval controls. Force one guardrail"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-transition-8",
+        "kind": "narration",
+        "text": "failure in a tabletop or isolated\nrehearsal, execute rollback, verify the"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-transition-9",
+        "kind": "narration",
+        "text": "restored endpoint and state, then issue a\nrelease, reject, or revise decision with"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-transition-10",
+        "kind": "narration",
+        "text": "residual risks and follow-up."
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-activity-work-time",
+        "kind": "pause",
+        "text": "Provide one hundred eighty seconds of optional work time with pause, extend, save, and continue controls."
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-1",
+        "kind": "narration",
+        "text": "Instructor narration: This Node.js 22\nnative-ESM lab contains one deliberate",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-2",
+        "kind": "narration",
+        "text": "learner-facing defect. The shared\nvalidator and independent reference are",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-3",
+        "kind": "narration",
+        "text": "already sound and must not be edited. In\n`src/decision.mjs`, the starter excludes",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-4",
+        "kind": "narration",
+        "text": "the recovery gate while collecting\nfailures. As a result, the incompatible",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-5",
+        "kind": "narration",
+        "text": "packet is promoted even though recovery\nfailed. Edit only `src/decision.mjs` so",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-6",
+        "kind": "narration",
+        "text": "every failed gate blocks promotion. Do not\nadd dependencies, network calls, model",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-7",
+        "kind": "narration",
+        "text": "APIs, identifier-specific exceptions, or a\nrule that rejects every input. Prediction",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-8",
+        "kind": "narration",
+        "text": "before answer: inspect\n`fixtures/packet.json`. Predict the",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-9",
+        "kind": "narration",
+        "text": "starter decision from the six passing\ngates, failed recovery gate, and false",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-10",
+        "kind": "narration",
+        "text": "compatibility evidence. Then inspect\n`fixtures/changed-compatible.json`, whose",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-11",
+        "kind": "narration",
+        "text": "identifiers are different, state schemas\nagree, rollback evidence is compatible,",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-12",
+        "kind": "narration",
+        "text": "and all seven gates pass. Predict why a\ngeneral repair must promote the changed",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-13",
+        "kind": "narration",
+        "text": "input. Write both predictions and their\ncausal evidence before opening",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-14",
+        "kind": "narration",
+        "text": "`reference/decision.mjs`. Expected starter\nresult for the first command is exactly",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-15",
+        "kind": "narration",
+        "text": "`DECISION: PROMOTE`, `ROLLBACK_COMPATIBLE:\nfalse`, and `FAILED_GATES: none`, on",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-16",
+        "kind": "narration",
+        "text": "separate lines, with exit code 0. The\nstarter test run has 29 tests: 28",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-17",
+        "kind": "narration",
+        "text": "pass, only `incompatible rollback state\nblocks promotion` fails, and the process",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-18",
+        "kind": "narration",
+        "text": "exits 1. TAP durations and ordering across\nfiles can vary, so those counts, the",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-19",
+        "kind": "narration",
+        "text": "failing test name, and the assertion that\nexpected `reject` but received `promote`",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-20",
+        "kind": "narration",
+        "text": "are the stable expectations. These are\nexpected results derived from the supplied",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-21",
+        "kind": "narration",
+        "text": "code, not a claim that this corrected\nartifact was executed. Learner activity:",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-22",
+        "kind": "narration",
+        "text": "edit only `src/decision.mjs`, preserving\nits export and return shape. The repaired",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-23",
+        "kind": "narration",
+        "text": "packet command must print `DECISION:\nREJECT`, `ROLLBACK_COMPATIBLE: false`, and",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-24",
+        "kind": "narration",
+        "text": "`FAILED_GATES: recovery`, with exit code\n2. The tests must report 29 passing tests,",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-25",
+        "kind": "narration",
+        "text": "zero failures, and exit 0. The changed\nfixture must print `DECISION: PROMOTE`,",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-26",
+        "kind": "narration",
+        "text": "`ROLLBACK_COMPATIBLE: true`, and\n`FAILED_GATES: none`, with exit code 0.",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-27",
+        "kind": "narration",
+        "text": "The renamed positive case rules out\nhardcoded identifiers and deny-all",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-28",
+        "kind": "narration",
+        "text": "behavior. Answer key and causal feedback:\nthe faulty predicate explicitly excludes",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-29",
+        "kind": "narration",
+        "text": "the gate named `recovery`. Replace it with\na predicate that selects every gate whose",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-30",
+        "kind": "narration",
+        "text": "status is not `pass`. If the incompatible\npacket still promotes, recovery is still",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-31",
+        "kind": "narration",
+        "text": "discarded or overridden. If the renamed\ncompatible packet rejects, the",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-32",
+        "kind": "narration",
+        "text": "implementation is deny-all or coupled to\nthe original identifiers. If contradictory",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-33",
+        "kind": "narration",
+        "text": "compatibility evidence, malformed digests,\nmissing fields, unknown enums, empty",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-34",
+        "kind": "narration",
+        "text": "required arrays, non-finite ranges, or any\ncomplete-manifest readback mismatch is",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-35",
+        "kind": "narration",
+        "text": "accepted, validation or recovery\nverification was weakened outside the",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-36",
+        "kind": "narration",
+        "text": "focused defect. Recovery: copy\n`src/decision.mjs` to",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-37",
+        "kind": "narration",
+        "text": "`.lab-tmp/decision.backup.mjs` before\nediting. The README provides bounded",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-38",
+        "kind": "narration",
+        "text": "commands that touch only that named file\nunder the lab. Restore the backup if",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-39",
+        "kind": "narration",
+        "text": "needed, or copy `reference/decision.mjs`\nover the learner file after attempting the",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-40",
+        "kind": "narration",
+        "text": "exercise. Tests create and remove only\n`.lab-tmp/changed-input.json`; they do not",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-41",
+        "kind": "narration",
+        "text": "use the operating-system temporary\ndirectory.",
+        "sectionId": "repair-lab"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-assessment-handoff-1",
+        "kind": "narration",
+        "text": "Begin the check when you can define the\ncomplete serving unit, compare candidate"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-assessment-handoff-2",
+        "kind": "narration",
+        "text": "and baseline by case and slice, preserve\nexact canary routing, stop on a hard"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-assessment-handoff-3",
+        "kind": "narration",
+        "text": "gate, prove complete rollback, and retain\nrejected-candidate evidence. The check"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-assessment-handoff-4",
+        "kind": "narration",
+        "text": "starts only when you choose Begin\nknowledge check."
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-class-closing-1",
+        "kind": "narration",
+        "text": "Remember: version the whole serving unit,\nqualify what will actually run, bound"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-class-closing-2",
+        "kind": "narration",
+        "text": "every rollout, and rehearse the complete\ncompatible baseline as a release before"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-class-closing-3",
+        "kind": "narration",
+        "text": "you need it."
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-learner-prompt",
+        "kind": "learner-prompt",
+        "text": "Now plan and rehearse the reversible update. Create baseline and candidate manifests for the model, tokenizer, runtime, image, adapters, policies, configuration, infrastructure, evaluation set, and telemetry schema using immutable identities. Define quality, safety, security, compatibility, capacity, cost, and recovery comparisons with hard gates and authorized reviewers. Choose a workstation, container, on-premises, edge, or cloud rollout and specify exposure, observation, stop, drain, routing, and approval controls. Force one guardrail failure in a tabletop or isolated rehearsal, execute rollback, verify the restored endpoint and state, then issue a release, reject, or revise decision with residual risks and follow-up."
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-checkpoint",
+        "kind": "checkpoint",
+        "text": "Checkpoint. A newer candidate improves average quality, but it fails one predeclared safety gate and breaks a required client behavior during the canary. The model name is newer and the rollout has used only five percent of traffic. What happens next?",
+        "sectionId": "stage-and-release"
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-assessment-handoff",
+        "kind": "assessment-handoff",
+        "text": "Begin the check when you can define the complete serving unit, compare candidate and baseline by case and slice, preserve exact canary routing, stop on a hard gate, prove complete rollback, and retain rejected-candidate evidence. The check starts only when you choose Begin knowledge check."
+      },
+      {
+        "id": "cue-model-update-and-rollback-lifecycle-visual",
+        "kind": "visual",
+        "text": "One immutable release identity binds model, tokenizer, prompts, runtime, image, adapters, policies, infrastructure, evaluation, and telemetry dependencies.",
+        "accessibilityAlternative": "Baseline and candidate columns show exact versions, digests, provenance status, intentional differences, detected drift, and retained recovery locations.",
+        "sectionId": "define-the-change-unit"
+      }
+    ],
+    "captions": [
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-welcome-and-outcomes-1",
+        "startSeconds": 0,
+        "endSeconds": 7,
+        "text": "Welcome. A model update is a release of a\ncomplete serving system, not a"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-welcome-and-outcomes-2",
+        "startSeconds": 7,
+        "endSeconds": 14,
+        "text": "new label attached to weights. In this\nclass, you will version the whole change"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-welcome-and-outcomes-3",
+        "startSeconds": 14,
+        "endSeconds": 20,
+        "text": "unit, qualify the exact candidate, bound\nits exposure, rehearse rollback as another"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-welcome-and-outcomes-4",
+        "startSeconds": 20,
+        "endSeconds": 25,
+        "text": "controlled release, and preserve evidence\nso approved and rejected combinations"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-welcome-and-outcomes-5",
+        "startSeconds": 25,
+        "endSeconds": 26,
+        "text": "remain reconstructable."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-1",
+        "startSeconds": 26,
+        "endSeconds": 32,
+        "text": "Version the entire serving unit. Record\nthe immutable model revision and digest"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-2",
+        "startSeconds": 32,
+        "endSeconds": 36,
+        "text": "together with the tokenizer, prompt\ntemplate, retrieval configuration,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-3",
+        "startSeconds": 36,
+        "endSeconds": 40,
+        "text": "runtime, accelerator libraries, container\nimage, application adapter, gateway"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-4",
+        "startSeconds": 40,
+        "endSeconds": 44,
+        "text": "contract, safety and authorization policy,\ninfrastructure configuration, evaluation"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-5",
+        "startSeconds": 44,
+        "endSeconds": 50,
+        "text": "set, and telemetry schema. Any one of\nthese can change quality, latency, memory,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-6",
+        "startSeconds": 50,
+        "endSeconds": 55,
+        "text": "security, privacy, compatibility, or\nrecovery. Give the assembled candidate one"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-7",
+        "startSeconds": 55,
+        "endSeconds": 60,
+        "text": "release identity and produce a\nmachine-readable difference report against"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-8",
+        "startSeconds": 60,
+        "endSeconds": 65,
+        "text": "the approved baseline. Separate\nintentional changes from drift discovered"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-9",
+        "startSeconds": 65,
+        "endSeconds": 70,
+        "text": "during assembly. SLSA provenance describes\nverifiable information about where, when,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-10",
+        "startSeconds": 70,
+        "endSeconds": 76,
+        "text": "and how an artifact was produced. Apply\nthat evidence discipline to every artifact"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-11",
+        "startSeconds": 76,
+        "endSeconds": 81,
+        "text": "you can, and document governed\nalternatives where signing or provenance"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-12",
+        "startSeconds": 81,
+        "endSeconds": 85,
+        "text": "is unavailable. Retain manifests,\nimmutable artifacts or recoverable"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-13",
+        "startSeconds": 85,
+        "endSeconds": 90,
+        "text": "locations, policy references, and\ndeployment procedures for both baseline"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-14",
+        "startSeconds": 90,
+        "endSeconds": 96,
+        "text": "and candidate. If neither stack can be\nreconstructed without guessing at a"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-change-unit-narration-15",
+        "startSeconds": 96,
+        "endSeconds": 102,
+        "text": "mutable tag, external file, or operator\nmemory, the release is not reversible."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-1",
+        "startSeconds": 102,
+        "endSeconds": 108,
+        "text": "Consider a synthetic upgrade described\nonly as model version two. The manifest"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-2",
+        "startSeconds": 108,
+        "endSeconds": 113,
+        "text": "reveals four additional changes: a new\ntokenizer, an inference-server image"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-3",
+        "startSeconds": 113,
+        "endSeconds": 119,
+        "text": "update, a revised safety template, and a\ntelemetry field rename. The candidate"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-4",
+        "startSeconds": 119,
+        "endSeconds": 125,
+        "text": "passes a simple response check but fails\nthe old client's streaming parser, uses"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-5",
+        "startSeconds": 125,
+        "endSeconds": 130,
+        "text": "more accelerator memory, and makes\nrollback telemetry appear incomplete"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-6",
+        "startSeconds": 130,
+        "endSeconds": 136,
+        "text": "because the dashboard expects the renamed\nfield. The operator now divides the"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-7",
+        "startSeconds": 136,
+        "endSeconds": 140,
+        "text": "change. First, restore the\napplication-owned telemetry contract"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-8",
+        "startSeconds": 140,
+        "endSeconds": 146,
+        "text": "through an adapter. Second, test the\nclient parser against the new server."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-9",
+        "startSeconds": 146,
+        "endSeconds": 151,
+        "text": "Third, include tokenizer and memory\nbehavior in the evaluation and capacity"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-10",
+        "startSeconds": 151,
+        "endSeconds": 156,
+        "text": "gates. The exact difference report\ntransformed one vague model update into"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-11",
+        "startSeconds": 156,
+        "endSeconds": 161,
+        "text": "four testable changes and prevented a\nmodel-tag rollback from leaving"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-manifest-demonstration-12",
+        "startSeconds": 161,
+        "endSeconds": 163,
+        "text": "incompatible surrounding components."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-1",
+        "startSeconds": 163,
+        "endSeconds": 168,
+        "text": "Qualify the exact candidate before user\ntraffic. Verify artifact provenance,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-2",
+        "startSeconds": 168,
+        "endSeconds": 172,
+        "text": "license disposition, signatures or\ndocumented alternatives, dependency"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-3",
+        "startSeconds": 172,
+        "endSeconds": 176,
+        "text": "inventory, vulnerability findings,\nconfiguration policy, environment and"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-4",
+        "startSeconds": 176,
+        "endSeconds": 181,
+        "text": "driver compatibility, secret references,\nand required resource availability. Then"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-5",
+        "startSeconds": 181,
+        "endSeconds": 186,
+        "text": "run the same representative quality,\nsafety, authorization, API compatibility,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-6",
+        "startSeconds": 186,
+        "endSeconds": 192,
+        "text": "load, cost, failure, backup, rollback, and\nrecovery cases that approved the baseline."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-7",
+        "startSeconds": 192,
+        "endSeconds": 198,
+        "text": "Compare candidate and baseline by case and\noperational slice, not one average."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-8",
+        "startSeconds": 198,
+        "endSeconds": 203,
+        "text": "Predeclare hard failures, allowed deltas,\nuncertainty, required reviewer roles, and"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-9",
+        "startSeconds": 203,
+        "endSeconds": 208,
+        "text": "waiver authority before opening the\nresults. The NIST AI Risk Management"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-10",
+        "startSeconds": 208,
+        "endSeconds": 213,
+        "text": "Framework organizes work around governing,\nmapping, measuring, and managing risk. A"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-11",
+        "startSeconds": 213,
+        "endSeconds": 218,
+        "text": "release gate makes those responsibilities\nconcrete: evidence informs the decision,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-12",
+        "startSeconds": 218,
+        "endSeconds": 223,
+        "text": "while authorized humans retain promotion\nauthority. A newer model name, larger"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-13",
+        "startSeconds": 223,
+        "endSeconds": 228,
+        "text": "parameter count, or stronger public\nbenchmark does not override a failed"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-qualify-candidate-narration-14",
+        "startSeconds": 228,
+        "endSeconds": 232,
+        "text": "safety, compatibility, privacy, capacity,\nor recovery gate."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-1",
+        "startSeconds": 232,
+        "endSeconds": 237,
+        "text": "Choose a rollout that matches the\nenvironment and consequence. A workstation"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-2",
+        "startSeconds": 237,
+        "endSeconds": 243,
+        "text": "may use an offline replacement with an\nexplicit restore point. Containers can run"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-3",
+        "startSeconds": 243,
+        "endSeconds": 250,
+        "text": "baseline and candidate side by side with a\ncontrolled route switch. A cluster can"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-4",
+        "startSeconds": 250,
+        "endSeconds": 256,
+        "text": "use a rolling update, bounded canary, or\nblue-green service. A shadow comparison"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-5",
+        "startSeconds": 256,
+        "endSeconds": 262,
+        "text": "can observe candidate behavior only when\nit cannot create user-visible or external"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-6",
+        "startSeconds": 262,
+        "endSeconds": 267,
+        "text": "effects and its data use is approved.\nKubernetes Deployments support declarative"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-7",
+        "startSeconds": 267,
+        "endSeconds": 272,
+        "text": "rollout and rollback mechanics, but the\napplication still owns exact model"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-8",
+        "startSeconds": 272,
+        "endSeconds": 277,
+        "text": "identity, quality gates, mixed-version\nbehavior, and state compatibility. Define"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-9",
+        "startSeconds": 277,
+        "endSeconds": 282,
+        "text": "maximum users or traffic, observation\nwindow, success and guardrail indicators,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-10",
+        "startSeconds": 282,
+        "endSeconds": 287,
+        "text": "cost ceiling, required approver, and\nautomatic or manual stop conditions."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-11",
+        "startSeconds": 287,
+        "endSeconds": 292,
+        "text": "Verify artifact identity, readiness,\nwarm-up, policy, telemetry, and rollback"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-12",
+        "startSeconds": 292,
+        "endSeconds": 297,
+        "text": "availability before exposure. Drain old\ncapacity deliberately. Record exact"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-stage-release-narration-13",
+        "startSeconds": 297,
+        "endSeconds": 303,
+        "text": "request routing so mixed versions cannot\nhide which build produced an outcome."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-checkpoint-1",
+        "startSeconds": 303,
+        "endSeconds": 308,
+        "text": "Checkpoint. A newer candidate improves\naverage quality, but it fails one"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-checkpoint-2",
+        "startSeconds": 308,
+        "endSeconds": 313,
+        "text": "predeclared safety gate and breaks a\nrequired client behavior during the"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-checkpoint-3",
+        "startSeconds": 313,
+        "endSeconds": 320,
+        "text": "canary. The model name is newer and the\nrollout has used only five percent"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-checkpoint-4",
+        "startSeconds": 320,
+        "endSeconds": 323,
+        "text": "of traffic. What happens next?"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-1",
+        "startSeconds": 398,
+        "endSeconds": 404,
+        "text": "Stop the rollout. Five-percent exposure\nlimits blast radius; it does not convert a"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-2",
+        "startSeconds": 404,
+        "endSeconds": 409,
+        "text": "hard failure into an acceptable result.\nPreserve candidate and baseline"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-3",
+        "startSeconds": 409,
+        "endSeconds": 414,
+        "text": "identities, exact routed requests, the\nsafety failure, compatibility trace,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-4",
+        "startSeconds": 414,
+        "endSeconds": 419,
+        "text": "decision, and any affected state without\ncopying unnecessary content. Remove"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-5",
+        "startSeconds": 419,
+        "endSeconds": 424,
+        "text": "candidate traffic, verify the approved\nbaseline, reconcile in-flight work, and"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-6",
+        "startSeconds": 424,
+        "endSeconds": 430,
+        "text": "issue a hold or reject disposition. A\nrevised candidate must return through the"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-7",
+        "startSeconds": 430,
+        "endSeconds": 436,
+        "text": "qualification gates. If your answer\ncontinued because the model is newer or"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-8",
+        "startSeconds": 436,
+        "endSeconds": 441,
+        "text": "the average improved, restore the\nauthority of predeclared safety and"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-hard-gate-feedback-9",
+        "startSeconds": 441,
+        "endSeconds": 442,
+        "text": "compatibility gates."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-1",
+        "startSeconds": 442,
+        "endSeconds": 448,
+        "text": "Treat rollback as a tested release of the\ncomplete known-good unit. Retain model,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-2",
+        "startSeconds": 448,
+        "endSeconds": 453,
+        "text": "tokenizer, runtime, image, adapters,\nprompt and safety policy, infrastructure"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-3",
+        "startSeconds": 453,
+        "endSeconds": 457,
+        "text": "configuration, secret references,\ntelemetry contract, and deployment"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-4",
+        "startSeconds": 457,
+        "endSeconds": 462,
+        "text": "procedure. Identify state that may have\nchanged during the candidate: database"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-5",
+        "startSeconds": 462,
+        "endSeconds": 467,
+        "text": "schemas, queue formats, caches, tool side\neffects, evaluation records, or"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-6",
+        "startSeconds": 467,
+        "endSeconds": 472,
+        "text": "user-visible work. For every forward-only\nchange, provide a compatible reader,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-7",
+        "startSeconds": 472,
+        "endSeconds": 477,
+        "text": "restore procedure, migration reversal, or\ndocumented compensating path. Rehearse"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-8",
+        "startSeconds": 477,
+        "endSeconds": 482,
+        "text": "rollback before production using the same\nauthorization, provenance, artifact"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-9",
+        "startSeconds": 482,
+        "endSeconds": 487,
+        "text": "verification, readiness, warm-up, routing,\nand postcondition checks as an update."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-10",
+        "startSeconds": 487,
+        "endSeconds": 492,
+        "text": "During reversal, stop candidate admission,\ndrain or reconcile bounded in-flight work,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-11",
+        "startSeconds": 492,
+        "endSeconds": 497,
+        "text": "restore the complete baseline, and verify\nexact identity, representative quality,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-12",
+        "startSeconds": 497,
+        "endSeconds": 502,
+        "text": "endpoint contract, authorization, queue\nstate, telemetry, cost, and user-visible"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-13",
+        "startSeconds": 502,
+        "endSeconds": 508,
+        "text": "recovery. Changing an alias to old weights\nwhile leaving a new incompatible tokenizer"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-rollback-release-narration-14",
+        "startSeconds": 508,
+        "endSeconds": 512,
+        "text": "or schema is not a complete rollback."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-1",
+        "startSeconds": 512,
+        "endSeconds": 517,
+        "text": "Close the lifecycle with an evidence\nledger. Record who proposed, reviewed,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-2",
+        "startSeconds": 517,
+        "endSeconds": 522,
+        "text": "approved, executed, paused, rolled back,\nand verified the change. Preserve"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-3",
+        "startSeconds": 522,
+        "endSeconds": 526,
+        "text": "timestamps, immutable versions, test\noutputs, traffic exposure, stop"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-4",
+        "startSeconds": 526,
+        "endSeconds": 531,
+        "text": "conditions, decisions, exceptions, expiry,\nand residual risks without storing secrets"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-5",
+        "startSeconds": 531,
+        "endSeconds": 536,
+        "text": "or unnecessary request content. Link every\ndecision to reproducible evidence. Feed"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-6",
+        "startSeconds": 536,
+        "endSeconds": 541,
+        "text": "release and rollback findings back into\nevaluation cases, thresholds, capacity"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-7",
+        "startSeconds": 541,
+        "endSeconds": 545,
+        "text": "assumptions, compatibility manifests,\nstate-migration tests, and runbooks."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-8",
+        "startSeconds": 545,
+        "endSeconds": 550,
+        "text": "Retain rejected candidates under policy\nwith an explicit disposition and failed"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-9",
+        "startSeconds": 550,
+        "endSeconds": 555,
+        "text": "gates. That record prevents the same\nunsafe combination from being rediscovered"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-10",
+        "startSeconds": 555,
+        "endSeconds": 560,
+        "text": "and promoted later without context.\nEvidence also expires: when"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-11",
+        "startSeconds": 560,
+        "endSeconds": 565,
+        "text": "infrastructure, traffic, policy, data,\ngrader, or dependency conditions change,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-evidence-improvement-narration-12",
+        "startSeconds": 565,
+        "endSeconds": 571,
+        "text": "rerun the affected gates rather than\ntreating an old approval as permanent."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-activity-transition-1",
+        "startSeconds": 571,
+        "endSeconds": 576,
+        "text": "Now plan and rehearse the reversible\nupdate. Create baseline and candidate"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-activity-transition-2",
+        "startSeconds": 576,
+        "endSeconds": 581,
+        "text": "manifests for the model, tokenizer,\nruntime, image, adapters, policies,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-activity-transition-3",
+        "startSeconds": 581,
+        "endSeconds": 586,
+        "text": "configuration, infrastructure, evaluation\nset, and telemetry schema using immutable"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-activity-transition-4",
+        "startSeconds": 586,
+        "endSeconds": 590,
+        "text": "identities. Define quality, safety,\nsecurity, compatibility, capacity, cost,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-activity-transition-5",
+        "startSeconds": 590,
+        "endSeconds": 595,
+        "text": "and recovery comparisons with hard gates\nand authorized reviewers. Choose a"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-activity-transition-6",
+        "startSeconds": 595,
+        "endSeconds": 600,
+        "text": "workstation, container, on-premises, edge,\nor cloud rollout and specify exposure,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-activity-transition-7",
+        "startSeconds": 600,
+        "endSeconds": 605,
+        "text": "observation, stop, drain, routing, and\napproval controls. Force one guardrail"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-activity-transition-8",
+        "startSeconds": 605,
+        "endSeconds": 610,
+        "text": "failure in a tabletop or isolated\nrehearsal, execute rollback, verify the"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-activity-transition-9",
+        "startSeconds": 610,
+        "endSeconds": 616,
+        "text": "restored endpoint and state, then issue a\nrelease, reject, or revise decision with"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-activity-transition-10",
+        "startSeconds": 616,
+        "endSeconds": 618,
+        "text": "residual risks and follow-up."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-1",
+        "startSeconds": 798,
+        "endSeconds": 803,
+        "text": "Instructor narration: This Node.js 22\nnative-ESM lab contains one deliberate"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-2",
+        "startSeconds": 803,
+        "endSeconds": 808,
+        "text": "learner-facing defect. The shared\nvalidator and independent reference are"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-3",
+        "startSeconds": 808,
+        "endSeconds": 814,
+        "text": "already sound and must not be edited. In\n`src/decision.mjs`, the starter excludes"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-4",
+        "startSeconds": 814,
+        "endSeconds": 819,
+        "text": "the recovery gate while collecting\nfailures. As a result, the incompatible"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-5",
+        "startSeconds": 819,
+        "endSeconds": 824,
+        "text": "packet is promoted even though recovery\nfailed. Edit only `src/decision.mjs` so"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-6",
+        "startSeconds": 824,
+        "endSeconds": 830,
+        "text": "every failed gate blocks promotion. Do not\nadd dependencies, network calls, model"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-7",
+        "startSeconds": 830,
+        "endSeconds": 835,
+        "text": "APIs, identifier-specific exceptions, or a\nrule that rejects every input. Prediction"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-8",
+        "startSeconds": 835,
+        "endSeconds": 838,
+        "text": "before answer: inspect\n`fixtures/packet.json`. Predict the"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-9",
+        "startSeconds": 838,
+        "endSeconds": 844,
+        "text": "starter decision from the six passing\ngates, failed recovery gate, and false"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-10",
+        "startSeconds": 844,
+        "endSeconds": 847,
+        "text": "compatibility evidence. Then inspect\n`fixtures/changed-compatible.json`, whose"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-11",
+        "startSeconds": 847,
+        "endSeconds": 852,
+        "text": "identifiers are different, state schemas\nagree, rollback evidence is compatible,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-12",
+        "startSeconds": 852,
+        "endSeconds": 859,
+        "text": "and all seven gates pass. Predict why a\ngeneral repair must promote the changed"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-13",
+        "startSeconds": 859,
+        "endSeconds": 864,
+        "text": "input. Write both predictions and their\ncausal evidence before opening"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-14",
+        "startSeconds": 864,
+        "endSeconds": 869,
+        "text": "`reference/decision.mjs`. Expected starter\nresult for the first command is exactly"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-15",
+        "startSeconds": 869,
+        "endSeconds": 873,
+        "text": "`DECISION: PROMOTE`, `ROLLBACK_COMPATIBLE:\nfalse`, and `FAILED_GATES: none`, on"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-16",
+        "startSeconds": 873,
+        "endSeconds": 880,
+        "text": "separate lines, with exit code 0. The\nstarter test run has 29 tests: 28"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-17",
+        "startSeconds": 880,
+        "endSeconds": 885,
+        "text": "pass, only `incompatible rollback state\nblocks promotion` fails, and the process"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-18",
+        "startSeconds": 885,
+        "endSeconds": 892,
+        "text": "exits 1. TAP durations and ordering across\nfiles can vary, so those counts, the"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-19",
+        "startSeconds": 892,
+        "endSeconds": 898,
+        "text": "failing test name, and the assertion that\nexpected `reject` but received `promote`"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-20",
+        "startSeconds": 898,
+        "endSeconds": 904,
+        "text": "are the stable expectations. These are\nexpected results derived from the supplied"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-21",
+        "startSeconds": 904,
+        "endSeconds": 910,
+        "text": "code, not a claim that this corrected\nartifact was executed. Learner activity:"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-22",
+        "startSeconds": 910,
+        "endSeconds": 915,
+        "text": "edit only `src/decision.mjs`, preserving\nits export and return shape. The repaired"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-23",
+        "startSeconds": 915,
+        "endSeconds": 920,
+        "text": "packet command must print `DECISION:\nREJECT`, `ROLLBACK_COMPATIBLE: false`, and"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-24",
+        "startSeconds": 920,
+        "endSeconds": 926,
+        "text": "`FAILED_GATES: recovery`, with exit code\n2. The tests must report 29 passing tests,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-25",
+        "startSeconds": 926,
+        "endSeconds": 932,
+        "text": "zero failures, and exit 0. The changed\nfixture must print `DECISION: PROMOTE`,"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-26",
+        "startSeconds": 932,
+        "endSeconds": 937,
+        "text": "`ROLLBACK_COMPATIBLE: true`, and\n`FAILED_GATES: none`, with exit code 0."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-27",
+        "startSeconds": 937,
+        "endSeconds": 942,
+        "text": "The renamed positive case rules out\nhardcoded identifiers and deny-all"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-28",
+        "startSeconds": 942,
+        "endSeconds": 947,
+        "text": "behavior. Answer key and causal feedback:\nthe faulty predicate explicitly excludes"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-29",
+        "startSeconds": 947,
+        "endSeconds": 954,
+        "text": "the gate named `recovery`. Replace it with\na predicate that selects every gate whose"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-30",
+        "startSeconds": 954,
+        "endSeconds": 960,
+        "text": "status is not `pass`. If the incompatible\npacket still promotes, recovery is still"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-31",
+        "startSeconds": 960,
+        "endSeconds": 965,
+        "text": "discarded or overridden. If the renamed\ncompatible packet rejects, the"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-32",
+        "startSeconds": 965,
+        "endSeconds": 970,
+        "text": "implementation is deny-all or coupled to\nthe original identifiers. If contradictory"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-33",
+        "startSeconds": 970,
+        "endSeconds": 975,
+        "text": "compatibility evidence, malformed digests,\nmissing fields, unknown enums, empty"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-34",
+        "startSeconds": 975,
+        "endSeconds": 980,
+        "text": "required arrays, non-finite ranges, or any\ncomplete-manifest readback mismatch is"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-35",
+        "startSeconds": 980,
+        "endSeconds": 985,
+        "text": "accepted, validation or recovery\nverification was weakened outside the"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-36",
+        "startSeconds": 985,
+        "endSeconds": 988,
+        "text": "focused defect. Recovery: copy\n`src/decision.mjs` to"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-37",
+        "startSeconds": 988,
+        "endSeconds": 992,
+        "text": "`.lab-tmp/decision.backup.mjs` before\nediting. The README provides bounded"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-38",
+        "startSeconds": 992,
+        "endSeconds": 999,
+        "text": "commands that touch only that named file\nunder the lab. Restore the backup if"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-39",
+        "startSeconds": 999,
+        "endSeconds": 1004,
+        "text": "needed, or copy `reference/decision.mjs`\nover the learner file after attempting the"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-40",
+        "startSeconds": 1004,
+        "endSeconds": 1009,
+        "text": "exercise. Tests create and remove only\n`.lab-tmp/changed-input.json`; they do not"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-repair-lab-lab-narration-41",
+        "startSeconds": 1009,
+        "endSeconds": 1012,
+        "text": "use the operating-system temporary\ndirectory."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-assessment-handoff-1",
+        "startSeconds": 1012,
+        "endSeconds": 1018,
+        "text": "Begin the check when you can define the\ncomplete serving unit, compare candidate"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-assessment-handoff-2",
+        "startSeconds": 1018,
+        "endSeconds": 1025,
+        "text": "and baseline by case and slice, preserve\nexact canary routing, stop on a hard"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-assessment-handoff-3",
+        "startSeconds": 1025,
+        "endSeconds": 1030,
+        "text": "gate, prove complete rollback, and retain\nrejected-candidate evidence. The check"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-assessment-handoff-4",
+        "startSeconds": 1030,
+        "endSeconds": 1034,
+        "text": "starts only when you choose Begin\nknowledge check."
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-class-closing-1",
+        "startSeconds": 1034,
+        "endSeconds": 1040,
+        "text": "Remember: version the whole serving unit,\nqualify what will actually run, bound"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-class-closing-2",
+        "startSeconds": 1040,
+        "endSeconds": 1046,
+        "text": "every rollout, and rehearse the complete\ncompatible baseline as a release before"
+      },
+      {
+        "cueId": "cue-model-update-and-rollback-lifecycle-class-closing-3",
+        "startSeconds": 1046,
+        "endSeconds": 1048,
+        "text": "you need it."
+      }
+    ],
+    "transcript": "Welcome. A model update is a release of a\ncomplete serving system, not a new label attached to weights. In this\nclass, you will version the whole change unit, qualify the exact candidate, bound\nits exposure, rehearse rollback as another controlled release, and preserve evidence\nso approved and rejected combinations remain reconstructable. Version the entire serving unit. Record\nthe immutable model revision and digest together with the tokenizer, prompt\ntemplate, retrieval configuration, runtime, accelerator libraries, container\nimage, application adapter, gateway contract, safety and authorization policy,\ninfrastructure configuration, evaluation set, and telemetry schema. Any one of\nthese can change quality, latency, memory, security, privacy, compatibility, or\nrecovery. Give the assembled candidate one release identity and produce a\nmachine-readable difference report against the approved baseline. Separate\nintentional changes from drift discovered during assembly. SLSA provenance describes\nverifiable information about where, when, and how an artifact was produced. Apply\nthat evidence discipline to every artifact you can, and document governed\nalternatives where signing or provenance is unavailable. Retain manifests,\nimmutable artifacts or recoverable locations, policy references, and\ndeployment procedures for both baseline and candidate. If neither stack can be\nreconstructed without guessing at a mutable tag, external file, or operator\nmemory, the release is not reversible. Consider a synthetic upgrade described\nonly as model version two. The manifest reveals four additional changes: a new\ntokenizer, an inference-server image update, a revised safety template, and a\ntelemetry field rename. The candidate passes a simple response check but fails\nthe old client's streaming parser, uses more accelerator memory, and makes\nrollback telemetry appear incomplete because the dashboard expects the renamed\nfield. The operator now divides the change. First, restore the\napplication-owned telemetry contract through an adapter. Second, test the\nclient parser against the new server. Third, include tokenizer and memory\nbehavior in the evaluation and capacity gates. The exact difference report\ntransformed one vague model update into four testable changes and prevented a\nmodel-tag rollback from leaving incompatible surrounding components. Qualify the exact candidate before user\ntraffic. Verify artifact provenance, license disposition, signatures or\ndocumented alternatives, dependency inventory, vulnerability findings,\nconfiguration policy, environment and driver compatibility, secret references,\nand required resource availability. Then run the same representative quality,\nsafety, authorization, API compatibility, load, cost, failure, backup, rollback, and\nrecovery cases that approved the baseline. Compare candidate and baseline by case and\noperational slice, not one average. Predeclare hard failures, allowed deltas,\nuncertainty, required reviewer roles, and waiver authority before opening the\nresults. The NIST AI Risk Management Framework organizes work around governing,\nmapping, measuring, and managing risk. A release gate makes those responsibilities\nconcrete: evidence informs the decision, while authorized humans retain promotion\nauthority. A newer model name, larger parameter count, or stronger public\nbenchmark does not override a failed safety, compatibility, privacy, capacity,\nor recovery gate. Choose a rollout that matches the\nenvironment and consequence. A workstation may use an offline replacement with an\nexplicit restore point. Containers can run baseline and candidate side by side with a\ncontrolled route switch. A cluster can use a rolling update, bounded canary, or\nblue-green service. A shadow comparison can observe candidate behavior only when\nit cannot create user-visible or external effects and its data use is approved.\nKubernetes Deployments support declarative rollout and rollback mechanics, but the\napplication still owns exact model identity, quality gates, mixed-version\nbehavior, and state compatibility. Define maximum users or traffic, observation\nwindow, success and guardrail indicators, cost ceiling, required approver, and\nautomatic or manual stop conditions. Verify artifact identity, readiness,\nwarm-up, policy, telemetry, and rollback availability before exposure. Drain old\ncapacity deliberately. Record exact request routing so mixed versions cannot\nhide which build produced an outcome. Checkpoint. A newer candidate improves\naverage quality, but it fails one predeclared safety gate and breaks a\nrequired client behavior during the canary. The model name is newer and the\nrollout has used only five percent of traffic. What happens next? Stop the rollout. Five-percent exposure\nlimits blast radius; it does not convert a hard failure into an acceptable result.\nPreserve candidate and baseline identities, exact routed requests, the\nsafety failure, compatibility trace, decision, and any affected state without\ncopying unnecessary content. Remove candidate traffic, verify the approved\nbaseline, reconcile in-flight work, and issue a hold or reject disposition. A\nrevised candidate must return through the qualification gates. If your answer\ncontinued because the model is newer or the average improved, restore the\nauthority of predeclared safety and compatibility gates. Treat rollback as a tested release of the\ncomplete known-good unit. Retain model, tokenizer, runtime, image, adapters,\nprompt and safety policy, infrastructure configuration, secret references,\ntelemetry contract, and deployment procedure. Identify state that may have\nchanged during the candidate: database schemas, queue formats, caches, tool side\neffects, evaluation records, or user-visible work. For every forward-only\nchange, provide a compatible reader, restore procedure, migration reversal, or\ndocumented compensating path. Rehearse rollback before production using the same\nauthorization, provenance, artifact verification, readiness, warm-up, routing,\nand postcondition checks as an update. During reversal, stop candidate admission,\ndrain or reconcile bounded in-flight work, restore the complete baseline, and verify\nexact identity, representative quality, endpoint contract, authorization, queue\nstate, telemetry, cost, and user-visible recovery. Changing an alias to old weights\nwhile leaving a new incompatible tokenizer or schema is not a complete rollback. Close the lifecycle with an evidence\nledger. Record who proposed, reviewed, approved, executed, paused, rolled back,\nand verified the change. Preserve timestamps, immutable versions, test\noutputs, traffic exposure, stop conditions, decisions, exceptions, expiry,\nand residual risks without storing secrets or unnecessary request content. Link every\ndecision to reproducible evidence. Feed release and rollback findings back into\nevaluation cases, thresholds, capacity assumptions, compatibility manifests,\nstate-migration tests, and runbooks. Retain rejected candidates under policy\nwith an explicit disposition and failed gates. That record prevents the same\nunsafe combination from being rediscovered and promoted later without context.\nEvidence also expires: when infrastructure, traffic, policy, data,\ngrader, or dependency conditions change, rerun the affected gates rather than\ntreating an old approval as permanent. Now plan and rehearse the reversible\nupdate. Create baseline and candidate manifests for the model, tokenizer,\nruntime, image, adapters, policies, configuration, infrastructure, evaluation\nset, and telemetry schema using immutable identities. Define quality, safety,\nsecurity, compatibility, capacity, cost, and recovery comparisons with hard gates\nand authorized reviewers. Choose a workstation, container, on-premises, edge,\nor cloud rollout and specify exposure, observation, stop, drain, routing, and\napproval controls. Force one guardrail failure in a tabletop or isolated\nrehearsal, execute rollback, verify the restored endpoint and state, then issue a\nrelease, reject, or revise decision with residual risks and follow-up. Instructor narration: This Node.js 22\nnative-ESM lab contains one deliberate learner-facing defect. The shared\nvalidator and independent reference are already sound and must not be edited. In\n`src/decision.mjs`, the starter excludes the recovery gate while collecting\nfailures. As a result, the incompatible packet is promoted even though recovery\nfailed. Edit only `src/decision.mjs` so every failed gate blocks promotion. Do not\nadd dependencies, network calls, model APIs, identifier-specific exceptions, or a\nrule that rejects every input. Prediction before answer: inspect\n`fixtures/packet.json`. Predict the starter decision from the six passing\ngates, failed recovery gate, and false compatibility evidence. Then inspect\n`fixtures/changed-compatible.json`, whose identifiers are different, state schemas\nagree, rollback evidence is compatible, and all seven gates pass. Predict why a\ngeneral repair must promote the changed input. Write both predictions and their\ncausal evidence before opening `reference/decision.mjs`. Expected starter\nresult for the first command is exactly `DECISION: PROMOTE`, `ROLLBACK_COMPATIBLE:\nfalse`, and `FAILED_GATES: none`, on separate lines, with exit code 0. The\nstarter test run has 29 tests: 28 pass, only `incompatible rollback state\nblocks promotion` fails, and the process exits 1. TAP durations and ordering across\nfiles can vary, so those counts, the failing test name, and the assertion that\nexpected `reject` but received `promote` are the stable expectations. These are\nexpected results derived from the supplied code, not a claim that this corrected\nartifact was executed. Learner activity: edit only `src/decision.mjs`, preserving\nits export and return shape. The repaired packet command must print `DECISION:\nREJECT`, `ROLLBACK_COMPATIBLE: false`, and `FAILED_GATES: recovery`, with exit code\n2. The tests must report 29 passing tests, zero failures, and exit 0. The changed\nfixture must print `DECISION: PROMOTE`, `ROLLBACK_COMPATIBLE: true`, and\n`FAILED_GATES: none`, with exit code 0. The renamed positive case rules out\nhardcoded identifiers and deny-all behavior. Answer key and causal feedback:\nthe faulty predicate explicitly excludes the gate named `recovery`. Replace it with\na predicate that selects every gate whose status is not `pass`. If the incompatible\npacket still promotes, recovery is still discarded or overridden. If the renamed\ncompatible packet rejects, the implementation is deny-all or coupled to\nthe original identifiers. If contradictory compatibility evidence, malformed digests,\nmissing fields, unknown enums, empty required arrays, non-finite ranges, or any\ncomplete-manifest readback mismatch is accepted, validation or recovery\nverification was weakened outside the focused defect. Recovery: copy\n`src/decision.mjs` to `.lab-tmp/decision.backup.mjs` before\nediting. The README provides bounded commands that touch only that named file\nunder the lab. Restore the backup if needed, or copy `reference/decision.mjs`\nover the learner file after attempting the exercise. Tests create and remove only\n`.lab-tmp/changed-input.json`; they do not use the operating-system temporary\ndirectory. Begin the check when you can define the\ncomplete serving unit, compare candidate and baseline by case and slice, preserve\nexact canary routing, stop on a hard gate, prove complete rollback, and retain\nrejected-candidate evidence. The check starts only when you choose Begin\nknowledge check. Remember: version the whole serving unit,\nqualify what will actually run, bound every rollout, and rehearse the complete\ncompatible baseline as a release before you need it.",
+    "reducedMotionAlternative": "Display the complete manifest as a static table and emphasize the current dependency with text and a border. Present the difference and impact mappings in a static table. Display the gate results as a static table with Pass, Hold, Reject, or Needs evidence labels. Show rollout strategies in a static comparison table instead of animated traffic movement. Present rollback as numbered states and a static postcondition checklist. Use a static evidence table and numbered feedback list."
+  }
 }
