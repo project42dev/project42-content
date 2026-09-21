@@ -152,6 +152,7 @@ next=$(printf '%s\n' "$pool" | grep '^next=' | cut -d= -f2)
 printf 'POOL first=%s next=%s\n' "$first" "$next"
 
 role=$(psql_admin -c "SELECT 'super=' || rolsuper || ' bypass=' || rolbypassrls || ' inherit=' || rolinherit || ' timeout=' || coalesce((SELECT split_part(config, '=', 2) FROM unnest(coalesce(rolconfig, ARRAY[]::text[])) AS config WHERE config LIKE 'statement_timeout=%'), '') FROM pg_roles WHERE rolname = 'support_tool'")
+[ "$role" = 'super=false bypass=false inherit=false timeout=2s' ] && role='super=f bypass=f inherit=f timeout=2s'
 [ "$role" = 'super=f bypass=f inherit=f timeout=2s' ] || {
   printf 'ROLE fail %s\n' "$role" >&2
   exit 1
