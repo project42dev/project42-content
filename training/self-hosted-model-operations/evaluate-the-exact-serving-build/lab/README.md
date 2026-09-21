@@ -40,7 +40,7 @@ stdout: PASS aggregate=100.00% criticalFailures=0\n
 exit: 0
 ```
 
-Node's TAP timing text can vary. With the starter installed, the 24-test suite has 21 passed and 3 failed because the learner predicate wrongly accepts the supplied critical failure, an exact identity mismatch, and a recovery failure. After a correct repair or reference recovery, it has 24 passed, 0 failed, and exit code 0. Validation probes pass in the starter because strict shared validation is not the learner task.
+Node's TAP timing text can vary. With the starter installed, the 24-test suite has 16 passed and 8 failed, with process exit code 1. The eight failures are: critical failure is not averaged away; exact CLI outputs and exit codes; exact identity mismatch fails closed; denominator mismatch assessment fails closed; evidence incomplete assessment fails closed; aggregate below threshold fails closed; service failure fails closed; and recovery failure fails closed. The starter CLI output is `PASS aggregate=91.67% criticalFailures=1\n` with exit code 0. After repair, the CLI output is `REJECT aggregate=91.67% criticalFailures=1 reasons=critical-failure:C06\n` with exit code 2, because C06 remains a critical failure. Independent learner execution and independent reference execution each pass all 24 tests, with process exit code 0. Validation probes pass in the starter because strict shared validation is not the learner task. Node's native ECMAScript module behavior is documented at https://nodejs.org/api/esm.html#native-esm, and the test runner's TAP output and timing fields are documented at https://nodejs.org/api/test.html.
 
 ## Recovery and reference
 
@@ -57,7 +57,7 @@ cp training/self-hosted-model-operations/evaluate-the-exact-serving-build/lab/pr
 node --test training/self-hosted-model-operations/evaluate-the-exact-serving-build/lab/test/gate.test.js
 ```
 
-These commands use repository-relative paths and work from the repository root on platforms that provide `cp`. If `cp` is unavailable, copy the named file with the platform's file-copy command. Test file paths are derived from `import.meta.url`, not the process working directory. Temporary generated fixtures stay under `lab/.tmp/`. Tests remove only that bounded directory through `fs.promises`, with a bounded synchronous exit fallback.
+These commands use repository-relative paths and work from the repository root on platforms that provide `cp`. If `cp` is unavailable, copy the named file with the platform's file-copy command. Test file paths are derived from `import.meta.url`, not the process working directory. Temporary generated fixtures stay under `lab/.tmp/`. Tests remove only that bounded directory through `fs.promises`, with a bounded synchronous exit fallback. Node's file-system API documents the promise-based file-system operations at https://nodejs.org/api/fs.html#file-system.
 
 ## Causal answer key
 
